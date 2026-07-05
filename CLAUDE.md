@@ -47,7 +47,19 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - When the project already has tests, loop on verifiable goals (don't add a harness
   uninvited; suggest it if missing): validation → test invalid inputs; bug → reproduce
   in a test; refactor → tests pass before and after. Run tests before saying it's done.
+- For large multi-file changes, commit or checkpoint incrementally and keep responses
+  concise (no large summaries), so a token or session-limit interruption never leaves
+  work half-done or files in a broken, incompilable state.
 - Never commit or push unless I explicitly ask.
+
+## Subagents
+- Use at most 2-3 subagents in parallel; prefer sequential execution with worktrees
+  for large multi-file tasks to avoid rate-limit failures.
+
+## Verification & Completion
+- Before claiming a task complete, run the actual build/tests and read the real output.
+  Never report success based on tool output you suspect is stale or "contaminated" —
+  if you cannot verify, say so explicitly instead of assuming success.
 
 ## Learning from mistakes
 - On correction, find the underlying rule, not the one-off fix. If general, propose
@@ -57,4 +69,6 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - English, conventional-commit style (feat:, fix:, refactor:).
 
 ## Environment
-- windows, I usually work in Python.
+- Windows, I usually work in Python.
+- Avoid PowerShell for text processing on files containing UTF-8/Chinese characters;
+  use direct Edit/Write tools to prevent character corruption.
