@@ -27,6 +27,22 @@ claude
 
 `CLAUDE.md` is loaded automatically as project instructions; no further setup is required.
 
+## Optional tools
+
+Extra CLIs that complement this setup (both require Node.js / npm):
+
+- **claude-mem** — persistent memory for Claude Code.
+
+  ```bash
+  npx claude-mem install
+  ```
+
+- **mermaid-cli** — renders and validates Mermaid diagrams via the `mmdc` command, matching the Mermaid documentation convention in `CLAUDE.md`.
+
+  ```bash
+  npm install -g @mermaid-js/mermaid-cli
+  ```
+
 ## Usage
 
 - `/git-haiku` — runs the requested git operation (commit, push, branch, etc.) under the Haiku 4.5 model instead of the main session model.
