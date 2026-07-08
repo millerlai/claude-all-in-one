@@ -1,0 +1,15 @@
+{
+  "name": "claude-all-in-one",
+  "description": "ML's personal Claude Code marketplace: cost-tiered agents, guarded git workflows, and reusable commands.",
+  "owner": {
+    "name": "millerlai"
+  },
+  "plugins": [
+    {
+      "name": "ml-workflow",
+      "description": "Cost-tiered subagents (explorer/implementer/test-runner/architect), haiku-powered git and quick-task commands, and a bash safety guard hook.",
+      "source": "./plugins/ml-workflow",
+      "category": "development"
+    }
+  ]
+}

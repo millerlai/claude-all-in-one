@@ -1,0 +1,9 @@
+{
+  "name": "ml-workflow",
+  "version": "1.0.0",
+  "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, and a bash safety guard hook.",
+  "author": {
+    "name": "millerlai"
+  },
+  "repository": "https://github.com/millerlai/claude-all-in-one"
+}
