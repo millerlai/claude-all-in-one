@@ -49,6 +49,29 @@ Inside any Claude Code session:
 That's it — agents, commands, and the bash guard are now available in every
 project. Update later with `/plugin update ml-workflow`.
 
+#### Updating and force reinstall
+
+The marketplace is cloned locally, so always refresh it first — otherwise
+update/reinstall still serves the cached commit:
+
+```
+/plugin marketplace update claude-all-in-one
+/plugin update ml-workflow
+```
+
+Force reinstall (only needed if content changed without a version bump, or the
+cache looks corrupted):
+
+```
+/plugin marketplace update claude-all-in-one
+/plugin uninstall ml-workflow@claude-all-in-one
+/plugin install ml-workflow@claude-all-in-one
+```
+
+If even that serves stale content, delete the plugin's cache directory under
+`~/.claude/plugins/` and install again. Either way, restart the session —
+running sessions don't hot-reload plugin agents/hooks.
+
 ### 2. Install the global rules (instruction files)
 
 Rules are not a plugin component, so copy them once to user scope:
