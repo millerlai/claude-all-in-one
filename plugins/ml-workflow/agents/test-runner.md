@@ -3,7 +3,7 @@ name: test-runner
 description: >
   Runs test suites and reports failures. Use PROACTIVELY after any code
   change. Does not fix code.
-tools: Bash(go test:*), Bash(pytest:*), Bash(npm test:*), Bash(npm run:*), Read
+tools: Bash(go test:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m unittest:*), Bash(uv run pytest:*), Bash(npm test:*), Bash(npm run:*), Read
 model: haiku
 ---
 
