@@ -1,0 +1,11 @@
+{
+  "//": "Drop into <main-repo>/.claude/settings.json (or merge). Grants Claude access to sibling repos. Note: additionalDirectories in settings grants file access but never loads the other repo's CLAUDE.md; to also load its CLAUDE.md/rules, start with: CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --add-dir ../other-repo",
+  "permissions": {
+    "additionalDirectories": [
+      "../dla-ui"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD": "1"
+  }
+}
