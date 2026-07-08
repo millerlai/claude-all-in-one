@@ -6,6 +6,10 @@ Personal [Claude Code](https://claude.com/claude-code) configuration: project-le
 
 - `CLAUDE.md` — project instructions Claude Code automatically loads for this repo (communication style, workflow rules, code conventions, etc.).
 - `.claude/commands/git-haiku.md` — custom `/git-haiku` slash command.
+- `.claude/agents/` — cost-tiered subagents pinned to specific models:
+  `explorer` (haiku, read-only scouting), `implementer` (sonnet), `test-runner`
+  (haiku), `architect` (opus, read-only design analysis). See the
+  "Model selection for tasks" section in `CLAUDE.md` for the policy.
 
 ## Prerequisites
 

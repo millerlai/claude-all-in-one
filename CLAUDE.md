@@ -56,6 +56,22 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 - Use at most 2-3 subagents in parallel; prefer sequential execution with worktrees
   for large multi-file tasks to avoid rate-limit failures.
 
+## Model selection for tasks
+- Before delegating via the Task tool or a subagent, judge task complexity FIRST and
+  pick the cheapest model that can do it reliably. Never default to the strongest.
+  - haiku — mechanical/low-reasoning: file search, grep/glob exploration, renaming,
+    formatting, simple summarization, boilerplate, running tests and reporting.
+  - sonnet — standard engineering: well-specified features, tests, routine refactors,
+    small-diff review, documentation.
+  - opus (or strongest available) — only when genuinely required: cross-cutting
+    architecture, subtle concurrency/correctness bugs, ambiguous requirements.
+- State in one line which model you chose and why, before each delegation.
+- Unsure between two tiers → start cheaper; escalate only on evidence (failed
+  attempt, discovered ambiguity), never because it "might" be hard.
+- Prefer the dedicated agents in `.claude/agents/` when they match:
+  `explorer` (haiku) → `implementer` (sonnet) → `architect` (opus);
+  `test-runner` (haiku) after every code change.
+
 ## Verification & Completion
 - Before claiming a task complete, run the actual build/tests and read the real output.
   Never report success based on tool output you suspect is stale or "contaminated" —
