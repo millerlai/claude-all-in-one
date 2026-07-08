@@ -10,7 +10,7 @@ import sys
 
 BLOCKED = [
     # (pattern, reason)
-    (r"git\s+push\s+[^\n]*--force(?!-with-lease)", "force push (use --force-with-lease if truly needed)"),
+    (r"git\s+push\b[^\n]*?(\s--force(?!-with-lease)|\s-f\b)", "force push (use --force-with-lease if truly needed)"),
     (r"git\s+reset\s+[^\n]*--hard", "hard reset discards work"),
     (r"git\s+clean\s+-[a-z]*f", "git clean -f deletes untracked files"),
     (r"git\s+[^\n]*--no-verify", "skipping hooks"),

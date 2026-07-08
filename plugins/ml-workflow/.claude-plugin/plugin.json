@@ -1,6 +1,6 @@
 {
   "name": "ml-workflow",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, and a bash safety guard hook.",
   "author": {
     "name": "millerlai"
