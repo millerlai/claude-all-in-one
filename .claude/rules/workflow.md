@@ -17,3 +17,15 @@
 - On correction, find the underlying rule, not the one-off fix. If general, propose
   adding to user-scope rules; if project-specific, to that project's CLAUDE.md.
   Ask first, as an imperative.
+
+# Recurring procedures → skills
+- When a request closely resembles one already performed in this project (same
+  steps, different inputs) for the second time or more, check whether the steps
+  form a repeatable procedure.
+- If they do: complete the task first, then propose capturing it as a skill and
+  ask which scope — project (`.claude/skills/<name>/`) or user-global
+  (`~/.claude/skills/<name>/`). On approval, create it: SKILL.md with
+  frontmatter `name` + `description` (written for triggering), the procedure
+  steps, and extract any reusable scripts/templates alongside.
+- Bar: a multi-step procedure likely to recur. Don't propose for one-off tasks
+  or trivial single commands, and don't re-propose one the user declined.
