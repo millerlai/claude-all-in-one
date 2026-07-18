@@ -14,7 +14,7 @@ plugins/ml-workflow/               The plugin
                                      implementer (sonnet)
                                      test-runner (haiku)
                                      architect (opus, read-only design)
-  commands/git-haiku.md            /ml-workflow:git-haiku — git ops under Haiku
+  commands/git.md                  /ml-workflow:git — git ops under Haiku
   commands/haiku.md                /ml-workflow:haiku — any quick task under Haiku
   hooks/ + scripts/bash_guard.py   PreToolUse guard blocking destructive commands
                                      (force push, hard reset, git clean -f,
@@ -98,7 +98,7 @@ See `docs/multi-session.md` for when teams beat subagents (and when they don't).
 
 ## Usage
 
-- `/ml-workflow:git-haiku <git operation>` — run git ops under Haiku 4.5.
+- `/ml-workflow:git <git operation>` — run git ops under Haiku 4.5.
 - `/ml-workflow:haiku <task>` — run any mechanical quick task under Haiku.
 - Agents dispatch automatically per the model-selection rules, or mention them:
   `@agent-explorer`, `@agent-implementer`, `@agent-test-runner`, `@agent-architect`.
@@ -136,5 +136,5 @@ reinstall to test changes:
 
 - `.claude/settings.local.json` is per-user local settings, intentionally
   excluded via a global gitignore rule and not tracked here.
-- Plugin commands are namespaced (`/ml-workflow:git-haiku`); the old
-  project-scope `/git-haiku` was moved into the plugin.
+- Plugin commands are namespaced (`/ml-workflow:git`, formerly `/ml-workflow:git-haiku`);
+  the old project-scope `/git-haiku` was moved into the plugin.
