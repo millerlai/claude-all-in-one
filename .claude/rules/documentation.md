@@ -14,3 +14,15 @@ paths:
   - Added → green (`classDef added fill:#d4edda,stroke:#28a745,color:#155724`)
   - Modified → amber (`classDef modified fill:#fff3cd,stroke:#ffc107,color:#856404`)
   - Existing/unchanged → gray (`classDef existing fill:#e9ecef,stroke:#adb5bd,color:#495057`)
+
+# Mermaid layout
+- Always start diagrams with the ELK layout config to reduce edge crossings:
+  ```
+  ---
+  config:
+    layout: elk
+  ---
+  ```
+- If the target environment doesn't support ELK, fall back to raising `nodeSpacing`
+  and `rankSpacing` via an `%%{init}%%` directive instead.
+- When needed, use invisible links (`~~~`) to fine-tune node positioning.
