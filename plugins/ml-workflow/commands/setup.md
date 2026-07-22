@@ -52,7 +52,35 @@ Traditional Chinese: `- Respond in Traditional Chinese; keep technical terms in 
 
 If the user picks English, leave the line as-is.
 
-## Step 4 — Verify the bash guard fires
+## Step 4 — Bootstrap or review the user's global CLAUDE.md
+
+`<plugin-root>/templates/CLAUDE.md.tpl` is a starting point for
+`~/.claude/CLAUDE.md`. It is deliberately thin: the rules from Step 2 already
+load automatically from `~/.claude/rules/`, so anything restated here would be
+sent to the model twice in every session.
+
+Handle whichever case applies:
+
+**No `~/.claude/CLAUDE.md`** — whether `~/.claude/` was missing entirely or
+just lacks the file, create what's needed and copy the template in. Then fill
+the `## Environment` section: substitute the detected OS into the first
+placeholder, ask the user what they mostly work in if you can't tell, and leave
+the second placeholder as a comment for them to fill in later.
+
+**It already exists** — never overwrite it. Read it, compare against the rules
+you just installed in `~/.claude/rules/`, and report:
+
+- Sections whose content is already covered by a rules file. Name the specific
+  rules file for each. This is the normal case for anyone who kept their rules
+  inline before installing this plugin, and it means the same instructions are
+  being sent twice per session.
+- Anything the template covers that their file is missing.
+
+Then ask whether to slim their file down to what the rules don't cover —
+usually the preamble plus `## Environment`. Show the proposed result and only
+write it if they agree. If they decline, leave the file untouched and move on.
+
+## Step 5 — Verify the bash guard fires
 
 The guard is a PreToolUse hook, so a silent failure means the user is unprotected
 without knowing it. Verify it end-to-end rather than assuming.
@@ -79,11 +107,13 @@ Tell the user plainly that destructive commands are NOT being blocked, and that
 they need Python 3 on PATH (`python3` on macOS/Linux, `python` or the `py`
 launcher on Windows).
 
-## Step 5 — Report
+## Step 6 — Report
 
 Report concisely:
 
 - Which rules files were written to `~/.claude/rules/`, and any that were skipped.
 - The response language that was set.
+- What happened to `~/.claude/CLAUDE.md` — created, slimmed, or left alone with
+  duplication still present.
 - Whether the bash guard verification passed or failed.
 - That a session restart is needed for newly copied rules to take effect.

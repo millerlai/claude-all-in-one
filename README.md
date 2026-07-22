@@ -39,8 +39,8 @@ Restart the session, then run:
 ```
 
 Setup copies the rule files into `~/.claude/rules/`, asks which language you
-want Claude to reply in, and verifies the bash guard actually fires. Restart
-once more so the new rules load.
+want Claude to reply in, sets up your global `~/.claude/CLAUDE.md`, and verifies
+the bash guard actually fires. Restart once more so the new rules load.
 
 Agents, commands, and the guard work in every project from then on. The rules
 apply to every project too, since they live at user scope.
@@ -84,6 +84,18 @@ asks before overwriting them.
 
 `communication.md` ships defaulting to English; `/ml-workflow:setup` rewrites
 that line to whatever language you pick.
+
+## Your global CLAUDE.md
+
+`~/.claude/rules/` loads automatically, so your `~/.claude/CLAUDE.md` only needs
+what the rules can't know — your OS, your stack, and the mistakes you don't want
+repeated. Setup writes a thin starter there if you don't have one.
+
+If you already have a CLAUDE.md, setup never overwrites it. It reports which of
+your sections are now covered by a rules file and offers to slim the file down,
+because a rule kept in both places is sent to the model twice in every session
+and the two copies drift apart as soon as one is edited. `validate.py` enforces
+the same invariant on the shipped template.
 
 ## Also included
 
