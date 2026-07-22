@@ -6,9 +6,9 @@
   },
   "plugins": [
     {
-      "name": "ml-workflow",
+      "name": "cai",
       "description": "Cost-tiered subagents (explorer/implementer/test-runner/architect), haiku-powered git and quick-task commands, a PR squash skill, an installable rule set, and a bash safety guard hook.",
-      "source": "./plugins/ml-workflow",
+      "source": "./plugins/cai",
       "category": "development"
     }
   ]

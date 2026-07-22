@@ -5,16 +5,16 @@ Bias toward caution over speed. For trivial tasks, use judgment.
 The rules below are the same files the plugin ships to users, imported from
 their single source of truth so editing them here changes what users get.
 
-@plugins/ml-workflow/rules/epistemics.md
-@plugins/ml-workflow/rules/coding.md
-@plugins/ml-workflow/rules/workflow.md
-@plugins/ml-workflow/rules/model-selection.md
-@plugins/ml-workflow/rules/memory.md
-@plugins/ml-workflow/rules/documentation.md
+@plugins/cai/rules/epistemics.md
+@plugins/cai/rules/coding.md
+@plugins/cai/rules/workflow.md
+@plugins/cai/rules/model-selection.md
+@plugins/cai/rules/memory.md
+@plugins/cai/rules/documentation.md
 
 `communication.md` is deliberately not imported: the shipped copy defaults to
 English, while the response language belongs to whoever is working — it is set
-per-user in `~/.claude/rules/` by `/ml-workflow:setup`.
+per-user in `~/.claude/rules/` by `/cai:setup`.
 
 ## Environment
 - Windows, I usually work in Python.

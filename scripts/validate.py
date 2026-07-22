@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 FAIL = 0
-PLUGIN = "plugins/ml-workflow"
+PLUGIN = "plugins/cai"
 
 
 def check(label, cond):
@@ -61,7 +61,7 @@ for path in skills:
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
 
-# /ml-workflow:setup copies these out to ~/.claude/rules/; an empty dir would
+# /cai:setup copies these out to ~/.claude/rules/; an empty dir would
 # make setup a silent no-op.
 rules = sorted(glob.glob(f"{PLUGIN}/rules/*.md"))
 check("rules ship with the plugin", bool(rules))

@@ -17,7 +17,7 @@ where python >nul 2>nul
 if not errorlevel 1 goto usepython
 
 REM No interpreter: allow the command through rather than blocking every Bash
-REM call. `/ml-workflow:setup` verifies the guard actually fires.
+REM call. `/cai:setup` verifies the guard actually fires.
 exit /b 0
 
 :usepy

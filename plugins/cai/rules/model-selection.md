@@ -14,7 +14,7 @@
 - State in one line which model you chose and why, before each delegation.
 - Unsure between two tiers → start cheaper; escalate only on evidence (failed
   attempt, discovered ambiguity), never because it "might" be hard.
-- Prefer the ml-workflow plugin agents when they match. Typical flow:
+- Prefer the cai plugin agents when they match. Typical flow:
   `explorer` (haiku, locate relevant code)
   → `architect` (opus, ONLY when an architecture/concurrency/ambiguity decision
     is needed; read-only, hands a spec to implementer)
