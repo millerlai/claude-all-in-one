@@ -123,6 +123,11 @@ Add the marketplace from a local checkout, then install to test your changes:
 Everything users receive lives under `plugins/ml-workflow/` — the plugin cache
 copies only that directory, so anything outside it never reaches an installer.
 
+Adding guidance rather than code? [GUIDE.md](GUIDE.md) covers which component
+should hold it — a convention, a procedure, or a constraint — and why putting it
+in the wrong one makes it quietly stop working. It applies just as well to your
+own `~/.claude/` setup.
+
 Before pushing, run:
 
 ```bash
