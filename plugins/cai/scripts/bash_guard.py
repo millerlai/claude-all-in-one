@@ -35,7 +35,7 @@ def main() -> int:
                 f"Command: {command}\n"
                 "If the user explicitly requested this, tell them the guard "
                 "blocked it and ask them to run it manually or temporarily "
-                "disable the ml-workflow plugin hook.\n"
+                "disable the cai plugin hook.\n"
             )
             return 2
     return 0

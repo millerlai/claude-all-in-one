@@ -29,7 +29,7 @@ CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
   their own context windows, coordinating via a shared task list and mailbox.
 - Unlike subagents (report only to the caller), teammates message each other
   and self-claim tasks; you can also talk to any teammate directly.
-- Teammates can be spawned from the ml-workflow plugin agent definitions, which
+- Teammates can be spawned from the cai plugin agent definitions, which
   pins their model and tool whitelist — the cost ladder still applies:
   explorer/test-runner on haiku, implementer on sonnet, architect on opus.
 - Quality gates: hook into `TeammateIdle` / `TaskCompleted`; exiting with

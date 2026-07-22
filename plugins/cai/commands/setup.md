@@ -1,8 +1,8 @@
 ---
-description: Finish installing ml-workflow — copy the shared rules into ~/.claude/rules/, set your preferred response language, and verify the bash guard actually fires. Run once after installing the plugin, and again after each /plugin update.
+description: Finish installing cai — copy the shared rules into ~/.claude/rules/, set your preferred response language, and verify the bash guard actually fires. Run once after installing the plugin, and again after each /plugin update.
 ---
 
-Install the ml-workflow rules for this user and verify the plugin is working.
+Install the cai rules for this user and verify the plugin is working.
 Work through the steps in order and stop with a clear report if any step fails.
 
 ## Step 1 — Locate the installed plugin
@@ -11,13 +11,13 @@ The plugin ships its rules in `<plugin-root>/rules/`. Find `<plugin-root>` by
 checking these locations in order and taking the first that exists:
 
 1. The install cache, highest version number if several are present:
-   `~/.claude/plugins/cache/claude-all-in-one/ml-workflow/*/`
+   `~/.claude/plugins/cache/claude-all-in-one/cai/*/`
 2. A local checkout of the repo, if the current working directory is one:
-   `./plugins/ml-workflow/`
+   `./plugins/cai/`
 
 Confirm `<plugin-root>/rules/` contains `.md` files before continuing. If you
 cannot find it, stop and tell the user to run `/plugin install
-ml-workflow@claude-all-in-one` first.
+cai@claude-all-in-one` first.
 
 ## Step 2 — Copy the rules to user scope
 

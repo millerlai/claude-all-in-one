@@ -119,7 +119,7 @@ git reset --soft backup/<branch>-<timestamp>
 `--soft` is sufficient and fully restores the original history: the squash never
 touches the working tree (identical tree before/after), so only the branch
 pointer needs to move back. Do not use `git reset --hard` — it is blocked by the
-ml-workflow bash guard hook and is unnecessary here.
+cai bash guard hook and is unnecessary here.
 
 The backup branch can be deleted once the PR is merged: `git branch -D backup/...`
 

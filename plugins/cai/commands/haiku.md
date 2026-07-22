@@ -1,5 +1,5 @@
 ---
-description: Run a quick, mechanical task under Haiku instead of the main session model — renames, formatting, simple lookups, one-off shell commands, boilerplate. Usage: /ml-workflow:haiku <task>
+description: Run a quick, mechanical task under Haiku instead of the main session model — renames, formatting, simple lookups, one-off shell commands, boilerplate. Usage: /cai:haiku <task>
 model: claude-haiku-4-5-20251001
 argument-hint: <quick task>
 ---
