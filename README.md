@@ -1,43 +1,29 @@
 # claude-all-in-one
 
-Personal [Claude Code](https://claude.com/claude-code) configuration, packaged
-as a **plugin marketplace** so the whole setup installs into any project on any
-machine with two commands.
+A [Claude Code](https://claude.com/claude-code) plugin that installs a working
+set of everyday capabilities — cheaper model routing, safer git, and a shared
+set of behavioural rules — into every project on your machine.
 
-## Contents
+## What you get
 
-```
-.claude-plugin/marketplace.json    Marketplace catalog (this repo is the marketplace)
-plugins/ml-workflow/               The plugin
-  agents/                          Cost-tiered subagents pinned to models:
-                                     explorer (haiku, read-only scouting)
-                                     implementer (sonnet)
-                                     test-runner (haiku)
-                                     architect (opus, read-only design)
-  commands/git.md                  /ml-workflow:git — git ops under Haiku
-  commands/haiku.md                /ml-workflow:haiku — any quick task under Haiku
-  hooks/ + scripts/bash_guard.py   PreToolUse guard blocking destructive commands
-                                     (force push, hard reset, git clean -f,
-                                      --no-verify, rm -rf) — pure-Python, Windows-safe
-.claude/rules/                     Topical instruction files (communication,
-                                     epistemics, coding, workflow, model-selection,
-                                     documentation) — copy to ~/.claude/rules/
-                                     for global effect
-CLAUDE.md                          Slim entry point for this repo
-templates/multi-repo.settings.json Multi-repo access template
-docs/multi-repo.md                 Cross-repo workflows (--add-dir, worktrees)
-docs/multi-session.md              Sessions, background agents, agent teams, memory
-```
+| | |
+|---|---|
+| **Cost-tiered subagents** | `explorer` (Haiku, read-only scouting), `implementer` (Sonnet), `test-runner` (Haiku), `architect` (Opus, read-only design). Claude picks the cheapest model that can do the job instead of defaulting to the strongest. |
+| **`/ml-workflow:git`** | Runs git and `gh` operations under Haiku 4.5 rather than the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
+| **`/ml-workflow:haiku`** | Runs any mechanical one-off — renames, formatting, lookups — under Haiku, and reports back if the task turns out to need real reasoning. |
+| **`/ml-workflow:git-pr-rebase`** | Squashes a PR branch into one well-written conventional commit. Takes a backup branch first and shows you the message before rewriting anything. |
+| **Bash safety guard** | A `PreToolUse` hook that blocks force pushes, `reset --hard`, `git clean -f`, `--no-verify`, and `rm -rf`, and hands the command back to you. |
+| **Shared rules** | Seven instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, and write docs. Installed to user scope by `/ml-workflow:setup`. |
 
 ## Prerequisites
 
-- [Claude Code CLI](https://claude.com/claude-code) installed and authenticated
-  (v2.1.32+ for agent teams; any recent version otherwise).
-- Git. Python 3 on PATH (for the bash guard hook; ships with most setups).
+- Claude Code CLI, installed and authenticated.
+- Git.
+- Python 3 on `PATH` — `python3` on macOS/Linux, `python` or the `py` launcher
+  on Windows. The bash guard needs it; `/ml-workflow:setup` tells you if it's
+  missing.
 
-## Installation
-
-### 1. Install the plugin (agents + commands + hooks, all projects)
+## Install
 
 Inside any Claude Code session:
 
@@ -46,21 +32,33 @@ Inside any Claude Code session:
 /plugin install ml-workflow@claude-all-in-one
 ```
 
-That's it — agents, commands, and the bash guard are now available in every
-project. Update later with `/plugin update ml-workflow`.
+Restart the session, then run:
 
-#### Updating and force reinstall
+```
+/ml-workflow:setup
+```
 
-The marketplace is cloned locally, so always refresh it first — otherwise
-update/reinstall still serves the cached commit:
+Setup copies the rule files into `~/.claude/rules/`, asks which language you
+want Claude to reply in, and verifies the bash guard actually fires. Restart
+once more so the new rules load.
+
+Agents, commands, and the guard work in every project from then on. The rules
+apply to every project too, since they live at user scope.
+
+## Updating
+
+The marketplace is cloned locally, so refresh it first — otherwise an update
+re-serves the cached commit:
 
 ```
 /plugin marketplace update claude-all-in-one
 /plugin update ml-workflow
 ```
 
-Force reinstall (only needed if content changed without a version bump, or the
-cache looks corrupted):
+Re-run `/ml-workflow:setup` afterwards to pick up rule changes, and restart the
+session — running sessions don't hot-reload plugin agents or hooks.
+
+If content changed without a version bump, or the cache looks corrupted:
 
 ```
 /plugin marketplace update claude-all-in-one
@@ -68,73 +66,58 @@ cache looks corrupted):
 /plugin install ml-workflow@claude-all-in-one
 ```
 
-If even that serves stale content, delete the plugin's cache directory under
-`~/.claude/plugins/` and install again. Either way, restart the session —
-running sessions don't hot-reload plugin agents/hooks.
+## The rules
 
-### 2. Install the global rules (instruction files)
+`/ml-workflow:setup` writes these to `~/.claude/rules/`. They are ordinary
+Markdown — edit your copies freely; setup flags files that look hand-edited and
+asks before overwriting them.
 
-Rules are not a plugin component, so copy them once to user scope:
+| File | What it governs |
+|---|---|
+| `communication.md` | Response language, conciseness, leading with the answer. |
+| `epistemics.md` | Check before answering, cite sources, never fabricate, re-read as a skeptic before delivering. |
+| `coding.md` | Pure functions, comment the why, minimum code, surgical changes only. |
+| `workflow.md` | Branch before touching code, plan non-trivial changes, run tests before claiming done, never commit unless asked. |
+| `model-selection.md` | Which subagent and model tier to use for which kind of task. |
+| `memory.md` | Record stable facts only; don't persist implementation details that go stale. |
+| `documentation.md` | Markdown, Mermaid for structure, validate diagrams before shipping. |
 
-```bash
-# macOS / Linux
-mkdir -p ~/.claude/rules && cp .claude/rules/*.md ~/.claude/rules/
+`communication.md` ships defaulting to English; `/ml-workflow:setup` rewrites
+that line to whatever language you pick.
 
-# Windows (PowerShell)
-New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\rules" | Out-Null
-Copy-Item .claude\rules\*.md "$env:USERPROFILE\.claude\rules\"
-```
+## Also included
 
-Re-run after pulling updates. Project-specific overrides go in each repo's own
-`CLAUDE.md` / `.claude/rules/`.
+- `docs/multi-repo.md` — cross-repo sessions with `--add-dir` and worktrees,
+  plus `templates/multi-repo.settings.json`.
+- `docs/multi-session.md` — sessions, background agents, agent teams, memory.
+  Agent teams are experimental and need `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- Optional: [mermaid-cli](https://github.com/mermaid-js/mermaid-cli)
+  (`npm install -g @mermaid-js/mermaid-cli`) so Claude can actually render and
+  validate the diagrams `documentation.md` asks for.
 
-### 3. Optional: enable agent teams (experimental)
+Claude Code's built-in auto memory keeps per-project notes in
+`~/.claude/projects/<project>/memory/` — inspect with `/memory`. Curated
+instructions belong in the rules; hard constraints belong in hooks.
 
-```bash
-CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
-```
+## Contributing / developing
 
-See `docs/multi-session.md` for when teams beat subagents (and when they don't).
-
-## Usage
-
-- `/ml-workflow:git <git operation>` — run git ops under Haiku 4.5.
-- `/ml-workflow:haiku <task>` — run any mechanical quick task under Haiku.
-- Agents dispatch automatically per the model-selection rules, or mention them:
-  `@agent-explorer`, `@agent-implementer`, `@agent-test-runner`, `@agent-architect`.
-- Multi-repo sessions: `docs/multi-repo.md` + `templates/multi-repo.settings.json`.
-- The bash guard blocks force-push / hard-reset / `git clean -f` / `--no-verify` /
-  `rm -rf` and tells Claude to hand the command back to you.
-
-## Memory
-
-Claude Code's built-in auto memory (on by default) keeps per-project notes in
-`~/.claude/projects/<project>/memory/` — inspect with `/memory`. This replaces
-the previously recommended `claude-mem` tool. Curated instructions belong in
-CLAUDE.md / rules; hard constraints belong in hooks.
-
-## Optional tools
-
-- **mermaid-cli** — renders and validates Mermaid diagrams via `mmdc`, matching
-  the Mermaid convention in `.claude/rules/documentation.md`:
-
-  ```bash
-  npm install -g @mermaid-js/mermaid-cli
-  ```
-
-## Developing this repo
-
-Working on the plugin itself? Add the marketplace from the local checkout, then
-reinstall to test changes:
+Add the marketplace from a local checkout, then install to test your changes:
 
 ```
 /plugin marketplace add /path/to/claude-all-in-one
 /plugin install ml-workflow@claude-all-in-one
 ```
 
-## Notes
+Everything users receive lives under `plugins/ml-workflow/` — the plugin cache
+copies only that directory, so anything outside it never reaches an installer.
 
-- `.claude/settings.local.json` is per-user local settings, intentionally
-  excluded via a global gitignore rule and not tracked here.
-- Plugin commands are namespaced (`/ml-workflow:git`, formerly `/ml-workflow:git-haiku`);
-  the old project-scope `/git-haiku` was moved into the plugin.
+Before pushing, run:
+
+```bash
+python scripts/validate.py
+```
+
+It checks the manifests, that every agent/command/skill has the frontmatter
+Claude Code needs to load it, that hook commands point at files that exist, and
+that the guard still blocks what it should — through the same dispatcher the
+hook uses, on your platform.
