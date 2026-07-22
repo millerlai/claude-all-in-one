@@ -1,0 +1,8 @@
+# The polyglot hook dispatcher is parsed by both CMD.exe and sh. CRLF would
+# leave stray \r in the sh branch's commands, so pin it to LF everywhere.
+*.cmd text eol=lf
+
+*.md text eol=lf
+*.json text eol=lf
+*.py text eol=lf
+*.yml text eol=lf

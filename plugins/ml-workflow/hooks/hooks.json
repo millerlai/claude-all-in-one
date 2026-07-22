@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/scripts/bash_guard.py\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd\""
           }
         ]
       }
