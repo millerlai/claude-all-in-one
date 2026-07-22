@@ -66,6 +66,25 @@ for path in skills:
 rules = sorted(glob.glob(f"{PLUGIN}/rules/*.md"))
 check("rules ship with the plugin", bool(rules))
 
+TEMPLATE = f"{PLUGIN}/templates/CLAUDE.md.tpl"
+check("user CLAUDE.md template ships", os.path.isfile(TEMPLATE))
+
+
+def bullets(path):
+    with open(path, encoding="utf-8") as fh:
+        return {line.strip() for line in fh if line.strip().startswith("- ")}
+
+
+# The template seeds ~/.claude/CLAUDE.md, which loads alongside ~/.claude/rules/.
+# Anything restated in both is sent to the model twice in every session, and the
+# copies drift the moment one is edited. Keep them disjoint.
+if os.path.isfile(TEMPLATE) and rules:
+    ruleset = set().union(*(bullets(p) for p in rules))
+    clashes = sorted(bullets(TEMPLATE) & ruleset)
+    check(f"template does not restate rules ({len(clashes)} duplicated)", not clashes)
+    for line in clashes[:5]:
+        print("     also in rules/:", line[:90])
+
 hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
 print("PASS hooks.json is valid JSON")
 
