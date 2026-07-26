@@ -3,6 +3,9 @@
 - Comment the *why*, not the *what*.
 - Match the file's existing style even if you'd do it differently — during a surgical
   change this wins over the above; flag the divergence in a note instead of "fixing" it.
+- When the ask is "like X" — an existing module, library, or component — read X's
+  source before writing. A description or a screenshot reproduces the look, not the
+  semantics.
 
 # Simplicity first
 - Minimum code that solves the problem. Nothing speculative — no features,
