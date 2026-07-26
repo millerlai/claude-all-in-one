@@ -16,3 +16,7 @@
 - Before claiming a task complete, run the actual build/tests and read the real output.
   Never report success based on tool output you suspect is stale or "contaminated" —
   if you cannot verify, say so explicitly instead of assuming success.
+- Working is only half the gate; matching what was asked is the other half. Restate the
+  design — spec, plan, issue, or my original request, whichever exists — as a checklist
+  and point each item at the code that satisfies it (file:line). Report anything
+  unimplemented, partially done, or built differently rather than declaring it done.
