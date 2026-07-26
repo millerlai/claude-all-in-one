@@ -20,4 +20,5 @@ You implement exactly what is specified.
   - Added → green (`classDef added fill:#d4edda,stroke:#28a745,color:#155724`)
   - Modified → amber (`classDef modified fill:#fff3cd,stroke:#ffc107,color:#856404`)
   - Existing/unchanged → gray (`classDef existing fill:#e9ecef,stroke:#adb5bd,color:#495057`)
-- Summarize changes as: files touched, behavior change, test status.
+- Summarize changes as: files touched, behavior change, test status, and each spec
+  item mapped to where it landed — with any deviation called out.
