@@ -76,8 +76,8 @@ asks before overwriting them.
 |---|---|
 | `communication.md` | Response language, conciseness, leading with the answer. |
 | `epistemics.md` | Check before answering, cite sources, never fabricate, re-read as a skeptic before delivering. |
-| `coding.md` | Pure functions, comment the why, minimum code, surgical changes only. |
-| `workflow.md` | Branch before touching code, plan non-trivial changes, run tests before claiming done, never commit unless asked. |
+| `coding.md` | Pure functions, comment the why, read the reference's source when matching an existing implementation, minimum code, surgical changes only. |
+| `workflow.md` | Branch before touching code, plan non-trivial changes, prototype taste-driven work, log deviations from the plan, run tests before claiming done, never commit unless asked. |
 | `model-selection.md` | Which subagent and model tier to use for which kind of task. |
 | `memory.md` | Record stable facts only; don't persist implementation details that go stale. |
 | `documentation.md` | Markdown, Mermaid for structure, validate diagrams before shipping. |
