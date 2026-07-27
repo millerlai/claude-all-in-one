@@ -1,5 +1,5 @@
 ---
-description: Quiz yourself on a diff before merging — a report on what changed and the non-obvious behaviours, then questions you have to answer correctly. Usage: /cai:quiz [base-ref]
+description: "Quiz yourself on a diff before merging — a report on what changed and the non-obvious behaviours, then questions you have to answer correctly. Usage: /cai:quiz [base-ref]"
 argument-hint: "[base-ref — defaults to the branch point]"
 ---
 

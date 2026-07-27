@@ -12,6 +12,8 @@ set of behavioural rules — into every project on your machine.
 | **`/cai:git`** | Runs git and `gh` operations under Haiku 4.5 rather than the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
 | **`/cai:haiku`** | Runs any mechanical one-off — renames, formatting, lookups — under Haiku, and reports back if the task turns out to need real reasoning. |
 | **`/cai:git-pr-rebase`** | Squashes a PR branch into one well-written conventional commit. Takes a backup branch first and shows you the message before rewriting anything. |
+| **`finding-unknowns`** | Fires before implementation when the code is unfamiliar, the spec is vague, the solution space is unexplored, or the result is judged by look and feel — and offers the cheapest artifact that would settle it: a blindspot pass, a vocabulary ladder, a one-question-at-a-time interview, a sized option list, or four incompatible mocks. Asks before it runs. |
+| **`/cai:quiz`** | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |
 | **Bash safety guard** | A `PreToolUse` hook that blocks force pushes, `reset --hard`, `git clean -f`, `--no-verify`, and `rm -rf`, and hands the command back to you. |
 | **Shared rules** | Seven instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, and write docs. Installed to user scope by `/cai:setup`. |
 
@@ -77,7 +79,7 @@ asks before overwriting them.
 | `communication.md` | Response language, conciseness, leading with the answer. |
 | `epistemics.md` | Check before answering, cite sources, never fabricate, re-read as a skeptic before delivering. |
 | `coding.md` | Pure functions, comment the why, read the reference's source when matching an existing implementation, minimum code, surgical changes only. |
-| `workflow.md` | Branch before touching code, plan non-trivial changes, prototype taste-driven work, log deviations from the plan, run tests before claiming done, never commit unless asked. |
+| `workflow.md` | Branch before touching code, plan non-trivial changes and order them by what you're likeliest to change, prototype taste-driven work, log deviations from the plan, run tests before claiming done, never commit unless asked. |
 | `model-selection.md` | Which subagent and model tier to use for which kind of task. |
 | `memory.md` | Record stable facts only; don't persist implementation details that go stale. |
 | `documentation.md` | Markdown, Mermaid for structure, validate diagrams before shipping. |
