@@ -2,6 +2,8 @@
 - In a git repo, before touching code: switch to master/main, pull latest, then create
   a branch — make changes there, never directly on master/main.
 - Non-trivial change → outline a plan first.
+- Order the plan by what I'm most likely to change — data model, interfaces, and
+  anything user-facing first; mechanical refactoring last.
 - Exception: when the result is judged by look or feel, a throwaway prototype beats a
   written plan. Build the cheapest thing that can be reacted to — a mock, a few
   variants, sample output — before wiring anything into the real code.
