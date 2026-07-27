@@ -1,7 +1,7 @@
 {
   "name": "cai",
-  "version": "1.3.0",
-  "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, a PR squash skill (/git-pr-rebase), a shared rule set installed by /cai:setup, and a cross-platform bash safety guard hook.",
+  "version": "1.4.0",
+  "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, skills for squashing a PR branch and for surfacing unknowns before implementation, a pre-merge comprehension quiz, a shared rule set installed by /cai:setup, and a cross-platform bash safety guard hook.",
   "author": {
     "name": "millerlai"
   },

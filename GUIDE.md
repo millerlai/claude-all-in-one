@@ -80,3 +80,7 @@ the genuine constraints with it.
 - Several procedures still live as prose in `rules/` rather than as skills: the
   subagent flow in `model-selection.md`, the test loop in `workflow.md`, and
   the "validate the diagram before shipping" step in `documentation.md`.
+  `skills/finding-unknowns` is the worked example of the fix — the prototype
+  line in `workflow.md` stays a rule (it is a standing truth about *when* to
+  prototype), while the steps for actually producing one moved into the skill,
+  where they cost nothing until the task matches.
