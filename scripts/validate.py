@@ -109,6 +109,16 @@ if os.path.isfile(SETTINGS):
                     target = ref.strip().lstrip("/")
                     check(f"project hook target exists ({target})", os.path.isfile(target))
 
+# /cai:setup step 5 runs the dispatcher through cmd, and the Bash tool on
+# Windows is Git Bash, which rewrites a lone /c into C:/. cmd then never sees
+# the switch and exits 0 -- the exact code step 5 reads as "the guard is inert".
+# A healthy guard reported as broken is worse than no check at all.
+SETUP = f"{PLUGIN}/commands/setup.md"
+with open(SETUP, encoding="utf-8") as fh:
+    setup_text = fh.read()
+check("setup.md invokes cmd as //c (MSYS would eat a lone /c)",
+      "cmd //c" in setup_text and not re.search(r"cmd\s+/(?!/)c\b", setup_text))
+
 GUARD = f"{PLUGIN}/scripts/bash_guard.py"
 DISPATCHER = f"{PLUGIN}/hooks/run-guard.cmd"
 

@@ -97,7 +97,14 @@ installed guard will block your own shell command otherwise.
 Then feed that file to the dispatcher on stdin:
 
 - macOS/Linux: `sh "<plugin-root>/hooks/run-guard.cmd" < <tmpfile>`
-- Windows: `cmd /c "<plugin-root>\hooks\run-guard.cmd" < <tmpfile>`
+- Windows: `cmd //c "<plugin-root>\hooks\run-guard.cmd" < <tmpfile>`
+
+The doubled slash in `//c` is not a typo, and it is not optional. The Bash tool
+on Windows is Git Bash, whose MSYS path conversion rewrites a lone `/c` into
+`C:/`. `cmd` then never sees the switch, drops into interactive mode, reads the
+JSON payload as if it were a command, and exits **0** — which is precisely the
+"guard is inert" signal below. The bug reports a healthy guard as a broken one,
+which is worse than not checking at all.
 
 Expected: exit code **2**, with a `bash_guard blocked this command` message on
 stderr. Delete the temporary file afterwards.
