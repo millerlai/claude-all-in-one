@@ -1,7 +1,7 @@
 {
   "name": "cai",
-  "version": "1.5.0",
-  "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, skills for squashing a PR branch, surfacing unknowns before implementation, and reviewing a plan against the requirements it claims to serve, a pre-merge comprehension quiz, a shared rule set installed by /cai:setup, and a cross-platform bash safety guard hook.",
+  "version": "1.6.0",
+  "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, skills for squashing a PR branch, surfacing unknowns before implementation, reviewing a plan against the requirements it claims to serve, running a parallel multi-lens review over a branch diff, and executing a long change in resumable checkpoints, a pre-merge comprehension quiz, a shared rule set installed by /cai:setup, and a shell-aware safety guard hook.",
   "author": {
     "name": "millerlai"
   },
