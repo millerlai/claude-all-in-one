@@ -24,3 +24,20 @@ per-user in `~/.claude/rules/` by `/cai:setup`.
 ## Before pushing
 Run `python scripts/validate.py` — it checks the manifests, every component's
 frontmatter, and that the bash guard still blocks what it should.
+
+You should rarely need to run it by hand: `.claude/settings.json` registers a
+`PostToolUse` hook that runs it whenever the **Edit or Write tool** touches
+`plugins/cai/` or `.claude-plugin/`, and reports the failures. The matcher is
+those two tools only — a file rewritten through Bash (redirection, a script,
+`git apply`) does not trigger it, so run the script by hand after those. It goes through
+`scripts/run-validate-hook.cmd`, the same polyglot launcher the shipped bash
+guard uses, so it finds `py`/`python` on Windows and `python3`/`python`
+elsewhere. Hook changes only take effect after a session restart.
+
+Keep every `.cmd` file pure ASCII — CMD.exe reads them through the OEM codepage
+and one multi-byte character mangles every line after it. `validate.py` checks.
+The hook cannot block the edit — `PostToolUse` runs after the write — so it
+tells you rather than stopping you.
+
+Changing the guard means adding a case to `CASES` in `scripts/validate.py`.
+It is the only test this repo has.

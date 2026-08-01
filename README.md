@@ -8,14 +8,16 @@ set of behavioural rules — into every project on your machine.
 
 | | |
 |---|---|
-| **Cost-tiered subagents** | `explorer` (Haiku, read-only scouting), `implementer` (Sonnet), `test-runner` (Haiku), `architect` (Opus, read-only design). Claude picks the cheapest model that can do the job instead of defaulting to the strongest. |
+| **Cost-tiered subagents** | `explorer` (Haiku, read-only scouting), `implementer` (Sonnet), `test-runner` (Haiku), `reviewer` (Sonnet, read-only, one lens of a diff at a time), `architect` (Opus, read-only design). Claude picks the cheapest model that can do the job instead of defaulting to the strongest. |
 | **`/cai:git`** | Runs git and `gh` operations under Haiku 4.5 rather than the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
 | **`/cai:haiku`** | Runs any mechanical one-off — renames, formatting, lookups — under Haiku, and reports back if the task turns out to need real reasoning. |
 | **`/cai:git-pr-rebase`** | Squashes a PR branch into one well-written conventional commit. Takes a backup branch first and shows you the message before rewriting anything. |
 | **`finding-unknowns`** | Fires before implementation when the code is unfamiliar, the spec is vague, the solution space is unexplored, or the result is judged by look and feel — and offers the cheapest artifact that would settle it: a blindspot pass, a vocabulary ladder, a one-question-at-a-time interview, a sized option list, or four incompatible mocks. Asks before it runs. |
 | **`plan-review`** | Reads an implementation plan, design doc, or spec the way a senior architect would. Traces every design element back to a requirement first — an element no requirement reaches is neither kept quietly nor cut quietly, it comes back as the requirement it implies, for you to accept or reject. Then seven lenses: over-engineering, boundaries, data and state, failure modes, testability, delivery, and the plan's own sequencing. Runs on Claude's own plans too, before they reach you. |
 | **`/cai:quiz`** | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |
-| **Bash safety guard** | A `PreToolUse` hook that blocks force pushes, `reset --hard`, `git clean -f`, `--no-verify`, and `rm -rf`, and hands the command back to you. |
+| **`diff-review`** | Sends three read-only `reviewer` agents over the branch diff in parallel — correctness, conformance, coverage — then reconciles them into one ranked list, verifying each finding against the file before reporting it. Code that does more than was asked comes back as a requirement to confirm, not a silent deletion. |
+| **`checkpointed-execution`** | Runs a long multi-file change as units that each compile, verify, and commit on their own, tracked in a status table, so a session limit resumes instead of reverting. Asks once, up front, for permission to commit per unit. |
+| **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes, `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. Hands the command back with the fix rather than just a refusal. |
 | **Shared rules** | Seven instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, and write docs. Installed to user scope by `/cai:setup`. |
 
 ## Prerequisites

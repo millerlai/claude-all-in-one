@@ -1,0 +1,6 @@
+# Personal, machine-specific: absolute paths, usernames, pinned plugin-cache
+# versions. `.claude/settings.json` beside it IS tracked - that one carries the
+# repo's shared hooks.
+.claude/settings.local.json
+
+__pycache__/

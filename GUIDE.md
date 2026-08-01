@@ -74,13 +74,26 @@ the genuine constraints with it.
 
 ## Known gaps in this repo
 
-- `rules/workflow.md` states two absolutes that nothing enforces: never work
-  directly on `main`, and never commit or push unless asked. Meanwhile
-  `bash_guard` does enforce the weaker `--no-verify` rule.
+- `rules/workflow.md` says never commit or push unless asked, and nothing
+  enforces it — deliberately. A hook sees the command, not the conversation, so
+  it cannot tell an asked-for commit from an unasked one. The rule stays prose;
+  the diagnostic above says to demote the wording rather than pretend.
+
+  Its sibling — never work directly on `main` — *is* decidable from the command
+  plus `git symbolic-ref`, so `bash_guard` now blocks it. That split is the
+  whole diagnostic in one example: same paragraph, same tone of voice, only one
+  of them mechanisable.
+- The guard reads text, not intent, and two limits follow from that. It resolves
+  the branch from the session's working directory, so `cd sub && git commit`
+  is judged against the parent — the deny message names the directory it used so
+  a wrong verdict is at least diagnosable. And it matches one command at a time,
+  so a PowerShell pipe that feeds a recursive listing into `Remove-Item -Force`
+  reads as two harmless halves. Both are the cost of a hook that has to stay
+  fast and never guess; the alternative is parsing shell grammar.
 - Several procedures still live as prose in `rules/` rather than as skills: the
   subagent flow in `model-selection.md`, the test loop in `workflow.md`, and
   the "validate the diagram before shipping" step in `documentation.md`.
-  `skills/finding-unknowns` is the worked example of the fix — the prototype
-  line in `workflow.md` stays a rule (it is a standing truth about *when* to
-  prototype), while the steps for actually producing one moved into the skill,
-  where they cost nothing until the task matches.
+  `skills/finding-unknowns` and `skills/checkpointed-execution` are the worked
+  examples of the fix — in both cases the rule keeps the standing truth (*when*
+  to prototype, *when* a change needs checkpointing) and the skill takes the
+  steps, where they cost nothing until the task matches.
