@@ -10,9 +10,9 @@
 - When the project already has tests, loop on verifiable goals (don't add a harness
   uninvited; suggest it if missing): validation → test invalid inputs; bug → reproduce
   in a test; refactor → tests pass before and after. Run tests before saying it's done.
-- For large multi-file changes, commit or checkpoint incrementally and keep responses
-  concise (no large summaries), so a token or session-limit interruption never leaves
-  work half-done or files in a broken, incompilable state.
+- A large multi-file change runs in checkpointed units, never as one long edit: an
+  interruption must not leave work half-done or the tree incompilable. Keep responses
+  concise as you go (no large summaries) so the budget goes to the work.
 - Plans are written with incomplete information. When implementation hits something the
   plan didn't anticipate, take the conservative option, log the deviation and its reason
   (an `implementation-notes.md` for long runs), and keep going — then report the
