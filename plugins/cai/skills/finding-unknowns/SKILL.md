@@ -114,6 +114,8 @@ nothing.
 The artifact is an input, not a deliverable to admire:
 
 - Feed the answers straight into the next prompt or the implementation plan.
+  Once that plan exists, `plan-review` is what audits it back against these
+  answers.
 - Durable, project-specific findings → the project's `CLAUDE.md` or memory,
   following `memory.md` (stable facts only — not line numbers or in-progress
   state).
