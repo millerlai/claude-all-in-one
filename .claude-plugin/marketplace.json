@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "cai",
-      "description": "Cost-tiered subagents (explorer/implementer/test-runner/architect/reviewer), haiku-powered git and quick-task commands, skills for squashing a PR branch, reviewing plans and diffs, and checkpointing long changes, an installable rule set, and a shell-aware safety guard hook.",
+      "description": "Cost-tiered subagents (explorer/implementer/test-runner/architect/reviewer), haiku-powered git and quick-task commands, skills for squashing a PR branch, reviewing plans and diffs, and checkpointing long changes, a design-review-to-verified-implementation pipeline with model tiers per phase, an installable rule set, and a shell-aware safety guard hook.",
       "source": "./plugins/cai",
       "category": "development"
     }
