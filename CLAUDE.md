@@ -39,5 +39,12 @@ and one multi-byte character mangles every line after it. `validate.py` checks.
 The hook cannot block the edit — `PostToolUse` runs after the write — so it
 tells you rather than stopping you.
 
+No text file may start with a UTF-8 BOM, and `validate.py` checks that too. A
+BOM is invisible in an editor but the three bytes are still the start of the
+file: `mermaid-cli` rejects a diagram outright with `Parse error on line 1`,
+and CMD.exe prints them before the first line runs. PowerShell's `>`, `>>` and
+`Out-File` write one by default here — which is the same reason the Environment
+note above says to reach for Edit/Write instead of redirecting into a file.
+
 Changing the guard means adding a case to `CASES` in `scripts/validate.py`.
 It is the only test this repo has.

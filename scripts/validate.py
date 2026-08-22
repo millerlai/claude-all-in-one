@@ -130,6 +130,28 @@ for path in sorted(glob.glob("**/*.cmd", recursive=True)):
         non_ascii = [b for b in fh.read() if b > 127]
     check(f"{path} is pure ASCII ({len(non_ascii)} byte(s) over 127)", not non_ascii)
 
+# A UTF-8 BOM is invisible in an editor and breaks readers that expect the file
+# to start with content: mermaid-cli refuses the diagram outright ("Parse error
+# on line 1"), and CMD.exe prints the three bytes before the first line runs.
+# On Windows PowerShell's `>`, `>>` and `Out-File` write one by default, which
+# is how it gets in -- so this catches a redirect that should have been an edit.
+BOM = b"\xef\xbb\xbf"
+TEXT = (".md", ".json", ".py", ".cmd", ".sh", ".tpl", ".yml", ".yaml", ".mmd")
+bom_files = []
+for root, dirs, files in os.walk("."):
+    dirs[:] = [d for d in dirs if d != ".git"]
+    for name in sorted(files):
+        if not name.endswith(TEXT):
+            continue
+        path = os.path.join(root, name)
+        with open(path, "rb") as fh:
+            if fh.read(3) == BOM:
+                bom_files.append(os.path.relpath(path).replace(os.sep, "/"))
+check(f"no text file carries a UTF-8 BOM ({len(bom_files)} found)", not bom_files)
+for path in bom_files[:5]:
+    print("     BOM:", path)
+
+
 def temp_repo(branch, commit=True):
     """A throwaway repo on a known branch. The guard asks git which branch it
     is on, so every `git commit` case needs a cwd of its own — otherwise the
