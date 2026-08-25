@@ -5,9 +5,9 @@ argument-hint: "<path to design/plan doc>"
 
 Take this design/plan doc from requirement to verified implementation: $ARGUMENTS
 
-Step 1 always runs. Step 2 is a dead end taken only when Step 1's gate
-fails; otherwise Step 3 picks a lane and Step 4 closes out. Each step runs
-at a tier set by the skills it calls, not by anything this file pins.
+Step 1 always runs, and can end the run two ways — its gate fails, sending
+you to Step 2, or its findings outlast three rounds. Otherwise Step 3 picks
+a lane and Step 4 closes out, at tiers the skills set, not anything here.
 
 ## Step 1 — Review the design document
 
@@ -24,8 +24,8 @@ it that rule never fires.
 - Section 4 ("requirement decisions to confirm") → surface these with
   `AskUserQuestion` and wait for an answer. Never resolve them yourself —
   that section exists specifically so scope decisions aren't made silently.
-- **At most three rounds of fix-and-recheck.** If findings remain after the
-  third, stop and report what is still open rather than looping further.
+- **At most three rounds of fix-and-recheck.** Findings open after the third
+  end the run — report them rather than implementing against them.
 - If `plan-review`'s Step 0 gate fails (no stated requirement, or no
   acceptance criteria), go to the next step below instead of testing for a
   schedule against a doc that isn't reviewable yet.
