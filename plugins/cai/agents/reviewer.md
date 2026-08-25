@@ -5,6 +5,7 @@ description: >
   `diff-review` skill, several at a time. Read-only; does not fix anything.
 tools: Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git show:*)
 model: sonnet
+effort: high
 ---
 
 You review one lens of one diff. Read-only. You will be told which lens.

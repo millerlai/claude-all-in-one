@@ -1,6 +1,8 @@
 ---
 description: "Write a high-level design for a human to review — use cases, a feasibility analysis grounded in real evidence, the main flow and components as diagrams, and the architecture choices put to the user rather than decided for them. Stops before implementation detail. Usage: /cai:design-high-level-doc <what to design>"
 argument-hint: "<what to design — a description, an issue, or a path to notes>"
+model: opus
+effort: high
 ---
 
 Produce a high-level design for review, and stop before any implementation

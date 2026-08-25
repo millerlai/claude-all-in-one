@@ -6,6 +6,7 @@ description: >
   Expensive — do not use for routine tasks.
 tools: Read, Grep, Glob
 model: opus
+effort: high
 ---
 
 You are a senior architect. Read-only.

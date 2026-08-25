@@ -1,5 +1,6 @@
 ---
 description: Finish installing cai — copy the shared rules into ~/.claude/rules/, set your preferred response language, and verify the bash guard actually fires. Run once after installing the plugin, and again after each /plugin update.
+model: haiku
 ---
 
 Install the cai rules for this user and verify the plugin is working.

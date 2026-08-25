@@ -1,6 +1,7 @@
 ---
 name: diff-review
 description: Review a branch diff before merging by dispatching several read-only reviewers in parallel, each with a different lens, then reconciling their findings into one ranked list. Use when the user asks to review a diff, branch, or PR before merging, says "review my changes", "check this before I merge", "審一下這個 diff", "找出這次改動的問題" — and on your own changes before handing them over. For reviewing a plan rather than code, use `plan-review`.
+effort: medium
 ---
 
 # diff-review — three lenses over one diff

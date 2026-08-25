@@ -1,6 +1,8 @@
 ---
 name: plan-review
 description: Review an implementation plan, architecture design, or technical spec the way a senior architect would — trace every design element back to a requirement, surface over-engineering, check the software-engineering consequences the plan glossed over, and hunt wording too vague to implement from. Use when the user asks to review a plan, design doc, spec, RFC, or ADR, says "審一下這份計畫", "is this over-engineered", "does this match the requirements", "poke holes in this design", "這份規格夠精準嗎", "is this spec precise enough to build from" — and also on your own implementation plans before handing them over.
+model: opus
+effort: high
 ---
 
 # plan-review — read the plan the way a senior architect would
