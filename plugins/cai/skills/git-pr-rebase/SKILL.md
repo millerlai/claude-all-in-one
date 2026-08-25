@@ -1,6 +1,7 @@
 ---
 name: git-pr-rebase
 description: Squash all commits on the current PR branch into a single, well-written conventional commit. Use whenever the user invokes /git-pr-rebase, or asks to "squash this branch", "clean up commits before merging", "rebase onto the branch point", or wants one final commit message for a PR. Handles both an explicitly given base commit id and auto-detection of the branch point (the commit the branch was created from, typically the tip of main at branch time).
+model: haiku
 ---
 
 # git-pr-rebase — Squash PR branch into one commit

@@ -1,6 +1,8 @@
 ---
 description: "Write a detail design document an engineering team can implement from — grounded in the real code, every term defined, four validated diagrams, then a strict review. Usage: /cai:design-implementation-detail-doc <approved high-level design doc> [target project dir]"
 argument-hint: "<approved high-level design doc> [target project dir]"
+model: opus
+effort: high
 ---
 
 Turn an approved high-level design into a document an engineering team can build

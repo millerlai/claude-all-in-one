@@ -5,6 +5,7 @@ description: >
   clear and scoped to a few files. Not for architectural decisions.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: sonnet
+effort: medium
 ---
 
 You implement exactly what is specified.
