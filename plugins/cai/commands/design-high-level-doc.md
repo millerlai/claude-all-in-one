@@ -246,7 +246,7 @@ section 4 to `AskUserQuestion`.
 **At most three rounds of fix-and-recheck.** If findings remain after the
 third, stop and report what is still open rather than looping — an
 unbounded fix loop spends the user's budget without a stopping rule, and
-`goal.md:39-41` caps the same shape for the same reason.
+`goal.md:96-98` caps the same shape for the same reason.
 
 ## Step 6 — Stop
 

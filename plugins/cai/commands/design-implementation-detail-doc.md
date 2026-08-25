@@ -409,7 +409,7 @@ to for a document meant to be implemented from.
 what is still open, with a recommendation: fix by hand, accept the Majors on
 record, or go back and change the high-level design. A fix loop with no stopping
 rule spends the user's budget until something else interrupts it —
-`goal.md:39-41` caps the same shape for the same reason.
+`goal.md:96-98` caps the same shape for the same reason.
 
 Be clear about what this review is: you wrote the document you are now
 reviewing, so you are the reader least able to see what it quietly assumes.
