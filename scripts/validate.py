@@ -152,6 +152,38 @@ for path in bom_files[:5]:
     print("     BOM:", path)
 
 
+# The evidence and decision rules are copied verbatim into both design commands
+# on purpose: a command's text is only loaded when that command runs, so a
+# cross-reference would point at something the model cannot see. Duplication
+# nothing checks is duplication that drifts, and the drift is silent.
+def rule_block(path):
+    with open(path, encoding="utf-8") as fh:
+        body = fh.read().split("## The two rules everything below obeys", 1)[-1]
+    return body.split("These two rules appear", 1)[0].strip()
+
+
+DESIGN_CMDS = [f"{PLUGIN}/commands/design-high-level-doc.md",
+               f"{PLUGIN}/commands/design-implementation-detail-doc.md"]
+# Guarding on existence without checking it lets the drift check disappear the
+# day a file is renamed -- which is exactly the drift it exists to catch.
+for path in DESIGN_CMDS:
+    check(f"design command ships ({path})", os.path.isfile(path))
+if all(os.path.isfile(p) for p in DESIGN_CMDS):
+    one, two = (rule_block(p) for p in DESIGN_CMDS)
+    check("design commands carry one identical rule block", bool(one) and one == two)
+
+
+# A component that tells the model to run `plugins/cai/scripts/...` works only
+# inside this checkout. Anyone who installed from the marketplace has the plugin
+# under ~/.claude/plugins/cache/, so the command silently stops working for
+# every real user -- the failure this repo is least able to notice.
+for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")
+                   + glob.glob(f"{PLUGIN}/skills/*/SKILL.md")):
+    with open(path, encoding="utf-8") as fh:
+        check(f"{path} runs scripts via <plugin-root>",
+              f"{PLUGIN}/scripts/" not in fh.read())
+
+
 def temp_repo(branch, commit=True):
     """A throwaway repo on a known branch. The guard asks git which branch it
     is on, so every `git commit` case needs a cwd of its own — otherwise the
@@ -271,6 +303,166 @@ for cmd, expected in [("git reset --hard HEAD~1", 2), ("git status", 0)]:
     check(f"dispatcher [{cmd}] -> {expected}", run(dispatch, cmd, "Bash", WORK) == expected)
 
 
+# design_probe.py holds the two design commands' absolutes -- every capability
+# cites evidence, every use case reaches a component, every glossary term points
+# at a line that exists. Prose cannot hold those, so the probe has to actually
+# work: one clean document per kind, then one deliberate defect per probe. A
+# case asserts the exit code *and* which probe reported it, because a probe that
+# fails for the wrong reason is a probe nobody can act on.
+PROBE = f"{PLUGIN}/scripts/design_probe.py"
+PROBE_DIR = tempfile.mkdtemp(prefix="cai-design-probe-")
+FENCE = "```mermaid\nflowchart LR\n  A --> B\n```\n\n"
+SEQ = "```mermaid\nsequenceDiagram\n  A->>B: go\n```\n\n"
+
+HLD_OK = """## Status
+approved 2026-08-25
+
+## Use cases / Issues
+- UC1 - an operator needs to see which runs failed overnight.
+
+## Feasibility
+| Id | Capability | Verdict | Evidence |
+|---|---|---|---|
+| C1 | read the session log | verified | scripts/validate.py:41 |
+
+## High-level design
+The collector reads the logs and the reporter renders them; nothing is stateful.
+
+## Architecture decisions
+- Option A (recommended) - poll the log. Rests on C1, and adds no runtime dep.
+
+## Open questions
+- Whether "overnight" is measured in UTC or in the operator's local time.
+
+## Out of scope
+Cross-repo runs, and anything at all that would require a database.
+"""
+
+DETAIL_OK = """## Reference
+High Level Design doc: hld.md (Status: approved 2026-08-25).
+
+## Requirement
+UC1 from the referenced high-level design is what this document satisfies.
+
+## Glossary
+| Term | Definition | Where it lives |
+|---|---|---|
+| Collector | reads the session log, one record per run | scripts/validate.py:41 |
+
+## Budgets
+| What | Number | Where it comes from |
+|---|---|---|
+| runs per night | up to 400 | the operator's own estimate, 2026-08-25 |
+| render latency | under 2s at 400 runs | UC1 is read interactively |
+
+## Design decisions
+Polling beat interception because UC1 never needs to block a live call.
+
+## Diagrams
+Architecture, component, flow, and one sequence per use case follow below.
+
+""" + FENCE * 3 + SEQ + """## Implementation spec
+The Collector exposes read_runs(path) -> list[Record]; errors surface to caller.
+
+## Naming
+Every file this produces gets a spelled-out name; no abbreviation is invented.
+
+## Change points
+- scripts/validate.py - gains one case for the collector. No new dependency.
+
+## Failure modes
+- The log file is missing: the collector emits nothing and reports that.
+
+## Rollout
+- Ships in one piece; rollback is reverting the commit, no data is written.
+
+## Verification
+- UC1: unit test over a fixture log, asserting one record per run.
+
+## Work breakdown
+| Unit | Depends on | Done when |
+|---|---|---|
+| 1 collector | nothing | its unit test is green |
+| 2 reporter | unit 1's record shape | UC1's test is green end to end |
+"""
+
+# The detail fixtures name this in ## Reference, and the probe looks for it
+# beside the document it is checking.
+with open(os.path.join(PROBE_DIR, "hld.md"), "w", encoding="utf-8") as fh:
+    fh.write(HLD_OK)
+
+PROBE_CASES = [
+    # (kind, fixture text, expected exit, the probe that must be the one to fail)
+    ("hld", HLD_OK, 0, ""),
+    ("hld", HLD_OK.replace(" Rests on C1,", ""), 2, "pairs_covered"),
+    ("hld", HLD_OK.replace("| verified |", "| UNVERIFIED |"), 2, "recommendation_is_verified"),
+    ("hld", HLD_OK.replace("scripts/validate.py:41", "the session log"), 2, "feasibility_evidence"),
+    ("hld", HLD_OK.replace("## Out of scope", "## Elsewhere"), 2, "headings_complete"),
+    ("detail", DETAIL_OK, 0, ""),
+    ("detail", DETAIL_OK.replace("UC1", "the use case"), 2, "traceability"),
+    ("detail", DETAIL_OK.replace("validate.py:41", "validate.py:99999"), 2, "glossary_citations"),
+    ("hld", HLD_OK.replace("approved 2026-08-25", "signed off, looks good"), 2, "status_is_well_formed"),
+    ("hld", re.sub(r"\n\| C1 .*", "", HLD_OK), 2, "feasibility_has_rows"),
+    ("hld", HLD_OK.replace("| C1 |", "| the log |"), 2, "feasibility_ids"),
+    ("detail", DETAIL_OK.replace(FENCE * 3 + SEQ, FENCE * 2 + SEQ), 2, "diagrams_present"),
+    ("detail", DETAIL_OK.replace(SEQ, FENCE), 2, "sequence_diagram_present"),
+    ("detail", DETAIL_OK.replace("up to 400", "as many as we get"), 2, "budgets_are_numeric"),
+    ("detail", DETAIL_OK.replace("## Rollout", "## Shipping"), 2, "headings_complete"),
+    ("detail", DETAIL_OK.replace("hld.md", "no-such-design.md"), 2, "reference_resolves"),
+]
+
+for i, (kind, fixture_text, expected, probe) in enumerate(PROBE_CASES):
+    fixture = os.path.join(PROBE_DIR, f"case{i}.md")
+    with open(fixture, "w", encoding="utf-8") as fh:
+        fh.write(fixture_text)
+    done = subprocess.run([sys.executable, PROBE, "--kind", kind, fixture],
+                          capture_output=True, text=True)
+    check(f"design_probe {kind} [{probe or 'clean document'}] -> {expected}",
+          done.returncode == expected)
+    if probe:
+        check(f"design_probe {kind} names {probe}", f"FAIL {probe}" in done.stdout)
+
+# The templates are the shape both commands write to, so they and the probe have
+# to agree on the headings -- if they drift, every real document fails a check
+# whose source nobody can find. And an untouched template must FAIL its own
+# probe: its guidance lives in HTML comments, and the day those start counting
+# as content is the day a blank template passes everything.
+sys.path.insert(0, f"{PLUGIN}/scripts")
+import design_probe  # noqa: E402
+
+for kind, want in (("hld", design_probe.HLD_HEADINGS),
+                   ("detail", design_probe.DETAIL_HEADINGS)):
+    tpl = f"{PLUGIN}/templates/{design_probe.TEMPLATES[kind]}"
+    check(f"{kind} design template ships", os.path.isfile(tpl))
+    if not os.path.isfile(tpl):
+        continue
+    with open(tpl, encoding="utf-8") as fh:
+        got = list(design_probe.sections(fh.read()))
+    check(f"{kind} template headings match the probe", got == want)
+    if got != want:
+        print("     template:", got)
+        print("     probe   :", want)
+    blank = subprocess.run([sys.executable, PROBE, "--kind", kind, tpl],
+                           capture_output=True, text=True)
+    check(f"{kind} template does not pass its own probe", blank.returncode == 2)
+
+# plan-review restates both skeletons so the skill stays self-contained when it
+# is handed a document the commands did not write. Restating is fine; restating
+# with nothing checking it is how a skill starts telling people to write a shape
+# the probe rejects.
+PLAN_REVIEW = f"{PLUGIN}/skills/plan-review/SKILL.md"
+check(f"plan-review ships ({PLAN_REVIEW})", os.path.isfile(PLAN_REVIEW))
+if os.path.isfile(PLAN_REVIEW):
+    with open(PLAN_REVIEW, encoding="utf-8") as fh:
+        blocks = re.findall(r"```md\n(.*?)```", fh.read(), re.S)
+    listed = [[re.split(r"\s{2,}", line[3:].strip(), maxsplit=1)[0]
+               for line in b.splitlines() if line.startswith("## ")]
+              for b in blocks]
+    for kind, want in (("hld", design_probe.HLD_HEADINGS),
+                       ("detail", design_probe.DETAIL_HEADINGS)):
+        check(f"plan-review's {kind} skeleton matches the probe", want in listed)
+
+
 # The PostToolUse hook re-runs this script, so exercising it re-enters this
 # block. validate_hook.py sets the flag on the run it spawns, which stops the
 # chain one level down and keeps a real edit paying for one validate, not five.
@@ -338,7 +530,7 @@ def rmtree(path):
         shutil.rmtree(path, onerror=retry)
 
 
-for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN):
+for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR):
     rmtree(path)
 
 sys.exit(FAIL)

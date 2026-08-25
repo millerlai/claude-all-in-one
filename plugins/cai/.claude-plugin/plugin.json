@@ -1,7 +1,7 @@
 {
   "name": "cai",
-  "version": "1.7.0",
-  "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, skills for squashing a PR branch, surfacing unknowns before implementation, reviewing a plan against the requirements it claims to serve, running a parallel multi-lens review over a branch diff, and executing a long change in resumable checkpoints, a pre-merge comprehension quiz, a design-review-to-verified-implementation pipeline with model tiers per phase, a shared rule set installed by /cai:setup, and a shell-aware safety guard hook.",
+  "version": "1.10.0",
+  "description": "Cost-tiered subagents, haiku-powered git/quick-task commands, paired commands that write a high-level design and then an implementable detail design from verified evidence rather than assumption, skills for squashing a PR branch, surfacing unknowns before implementation, reviewing a plan against the requirements it claims to serve, running a parallel multi-lens review over a branch diff, and executing a long change in resumable checkpoints, a pre-merge comprehension quiz, a design-review-to-verified-implementation pipeline with model tiers per phase, a shared rule set installed by /cai:setup, and a shell-aware safety guard hook.",
   "author": {
     "name": "millerlai"
   },
