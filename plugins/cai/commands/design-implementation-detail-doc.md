@@ -409,7 +409,7 @@ to for a document meant to be implemented from.
 what is still open, with a recommendation: fix by hand, accept the Majors on
 record, or go back and change the high-level design. A fix loop with no stopping
 rule spends the user's budget until something else interrupts it —
-`goal.md:39-41` caps the same shape for the same reason.
+`goal.md:96-98` caps the same shape for the same reason.
 
 Be clear about what this review is: you wrote the document you are now
 reviewing, so you are the reader least able to see what it quietly assumes.
@@ -423,7 +423,9 @@ Weigh a finding you are inclined to dismiss twice.
   diagrams over that is ceremony, and ceremony is what makes someone skip the
   command the time it would have mattered.
 - The design is agreed and what you actually want is the code. That is
-  `/cai:goal <the high-level design>` — it reviews, implements, and verifies.
+  `/cai:goal <the high-level design>` — it reviews, then implements against
+  the whole document, since a high-level design carries no work breakdown to
+  schedule from.
 - Nothing is being designed; something is broken. That is debugging.
 
 ## When you are done
@@ -432,5 +434,7 @@ Report where the document is, what `plan-review` returned, what is still open,
 and every claim still marked `UNVERIFIED` — the last one especially, because it
 is the list of things that will surprise the implementer.
 
-Then stop. Implementing it is `/cai:goal <this document>`, and starting that is
-the user's call, not yours.
+Then stop. Implementing it is `/cai:goal <this document>` — it reviews the
+document, finds the `## Work breakdown` you just wrote, and hands it to
+`build-from-design` to be built unit by unit rather than in one pass. Starting
+that is the user's call, not yours.

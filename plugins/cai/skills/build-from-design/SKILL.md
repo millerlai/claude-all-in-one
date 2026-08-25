@@ -172,7 +172,7 @@ command. Read the real output.
 - Green → continue.
 - Red → back to `implementer` once, with the actual failure text. Still red
   after that, stop and report. A fix loop with no stopping rule spends the
-  budget until something else interrupts it, and `goal.md:39-41` caps the same
+  budget until something else interrupts it, and `goal.md:96-98` caps the same
   shape for the same reason.
 
 **5. Commit**, write the id into the table beside `done`, and re-read the table

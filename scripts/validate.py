@@ -58,6 +58,16 @@ for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")):
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has description", bool(keys) and "description" in keys)
 
+# goal.md routes rather than implements, so it is read start to finish every
+# time someone reaches for it -- and prose that outgrows a screen is prose that
+# gets skimmed past the branch it was carrying. The ceiling is the number the
+# design settled on (docs/design/2026-08-25-goal-command-routing-detail.md,
+# Budgets); this is what stops it being a number nobody ever checks again.
+GOAL = f"{PLUGIN}/commands/goal.md"
+with open(GOAL, encoding="utf-8") as fh:
+    goal_lines = len(fh.read().splitlines())
+check(f"{GOAL} is within its 120-line ceiling ({goal_lines})", goal_lines <= 120)
+
 skills = sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
 check("at least one skill ships", bool(skills))
 for path in skills:
