@@ -4,3 +4,7 @@
 .claude/settings.local.json
 
 __pycache__/
+
+# Scratch and reference material. Tracked docs stay tracked; new ones need
+# an explicit `git add -f`.
+docs/
