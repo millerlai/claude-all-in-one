@@ -1,0 +1,61 @@
+{
+  "_comment": [
+    "Which model tier each component runs on, in one place.",
+    "",
+    "Components must never name a concrete model version (claude-haiku-4-5-...).",
+    "Aliases already track the newest model of their family - the docs are explicit:",
+    "'Aliases point to the recommended version for your provider and update over",
+    "time. To pin to a specific version, use the full model name.' So version drift",
+    "is the platform's job, not ours.",
+    "",
+    "What this file adds on top is the SEMANTIC layer the platform has no concept",
+    "of: which KIND of work a component does. Claude Code's frontmatter only speaks",
+    "families (haiku/sonnet/opus), and it performs no variable substitution in the",
+    "`model:` field - only in skill body text and allowed-tools - so the mapping",
+    "cannot happen at runtime. It happens here, at build time, applied by",
+    "scripts/gen-models.py and enforced by scripts/validate.py.",
+    "",
+    "Re-tiering a role (say Haiku grows capable enough to own `build`) is a",
+    "one-line edit here followed by `python scripts/gen-models.py`. Deciding",
+    "WHETHER to re-tier is a judgement call and stays a human's: the criteria",
+    "below are the test, not the frequency of the task."
+  ],
+
+  "roles": {
+    "chore": {
+      "alias": "haiku",
+      "criterion": "Needs no judgement on any given run. Locating files, running a known command, executing a stated git operation, mechanical rewrites."
+    },
+    "build": {
+      "alias": "sonnet",
+      "criterion": "Engineering judgement inside a fixed contract. Writing code to a spec, reviewing one diff through one lens, recovering decisions already made."
+    },
+    "think": {
+      "alias": "opus",
+      "criterion": "Design trade-offs and repair. Architecture choices, reviewing a plan against its requirements, ambiguous requirements."
+    }
+  },
+
+  "assignments": {
+    "agents/explorer.md": "chore",
+    "agents/test-runner.md": "chore",
+    "commands/setup.md": "chore",
+    "commands/chore.md": "chore",
+    "commands/git.md": "chore",
+    "skills/git-pr-rebase/SKILL.md": "chore",
+
+    "agents/implementer.md": "build",
+    "agents/reviewer.md": "build",
+    "agents/refactoring-detector.md": "build",
+    "agents/refactoring-surgeon.md": "build",
+    "commands/build-from-design.md": "build",
+    "commands/design-delta-doc.md": "build",
+    "commands/quiz.md": "build",
+    "skills/build-from-design/SKILL.md": "build",
+
+    "agents/architect.md": "think",
+    "commands/design-high-level-doc.md": "think",
+    "commands/design-implementation-detail-doc.md": "think",
+    "skills/plan-review/SKILL.md": "think"
+  }
+}

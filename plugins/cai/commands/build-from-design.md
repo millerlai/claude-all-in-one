@@ -1,5 +1,5 @@
 ---
-description: "Build an approved detail design unit by unit — its work breakdown is the schedule, one Sonnet implementer per unit briefed from the document's own spec sections, Haiku for the verification, each unit green and committed before the next starts. Usage: /cai:build-from-design <detail design doc> [target project dir]"
+description: "Build an approved detail design unit by unit — its work breakdown is the schedule, one build-tier implementer per unit briefed from the document's own spec sections, the chore tier for the verification, each unit green and committed before the next starts. Usage: /cai:build-from-design <detail design doc> [target project dir]"
 argument-hint: "<detail design doc> [target project dir]"
 model: sonnet
 effort: medium
@@ -15,12 +15,14 @@ well and has no verification gate produces units nobody can call done.
 Name the target project directory: the one given above, or the repo you are in.
 Say which you used.
 
-This command is pinned to Sonnet on purpose. The orchestration — reading the
-document, cutting the schedule, writing each unit's brief, ranking findings — is
-the main tier. The skill carries the same pair, so the tier holds whether this
-was invoked as a command or the skill was reached by name mid-conversation. The
-two delegations below it stay as the skill defines them: `implementer` on Sonnet
-for the code, `explorer` and `test-runner` on Haiku for locating and running.
+This command is pinned to the build tier on purpose. The orchestration — reading
+the document, cutting the schedule, writing each unit's brief, ranking findings —
+is judgement inside a fixed contract. The skill carries the same pair, so the
+tier holds whether this was invoked as a command or the skill was reached by name
+mid-conversation. The two delegations below it stay as the skill defines them:
+`implementer` writes the code, `explorer` and `test-runner` locate and run. Which
+model each of those is depends on its own frontmatter, which
+`plugins/cai/models.json` keeps in step — this file does not restate it.
 
 `effort: medium` for the same reason it is not higher: this runs one round per
 unit, so the setting is paid once per unit rather than once per invocation, and

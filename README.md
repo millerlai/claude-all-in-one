@@ -8,9 +8,9 @@ set of behavioural rules — into every project on your machine.
 
 | | |
 |---|---|
-| **Cost-tiered subagents** | `explorer` (Haiku, read-only scouting), `implementer` (Sonnet), `test-runner` (Haiku), `reviewer` (Sonnet, read-only, one lens of a diff at a time), `architect` (Opus, read-only design). Claude picks the cheapest model that can do the job instead of defaulting to the strongest. |
-| **`/cai:git`** | Runs git and `gh` operations under Haiku 4.5 rather than the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
-| **`/cai:haiku`** | Runs any mechanical one-off — renames, formatting, lookups — under Haiku, and reports back if the task turns out to need real reasoning. |
+| **Cost-tiered subagents** | `explorer` (read-only scouting), `implementer`, `test-runner`, `reviewer` (read-only, one lens of a diff at a time), `architect` (read-only design). Each carries its own tier — see [Model tiers](#model-tiers) — so Claude gets the cheapest one that can do the job instead of defaulting to the strongest. |
+| **`/cai:git`** | Runs git and `gh` operations on the chore tier rather than the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
+| **`/cai:chore`** | Runs any mechanical one-off — renames, formatting, lookups — under Haiku, and reports back if the task turns out to need real reasoning. Named for the kind of work, not the model that runs it, so it survives the next model generation. |
 | **`/cai:git-pr-rebase`** | Squashes a PR branch into one well-written conventional commit. Takes a backup branch first and shows you the message before rewriting anything. |
 | **`finding-unknowns`** | Fires before implementation when the code is unfamiliar, the spec is vague, the solution space is unexplored, or the result is judged by look and feel — and offers the cheapest artifact that would settle it: a blindspot pass, a vocabulary ladder, a one-question-at-a-time interview, a sized option list, or four incompatible mocks. Asks before it runs. |
 | **`/cai:design-high-level-doc`** | Writes the high-level design and stops there. Use cases first, then a feasibility table marking every capability the design needs `verified`, `UNVERIFIED`, or `infeasible` against a real `file:line` or the vendor's own documentation — never against what a library is generally assumed to do. Gathering that evidence is delegated to Haiku; reading it is not. The main flow and the components as Mermaid that gets rendered rather than eyeballed, and every architecture choice put to you one at a time with the options costed, instead of picked and then justified. |
@@ -76,6 +76,37 @@ If content changed without a version bump, or the cache looks corrupted:
 /plugin uninstall cai@claude-all-in-one
 /plugin install cai@claude-all-in-one
 ```
+
+## Model tiers
+
+No component names a model. They name a **tier**, and one file says what each
+tier currently resolves to:
+
+| Tier | Resolves to | The work it is for |
+|---|---|---|
+| `chore` | `haiku` | Needs no judgement on any given run — locating files, running a known command, a stated git operation, mechanical rewrites. |
+| `build` | `sonnet` | Engineering judgement inside a fixed contract — writing code to a spec, reviewing one diff through one lens. |
+| `think` | `opus` | Design trade-offs and repair — architecture choices, reviewing a plan against its requirements, ambiguous requirements. |
+
+The test is *"does this step still need judgement on every run?"* — not how often
+the task comes up. Frequency decides total volume; judgement risk decides tier.
+
+Two things follow, and both are enforced rather than remembered:
+
+- **Nothing is pinned to a model version.** Aliases already track the newest
+  model of their family — Anthropic's docs are explicit that they "point to the
+  recommended version for your provider and update over time" — so `haiku` keeps
+  working when Haiku 5 ships. `validate.py` fails the build if any component
+  pins a concrete version like `claude-haiku-4-5-20251001`.
+- **Re-tiering is a one-line edit.** Change a tier's alias in
+  `plugins/cai/models.json`, run `python plugins/cai/scripts/gen-models.py`, and
+  every component in that tier moves together. `--check` reports drift without
+  writing; `--list` prints the table. `validate.py` fails if any component's
+  frontmatter disagrees with the table, if a component declaring a model isn't
+  in it, or if any component names a model family in its prose.
+
+Deciding *whether* to re-tier stays a human's call — that is a judgement, and
+judgements are exactly what this table says not to automate.
 
 ## The rules
 

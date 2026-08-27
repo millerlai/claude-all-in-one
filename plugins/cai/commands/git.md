@@ -1,6 +1,6 @@
 ---
-description: Use this whenever the user asks to run a git or GitHub CLI operation — full form (git commit, git add, git push, git pull, git merge, git rebase, git stash, branch create/switch, gh pr create) or shorthand (commit, add, push, pull, pr), including combined requests like "commit + push + pr" or "commit, push" — so it executes under Haiku 4.5 instead of the main session model.
-model: claude-haiku-4-5-20251001
+description: Use this whenever the user asks to run a git or GitHub CLI operation — full form (git commit, git add, git push, git pull, git merge, git rebase, git stash, branch create/switch, gh pr create) or shorthand (commit, add, push, pull, pr), including combined requests like "commit + push + pr" or "commit, push" — so it executes on the chore tier instead of the main session model.
+model: haiku
 ---
 
 Execute the requested git and/or GitHub CLI operation(s) using the Bash tool. A request may combine several steps (e.g. "commit + push + pr", "commit, push") — perform each requested step in order, stopping and reporting back if any step fails.

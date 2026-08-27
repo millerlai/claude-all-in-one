@@ -50,12 +50,12 @@ Gathering and judging are different jobs and they get different models, per
 `model-selection.md`: fetching is mechanical, deciding what it means is not.
 Three sources count, and nothing else does:
 
-- **This project** — dispatch `explorer` (Haiku, read-only) to locate and quote
+- **This project** — dispatch `explorer` (read-only) to locate and quote
   the relevant lines, then read those files yourself and decide what they mean.
   A scout's summary is a pointer, not evidence.
 - **Official documentation** — for any tool, framework, or platform this design
   stands on, fetch the vendor's own docs. `explorer` cannot do this (its tools
-  are Read, Grep, and Glob), so dispatch a Haiku subagent with web access to
+  are Read, Grep, and Glob), so dispatch a chore-tier subagent with web access to
   fetch and quote the passages, then interpret them yourself. Record the URL and
   the sentence you took.
 - **Neither** — write `UNVERIFIED`, and name the design decision that stops
@@ -159,11 +159,11 @@ questions in one call gets one vague answer covering none of them. Order by
 whether the answer changes what the other decisions even are, not by what is
 easiest to ask.
 
-Escalate to `architect` (Opus, read-only) only when a choice genuinely spans
+Escalate to `architect` (read-only, the think tier) only when a choice genuinely spans
 several subsystems, or turns on concurrency, consistency, or migration ordering
 that the evidence could not settle. Per `model-selection.md` that is an
-escalation and not a step — and hand it Step 1's table, so it does not pay Opus
-rates to redo the research.
+escalation and not a step — and hand it Step 1's table, so it does not pay
+think-tier rates to redo the research.
 
 ## Step 4 — Write it
 

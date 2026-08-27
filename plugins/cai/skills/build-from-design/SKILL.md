@@ -1,6 +1,6 @@
 ---
 name: build-from-design
-description: Build a detail design document unit by unit — its Work breakdown table is the schedule, each unit gets a Sonnet implementer briefed from the document's own spec sections, Haiku runs the verification, and nothing starts until the one before it is green and committed. Use when an approved detail design exists and the user asks to build it, says "implement this design", "按這份設計實作", "照 work breakdown 做", "把這份 detail design 做出來", or invokes /cai:build-from-design. A design with no work breakdown is `/cai:goal` instead.
+description: Build a detail design document unit by unit — its Work breakdown table is the schedule, each unit gets a build-tier implementer briefed from the document's own spec sections, the chore tier runs the verification, and nothing starts until the one before it is green and committed. Use when an approved detail design exists and the user asks to build it, says "implement this design", "按這份設計實作", "照 work breakdown 做", "把這份 detail design 做出來", or invokes /cai:build-from-design. A design with no work breakdown is `/cai:goal` instead.
 model: sonnet
 effort: medium
 ---
@@ -18,8 +18,8 @@ This skill is that table's consumer. It reads the schedule, briefs one engineer
 per unit from the sections that unit actually needs, and does not start the next
 one until the last is green.
 
-Two tiers, and the split is the point: **deciding runs on Sonnet, fetching and
-running run on Haiku.** Locating a file and executing a test command are
+Two tiers, and the split is the point: **deciding runs at the build tier,
+fetching and running at the chore tier.** Locating a file and executing a test command are
 mechanical; choosing where a unit's boundary sits, ranking a review finding, or
 resolving a merge conflict is not, and neither is a design decision the document
 turns out not to have made — that one goes back to the user.
@@ -88,7 +88,7 @@ document does not have:
 `## Verification` gives the criterion and the level, never the command — turning
 "a unit test over a fixture log" into the line that runs it is work this step
 has to do, and it has to be done before any code exists. Finding what this repo
-already uses to run tests is mechanical: dispatch `explorer` (Haiku). Deciding
+already uses to run tests is mechanical: dispatch `explorer`. Deciding
 which of those commands gates this unit is not.
 
 A verify command that takes ten minutes or hangs gets skipped under time
@@ -123,14 +123,17 @@ in the wrong place, which goes to the user.
 
 ## Step 2 — Who does what
 
+Tiers are named, not versioned: `chore`, `build`, `think`. Which model each one
+resolves to lives in `plugins/cai/models.json` and nowhere else.
+
 | Work | Runs on | Why that tier |
 |---|---|---|
-| Reading the document, cutting the schedule, ordering units | this session (Sonnet) | judgement |
-| Locating the files a unit touches, finding what already exists to reuse | `explorer` (Haiku) | finding a location is mechanical |
-| Writing a unit's code and its tests | `implementer` (Sonnet) | the main tier |
-| Running a unit's verify command, reporting pass/fail | `test-runner` (Haiku) | executing and reporting is mechanical |
-| Reviewing the finished diff, three lenses | `reviewer` ×3 (Sonnet) | via `diff-review` |
-| Ranking findings, resolving a merge conflict, judging a deviation | this session (Sonnet) | judgement |
+| Reading the document, cutting the schedule, ordering units | this session (build) | judgement |
+| Locating the files a unit touches, finding what already exists to reuse | `explorer` (chore) | finding a location is mechanical |
+| Writing a unit's code and its tests | `implementer` (build) | judgement inside the unit's spec |
+| Running a unit's verify command, reporting pass/fail | `test-runner` (chore) | executing and reporting is mechanical |
+| Reviewing the finished diff, three lenses | `reviewer` ×3 (build) | via `diff-review` |
+| Ranking findings, resolving a merge conflict, judging a deviation | this session (build) | judgement |
 | Any architecture decision the document turns out not to have made | **the user** | `AskUserQuestion`, never resolved here |
 
 The last row is the one that gets broken. A detail design missing a decision is
@@ -162,11 +165,11 @@ from the document rather than summarized:
 That last row is load-bearing in both lanes: sequential it stops scope creep,
 parallel it is the entire reason two lanes do not collide.
 
-**3. Implement.** Dispatch `implementer` (Sonnet) with that brief. It is told to
+**3. Implement.** Dispatch `implementer` with that brief. It is told to
 stop and report rather than guess when a spec is ambiguous — when it does, that
 is Step 2's last row, not something to smooth over.
 
-**4. Verify.** Dispatch `test-runner` (Haiku) with the unit's `Verify with`
+**4. Verify.** Dispatch `test-runner` with the unit's `Verify with`
 command. Read the real output.
 
 - Green → continue.

@@ -1,6 +1,6 @@
 ---
-description: Run a quick, mechanical task under Haiku instead of the main session model — renames, formatting, simple lookups, one-off shell commands, boilerplate. Usage: /cai:haiku <task>
-model: claude-haiku-4-5-20251001
+description: Run a mechanical, no-judgement chore on the chore tier instead of the main session model — renames, formatting, simple lookups, one-off shell commands, boilerplate. Usage: /cai:chore <task>
+model: haiku
 argument-hint: <quick task>
 ---
 

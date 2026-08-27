@@ -167,14 +167,14 @@ the user's hands.
 
 ## Escalating
 
-Run the whole review inline by default. Dispatch `architect` (Opus, read-only —
-see `model-selection.md`) only when the plan spans several subsystems, or turns
+Run the whole review inline by default. Dispatch `architect` (read-only, the
+think tier — see `model-selection.md`) only when the plan spans several subsystems, or turns
 on a concurrency, consistency, or migration-ordering decision that the lenses
 surfaced and could not settle. It is an escalation, not a step.
 
 When you do escalate, hand over the traceability table and the finding that
-stalled, so it starts from the open question instead of paying Opus rates to
-redo Step 1.
+stalled, so it starts from the open question instead of paying think-tier rates
+to redo Step 1.
 
 ## Minimum reviewable skeletons
 
