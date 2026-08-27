@@ -39,22 +39,22 @@
   "assignments": {
     "agents/explorer.md": "chore",
     "agents/test-runner.md": "chore",
-    "commands/setup.md": "chore",
-    "commands/chore.md": "chore",
-    "commands/git.md": "chore",
+    "skills/setup/SKILL.md": "chore",
+    "skills/chore/SKILL.md": "chore",
+    "skills/git/SKILL.md": "chore",
     "skills/git-pr-rebase/SKILL.md": "chore",
 
     "agents/implementer.md": "build",
     "agents/reviewer.md": "build",
     "agents/refactoring-detector.md": "build",
     "agents/refactoring-surgeon.md": "build",
-    "commands/design-delta-doc.md": "build",
-    "commands/quiz.md": "build",
+    "skills/design-delta-doc/SKILL.md": "build",
+    "skills/quiz/SKILL.md": "build",
     "skills/build-from-design/SKILL.md": "build",
 
     "agents/architect.md": "think",
-    "commands/design-high-level-doc.md": "think",
-    "commands/design-implementation-detail-doc.md": "think",
+    "skills/design-high-level-doc/SKILL.md": "think",
+    "skills/design-implementation-detail-doc/SKILL.md": "think",
     "skills/plan-review/SKILL.md": "think"
   }
 }

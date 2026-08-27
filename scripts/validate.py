@@ -62,17 +62,19 @@ for path in sorted(glob.glob(f"{PLUGIN}/agents/*.md")):
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
 
-for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")):
-    keys = frontmatter_keys(path)
-    check(f"{path} frontmatter has description", bool(keys) and "description" in keys)
-
 # goal.md routes rather than implements, so it is read start to finish every
 # time someone reaches for it -- and prose that outgrows a screen is prose that
 # gets skimmed past the branch it was carrying. The ceiling is the number the
 # design settled on (docs/design/2026-08-25-goal-command-routing-detail.md,
 # Budgets); this is what stops it being a number nobody ever checks again.
-GOAL = f"{PLUGIN}/commands/goal.md"
-goal_lines = len(read_text(GOAL).splitlines())
+GOAL = f"{PLUGIN}/skills/goal/SKILL.md"
+goal_text = read_text(GOAL)
+# The ceiling is on the body a human reads, not the frontmatter the move to
+# skills/ requires (a `name:` field commands never carried) -- counting the
+# whole file would fail this check by exactly the one line that move added,
+# for a reason unrelated to the prose the budget was set against.
+goal_body_start = goal_text.find("\n---", 3) + 4 if goal_text.startswith("---") else 0
+goal_lines = len(goal_text[goal_body_start:].splitlines())
 check(f"{GOAL} is within its 120-line ceiling ({goal_lines})", goal_lines <= 120)
 
 skills = sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
@@ -80,6 +82,26 @@ check("at least one skill ships", bool(skills))
 for path in skills:
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
+
+# The 72 generated refactoring aliases moved out of the main line into their
+# own directory (see .claude-plugin/plugin.json's additive "skills" key), so
+# they get the same frontmatter check plus the one property that keeps their
+# descriptions out of the always-on budget while leaving them user-invocable.
+CATALOG = f"{PLUGIN}/refactoring-catalog"
+catalog_skills = sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))
+check(f"refactoring-catalog holds exactly 72 skills ({len(catalog_skills)})", len(catalog_skills) == 72)
+for path in catalog_skills:
+    keys = frontmatter_keys(path)
+    check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
+    check(f"{path} disables model invocation", "disable-model-invocation: true" in read_text(path))
+
+# commands/ is retired: a file there and a same-named skill both create the
+# same slash command, and that collision already shadowed a skill once. The
+# 72 aliases must not have leaked back into the main skills/ line either.
+check(f"{PLUGIN}/commands is gone", not os.path.isdir(f"{PLUGIN}/commands"))
+alias_slugs = {os.path.basename(os.path.dirname(p)) for p in catalog_skills}
+leaked_aliases = sorted(alias_slugs & {os.path.basename(os.path.dirname(p)) for p in skills})
+check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not leaked_aliases)
 
 # /cai:setup copies these out to ~/.claude/rules/; an empty dir would
 # make setup a silent no-op.
@@ -219,7 +241,7 @@ if os.path.isfile(SETTINGS):
 # Windows is Git Bash, which rewrites a lone /c into C:/. cmd then never sees
 # the switch and exits 0 -- the exact code step 5 reads as "the guard is inert".
 # A healthy guard reported as broken is worse than no check at all.
-SETUP = f"{PLUGIN}/commands/setup.md"
+SETUP = f"{PLUGIN}/skills/setup/SKILL.md"
 setup_text = read_text(SETUP)
 check("setup.md invokes cmd as //c (MSYS would eat a lone /c)",
       "cmd //c" in setup_text and not re.search(r"cmd\s+/(?!/)c\b", setup_text))
@@ -266,8 +288,8 @@ def rule_block(path):
     return body.split("These two rules appear", 1)[0].strip()
 
 
-DESIGN_CMDS = [f"{PLUGIN}/commands/design-high-level-doc.md",
-               f"{PLUGIN}/commands/design-implementation-detail-doc.md"]
+DESIGN_CMDS = [f"{PLUGIN}/skills/design-high-level-doc/SKILL.md",
+               f"{PLUGIN}/skills/design-implementation-detail-doc/SKILL.md"]
 # Guarding on existence without checking it lets the drift check disappear the
 # day a file is renamed -- which is exactly the drift it exists to catch.
 for path in DESIGN_CMDS:
@@ -281,8 +303,8 @@ if all(os.path.isfile(p) for p in DESIGN_CMDS):
 # inside this checkout. Anyone who installed from the marketplace has the plugin
 # under ~/.claude/plugins/cache/, so the command silently stops working for
 # every real user -- the failure this repo is least able to notice.
-for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")
-                   + glob.glob(f"{PLUGIN}/skills/*/SKILL.md")):
+for path in sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md")
+                   + glob.glob(f"{CATALOG}/*/SKILL.md")):
     check(f"{path} runs scripts via <plugin-root>",
           f"{PLUGIN}/scripts/" not in read_text(path))
 
@@ -674,8 +696,8 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
     # quietly skips it.
     declaring = set()
     for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/commands/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))):
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                 + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
         body = read_text(path)
         end = body.find("\n---", 3) if body.startswith("---") else -1
         if end == -1:
@@ -703,9 +725,9 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
     FAMILY = re.compile(r"\b(haiku|sonnet|opus|fable)\b", re.IGNORECASE)
     leaked = []
     for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/commands/*.md"))
                  + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/references/*.md"))):
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/references/*.md"))
+                 + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
         for n, line in enumerate(read_text(path).splitlines(), 1):
             if line.startswith("model:"):
                 continue
