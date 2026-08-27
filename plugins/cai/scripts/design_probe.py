@@ -12,7 +12,7 @@ tokens.
 The definitions of "filled" and "item" come from the SDD design note under
 docs/, so that a probe two people run returns the same number.
 
-Usage:  design_probe.py --kind hld|detail [--project-dir DIR] <document>
+Usage:  design_probe.py --kind hld|detail|delta [--project-dir DIR] <document>
 Exit:   0 every probe passed, 2 at least one failed.
 """
 import argparse
@@ -24,6 +24,14 @@ PLACEHOLDER = re.compile(r"^(TBD|TODO|N/?A|\?+|-{1,3})\.?$", re.I)
 CAP_ID = re.compile(r"\bC\d+\b")
 UC_ID = re.compile(r"\b(?:UC|R)\d+\b")
 CITE = re.compile(r"[\w./\\-]+\.\w+:\d+|https?://")
+# A delta document is written after the change, so its commonest evidence is a
+# commit -- which CITE cannot match. The hex run also matches an all-hex English
+# word ("defaced"), letting an uncited row through. That is the direction this
+# file already prefers: a false reject makes a correct document unpassable,
+# which costs more than a miss.
+DELTA_CITE = re.compile(r"[\w./\\-]+\.\w+:\d+|https?://|\b[0-9a-f]{7,40}\b")
+# `<ref>..HEAD`, `<ref>...HEAD`, or a bare sha.
+RANGE = re.compile(r"\.{2,3}HEAD|\b[0-9a-f]{7,40}\b")
 # GFM accepts a single dash per cell, so `|-|-|` is a legal separator row.
 SEP_CELL = re.compile(r":?-+:?")
 COMMENT = re.compile(r"<!--.*?-->", re.S)
@@ -38,6 +46,12 @@ DETAIL_HEADINGS = ["Reference", "Requirement", "Glossary", "Budgets",
                    "Design decisions", "Diagrams", "Implementation spec",
                    "Naming", "Change points", "Failure modes", "Rollout",
                    "Verification", "Work breakdown"]
+# A delta document is written after the fact, so it carries neither a status
+# gate nor weighed options -- both are settled by the time it exists. What it
+# must carry instead is the range it describes: six months on, that is the one
+# thing no amount of rereading the prose recovers.
+DELTA_HEADINGS = ["Scope", "Problem", "Before / After", "Decisions",
+                  "Impact", "Limits"]
 
 # Two headings are legitimately short or legitimately empty, and a length rule
 # over them makes a correct document unpassable. `## Status` says exactly
@@ -48,9 +62,10 @@ DETAIL_HEADINGS = ["Reference", "Requirement", "Glossary", "Budgets",
 SHORT_OK = {"Status"}
 MAY_BE_EMPTY = {"Open questions"}
 
-# The templates are the shape both commands write to, so they are the source of
-# truth for the lists above. validate.py asserts the two agree.
-TEMPLATES = {"hld": "design-high-level.md.tpl", "detail": "design-detail.md.tpl"}
+# The templates are the shape the design commands write to, so they are the
+# source of truth for the lists above. validate.py asserts the two agree.
+TEMPLATES = {"hld": "design-high-level.md.tpl", "detail": "design-detail.md.tpl",
+             "delta": "design-delta.md.tpl"}
 
 
 def sections(text):
@@ -273,6 +288,39 @@ def detail_probes(secs, text, roots):
         "found" if seq else "four diagrams but none is a sequenceDiagram")
 
 
+def delta_probes(secs, text, roots):
+    yield probe_headings(secs, DELTA_HEADINGS)
+
+    # The one fact a delta document cannot be reconstructed without. Prose
+    # describing "the new exporter" is worthless once three more land on top.
+    scope = COMMENT.sub("", secs.get("Scope", ""))
+    ok = bool(RANGE.search(scope))
+    yield ok, "scope_names_a_range (%s)" % (
+        "found" if ok else "## Scope names no <ref>..HEAD and no commit sha")
+
+    # Before and after. One diagram is a picture of the end state, which is the
+    # thing the reader can already get by reading the code.
+    count = len(FENCE.findall(text))
+    yield count >= 2, "before_after_diagrams (%d mermaid block(s), need 2)" % count
+
+    dec = items(secs.get("Decisions", ""))
+    yield bool(dec), "decisions_have_rows (%d)" % len(dec)
+
+    # This command never stops to ask, so a decision whose reason it could not
+    # source has to say so. Otherwise silence and evidence read the same to
+    # whoever opens this next, and the unsourced half is invisible.
+    bare = [r for r in dec
+            if not DELTA_CITE.search(r) and "unverified" not in r.lower()]
+    yield bool(dec) and not bare, \
+        "decisions_evidence (%d row(s) cite nothing and are not UNVERIFIED)" % len(bare)
+
+    imp = items(secs.get("Impact", ""))
+    yield bool(imp), "impact_has_rows (%d)" % len(imp)
+
+
+PROBES = {"hld": hld_probes, "detail": detail_probes, "delta": delta_probes}
+
+
 def main():
     # The documents are written in the user's own language and the probe quotes
     # them back. A console codepage that cannot encode a quoted character would
@@ -283,7 +331,7 @@ def main():
         pass
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--kind", choices=("hld", "detail"), required=True)
+    ap.add_argument("--kind", choices=tuple(PROBES), required=True)
     ap.add_argument("--project-dir", default=".",
                     help="root the document's file:line citations are relative "
                          "to; pass it when designing against another repo")
@@ -301,7 +349,7 @@ def main():
     # sibling .md is the likely shape there.
     roots = (args.project_dir, os.path.dirname(args.document) or ".")
 
-    run = hld_probes if args.kind == "hld" else detail_probes
+    run = PROBES[args.kind]
     failed = 0
     for ok, label in run(sections(text), text, roots):
         print(("PASS " if ok else "FAIL ") + label)

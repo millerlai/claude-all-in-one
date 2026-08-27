@@ -396,6 +396,34 @@ Every file this produces gets a spelled-out name; no abbreviation is invented.
 | 2 reporter | unit 1's record shape | UC1's test is green end to end |
 """
 
+# One decision row cites evidence and the other is UNVERIFIED, so the clean
+# fixture walks both paths decisions_evidence accepts. A fixture where every
+# row cites something would leave the UNVERIFIED branch untested, and that
+# branch is the one carrying the command's promise not to guess.
+DELTA_OK = """## Scope
+Base ref origin/main, range a3f21bc..HEAD, four files changed.
+
+## Problem
+The overnight run reported failures nobody saw until the next morning.
+
+## Before / After
+The collector wrote to stdout before; it writes to the session log now.
+
+""" + FENCE * 2 + """## Decisions
+| Decision | Why | Evidence |
+|---|---|---|
+| write to the session log | stdout is not captured by the runner | scripts/validate.py:41 |
+| drop the retry loop | UNVERIFIED | nothing in the branch says why |
+
+## Impact
+| What it touches | The assumption | What breaks if it is wrong |
+|---|---|---|
+| the runner's log path | it is writable at start up | the collector emits nothing and says so |
+
+## Limits
+Cross-repo runs stay out of scope; this reads the local session log only.
+"""
+
 # The detail fixtures name this in ## Reference, and the probe looks for it
 # beside the document it is checking.
 with open(os.path.join(PROBE_DIR, "hld.md"), "w", encoding="utf-8") as fh:
@@ -419,6 +447,13 @@ PROBE_CASES = [
     ("detail", DETAIL_OK.replace("up to 400", "as many as we get"), 2, "budgets_are_numeric"),
     ("detail", DETAIL_OK.replace("## Rollout", "## Shipping"), 2, "headings_complete"),
     ("detail", DETAIL_OK.replace("hld.md", "no-such-design.md"), 2, "reference_resolves"),
+    ("delta", DELTA_OK, 0, ""),
+    ("delta", DELTA_OK.replace("a3f21bc..HEAD", "the tip of the branch"), 2, "scope_names_a_range"),
+    ("delta", DELTA_OK.replace(FENCE * 2, FENCE), 2, "before_after_diagrams"),
+    ("delta", re.sub(r"\n\| (?:write|drop) .*", "", DELTA_OK), 2, "decisions_have_rows"),
+    ("delta", DELTA_OK.replace("scripts/validate.py:41", "it seemed better"), 2, "decisions_evidence"),
+    ("delta", re.sub(r"\n\| the runner's log path .*", "", DELTA_OK), 2, "impact_has_rows"),
+    ("delta", DELTA_OK.replace("## Limits", "## Caveats"), 2, "headings_complete"),
 ]
 
 for i, (kind, fixture_text, expected, probe) in enumerate(PROBE_CASES):
@@ -441,7 +476,8 @@ sys.path.insert(0, f"{PLUGIN}/scripts")
 import design_probe  # noqa: E402
 
 for kind, want in (("hld", design_probe.HLD_HEADINGS),
-                   ("detail", design_probe.DETAIL_HEADINGS)):
+                   ("detail", design_probe.DETAIL_HEADINGS),
+                   ("delta", design_probe.DELTA_HEADINGS)):
     tpl = f"{PLUGIN}/templates/{design_probe.TEMPLATES[kind]}"
     check(f"{kind} design template ships", os.path.isfile(tpl))
     if not os.path.isfile(tpl):
