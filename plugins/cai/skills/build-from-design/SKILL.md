@@ -1,6 +1,7 @@
 ---
 name: build-from-design
 description: Build a detail design document unit by unit — its Work breakdown table is the schedule, each unit gets a build-tier implementer briefed from the document's own spec sections, the chore tier runs the verification, and nothing starts until the one before it is green and committed. Use when an approved detail design exists and the user asks to build it, says "implement this design", "按這份設計實作", "照 work breakdown 做", "把這份 detail design 做出來", or invokes /cai:build-from-design. A design with no work breakdown is `/cai:goal` instead.
+argument-hint: "<detail design doc> [target project dir]"
 model: sonnet
 effort: medium
 ---
