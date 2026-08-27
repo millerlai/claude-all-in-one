@@ -877,6 +877,34 @@ if os.path.isfile(STAGES_JSON):
             tier_leaks.append(ln)
     check(f"stages.json names no model tier ({len(tier_leaks)} leak(s))", not tier_leaks)
 
+    # Unit 6a: the six stage reference files and their thin wrapper skills.
+    # A `reference` path that resolves to nothing leaves the subagent track
+    # dispatches with a Read call that 404s mid-stage.
+    for row in stages:
+        ref = f"{PLUGIN}/skills/track/{row['reference']}"
+        check(f"stage {row['id']} reference exists ({ref})", os.path.isfile(ref))
+
+        wrapper = f"{PLUGIN}/skills/{row['id']}/SKILL.md"
+        check(f"stage {row['id']} has a wrapper skill ({wrapper})", os.path.isfile(wrapper))
+        if not os.path.isfile(wrapper):
+            continue
+
+        wrapper_text = read_text(wrapper)
+        has_flag = "disable-model-invocation: true" in wrapper_text
+        # auto_invoke says whether this skill may start the stage on its own;
+        # a stage that writes things (auto_invoke: false) must carry the flag
+        # or a matching description starts it unbidden, and a stage that only
+        # reads (auto_invoke: true) must not carry it or the capability it
+        # exists to keep -- firing on "review this diff" -- regresses silently.
+        if row["auto_invoke"]:
+            check(f"{wrapper} has no disable-model-invocation (auto_invoke: true)", not has_flag)
+        else:
+            check(f"{wrapper} disables model invocation (auto_invoke: false)", has_flag)
+
+        wrapper_end = wrapper_text.find("\n---", 3) + 4 if wrapper_text.startswith("---") else 0
+        wrapper_lines = len(wrapper_text[wrapper_end:].splitlines())
+        check(f"{wrapper} body is under 25 lines ({wrapper_lines})", wrapper_lines < 25)
+
 # track/SKILL.md routes rather than implements, so it is read start to finish
 # every time someone reaches for it -- same reasoning and the same 120-line
 # ceiling as goal.md above.
