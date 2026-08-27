@@ -48,7 +48,6 @@
     "agents/reviewer.md": "build",
     "agents/refactoring-detector.md": "build",
     "agents/refactoring-surgeon.md": "build",
-    "commands/build-from-design.md": "build",
     "commands/design-delta-doc.md": "build",
     "commands/quiz.md": "build",
     "skills/build-from-design/SKILL.md": "build",
