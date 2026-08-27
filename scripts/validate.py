@@ -171,12 +171,16 @@ for slug in extra_cards[:5]:
     print("     card defines but index omits:", slug)
 
 # Check 3: the safety protocol lives in the knowledge skill only (design
-# decisions #3). A process skill that pastes a rule verbatim instead of
-# pointing back here is exactly what goes stale the day the rule changes.
-# No refactor-* process skill exists until unit 3, so this glob is a no-op
-# until then -- that is correct, not a gap.
+# decisions #3). A component that pastes a rule verbatim instead of pointing
+# back here is exactly what goes stale the day the rule changes.
+#
+# The agents are covered as well as the process skills, because the design's
+# own failure mode counts three copies of the protocol -- the knowledge skill,
+# refactor-apply, and refactoring-surgeon -- and a check that watched only two
+# of the three would leave the copy inside the agent free to drift.
 proto_lines = protocol_lines(SKILL)
-for path in sorted(glob.glob(f"{PLUGIN}/skills/refactor-*/SKILL.md")):
+for path in sorted(glob.glob(f"{PLUGIN}/skills/refactor-*/SKILL.md")
+                   + glob.glob(f"{PLUGIN}/agents/refactoring-*.md")):
     # Both sides must extract the same shapes, or widening one half silently
     # guards nothing: bullets() alone would miss a pasted numbered loop step.
     with open(path, encoding="utf-8") as fh:
