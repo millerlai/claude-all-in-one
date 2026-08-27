@@ -584,6 +584,69 @@ for kind, want in (("hld", design_probe.HLD_HEADINGS),
                            capture_output=True, text=True)
     check(f"{kind} template does not pass its own probe", blank.returncode == 2)
 
+# preflight.py's design check reads state.md's design row and hands the
+# artifact to design_probe.py, so its fixture needs a real track state next
+# to a real (or deliberately broken) design document -- same shape as the
+# PROBE_CASES above, one level up the stack.
+PREFLIGHT = f"{PLUGIN}/scripts/preflight.py"
+PREFLIGHT_PROJECT = temp_repo("preflight-fixture")
+PREFLIGHT_TRACK = os.path.join(PREFLIGHT_PROJECT, "track")
+os.makedirs(os.path.join(PREFLIGHT_PROJECT, "docs", "design"), exist_ok=True)
+os.makedirs(PREFLIGHT_TRACK, exist_ok=True)
+
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "hld.md"), "w", encoding="utf-8") as fh:
+    fh.write(HLD_OK)
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md"),
+          "w", encoding="utf-8") as fh:
+    # DETAIL_OK's glossary cites scripts/validate.py:41, which does not exist
+    # inside this throwaway project root; point it at the sibling hld.md
+    # written above instead, which does.
+    fh.write(DETAIL_OK.replace("scripts/validate.py:41", "docs/design/hld.md:1"))
+
+
+def write_preflight_state(artifact_cell):
+    # state.md is overwritten in place, never appended to -- each case
+    # replaces the whole file rather than editing one cell.
+    text = ("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+            "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+            "|---|---|---|---|\n| intake | done | — | |\n"
+            "| discover | done | — | |\n"
+            "| design | done | %s | |\n"
+            "| build | | | |\n| verify | | | |\n| ship | | | |\n" % artifact_cell)
+    with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def run_preflight(stage, track_dir=PREFLIGHT_TRACK):
+    return subprocess.run(
+        [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
+         "--project-dir", PREFLIGHT_PROJECT],
+        capture_output=True, text=True)
+
+
+write_preflight_state("docs/design/billing-detail.md")
+done = run_preflight("design")
+check("preflight design [clean detail doc] -> 0", done.returncode == 0)
+
+write_preflight_state("docs/design/does-not-exist-detail.md")
+done = run_preflight("design")
+check("preflight design [artifact missing] -> 2", done.returncode == 2)
+check("preflight design names artifact_exists", "FAIL artifact_exists" in done.stdout)
+
+write_preflight_state("docs/design/billing-export.txt")
+done = run_preflight("design")
+check("preflight design [unrecognized suffix] -> 2", done.returncode == 2)
+check("preflight design names artifact_kind", "FAIL artifact_kind" in done.stdout)
+
+done = subprocess.run([sys.executable, PREFLIGHT, "no-such-stage",
+                       "--track-dir", PREFLIGHT_TRACK],
+                      capture_output=True, text=True)
+check("preflight unknown stage id -> 1", done.returncode == 1)
+
+done = run_preflight("intake")
+check("preflight stub stage [intake] -> 2", done.returncode == 2)
+check("preflight stub stage names not_implemented", "FAIL not_implemented" in done.stdout)
+
 # Model tiers live in models.json, not in eighteen frontmatters. Three checks,
 # because the failure modes are different: drift (someone edited a frontmatter
 # by hand), escape (a new component nobody assigned a role), and regression
@@ -641,7 +704,8 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
     leaked = []
     for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
                  + sorted(glob.glob(f"{PLUGIN}/commands/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))):
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/references/*.md"))):
         for n, line in enumerate(read_text(path).splitlines(), 1):
             if line.startswith("model:"):
                 continue
@@ -651,6 +715,33 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
           not leaked)
     for line in leaked[:8]:
         print(f"     {line}")
+
+# The track skill's stage table. Shape checks only -- the six stage prose
+# files and their wrapper skills are later units and do not exist yet.
+STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
+STAGE_ORDER = ["intake", "discover", "design", "build", "verify", "ship"]
+check(f"stages.json ships ({STAGES_JSON})", os.path.isfile(STAGES_JSON))
+if os.path.isfile(STAGES_JSON):
+    stages_text = read_text(STAGES_JSON)
+    stages = json.loads(stages_text)["stages"]
+    check(f"stages.json has {len(STAGE_ORDER)} rows ({len(stages)})",
+          len(stages) == len(STAGE_ORDER))
+    keys_ok = all(set(row) == {"id", "agent", "reference", "auto_invoke"} for row in stages)
+    check("every stage row has exactly id/agent/reference/auto_invoke", keys_ok)
+    ids = [row.get("id") for row in stages]
+    check(f"stage ids are {STAGE_ORDER} in order ({ids})", ids == STAGE_ORDER)
+
+    # Model tier lives only in models.json; a second copy here would drift
+    # the moment a role is re-tiered. "build" is also a legitimate stage id
+    # and names its reference file, so only flag it elsewhere.
+    BUILD_LEGIT = re.compile(r'"id"\s*:\s*"build"|stage-build\.md')
+    tier_leaks = []
+    for ln in stages_text.splitlines():
+        if re.search(r"\btier\b|\b(chore|think)\b", ln, re.IGNORECASE):
+            tier_leaks.append(ln)
+        elif re.search(r"\bbuild\b", ln, re.IGNORECASE) and not BUILD_LEGIT.search(ln):
+            tier_leaks.append(ln)
+    check(f"stages.json names no model tier ({len(tier_leaks)} leak(s))", not tier_leaks)
 
 # plan-review restates both skeletons so the skill stays self-contained when it
 # is handed a document the commands did not write. Restating is fine; restating
@@ -735,7 +826,7 @@ def rmtree(path):
         shutil.rmtree(path, onerror=retry)
 
 
-for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR):
+for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR, PREFLIGHT_PROJECT):
     rmtree(path)
 
 sys.exit(FAIL)
