@@ -765,6 +765,97 @@ if os.path.isfile(STAGES_JSON):
             tier_leaks.append(ln)
     check(f"stages.json names no model tier ({len(tier_leaks)} leak(s))", not tier_leaks)
 
+# track/SKILL.md routes rather than implements, so it is read start to finish
+# every time someone reaches for it -- same reasoning and the same 120-line
+# ceiling as goal.md above.
+TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
+if os.path.isfile(TRACK_SKILL):
+    track_text = read_text(TRACK_SKILL)
+    track_body_start = track_text.find("\n---", 3) + 4 if track_text.startswith("---") else 0
+    track_lines = len(track_text[track_body_start:].splitlines())
+    check(f"{TRACK_SKILL} is within its 120-line ceiling ({track_lines})", track_lines <= 120)
+
+# track_state.py resolves .claude/track/current -> state.md from files alone,
+# with no model call -- UC1's acceptance test ("a fresh session resumes from
+# files alone") is this loop. Every fixture lives under one temp_repo() (git
+# is irrelevant to the script, but the helper is the repo's existing way to
+# get a throwaway directory that gets cleaned up below).
+TRACK_STATE = f"{PLUGIN}/scripts/track_state.py"
+TRACK_FIXTURE_ROOT = temp_repo("track-state-fixture")
+
+# Same six rows as the state.md example in the track spec: one stage done
+# with an artifact, one done with a note, one skipped with a reason, one
+# in-progress, two not started -- so "next" lands on the in-progress row
+# rather than skating past it.
+FULL_ROWS = [
+    ("intake", "done", "docs/design/2026-08-27-billing-export-intake.md", ""),
+    ("discover", "done", "—", "three unknowns closed"),
+    ("design", "skipped", "—", "reusing the existing spec"),
+    ("build", "in-progress", "—", "unit 3 of 5"),
+    ("verify", "", "", ""),
+    ("ship", "", "", ""),
+]
+
+
+def write_track_state(track_dir, rows):
+    lines = ["# fixture", "", "branch: feat/fixture", "started: 2026-08-27", "",
+             "| stage | status | artifact | note |", "|---|---|---|---|"]
+    lines += ["| " + " | ".join(row) + " |" for row in rows]
+    os.makedirs(track_dir, exist_ok=True)
+    with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
+def make_track_root(name):
+    root = os.path.join(TRACK_FIXTURE_ROOT, name)
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def write_current(root, feature):
+    with open(os.path.join(root, "current"), "w", encoding="utf-8") as fh:
+        fh.write(feature)
+
+
+def valid_track_root():
+    root = make_track_root("valid")
+    write_track_state(os.path.join(root, "billing-export"), FULL_ROWS)
+    write_current(root, "billing-export")
+    return root
+
+
+def missing_dir_track_root():
+    root = make_track_root("missing-dir")
+    write_current(root, "ghost-feature")  # names a dir that is never created
+    return root
+
+
+def row_mismatch_track_root():
+    root = make_track_root("row-mismatch")
+    write_track_state(os.path.join(root, "short-track"), FULL_ROWS[:5])  # missing "ship"
+    write_current(root, "short-track")
+    return root
+
+
+def no_current_track_root():
+    return make_track_root("no-current")  # `current` is never written
+
+
+TRACK_STATE_CASES = [
+    # (label, root-builder, expected exit, substring the output must name)
+    ("valid track resolves the next stage", valid_track_root, 0, "next: build"),
+    ("current names a missing directory", missing_dir_track_root, 2, "ghost-feature"),
+    ("state.md row count disagrees with stages.json", row_mismatch_track_root, 2, "5 stage row"),
+    ("no current at all", no_current_track_root, 2, "no active track"),
+]
+
+for label, build_root, expected, needle in TRACK_STATE_CASES:
+    done = subprocess.run(
+        [sys.executable, TRACK_STATE, "status", "--track-root", build_root()],
+        capture_output=True, text=True)
+    check(f"track_state status [{label}] -> {expected}", done.returncode == expected)
+    check(f"track_state status [{label}] names it", needle in done.stdout + done.stderr)
+
 # plan-review restates both skeletons so the skill stays self-contained when it
 # is handed a document the commands did not write. Restating is fine; restating
 # with nothing checking it is how a skill starts telling people to write a shape
@@ -848,7 +939,8 @@ def rmtree(path):
         shutil.rmtree(path, onerror=retry)
 
 
-for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR, PREFLIGHT_PROJECT):
+for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR, PREFLIGHT_PROJECT,
+             TRACK_FIXTURE_ROOT):
     rmtree(path)
 
 sys.exit(FAIL)

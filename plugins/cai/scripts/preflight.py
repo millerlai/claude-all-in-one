@@ -35,6 +35,25 @@ def resolve(rel, *bases):
     return None
 
 
+def data_rows(text):
+    """Every stage row of a state.md table, as lists of trimmed cells. The
+    header and the `---` separator are dropped here rather than at each call
+    site: two readers that disagree about what counts as a row would disagree
+    about how many stages a track has, which is the one number state.md and
+    stages.json have to agree on."""
+    rows = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not (s.startswith("|") and s.endswith("|")):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        first = cells[0] if cells else ""
+        if first in ("", "stage") or set(first) <= {"-"}:
+            continue
+        rows.append(cells)
+    return rows
+
+
 def state_row(track_dir, stage_id):
     """The stage table row in state.md, as a list of trimmed cells, or None
     when state.md is missing or names no such row. Not being able to read it
@@ -45,12 +64,8 @@ def state_row(track_dir, stage_id):
         return None
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
-    for line in text.splitlines():
-        s = line.strip()
-        if not (s.startswith("|") and s.endswith("|")):
-            continue
-        cells = [c.strip() for c in s.strip("|").split("|")]
-        if cells and cells[0] == stage_id:
+    for cells in data_rows(text):
+        if cells[0] == stage_id:
             return cells
     return None
 
