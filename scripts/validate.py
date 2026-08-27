@@ -584,6 +584,74 @@ for kind, want in (("hld", design_probe.HLD_HEADINGS),
                            capture_output=True, text=True)
     check(f"{kind} template does not pass its own probe", blank.returncode == 2)
 
+# Model tiers live in models.json, not in eighteen frontmatters. Three checks,
+# because the failure modes are different: drift (someone edited a frontmatter
+# by hand), escape (a new component nobody assigned a role), and regression
+# (someone pinned a concrete version again, which is what models.json exists to
+# stop -- an alias tracks its family, `claude-haiku-4-5-20251001` does not).
+GEN_MODELS = f"{PLUGIN}/scripts/gen-models.py"
+MODELS_JSON = f"{PLUGIN}/models.json"
+check(f"models.json ships ({MODELS_JSON})", os.path.isfile(MODELS_JSON))
+check(f"gen-models.py ships ({GEN_MODELS})", os.path.isfile(GEN_MODELS))
+
+if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
+    drifted = subprocess.run([sys.executable, GEN_MODELS, "--check"],
+                             capture_output=True, text=True)
+    check("every component's model matches its role in models.json",
+          drifted.returncode == 0)
+    if drifted.returncode != 0:
+        print("    ", drifted.stdout.strip().replace("\n", "\n     "))
+
+    spec = json.load(open(MODELS_JSON, encoding="utf-8"))
+    aliases = {r["alias"] for r in spec["roles"].values()}
+    assigned = set(spec["assignments"])
+
+    # Anything that declares a model must be in the table. Without this, a new
+    # agent silently keeps whatever tier its author typed and re-tiering a role
+    # quietly skips it.
+    declaring = set()
+    for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+                 + sorted(glob.glob(f"{PLUGIN}/commands/*.md"))
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))):
+        body = read_text(path)
+        end = body.find("\n---", 3) if body.startswith("---") else -1
+        if end == -1:
+            continue
+        m = re.search(r"^model:[ \t]*(\S+)", body[3:end], re.MULTILINE)
+        if not m:
+            continue
+        rel = path.replace("\\", "/")[len(PLUGIN) + 1:]
+        declaring.add(rel)
+        check(f"{rel} uses a family alias, not a pinned version ({m.group(1)})",
+              m.group(1) in aliases)
+
+    orphans = sorted(declaring - assigned)
+    check(f"every component declaring a model is in models.json "
+          f"({len(orphans)} unassigned)", not orphans)
+    for rel in orphans:
+        print(f"     unassigned: {rel}")
+
+    # Frontmatter is only half of it. The bigger drift was in prose -- a file
+    # that said "dispatch `explorer` (Haiku)" carried a second copy of a fact
+    # agents/explorer.md already owned, and the two diverge the moment a tier
+    # moves. Components name TIERS (chore/build/think); only models.json and
+    # rules/model-selection.md name families. rules/ is excluded because
+    # defining the tiers is exactly its job.
+    FAMILY = re.compile(r"\b(haiku|sonnet|opus|fable)\b", re.IGNORECASE)
+    leaked = []
+    for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+                 + sorted(glob.glob(f"{PLUGIN}/commands/*.md"))
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))):
+        for n, line in enumerate(read_text(path).splitlines(), 1):
+            if line.startswith("model:"):
+                continue
+            if FAMILY.search(line):
+                leaked.append(f"{path.replace(chr(92), '/')}:{n}: {line.strip()[:70]}")
+    check(f"no component names a model family in prose ({len(leaked)} leak(s))",
+          not leaked)
+    for line in leaked[:8]:
+        print(f"     {line}")
+
 # plan-review restates both skeletons so the skill stays self-contained when it
 # is handed a document the commands did not write. Restating is fine; restating
 # with nothing checking it is how a skill starts telling people to write a shape

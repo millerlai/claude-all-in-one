@@ -57,12 +57,12 @@ Gathering and judging are different jobs and they get different models, per
 `model-selection.md`: fetching is mechanical, deciding what it means is not.
 Three sources count, and nothing else does:
 
-- **This project** — dispatch `explorer` (Haiku, read-only) to locate and quote
+- **This project** — dispatch `explorer` (read-only) to locate and quote
   the relevant lines, then read those files yourself and decide what they mean.
   A scout's summary is a pointer, not evidence.
 - **Official documentation** — for any tool, framework, or platform this design
   stands on, fetch the vendor's own docs. `explorer` cannot do this (its tools
-  are Read, Grep, and Glob), so dispatch a Haiku subagent with web access to
+  are Read, Grep, and Glob), so dispatch a chore-tier subagent with web access to
   fetch and quote the passages, then interpret them yourself. Record the URL and
   the sentence you took.
 - **Neither** — write `UNVERIFIED`, and name the design decision that stops

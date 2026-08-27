@@ -30,12 +30,12 @@ it that rule never fires.
   acceptance criteria), go to the next step below instead of testing for a
   schedule against a doc that isn't reviewable yet.
 
-This step runs on Opus at high effort: `plan-review` pins `model: opus,
-effort: high` in its own frontmatter (`plugins/cai/skills/plan-review/SKILL.md:4-5`),
-and a skill's model override holds for the rest of this turn. The real
-trajectory through this file: `plan-review` (opus/high) → routing →
-`build-from-design` (sonnet/medium) → the shared verification step (sonnet
-on that lane; still opus/high on the other, where nothing overrides it).
+This step runs at the think tier and high effort, because `plan-review` pins
+both in its own frontmatter and a skill's model override holds for the rest of
+the turn. The real trajectory through this file: `plan-review` (think/high) →
+routing → `build-from-design` (build/medium) → the shared verification step
+(build on that lane; still think/high on the other, where nothing overrides it).
+Tier names resolve in `plugins/cai/models.json`; this file never names a model.
 
 ## Step 2 — When the doc isn't reviewable yet
 

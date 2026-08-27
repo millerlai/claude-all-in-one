@@ -39,7 +39,7 @@ one gets refused too.
 
 ### A. Blindspot pass — unfamiliar code
 
-Dispatch `explorer` first (Haiku, read-only) to map the area, then report:
+Dispatch `explorer` first (read-only) to map the area, then report:
 
 - **Scope and stakes** — one line on what looked simple vs. what is actually there.
 - **5–8 numbered landmines.** Each one needs all three parts:
