@@ -213,6 +213,29 @@ def hld_probes(secs, text, roots):
         ", ".join(resting[:5]) or "none rests on an unverified capability")
 
 
+def citation_problem(row, roots):
+    """Why one glossary row's `Where it lives` cell does not reach a real line,
+    or None when it does."""
+    cells = [c.strip() for c in row.split("|")]
+    term, where = cells[0][:24], cells[-1]
+    # "new" is a file this design creates; "concept" is a term that is not a
+    # thing in the code at all. Neither can carry a line number, and forcing
+    # one would only teach the author to invent a path.
+    if where.lower().startswith(("new", "concept", "`new", "`concept")):
+        return None
+    m = re.search(r"([\w./\\-]+):(\d+)", where)
+    if not m:
+        return "%s: no file:line and not marked new" % term
+    src = resolve(m.group(1), *roots)
+    if src is None:
+        return "%s: %s does not exist" % (term, m.group(1))
+    with open(src, encoding="utf-8", errors="replace") as fh:
+        have = sum(1 for _ in fh)
+    if have < int(m.group(2)):
+        return "%s: %s has %d line(s)" % (term, m.group(1), have)
+    return None
+
+
 def detail_probes(secs, text, roots):
     yield probe_headings(secs, DETAIL_HEADINGS)
 
@@ -240,26 +263,7 @@ def detail_probes(secs, text, roots):
         yield ok, "traceability (%s)" % note
 
     glo = items(secs.get("Glossary", ""))
-    bad = []
-    for row in glo:
-        cells = [c.strip() for c in row.split("|")]
-        term, where = cells[0][:24], cells[-1]
-        # "new" is a file this design creates; "concept" is a term that is not a
-        # thing in the code at all. Neither can carry a line number, and forcing
-        # one would only teach the author to invent a path.
-        if where.lower().startswith(("new", "concept", "`new", "`concept")):
-            continue
-        m = re.search(r"([\w./\\-]+):(\d+)", where)
-        src = resolve(m.group(1), *roots) if m else None
-        if not m:
-            bad.append("%s: no file:line and not marked new" % term)
-        elif src is None:
-            bad.append("%s: %s does not exist" % (term, m.group(1)))
-        else:
-            with open(src, encoding="utf-8", errors="replace") as fh:
-                have = sum(1 for _ in fh)
-            if have < int(m.group(2)):
-                bad.append("%s: %s has %d line(s)" % (term, m.group(1), have))
+    bad = [p for p in (citation_problem(row, roots) for row in glo) if p]
     yield bool(glo) and not bad, "glossary_citations (%s)" % (
         "; ".join(bad[:3]) if bad else
         "%d row(s) resolve" % len(glo) if glo else "no rows at all")

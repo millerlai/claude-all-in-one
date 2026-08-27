@@ -22,14 +22,22 @@ def check(label, cond):
         FAIL = 1
 
 
+def read_text(path):
+    """Every file this script reads is UTF-8. Naming the encoding once is what
+    stops the next check being written without it -- on Windows the default is
+    the OEM codepage, so an omission reads the em dashes in rules/*.md as
+    mojibake and only fails on someone else's machine."""
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
 def frontmatter_keys(path):
     """Return the top-level keys of a markdown file's YAML frontmatter.
 
     Deliberately not a YAML parser — we only need key presence, and the repo
     must stay dependency-free so CI runs on a bare Python.
     """
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
+    text = read_text(path)
     if not text.startswith("---"):
         return None
     end = text.find("\n---", 3)
@@ -64,8 +72,7 @@ for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")):
 # design settled on (docs/design/2026-08-25-goal-command-routing-detail.md,
 # Budgets); this is what stops it being a number nobody ever checks again.
 GOAL = f"{PLUGIN}/commands/goal.md"
-with open(GOAL, encoding="utf-8") as fh:
-    goal_lines = len(fh.read().splitlines())
+goal_lines = len(read_text(GOAL).splitlines())
 check(f"{GOAL} is within its 120-line ceiling ({goal_lines})", goal_lines <= 120)
 
 skills = sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
@@ -106,16 +113,14 @@ def referenced_paths(path):
     """Sub-file paths the refactoring SKILL.md points models at, e.g. the
     reference table and the smell lookup. A path named here that does not
     exist on disk is a model told to read something that was never shipped."""
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
+    text = read_text(path)
     return {f"{PLUGIN}{m}" for m in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}([^`\s]+)", text)}
 
 
 def index_slugs(path):
     """Slugs the catalog index declares as the single source of truth for
     what /refactor-apply <slug> can be called with."""
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
+    text = read_text(path)
     return set(re.findall(r"^\|\s*\d+\s*\|[^|]*\|\s*`([a-z0-9-]+)`\s*\|", text, re.MULTILINE))
 
 
@@ -125,8 +130,7 @@ def card_slugs(paths):
     slug the index promised and the card never defines."""
     slugs = set()
     for path in paths:
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read()
+        text = read_text(path)
         slugs |= set(re.findall(r"^### \d+\.\s.*`([a-z0-9-]+)`\s*$", text, re.MULTILINE))
     return slugs
 
@@ -137,8 +141,7 @@ def protocol_lines(path):
     is most likely to paste, since it reads like a procedure. Like bullets()
     above, this compares first lines only, so a wrapped entry is matched on the
     line that carries its opening words."""
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
+    text = read_text(path)
     section = text.split("## Non-negotiable safety protocol", 1)[1]
     section = section.split("\n## ", 1)[0]
     return {line.strip() for line in section.splitlines()
@@ -217,8 +220,7 @@ if os.path.isfile(SETTINGS):
 # the switch and exits 0 -- the exact code step 5 reads as "the guard is inert".
 # A healthy guard reported as broken is worse than no check at all.
 SETUP = f"{PLUGIN}/commands/setup.md"
-with open(SETUP, encoding="utf-8") as fh:
-    setup_text = fh.read()
+setup_text = read_text(SETUP)
 check("setup.md invokes cmd as //c (MSYS would eat a lone /c)",
       "cmd //c" in setup_text and not re.search(r"cmd\s+/(?!/)c\b", setup_text))
 
@@ -260,8 +262,7 @@ for path in bom_files[:5]:
 # cross-reference would point at something the model cannot see. Duplication
 # nothing checks is duplication that drifts, and the drift is silent.
 def rule_block(path):
-    with open(path, encoding="utf-8") as fh:
-        body = fh.read().split("## The two rules everything below obeys", 1)[-1]
+    body = read_text(path).split("## The two rules everything below obeys", 1)[-1]
     return body.split("These two rules appear", 1)[0].strip()
 
 
@@ -282,9 +283,8 @@ if all(os.path.isfile(p) for p in DESIGN_CMDS):
 # every real user -- the failure this repo is least able to notice.
 for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")
                    + glob.glob(f"{PLUGIN}/skills/*/SKILL.md")):
-    with open(path, encoding="utf-8") as fh:
-        check(f"{path} runs scripts via <plugin-root>",
-              f"{PLUGIN}/scripts/" not in fh.read())
+    check(f"{path} runs scripts via <plugin-root>",
+          f"{PLUGIN}/scripts/" not in read_text(path))
 
 
 def temp_repo(branch, commit=True):
@@ -575,8 +575,7 @@ for kind, want in (("hld", design_probe.HLD_HEADINGS),
     check(f"{kind} design template ships", os.path.isfile(tpl))
     if not os.path.isfile(tpl):
         continue
-    with open(tpl, encoding="utf-8") as fh:
-        got = list(design_probe.sections(fh.read()))
+    got = list(design_probe.sections(read_text(tpl)))
     check(f"{kind} template headings match the probe", got == want)
     if got != want:
         print("     template:", got)
@@ -592,8 +591,7 @@ for kind, want in (("hld", design_probe.HLD_HEADINGS),
 PLAN_REVIEW = f"{PLUGIN}/skills/plan-review/SKILL.md"
 check(f"plan-review ships ({PLAN_REVIEW})", os.path.isfile(PLAN_REVIEW))
 if os.path.isfile(PLAN_REVIEW):
-    with open(PLAN_REVIEW, encoding="utf-8") as fh:
-        blocks = re.findall(r"```md\n(.*?)```", fh.read(), re.S)
+    blocks = re.findall(r"```md\n(.*?)```", read_text(PLAN_REVIEW), re.S)
     listed = [[re.split(r"\s{2,}", line[3:].strip(), maxsplit=1)[0]
                for line in b.splitlines() if line.startswith("## ")]
               for b in blocks]
