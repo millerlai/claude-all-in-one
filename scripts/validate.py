@@ -98,6 +98,95 @@ if os.path.isfile(TEMPLATE) and rules:
     for line in clashes[:5]:
         print("     also in rules/:", line[:90])
 
+
+REFACTORING = f"{PLUGIN}/skills/refactoring"
+
+
+def referenced_paths(path):
+    """Sub-file paths the refactoring SKILL.md points models at, e.g. the
+    reference table and the smell lookup. A path named here that does not
+    exist on disk is a model told to read something that was never shipped."""
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    return {f"{PLUGIN}{m}" for m in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}([^`\s]+)", text)}
+
+
+def index_slugs(path):
+    """Slugs the catalog index declares as the single source of truth for
+    what /refactor-apply <slug> can be called with."""
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    return set(re.findall(r"^\|\s*\d+\s*\|[^|]*\|\s*`([a-z0-9-]+)`\s*\|", text, re.MULTILINE))
+
+
+def card_slugs(paths):
+    """Slugs actually defined by a '### N. Name `slug`' heading in the card
+    files. If the index and this ever disagree, refactor-apply looks up a
+    slug the index promised and the card never defines."""
+    slugs = set()
+    for path in paths:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        slugs |= set(re.findall(r"^### \d+\.\s.*`([a-z0-9-]+)`\s*$", text, re.MULTILINE))
+    return slugs
+
+
+def protocol_lines(path):
+    """Entries of the safety protocol: the numbered loop steps and the hard-rule
+    bullets. Both halves count -- the numbered loop is the half a process skill
+    is most likely to paste, since it reads like a procedure. Like bullets()
+    above, this compares first lines only, so a wrapped entry is matched on the
+    line that carries its opening words."""
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    section = text.split("## Non-negotiable safety protocol", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    return {line.strip() for line in section.splitlines()
+            if line.strip().startswith("- ") or re.match(r"^\d+\.\s", line.strip())}
+
+
+# Check 1: a body that points at a card the refactor never shipped leaves a
+# model to improvise the mechanics instead of reading them.
+SKILL = f"{REFACTORING}/SKILL.md"
+refs = referenced_paths(SKILL)
+missing_refs = sorted(p for p in refs if not os.path.isfile(p))
+check(f"{SKILL} sub-files all exist ({len(missing_refs)} missing)", not missing_refs)
+for p in missing_refs[:5]:
+    print("     missing:", p)
+
+# Check 2: the index is the single source of truth for slugs (see design
+# decisions #4). A slug it declares but no card defines is a 404 the moment
+# /refactor-apply is called with it; the reverse means a card nobody can reach.
+INDEX = f"{REFACTORING}/references/catalog-index.md"
+CARDS = sorted(glob.glob(f"{REFACTORING}/references/cat-*.md"))
+idx_slugs = index_slugs(INDEX)
+crd_slugs = card_slugs(CARDS)
+missing_cards = sorted(idx_slugs - crd_slugs)
+extra_cards = sorted(crd_slugs - idx_slugs)
+check(f"catalog-index slugs match card files ({len(missing_cards)} missing, {len(extra_cards)} extra)",
+      not missing_cards and not extra_cards)
+for slug in missing_cards[:5]:
+    print("     index names but no card defines:", slug)
+for slug in extra_cards[:5]:
+    print("     card defines but index omits:", slug)
+
+# Check 3: the safety protocol lives in the knowledge skill only (design
+# decisions #3). A process skill that pastes a rule verbatim instead of
+# pointing back here is exactly what goes stale the day the rule changes.
+# No refactor-* process skill exists until unit 3, so this glob is a no-op
+# until then -- that is correct, not a gap.
+proto_lines = protocol_lines(SKILL)
+for path in sorted(glob.glob(f"{PLUGIN}/skills/refactor-*/SKILL.md")):
+    # Both sides must extract the same shapes, or widening one half silently
+    # guards nothing: bullets() alone would miss a pasted numbered loop step.
+    with open(path, encoding="utf-8") as fh:
+        candidates = {ln.strip() for ln in fh
+                      if ln.strip().startswith("- ") or re.match(r"^\d+\.\s", ln.strip())}
+    restated = sorted(candidates & proto_lines)
+    check(f"{path} does not restate the safety protocol ({len(restated)} duplicated)", not restated)
+    for line in restated[:5]:
+        print("     also in refactoring/SKILL.md:", line[:90])
+
 hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
 print("PASS hooks.json is valid JSON")
 
