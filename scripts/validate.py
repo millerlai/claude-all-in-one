@@ -665,9 +665,121 @@ done = subprocess.run([sys.executable, PREFLIGHT, "no-such-stage",
                       capture_output=True, text=True)
 check("preflight unknown stage id -> 1", done.returncode == 1)
 
-done = run_preflight("intake")
-check("preflight stub stage [intake] -> 2", done.returncode == 2)
-check("preflight stub stage names not_implemented", "FAIL not_implemented" in done.stdout)
+# build reads the same design row as the design check above, but only cares
+# whether the artifact names a work breakdown -- so its broken fixture is
+# DETAIL_OK with that one heading (and everything after it) removed.
+NO_BREAKDOWN = DETAIL_OK.split("## Work breakdown")[0].replace(
+    "scripts/validate.py:41", "docs/design/hld.md:1")
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "no-breakdown-detail.md"),
+          "w", encoding="utf-8") as fh:
+    fh.write(NO_BREAKDOWN)
+
+write_preflight_state("docs/design/billing-detail.md")
+done = run_preflight("build")
+check("preflight build [work breakdown present] -> 0", done.returncode == 0)
+
+write_preflight_state("docs/design/no-breakdown-detail.md")
+done = run_preflight("build")
+check("preflight build [no work breakdown] -> 2", done.returncode == 2)
+check("preflight build names work_breakdown", "FAIL work_breakdown" in done.stdout)
+
+# discover only needs the intake row's status; write_preflight_state's default
+# (intake: done) is the passing fixture, an empty status is the blocking one.
+write_preflight_state("docs/design/billing-detail.md")
+done = run_preflight("discover")
+check("preflight discover [intake done] -> 0", done.returncode == 0)
+
+with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+    fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+             "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+             "|---|---|---|---|\n| intake | | — | |\n| discover | | — | |\n"
+             "| design | | | |\n| build | | | |\n| verify | | | |\n| ship | | | |\n")
+done = run_preflight("discover")
+check("preflight discover [intake status empty] -> 2", done.returncode == 2)
+check("preflight discover names intake_status", "FAIL intake_status" in done.stdout)
+
+
+def run_preflight_at(stage, project_dir, track_dir):
+    return subprocess.run(
+        [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
+         "--project-dir", project_dir],
+        capture_output=True, text=True)
+
+
+# intake decides whether a track may even start, so its fixtures are plain
+# repos with no state.md at all -- the checks it runs never look for one.
+INTAKE_MAIN = temp_repo("main")
+done = run_preflight_at("intake", INTAKE_MAIN, os.path.join(INTAKE_MAIN, "track", "feature-a"))
+check("preflight intake [on main] -> 2", done.returncode == 2)
+check("preflight intake names not_main_branch", "FAIL not_main_branch" in done.stdout)
+
+INTAKE_FULL = temp_repo("work")
+INTAKE_FULL_ROOT = os.path.join(INTAKE_FULL, "track")
+for i in range(5):
+    os.makedirs(os.path.join(INTAKE_FULL_ROOT, f"f{i}"))
+done = run_preflight_at("intake", INTAKE_FULL, os.path.join(INTAKE_FULL_ROOT, "f-new"))
+check("preflight intake [5 active tracks] -> 2", done.returncode == 2)
+check("preflight intake names active_tracks", "FAIL active_tracks" in done.stdout)
+
+INTAKE_RESERVED = temp_repo("work")
+done = run_preflight_at("intake", INTAKE_RESERVED,
+                        os.path.join(INTAKE_RESERVED, "track", "current"))
+check("preflight intake [reserved feature name] -> 2", done.returncode == 2)
+check("preflight intake names reserved_name", "FAIL reserved_name" in done.stdout)
+
+# The passing fixture is the one that proves done/ is excluded: 4 active
+# tracks plus a done/ archive holding its own subdirectory would block at the
+# 5-track ceiling if the archive were counted.
+INTAKE_OK = temp_repo("work")
+INTAKE_OK_ROOT = os.path.join(INTAKE_OK, "track")
+for i in range(4):
+    os.makedirs(os.path.join(INTAKE_OK_ROOT, f"f{i}"))
+os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
+done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
+check("preflight intake [4 active + done/ archive ignored] -> 0", done.returncode == 0)
+
+
+# verify has nothing to read from state.md -- it only asks git whether there
+# is a diff to review, so its fixtures are bare repos.
+VERIFY_CLEAN = temp_repo("clean-branch")
+done = run_preflight_at("verify", VERIFY_CLEAN, os.path.join(VERIFY_CLEAN, "track"))
+check("preflight verify [clean tree, no base diff] -> 2", done.returncode == 2)
+check("preflight verify names has_changes", "FAIL has_changes" in done.stdout)
+
+VERIFY_DIRTY = temp_repo("dirty-branch")
+with open(os.path.join(VERIFY_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
+    fh.write("scratch\n")
+done = run_preflight_at("verify", VERIFY_DIRTY, os.path.join(VERIFY_DIRTY, "track"))
+check("preflight verify [uncommitted changes] -> 0", done.returncode == 0)
+
+
+def write_ship_state(track_dir, verify_status):
+    os.makedirs(track_dir, exist_ok=True)
+    with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+                  "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+                  "|---|---|---|---|\n| intake | done | — | |\n"
+                  "| discover | done | — | |\n| design | done | — | |\n"
+                  "| build | done | — | |\n| verify | %s | — | |\n"
+                  "| ship | | | |\n" % verify_status)
+
+
+# ship's own repo fixtures live outside the track directory it reads, so
+# writing state.md never touches the git status this check is also reading.
+SHIP_DIRTY = temp_repo("ship-dirty")
+SHIP_DIRTY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_DIRTY_TRACK, "done")
+with open(os.path.join(SHIP_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
+    fh.write("scratch\n")
+done = run_preflight_at("ship", SHIP_DIRTY, SHIP_DIRTY_TRACK)
+check("preflight ship [dirty tree] -> 2", done.returncode == 2)
+check("preflight ship names clean_tree", "FAIL clean_tree" in done.stdout)
+
+SHIP_CLEAN = temp_repo("ship-clean")
+SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_CLEAN_TRACK, "done")
+done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
+check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
 
 # Model tiers live in models.json, not in eighteen frontmatters. Three checks,
 # because the failure modes are different: drift (someone edited a frontmatter

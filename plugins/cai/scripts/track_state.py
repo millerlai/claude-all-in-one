@@ -33,15 +33,6 @@ def stage_ids():
         return [row["id"] for row in json.load(fh)["stages"]]
 
 
-def active_tracks(track_root):
-    """Directory names under track_root that are real tracks -- not `done`
-    (the archive) and not `current` (a file, not a directory)."""
-    if not os.path.isdir(track_root):
-        return []
-    return sorted(n for n in os.listdir(track_root)
-                  if n != "done" and os.path.isdir(os.path.join(track_root, n)))
-
-
 def current_feature(track_root):
     path = os.path.join(track_root, "current")
     if not os.path.isfile(path):
@@ -57,13 +48,13 @@ def resolve(track_root):
     feature = current_feature(track_root)
     if not feature:
         msg = "no active track (no %s)" % os.path.join(track_root, "current")
-        others = active_tracks(track_root)
+        others = preflight.active_tracks(track_root)
         return None, msg + (
             "; tracks that do exist: %s" % ", ".join(others) if others else "")
 
     track_dir = os.path.join(track_root, feature)
     if not os.path.isdir(track_dir):
-        others = active_tracks(track_root)
+        others = preflight.active_tracks(track_root)
         msg = "current names %s, which does not exist" % track_dir
         return None, msg + (
             "; tracks that do exist: %s" % ", ".join(others) if others else "; no tracks exist")
@@ -102,7 +93,7 @@ def format_status(feature, track_dir, order):
         lines.append("skipped:")
         for sid, note in skipped:
             lines.append("  %s: %s" % (sid, note))
-    others = [t for t in active_tracks(os.path.dirname(track_dir)) if t != feature]
+    others = [t for t in preflight.active_tracks(os.path.dirname(track_dir)) if t != feature]
     lines.append("other active tracks: %s" % (", ".join(others) if others else "none"))
     return "\n".join(lines)
 

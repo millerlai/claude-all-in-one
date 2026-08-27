@@ -106,17 +106,152 @@ def design(track_dir, project_dir):
     return checks
 
 
-def not_implemented(stage_id):
-    # Registered so the dispatch table stays complete; unit 5 replaces this
-    # with the real preflight for each stage.
-    def stub(track_dir, project_dir):
-        return [(False, "not_implemented (unit 5 fills in the %s preflight)" % stage_id)]
-    return stub
+def git(cwd, *args):
+    """Same shape as bash_guard.py's own git() helper -- duplicated rather
+    than imported, since bash_guard is out of scope for this change and the
+    two would otherwise couple two independently-versioned CLI surfaces."""
+    try:
+        return subprocess.run(["git", *args], cwd=cwd or None,
+                              capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
-STAGES = {"design": design}
-for _id in ("intake", "discover", "build", "verify", "ship"):
-    STAGES[_id] = not_implemented(_id)
+def is_git_repo(cwd):
+    done = git(cwd, "rev-parse", "--is-inside-work-tree")
+    return bool(done and done.returncode == 0)
+
+
+def current_branch(cwd):
+    """Branch name, or None on detached HEAD -- symbolic-ref still answers on
+    an unborn HEAD (a freshly-init'd repo with no commits), which is exactly
+    what intake needs before the first commit exists."""
+    done = git(cwd, "symbolic-ref", "--short", "HEAD")
+    return done.stdout.strip() if done and done.returncode == 0 else None
+
+
+def active_tracks(track_root):
+    """The track root's own subdirectories, minus `done`. Active means exactly
+    this: `done/` is the archive and never counts, or a user who finished five
+    features could never start a sixth. track_state.py calls this one rather
+    than keeping its own copy -- both compare the answer against the 5-track
+    cap, and two definitions of "active" would disagree at the boundary."""
+    if not os.path.isdir(track_root):
+        return []
+    return sorted(n for n in os.listdir(track_root)
+                  if n != "done" and os.path.isdir(os.path.join(track_root, n)))
+
+
+def intake(track_dir, project_dir):
+    if not is_git_repo(project_dir):
+        branch_check = (False, "not_main_branch (%s is not a git repository)" % project_dir)
+    else:
+        branch = current_branch(project_dir)
+        branch_check = (branch not in ("main", "master"),
+                         "not_main_branch (branch is %s)" % (branch or "detached HEAD"))
+
+    track_root = os.path.dirname(os.path.normpath(track_dir))
+    active = active_tracks(track_root)
+    active_check = (len(active) < 5,
+                     "active_tracks (%d active: %s)" % (len(active), ", ".join(active) or "none"))
+
+    feature = os.path.basename(os.path.normpath(track_dir))
+    name_check = (feature not in ("current", "done"), "reserved_name (%s)" % feature)
+
+    return [branch_check, active_check, name_check]
+
+
+def discover(track_dir, project_dir):
+    row = state_row(track_dir, "intake")
+    if row is None:
+        return [(False, "state_md (cannot read state.md or find the intake row)")]
+    status = row[1] if len(row) > 1 else ""
+    ok = bool(status)
+    return [(ok, "intake_status (intake row's status is %s)" % (status if ok else "empty"))]
+
+
+def build(track_dir, project_dir):
+    row = state_row(track_dir, "design")
+    if row is None:
+        return [(False, "state_md (cannot read state.md or find the design row)")]
+
+    artifact = row[2] if len(row) > 2 else ""
+    if not artifact or artifact == "—":
+        return [(False, "artifact_named (design row names no artifact)")]
+
+    doc = resolve(artifact, project_dir, track_dir)
+    if doc is None:
+        return [(False, "artifact_exists (%s not found)" % artifact)]
+
+    with open(doc, encoding="utf-8") as fh:
+        has_breakdown = "## Work breakdown" in fh.read()
+    label = ("work_breakdown (%s)" % artifact if has_breakdown else
+             "work_breakdown (%s has no ## Work breakdown heading)" % artifact)
+    return [(has_breakdown, label)]
+
+
+def find_base_ref(cwd):
+    """The first usable base ref: the remote's default branch if origin
+    answers, else a local main or master. diff-review's SKILL.md walks the
+    same chain to pick a ref a human would review against; this only needs to
+    know whether a base exists at all, so it stops at the first hit."""
+    done = git(cwd, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+    if done and done.returncode == 0:
+        return done.stdout.strip()
+    for ref in ("origin/main", "origin/master", "main", "master"):
+        done = git(cwd, "rev-parse", "--verify", "--quiet", ref)
+        if done and done.returncode == 0:
+            return ref
+    return None
+
+
+def verify(track_dir, project_dir):
+    if not is_git_repo(project_dir):
+        return [(False, "has_changes (%s is not a git repository)" % project_dir)]
+
+    status = git(project_dir, "status", "--porcelain")
+    dirty = bool(status and status.stdout.strip())
+
+    base = find_base_ref(project_dir)
+    diff = False
+    if base:
+        done = git(project_dir, "diff", "--quiet", "%s...HEAD" % base)
+        diff = bool(done and done.returncode == 1)
+
+    ok = dirty or diff
+    if dirty:
+        detail = "uncommitted changes"
+    elif diff:
+        detail = "diff from %s" % base
+    else:
+        detail = "nothing to review"
+    return [(ok, "has_changes (%s)" % detail)]
+
+
+def ship(track_dir, project_dir):
+    row = state_row(track_dir, "verify")
+    if row is None:
+        return [(False, "state_md (cannot read state.md or find the verify row)")]
+    status = row[1] if len(row) > 1 else ""
+    status_check = (bool(status), "verify_status (verify row's status is %s)" % (status or "empty"))
+
+    if not is_git_repo(project_dir):
+        clean_check = (False, "clean_tree (%s is not a git repository)" % project_dir)
+        branch_check = (False, "not_main_branch (%s is not a git repository)" % project_dir)
+    else:
+        working = git(project_dir, "status", "--porcelain")
+        clean = bool(working and not working.stdout.strip())
+        clean_check = (clean, "clean_tree (working tree %s)" %
+                        ("is clean" if clean else "has uncommitted changes"))
+        branch = current_branch(project_dir)
+        branch_check = (branch not in ("main", "master"),
+                         "not_main_branch (branch is %s)" % (branch or "detached HEAD"))
+
+    return [status_check, clean_check, branch_check]
+
+
+STAGES = {"design": design, "intake": intake, "discover": discover,
+          "build": build, "verify": verify, "ship": ship}
 
 
 class ArgParser(argparse.ArgumentParser):
