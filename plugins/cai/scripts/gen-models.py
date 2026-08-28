@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models.json"
 
 # Only inside the frontmatter, only at the start of a line. A `model:` mentioned
-# in prose (build-from-design's tier table quotes one) must not be rewritten.
+# in prose (stage-build.md's tier table quotes one) must not be rewritten.
 MODEL_LINE = re.compile(r"^model:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
 
 

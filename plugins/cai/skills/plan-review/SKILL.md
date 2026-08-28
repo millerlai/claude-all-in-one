@@ -255,8 +255,8 @@ and nothing you find by reading closes a hole it has already named.
   code.
 - The plan is already agreed and the question is whether the *code* matches it
   — that is a code review.
-- The requirements themselves are the unknown. That is `finding-unknowns`;
+- The requirements themselves are the unknown. That is the `discover` stage (`/cai:discover`);
   come back here once there is something to trace against.
-- There is no document yet and one is needed. `/cai:design-high-level-doc`
-  writes the first, `/cai:design-implementation-detail-doc` the second; both
+- There is no document yet and one is needed. `/cai:design` writes
+  both, high-level mode first and detail mode second; both
   gather the evidence before writing, and both end by running this skill.

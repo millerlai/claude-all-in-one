@@ -31,6 +31,19 @@ def read_text(path):
         return fh.read()
 
 
+def agent_tools_line(path):
+    """The raw value of an agent's `tools:` frontmatter line, or None when
+    there is no frontmatter or no such line."""
+    text = read_text(path)
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    if end == -1:
+        return None
+    m = re.search(r"^tools:[ \t]*(.+)$", text[3:end], re.MULTILINE)
+    return m.group(1) if m else None
+
+
 def frontmatter_keys(path):
     """Return the top-level keys of a markdown file's YAML frontmatter.
 
@@ -44,6 +57,35 @@ def frontmatter_keys(path):
     if end == -1:
         return None
     return set(re.findall(r"^([A-Za-z][\w-]*):", text[3:end], re.MULTILINE))
+
+
+def frontmatter_description(path):
+    """The `description` frontmatter value as the model actually sees it.
+
+    Same trick frontmatter_keys() relies on: a YAML `>`/`>-` block scalar's
+    continuation lines are indented, so `^[A-Za-z][\\w-]*:` never matches them
+    as a new key -- here that lets a single regex capture the description
+    line plus every indented line under it, stopping at the next top-level
+    key. Folded lines are joined with spaces, which is what YAML folding does
+    to them; a plain quoted value just has its quotes stripped.
+    """
+    text = read_text(path)
+    if not text.startswith("---"):
+        return ""
+    end = text.find("\n---", 3)
+    if end == -1:
+        return ""
+    body = text[3:end]
+    m = re.search(r"^description:[ \t]*(.*)$((?:\n[ \t]+.*)*)", body, re.MULTILINE)
+    if not m:
+        return ""
+    first, continuation = m.group(1).strip(), m.group(2)
+    cont_lines = [ln.strip() for ln in continuation.splitlines() if ln.strip()]
+    if first in (">", ">-", ">+", "|", "|-", "|+"):
+        return " ".join(cont_lines)
+    if len(first) >= 2 and first[0] == first[-1] and first[0] in "\"'":
+        return first[1:-1]
+    return first
 
 
 mp = json.load(open(".claude-plugin/marketplace.json"))
@@ -62,17 +104,19 @@ for path in sorted(glob.glob(f"{PLUGIN}/agents/*.md")):
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
 
-for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")):
-    keys = frontmatter_keys(path)
-    check(f"{path} frontmatter has description", bool(keys) and "description" in keys)
-
 # goal.md routes rather than implements, so it is read start to finish every
 # time someone reaches for it -- and prose that outgrows a screen is prose that
 # gets skimmed past the branch it was carrying. The ceiling is the number the
 # design settled on (docs/design/2026-08-25-goal-command-routing-detail.md,
 # Budgets); this is what stops it being a number nobody ever checks again.
-GOAL = f"{PLUGIN}/commands/goal.md"
-goal_lines = len(read_text(GOAL).splitlines())
+GOAL = f"{PLUGIN}/skills/goal/SKILL.md"
+goal_text = read_text(GOAL)
+# The ceiling is on the body a human reads, not the frontmatter the move to
+# skills/ requires (a `name:` field commands never carried) -- counting the
+# whole file would fail this check by exactly the one line that move added,
+# for a reason unrelated to the prose the budget was set against.
+goal_body_start = goal_text.find("\n---", 3) + 4 if goal_text.startswith("---") else 0
+goal_lines = len(goal_text[goal_body_start:].splitlines())
 check(f"{GOAL} is within its 120-line ceiling ({goal_lines})", goal_lines <= 120)
 
 skills = sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
@@ -80,6 +124,100 @@ check("at least one skill ships", bool(skills))
 for path in skills:
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
+
+
+# A skill body that tells the model to invoke /cai:x, or to read a file under
+# the plugin, is only as good as x and that file still existing. This is the
+# check that was missing when a restructure retired eight skills: goal.md went
+# on naming three of them, every other check stayed green, and the command was
+# broken for anyone who ran it. A body is instructions -- a name in it that
+# resolves to nothing is a 404 handed to a model mid-task.
+CMD_REF = re.compile(r"/cai:([a-z][a-z0-9-]*)")
+PLUGIN_PATH_REF = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+\.\w+)")
+# Names that resolve to something other than a directory under skills/.
+KNOWN_NON_SKILL = {"setup"}
+
+
+def invocable_names():
+    """Everything /cai:<name> can legitimately resolve to."""
+    names = {os.path.basename(os.path.dirname(p)) for p in skills}
+    names |= {os.path.basename(os.path.dirname(p))
+              for p in glob.glob(f"{PLUGIN}/refactoring-catalog/*/SKILL.md")}
+    return names | KNOWN_NON_SKILL
+
+
+ALL_INVOCABLE = invocable_names()
+for path in skills:
+    body = read_text(path)
+    dead_cmds = sorted({m for m in CMD_REF.findall(body) if m not in ALL_INVOCABLE})
+    check(f"{path} names no command that does not exist "
+          f"({len(dead_cmds)}{': ' + ', '.join(dead_cmds[:3]) if dead_cmds else ''})",
+          not dead_cmds)
+    dead_paths = sorted({rel for rel in PLUGIN_PATH_REF.findall(body)
+                         if not os.path.isfile(os.path.join(PLUGIN, rel))})
+    check(f"{path} names no plugin file that does not exist "
+          f"({len(dead_paths)}{': ' + ', '.join(dead_paths[:2]) if dead_paths else ''})",
+          not dead_paths)
+
+# R1: the design's target is 14 skills, not 15 -- it is 15 today only because
+# `goal` stays until someone has actually run a track end to end, which has
+# not happened yet (Unit 8 decision, 2026-08-27). Once that condition is met
+# and `goal` retires, this list drops to 14 and loses that name.
+SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git", "goal",
+               "intake", "plan-review", "quiz", "refactor", "setup", "ship",
+               "track", "verify"]
+skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
+check(f"skills/ holds exactly the 15 names {SKILL_NAMES} ({skill_dirs})",
+      skill_dirs == SKILL_NAMES)
+
+# The 72 generated refactoring aliases moved out of the main line into their
+# own directory (see .claude-plugin/plugin.json's additive "skills" key), so
+# they get the same frontmatter check plus the one property that keeps their
+# descriptions out of the always-on budget while leaving them user-invocable.
+CATALOG = f"{PLUGIN}/refactoring-catalog"
+catalog_skills = sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))
+check(f"refactoring-catalog holds exactly 72 skills ({len(catalog_skills)})", len(catalog_skills) == 72)
+for path in catalog_skills:
+    keys = frontmatter_keys(path)
+    check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
+    check(f"{path} disables model invocation", "disable-model-invocation: true" in read_text(path))
+
+# commands/ is retired: a file there and a same-named skill both create the
+# same slash command, and that collision already shadowed a skill once. The
+# 72 aliases must not have leaked back into the main skills/ line either.
+check(f"{PLUGIN}/commands is gone", not os.path.isdir(f"{PLUGIN}/commands"))
+alias_slugs = {os.path.basename(os.path.dirname(p)) for p in catalog_skills}
+leaked_aliases = sorted(alias_slugs & {os.path.basename(os.path.dirname(p)) for p in skills})
+check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not leaked_aliases)
+
+# The always-on budget: every description a model can match on without being
+# asked is sent to it in every session, whether or not that component ever
+# fires. Scanned by directory shape rather than by tag, on purpose -- the
+# restructure moved files between directories, and a check keyed to a
+# directory would have moved with them, changing the number without changing
+# what it costs. Skips anything gated by `disable-model-invocation: true`
+# (the 72 catalog aliases, plus any main-line skill given the same flag),
+# since those never reach the model unbidden.
+#
+# This is a ratchet, not the design's target. UC4's target is 4,673
+# characters; measured here, this repo is not there yet, and a ratchet is
+# what stops the total drifting back up while that gap is still open. Two
+# things are known to still be on the table for closing it: retiring `goal`
+# once a track has actually been run end to end (see the SKILL_NAMES comment
+# above), and shortening the longest descriptions -- which trades against
+# those same descriptions still needing to be long enough to trigger, so it
+# is not done here.
+ALWAYS_ON_CEILING = 5468
+always_on_paths = (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+                   + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                   + sorted(glob.glob(f"{CATALOG}/*/SKILL.md")))
+always_on_total = sum(
+    len(frontmatter_description(p)) for p in always_on_paths
+    if "disable-model-invocation: true" not in read_text(p))
+print(f"     always-on description budget: {always_on_total} chars "
+      f"(design target: 4673)")
+check(f"always-on description budget does not exceed {ALWAYS_ON_CEILING} chars "
+      f"({always_on_total})", always_on_total <= ALWAYS_ON_CEILING)
 
 # /cai:setup copies these out to ~/.claude/rules/; an empty dir would
 # make setup a silent no-op.
@@ -106,7 +244,7 @@ if os.path.isfile(TEMPLATE) and rules:
         print("     also in rules/:", line[:90])
 
 
-REFACTORING = f"{PLUGIN}/skills/refactoring"
+REFACTORING = f"{PLUGIN}/skills/refactor"
 
 
 def referenced_paths(path):
@@ -119,15 +257,15 @@ def referenced_paths(path):
 
 def index_slugs(path):
     """Slugs the catalog index declares as the single source of truth for
-    what /refactor-apply <slug> can be called with."""
+    what /cai:<slug> and procedure-apply.md can be called with."""
     text = read_text(path)
     return set(re.findall(r"^\|\s*\d+\s*\|[^|]*\|\s*`([a-z0-9-]+)`\s*\|", text, re.MULTILINE))
 
 
 def card_slugs(paths):
     """Slugs actually defined by a '### N. Name `slug`' heading in the card
-    files. If the index and this ever disagree, refactor-apply looks up a
-    slug the index promised and the card never defines."""
+    files. If the index and this ever disagree, procedure-apply.md looks
+    up a slug the index promised and the card never defines."""
     slugs = set()
     for path in paths:
         text = read_text(path)
@@ -159,7 +297,7 @@ for p in missing_refs[:5]:
 
 # Check 2: the index is the single source of truth for slugs (see design
 # decisions #4). A slug it declares but no card defines is a 404 the moment
-# /refactor-apply is called with it; the reverse means a card nobody can reach.
+# /cai:<slug> is invoked; the reverse means a card nobody can reach.
 INDEX = f"{REFACTORING}/references/catalog-index.md"
 CARDS = sorted(glob.glob(f"{REFACTORING}/references/cat-*.md"))
 idx_slugs = index_slugs(INDEX)
@@ -173,17 +311,63 @@ for slug in missing_cards[:5]:
 for slug in extra_cards[:5]:
     print("     card defines but index omits:", slug)
 
+# The catalog count check above (72 dirs) only counts; it does not compare
+# names, so renaming a directory keeps the total at 72 and nothing notices.
+# alias_slugs is the catalog-generated directory names, computed above.
+missing_dirs = sorted(idx_slugs - alias_slugs)
+extra_dirs = sorted(alias_slugs - idx_slugs)
+check(f"refactoring-catalog dirs match catalog-index slugs "
+      f"({len(missing_dirs)} missing, {len(extra_dirs)} extra)",
+      not missing_dirs and not extra_dirs)
+for slug in missing_dirs[:5]:
+    print("     index names but no catalog dir exists:", slug)
+for slug in extra_dirs[:5]:
+    print("     catalog dir exists but index omits:", slug)
+
+# gen-commands.py is never invoked by this suite, so a hand-edit to a
+# generated file, or a template drift from what is committed, is invisible.
+# Run it against a scratch copy of just what it reads (its own script plus
+# the single source-of-truth index) so the real refactoring-catalog/ is never
+# touched -- exercising the generator must not leave the tree dirty.
+GEN_COMMANDS = f"{PLUGIN}/scripts/gen-commands.py"
+GEN_SCRATCH = tempfile.mkdtemp(prefix="cai-gen-commands-")
+os.makedirs(os.path.join(GEN_SCRATCH, "scripts"), exist_ok=True)
+shutil.copy(GEN_COMMANDS, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py"))
+os.makedirs(os.path.join(GEN_SCRATCH, "skills", "refactor", "references"), exist_ok=True)
+shutil.copy(INDEX, os.path.join(GEN_SCRATCH, "skills", "refactor", "references", "catalog-index.md"))
+gen_done = subprocess.run([sys.executable, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py")],
+                          capture_output=True, text=True)
+check("gen-commands.py runs cleanly against a scratch copy of the index",
+      gen_done.returncode == 0)
+
+generated = sorted(glob.glob(os.path.join(GEN_SCRATCH, "refactoring-catalog", "*", "SKILL.md")))
+gen_slugs = {os.path.basename(os.path.dirname(p)) for p in generated}
+check(f"gen-commands.py produces the same slugs as committed ({len(gen_slugs)})",
+      gen_slugs == alias_slugs)
+
+regen_mismatches = []
+for slug in sorted(gen_slugs & alias_slugs):
+    gen_text = read_text(os.path.join(GEN_SCRATCH, "refactoring-catalog", slug, "SKILL.md"))
+    committed_text = read_text(os.path.join(CATALOG, slug, "SKILL.md"))
+    if gen_text != committed_text:
+        regen_mismatches.append(slug)
+check(f"gen-commands.py output matches committed refactoring-catalog/ "
+      f"({len(regen_mismatches)} mismatched)", not regen_mismatches)
+for slug in regen_mismatches[:5]:
+    print("     regenerating differs from committed:", slug)
+
+shutil.rmtree(GEN_SCRATCH, ignore_errors=True)
+
 # Check 3: the safety protocol lives in the knowledge skill only (design
 # decisions #3). A component that pastes a rule verbatim instead of pointing
 # back here is exactly what goes stale the day the rule changes.
 #
-# The agents are covered as well as the process skills, because the design's
-# own failure mode counts three copies of the protocol -- the knowledge skill,
-# refactor-apply, and refactoring-surgeon -- and a check that watched only two
-# of the three would leave the copy inside the agent free to drift.
+# refactoring-detector and refactoring-surgeon retired into this skill (Unit
+# 6b), and refactor-scan/plan/apply/safety-net/auto are now reference files
+# under skills/refactor/references/ rather than separate agents or skills --
+# those reference files are what this check watches for a pasted copy now.
 proto_lines = protocol_lines(SKILL)
-for path in sorted(glob.glob(f"{PLUGIN}/skills/refactor-*/SKILL.md")
-                   + glob.glob(f"{PLUGIN}/agents/refactoring-*.md")):
+for path in sorted(glob.glob(f"{REFACTORING}/references/procedure-*.md")):
     # Both sides must extract the same shapes, or widening one half silently
     # guards nothing: bullets() alone would miss a pasted numbered loop step.
     with open(path, encoding="utf-8") as fh:
@@ -192,7 +376,38 @@ for path in sorted(glob.glob(f"{PLUGIN}/skills/refactor-*/SKILL.md")
     restated = sorted(candidates & proto_lines)
     check(f"{path} does not restate the safety protocol ({len(restated)} duplicated)", not restated)
     for line in restated[:5]:
-        print("     also in refactoring/SKILL.md:", line[:90])
+        print("     also in refactor/SKILL.md:", line[:90])
+
+# Unit 6b: six refactoring skills collapsed into one (skills/refactor/), and
+# two single-caller agents retired into it. The rename itself is worth its
+# own check, separately from the drift check above -- a stray refactor-*/
+# directory left behind after the merge is exactly the kind of thing nobody
+# notices until someone opens the wrong one.
+check(f"{REFACTORING} exists", os.path.isdir(REFACTORING))
+stray_refactor_dirs = sorted(
+    d for d in glob.glob(f"{PLUGIN}/skills/refactor-*") if os.path.isdir(d))
+check(f"no skills/refactor-*/ directory remains ({len(stray_refactor_dirs)} found)",
+      not stray_refactor_dirs)
+
+# The heading itself, not just the bullet shapes protocol_lines() extracts --
+# a second copy that paraphrases the loop instead of pasting it verbatim
+# would slip past the restatement check above but still be a second place to
+# keep the protocol in sync. Matched as an actual heading line, not the
+# quoted citation procedure-apply.md and others make in prose when pointing
+# back at it.
+protocol_heading_files = sorted(
+    p for p in glob.glob(f"{REFACTORING}/**/*.md", recursive=True)
+    if re.search(r"^## Non-negotiable safety protocol$", read_text(p), re.MULTILINE))
+check(f"the safety protocol appears in exactly one file under {REFACTORING} "
+      f"({len(protocol_heading_files)} found)", len(protocol_heading_files) == 1)
+
+# Six, not five. `refactoring-surgeon` merged into the refactor skill because
+# it executes one refactoring on one target -- sequential work with nothing to
+# parallelise. `refactoring-detector` did not: procedure-scan dispatches one
+# per module group, in parallel, and merging it away silently turned a
+# whole-project scan sequential. Caller count was the wrong test on its own.
+AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+check(f"agents/ holds exactly 9 files ({len(AGENTS)})", len(AGENTS) == 9)
 
 hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
 print("PASS hooks.json is valid JSON")
@@ -219,7 +434,7 @@ if os.path.isfile(SETTINGS):
 # Windows is Git Bash, which rewrites a lone /c into C:/. cmd then never sees
 # the switch and exits 0 -- the exact code step 5 reads as "the guard is inert".
 # A healthy guard reported as broken is worse than no check at all.
-SETUP = f"{PLUGIN}/commands/setup.md"
+SETUP = f"{PLUGIN}/skills/setup/SKILL.md"
 setup_text = read_text(SETUP)
 check("setup.md invokes cmd as //c (MSYS would eat a lone /c)",
       "cmd //c" in setup_text and not re.search(r"cmd\s+/(?!/)c\b", setup_text))
@@ -257,32 +472,12 @@ for path in bom_files[:5]:
     print("     BOM:", path)
 
 
-# The evidence and decision rules are copied verbatim into both design commands
-# on purpose: a command's text is only loaded when that command runs, so a
-# cross-reference would point at something the model cannot see. Duplication
-# nothing checks is duplication that drifts, and the drift is silent.
-def rule_block(path):
-    body = read_text(path).split("## The two rules everything below obeys", 1)[-1]
-    return body.split("These two rules appear", 1)[0].strip()
-
-
-DESIGN_CMDS = [f"{PLUGIN}/commands/design-high-level-doc.md",
-               f"{PLUGIN}/commands/design-implementation-detail-doc.md"]
-# Guarding on existence without checking it lets the drift check disappear the
-# day a file is renamed -- which is exactly the drift it exists to catch.
-for path in DESIGN_CMDS:
-    check(f"design command ships ({path})", os.path.isfile(path))
-if all(os.path.isfile(p) for p in DESIGN_CMDS):
-    one, two = (rule_block(p) for p in DESIGN_CMDS)
-    check("design commands carry one identical rule block", bool(one) and one == two)
-
-
 # A component that tells the model to run `plugins/cai/scripts/...` works only
 # inside this checkout. Anyone who installed from the marketplace has the plugin
 # under ~/.claude/plugins/cache/, so the command silently stops working for
 # every real user -- the failure this repo is least able to notice.
-for path in sorted(glob.glob(f"{PLUGIN}/commands/*.md")
-                   + glob.glob(f"{PLUGIN}/skills/*/SKILL.md")):
+for path in sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md")
+                   + glob.glob(f"{CATALOG}/*/SKILL.md")):
     check(f"{path} runs scripts via <plugin-root>",
           f"{PLUGIN}/scripts/" not in read_text(path))
 
@@ -584,6 +779,255 @@ for kind, want in (("hld", design_probe.HLD_HEADINGS),
                            capture_output=True, text=True)
     check(f"{kind} template does not pass its own probe", blank.returncode == 2)
 
+# preflight.py's design check reads state.md's design row and hands the
+# artifact to design_probe.py, so its fixture needs a real track state next
+# to a real (or deliberately broken) design document -- same shape as the
+# PROBE_CASES above, one level up the stack.
+PREFLIGHT = f"{PLUGIN}/scripts/preflight.py"
+PREFLIGHT_PROJECT = temp_repo("preflight-fixture")
+PREFLIGHT_TRACK = os.path.join(PREFLIGHT_PROJECT, "track")
+os.makedirs(os.path.join(PREFLIGHT_PROJECT, "docs", "design"), exist_ok=True)
+os.makedirs(PREFLIGHT_TRACK, exist_ok=True)
+
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "hld.md"), "w", encoding="utf-8") as fh:
+    fh.write(HLD_OK)
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md"),
+          "w", encoding="utf-8") as fh:
+    # DETAIL_OK's glossary cites scripts/validate.py:41, which does not exist
+    # inside this throwaway project root; point it at the sibling hld.md
+    # written above instead, which does.
+    fh.write(DETAIL_OK.replace("scripts/validate.py:41", "docs/design/hld.md:1"))
+
+
+def write_preflight_state(artifact_cell):
+    # state.md is overwritten in place, never appended to -- each case
+    # replaces the whole file rather than editing one cell.
+    text = ("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+            "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+            "|---|---|---|---|\n| intake | done | — | |\n"
+            "| discover | done | — | |\n"
+            "| design | done | %s | |\n"
+            "| build | | | |\n| verify | | | |\n| ship | | | |\n" % artifact_cell)
+    with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def run_preflight(stage, track_dir=PREFLIGHT_TRACK):
+    return subprocess.run(
+        [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
+         "--project-dir", PREFLIGHT_PROJECT],
+        capture_output=True, text=True)
+
+
+write_preflight_state("docs/design/billing-detail.md")
+done = run_preflight("design")
+check("preflight design [clean detail doc] -> 0", done.returncode == 0)
+
+write_preflight_state("docs/design/does-not-exist-detail.md")
+done = run_preflight("design")
+check("preflight design [artifact missing] -> 2", done.returncode == 2)
+check("preflight design names artifact_exists", "FAIL artifact_exists" in done.stdout)
+
+write_preflight_state("docs/design/billing-export.txt")
+done = run_preflight("design")
+check("preflight design [unrecognized suffix] -> 2", done.returncode == 2)
+check("preflight design names artifact_kind", "FAIL artifact_kind" in done.stdout)
+
+# The two earlier block reasons: no artifact named at all, and no state.md to
+# even read one from. Both are checked before the artifact is ever resolved.
+write_preflight_state("—")
+done = run_preflight("design")
+check("preflight design [no artifact named] -> 2", done.returncode == 2)
+check("preflight design names artifact_named", "FAIL artifact_named" in done.stdout)
+
+PREFLIGHT_NO_STATE = tempfile.mkdtemp(prefix="cai-preflight-no-state-")
+done = run_preflight("design", track_dir=PREFLIGHT_NO_STATE)
+check("preflight design [no state.md] -> 2", done.returncode == 2)
+check("preflight design names state_md", "FAIL state_md" in done.stdout)
+
+# design's suffix routing for the other two kinds -- only -detail.md is
+# exercised above, so mapping -high-level.md or -delta.md to the wrong kind
+# would go unnoticed.
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-high-level.md"),
+          "w", encoding="utf-8") as fh:
+    fh.write(HLD_OK)
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-delta.md"),
+          "w", encoding="utf-8") as fh:
+    fh.write(DELTA_OK)
+
+write_preflight_state("docs/design/widget-high-level.md")
+done = run_preflight("design")
+check("preflight design [-high-level.md routes to hld probe] -> 0", done.returncode == 0)
+
+write_preflight_state("docs/design/widget-delta.md")
+done = run_preflight("design")
+check("preflight design [-delta.md routes to delta probe] -> 0", done.returncode == 0)
+
+done = subprocess.run([sys.executable, PREFLIGHT, "no-such-stage",
+                       "--track-dir", PREFLIGHT_TRACK],
+                      capture_output=True, text=True)
+check("preflight unknown stage id -> 1", done.returncode == 1)
+
+# build reads the same design row as the design check above, but only cares
+# whether the artifact names a work breakdown -- so its broken fixture is
+# DETAIL_OK with that one heading (and everything after it) removed.
+NO_BREAKDOWN = DETAIL_OK.split("## Work breakdown")[0].replace(
+    "scripts/validate.py:41", "docs/design/hld.md:1")
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "no-breakdown-detail.md"),
+          "w", encoding="utf-8") as fh:
+    fh.write(NO_BREAKDOWN)
+
+write_preflight_state("docs/design/billing-detail.md")
+done = run_preflight("build")
+check("preflight build [work breakdown present] -> 0", done.returncode == 0)
+
+write_preflight_state("docs/design/no-breakdown-detail.md")
+done = run_preflight("build")
+check("preflight build [no work breakdown] -> 2", done.returncode == 2)
+check("preflight build names work_breakdown", "FAIL work_breakdown" in done.stdout)
+
+# build reads the same design row as design() -- same two block reasons apply
+# before the artifact is even resolved to a work breakdown.
+write_preflight_state("—")
+done = run_preflight("build")
+check("preflight build [no artifact named] -> 2", done.returncode == 2)
+check("preflight build names artifact_named", "FAIL artifact_named" in done.stdout)
+
+done = run_preflight("build", track_dir=PREFLIGHT_NO_STATE)
+check("preflight build [no state.md] -> 2", done.returncode == 2)
+check("preflight build names state_md", "FAIL state_md" in done.stdout)
+
+# discover only needs the intake row's status; write_preflight_state's default
+# (intake: done) is the passing fixture, an empty status is the blocking one.
+write_preflight_state("docs/design/billing-detail.md")
+done = run_preflight("discover")
+check("preflight discover [intake done] -> 0", done.returncode == 0)
+
+with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+    fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+             "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+             "|---|---|---|---|\n| intake | | — | |\n| discover | | — | |\n"
+             "| design | | | |\n| build | | | |\n| verify | | | |\n| ship | | | |\n")
+done = run_preflight("discover")
+check("preflight discover [intake status empty] -> 2", done.returncode == 2)
+check("preflight discover names intake_status", "FAIL intake_status" in done.stdout)
+
+
+def run_preflight_at(stage, project_dir, track_dir):
+    return subprocess.run(
+        [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
+         "--project-dir", project_dir],
+        capture_output=True, text=True)
+
+
+# intake decides whether a track may even start, so its fixtures are plain
+# repos with no state.md at all -- the checks it runs never look for one.
+INTAKE_MAIN = temp_repo("main")
+done = run_preflight_at("intake", INTAKE_MAIN, os.path.join(INTAKE_MAIN, "track", "feature-a"))
+check("preflight intake [on main] -> 2", done.returncode == 2)
+check("preflight intake names not_main_branch", "FAIL not_main_branch" in done.stdout)
+
+INTAKE_FULL = temp_repo("work")
+INTAKE_FULL_ROOT = os.path.join(INTAKE_FULL, "track")
+for i in range(5):
+    os.makedirs(os.path.join(INTAKE_FULL_ROOT, f"f{i}"))
+done = run_preflight_at("intake", INTAKE_FULL, os.path.join(INTAKE_FULL_ROOT, "f-new"))
+check("preflight intake [5 active tracks] -> 2", done.returncode == 2)
+check("preflight intake names active_tracks", "FAIL active_tracks" in done.stdout)
+
+INTAKE_RESERVED = temp_repo("work")
+done = run_preflight_at("intake", INTAKE_RESERVED,
+                        os.path.join(INTAKE_RESERVED, "track", "current"))
+check("preflight intake [reserved feature name] -> 2", done.returncode == 2)
+check("preflight intake names reserved_name", "FAIL reserved_name" in done.stdout)
+
+# The passing fixture is the one that proves done/ is excluded: 4 active
+# tracks plus a done/ archive holding its own subdirectory would block at the
+# 5-track ceiling if the archive were counted.
+INTAKE_OK = temp_repo("work")
+INTAKE_OK_ROOT = os.path.join(INTAKE_OK, "track")
+for i in range(4):
+    os.makedirs(os.path.join(INTAKE_OK_ROOT, f"f{i}"))
+os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
+done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
+check("preflight intake [4 active + done/ archive ignored] -> 0", done.returncode == 0)
+
+# Regression: a bare relative --track-dir (what a caller already sitting in
+# .claude/track/ passes) used to derive an empty parent, count zero active
+# tracks, and let a sixth one through. Exercised with cwd set to the track
+# root itself, since that is what makes the value bare in the first place.
+INTAKE_BARE = temp_repo("work")
+INTAKE_BARE_ROOT = os.path.join(INTAKE_BARE, "track")
+for i in range(5):
+    os.makedirs(os.path.join(INTAKE_BARE_ROOT, f"f{i}"))
+done = subprocess.run(
+    [sys.executable, os.path.abspath(PREFLIGHT), "intake", "--track-dir", "f-new",
+     "--project-dir", os.path.abspath(INTAKE_BARE)],
+    capture_output=True, text=True, cwd=INTAKE_BARE_ROOT)
+check("preflight intake [bare relative --track-dir, 5 active tracks] -> 2",
+      done.returncode == 2)
+check("preflight intake bare --track-dir names active_tracks",
+      "FAIL active_tracks" in done.stdout)
+
+
+# verify has nothing to read from state.md -- it only asks git whether there
+# is a diff to review, so its fixtures are bare repos.
+VERIFY_CLEAN = temp_repo("clean-branch")
+done = run_preflight_at("verify", VERIFY_CLEAN, os.path.join(VERIFY_CLEAN, "track"))
+check("preflight verify [clean tree, no base diff] -> 2", done.returncode == 2)
+check("preflight verify names has_changes", "FAIL has_changes" in done.stdout)
+
+VERIFY_DIRTY = temp_repo("dirty-branch")
+with open(os.path.join(VERIFY_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
+    fh.write("scratch\n")
+done = run_preflight_at("verify", VERIFY_DIRTY, os.path.join(VERIFY_DIRTY, "track"))
+check("preflight verify [uncommitted changes] -> 0", done.returncode == 0)
+
+
+def write_ship_state(track_dir, verify_status):
+    os.makedirs(track_dir, exist_ok=True)
+    with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+                  "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+                  "|---|---|---|---|\n| intake | done | — | |\n"
+                  "| discover | done | — | |\n| design | done | — | |\n"
+                  "| build | done | — | |\n| verify | %s | — | |\n"
+                  "| ship | | | |\n" % verify_status)
+
+
+# ship's own repo fixtures live outside the track directory it reads, so
+# writing state.md never touches the git status this check is also reading.
+SHIP_DIRTY = temp_repo("ship-dirty")
+SHIP_DIRTY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_DIRTY_TRACK, "done")
+with open(os.path.join(SHIP_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
+    fh.write("scratch\n")
+done = run_preflight_at("ship", SHIP_DIRTY, SHIP_DIRTY_TRACK)
+check("preflight ship [dirty tree] -> 2", done.returncode == 2)
+check("preflight ship names clean_tree", "FAIL clean_tree" in done.stdout)
+
+SHIP_CLEAN = temp_repo("ship-clean")
+SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_CLEAN_TRACK, "done")
+done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
+check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
+
+# ship's other two reasons: the fixtures above always fill verify's status and
+# always run on a feature branch, so only clean_tree was ever exercised.
+SHIP_NO_VERIFY = temp_repo("ship-no-verify")
+SHIP_NO_VERIFY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_NO_VERIFY_TRACK, "")
+done = run_preflight_at("ship", SHIP_NO_VERIFY, SHIP_NO_VERIFY_TRACK)
+check("preflight ship [verify status empty] -> 2", done.returncode == 2)
+check("preflight ship names verify_status", "FAIL verify_status" in done.stdout)
+
+SHIP_ON_MAIN = temp_repo("main")
+SHIP_ON_MAIN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_ON_MAIN_TRACK, "done")
+done = run_preflight_at("ship", SHIP_ON_MAIN, SHIP_ON_MAIN_TRACK)
+check("preflight ship [on main branch] -> 2", done.returncode == 2)
+check("preflight ship names not_main_branch", "FAIL not_main_branch" in done.stdout)
+
 # Model tiers live in models.json, not in eighteen frontmatters. Three checks,
 # because the failure modes are different: drift (someone edited a frontmatter
 # by hand), escape (a new component nobody assigned a role), and regression
@@ -606,13 +1050,24 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
     aliases = {r["alias"] for r in spec["roles"].values()}
     assigned = set(spec["assignments"])
 
+    # The other direction from the orphan check below: a role assignment that
+    # names a file nobody shipped (or already deleted, e.g. a retired agent)
+    # is stale the moment it's written -- exactly the failure mode retiring
+    # refactoring-detector/refactoring-surgeon into skills/refactor/ could
+    # leave behind if their models.json rows were not removed with them.
+    dangling = sorted(p for p in assigned if not os.path.isfile(f"{PLUGIN}/{p}"))
+    check(f"models.json names no assignment whose file is missing ({len(dangling)} dangling)",
+          not dangling)
+    for p in dangling[:5]:
+        print("     dangling assignment:", p)
+
     # Anything that declares a model must be in the table. Without this, a new
     # agent silently keeps whatever tier its author typed and re-tiering a role
     # quietly skips it.
     declaring = set()
     for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/commands/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))):
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                 + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
         body = read_text(path)
         end = body.find("\n---", 3) if body.startswith("---") else -1
         if end == -1:
@@ -640,8 +1095,9 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
     FAMILY = re.compile(r"\b(haiku|sonnet|opus|fable)\b", re.IGNORECASE)
     leaked = []
     for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/commands/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))):
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                 + sorted(glob.glob(f"{PLUGIN}/skills/*/references/*.md"))
+                 + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
         for n, line in enumerate(read_text(path).splitlines(), 1):
             if line.startswith("model:"):
                 continue
@@ -651,6 +1107,186 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
           not leaked)
     for line in leaked[:8]:
         print(f"     {line}")
+
+# What each stage's agent must be granted, checked against its `tools:`
+# frontmatter rather than its name -- picking an agent by tier alone is
+# exactly what pointed design at architect (can't Write) and ship at
+# explorer (can't run git) before designer/verifier/shipper existed.
+STAGE_TOOL_NEEDS = {
+    "design": ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
+    "verify": ("a test command", lambda tools: re.search(
+        r"pytest|go test|npm test|unittest", tools, re.IGNORECASE) is not None),
+    "ship": ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
+}
+
+# The track skill's stage table. Shape checks only -- the six stage prose
+# files and their wrapper skills are later units and do not exist yet.
+STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
+STAGE_ORDER = ["intake", "discover", "design", "build", "verify", "ship"]
+check(f"stages.json ships ({STAGES_JSON})", os.path.isfile(STAGES_JSON))
+if os.path.isfile(STAGES_JSON):
+    stages_text = read_text(STAGES_JSON)
+    stages = json.loads(stages_text)["stages"]
+    check(f"stages.json has {len(STAGE_ORDER)} rows ({len(stages)})",
+          len(stages) == len(STAGE_ORDER))
+    keys_ok = all(set(row) == {"id", "agent", "reference", "auto_invoke"} for row in stages)
+    check("every stage row has exactly id/agent/reference/auto_invoke", keys_ok)
+    ids = [row.get("id") for row in stages]
+    check(f"stage ids are {STAGE_ORDER} in order ({ids})", ids == STAGE_ORDER)
+
+    # Model tier lives only in models.json; a second copy here would drift
+    # the moment a role is re-tiered. "build" is also a legitimate stage id
+    # and names its reference file, so only flag it elsewhere.
+    BUILD_LEGIT = re.compile(r'"id"\s*:\s*"build"|stage-build\.md')
+    tier_leaks = []
+    for ln in stages_text.splitlines():
+        if re.search(r"\btier\b|\b(chore|think)\b", ln, re.IGNORECASE):
+            tier_leaks.append(ln)
+        elif re.search(r"\bbuild\b", ln, re.IGNORECASE) and not BUILD_LEGIT.search(ln):
+            tier_leaks.append(ln)
+    check(f"stages.json names no model tier ({len(tier_leaks)} leak(s))", not tier_leaks)
+
+    # Unit 6a: the six stage reference files and their thin wrapper skills.
+    # A `reference` path that resolves to nothing leaves the subagent track
+    # dispatches with a Read call that 404s mid-stage.
+    for row in stages:
+        ref = f"{PLUGIN}/skills/track/{row['reference']}"
+        check(f"stage {row['id']} reference exists ({ref})", os.path.isfile(ref))
+
+        wrapper = f"{PLUGIN}/skills/{row['id']}/SKILL.md"
+        check(f"stage {row['id']} has a wrapper skill ({wrapper})", os.path.isfile(wrapper))
+        if not os.path.isfile(wrapper):
+            continue
+
+        wrapper_text = read_text(wrapper)
+        has_flag = "disable-model-invocation: true" in wrapper_text
+        # auto_invoke says whether this skill may start the stage on its own;
+        # a stage that writes things (auto_invoke: false) must carry the flag
+        # or a matching description starts it unbidden, and a stage that only
+        # reads (auto_invoke: true) must not carry it or the capability it
+        # exists to keep -- firing on "review this diff" -- regresses silently.
+        if row["auto_invoke"]:
+            check(f"{wrapper} has no disable-model-invocation (auto_invoke: true)", not has_flag)
+        else:
+            check(f"{wrapper} disables model invocation (auto_invoke: false)", has_flag)
+
+        wrapper_end = wrapper_text.find("\n---", 3) + 4 if wrapper_text.startswith("---") else 0
+        wrapper_lines = len(wrapper_text[wrapper_end:].splitlines())
+        check(f"{wrapper} body is under 25 lines ({wrapper_lines})", wrapper_lines < 25)
+
+    # The original mis-assignment picked a stage's agent by tier alone --
+    # design pointed at architect (Read-only), ship at explorer (no git) --
+    # and both named agents that could not do the stage's job. Assert the
+    # agent exists, is tiered, and is actually granted what the stage needs,
+    # so a future re-assignment by tier alone fails here instead of at
+    # someone's runtime.
+    for row in stages:
+        agent_name = row["agent"]
+        agent_path = f"{PLUGIN}/agents/{agent_name}.md"
+        check(f"stage {row['id']}'s agent ({agent_name}) exists", os.path.isfile(agent_path))
+
+        rel_agent = f"agents/{agent_name}.md"
+        check(f"stage {row['id']}'s agent ({agent_name}) has a models.json assignment",
+              rel_agent in assigned)
+
+        need = STAGE_TOOL_NEEDS.get(row["id"])
+        if need is None or not os.path.isfile(agent_path):
+            continue
+        label, predicate = need
+        tools_line = agent_tools_line(agent_path)
+        check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
+              tools_line is not None and predicate(tools_line))
+
+# track/SKILL.md routes rather than implements, so it is read start to finish
+# every time someone reaches for it -- same reasoning and the same 120-line
+# ceiling as goal.md above.
+TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
+if os.path.isfile(TRACK_SKILL):
+    track_text = read_text(TRACK_SKILL)
+    track_body_start = track_text.find("\n---", 3) + 4 if track_text.startswith("---") else 0
+    track_lines = len(track_text[track_body_start:].splitlines())
+    check(f"{TRACK_SKILL} is within its 120-line ceiling ({track_lines})", track_lines <= 120)
+
+# track_state.py resolves .claude/track/current -> state.md from files alone,
+# with no model call -- UC1's acceptance test ("a fresh session resumes from
+# files alone") is this loop. Every fixture lives under one temp_repo() (git
+# is irrelevant to the script, but the helper is the repo's existing way to
+# get a throwaway directory that gets cleaned up below).
+TRACK_STATE = f"{PLUGIN}/scripts/track_state.py"
+TRACK_FIXTURE_ROOT = temp_repo("track-state-fixture")
+
+# Same six rows as the state.md example in the track spec: one stage done
+# with an artifact, one done with a note, one skipped with a reason, one
+# in-progress, two not started -- so "next" lands on the in-progress row
+# rather than skating past it.
+FULL_ROWS = [
+    ("intake", "done", "docs/design/2026-08-27-billing-export-intake.md", ""),
+    ("discover", "done", "—", "three unknowns closed"),
+    ("design", "skipped", "—", "reusing the existing spec"),
+    ("build", "in-progress", "—", "unit 3 of 5"),
+    ("verify", "", "", ""),
+    ("ship", "", "", ""),
+]
+
+
+def write_track_state(track_dir, rows):
+    lines = ["# fixture", "", "branch: feat/fixture", "started: 2026-08-27", "",
+             "| stage | status | artifact | note |", "|---|---|---|---|"]
+    lines += ["| " + " | ".join(row) + " |" for row in rows]
+    os.makedirs(track_dir, exist_ok=True)
+    with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
+def make_track_root(name):
+    root = os.path.join(TRACK_FIXTURE_ROOT, name)
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def write_current(root, feature):
+    with open(os.path.join(root, "current"), "w", encoding="utf-8") as fh:
+        fh.write(feature)
+
+
+def valid_track_root():
+    root = make_track_root("valid")
+    write_track_state(os.path.join(root, "billing-export"), FULL_ROWS)
+    write_current(root, "billing-export")
+    return root
+
+
+def missing_dir_track_root():
+    root = make_track_root("missing-dir")
+    write_current(root, "ghost-feature")  # names a dir that is never created
+    return root
+
+
+def row_mismatch_track_root():
+    root = make_track_root("row-mismatch")
+    write_track_state(os.path.join(root, "short-track"), FULL_ROWS[:5])  # missing "ship"
+    write_current(root, "short-track")
+    return root
+
+
+def no_current_track_root():
+    return make_track_root("no-current")  # `current` is never written
+
+
+TRACK_STATE_CASES = [
+    # (label, root-builder, expected exit, substring the output must name)
+    ("valid track resolves the next stage", valid_track_root, 0, "next: build"),
+    ("current names a missing directory", missing_dir_track_root, 2, "ghost-feature"),
+    ("state.md row count disagrees with stages.json", row_mismatch_track_root, 2, "5 stage row"),
+    ("no current at all", no_current_track_root, 2, "no active track"),
+]
+
+for label, build_root, expected, needle in TRACK_STATE_CASES:
+    done = subprocess.run(
+        [sys.executable, TRACK_STATE, "status", "--track-root", build_root()],
+        capture_output=True, text=True)
+    check(f"track_state status [{label}] -> {expected}", done.returncode == expected)
+    check(f"track_state status [{label}] names it", needle in done.stdout + done.stderr)
 
 # plan-review restates both skeletons so the skill stays self-contained when it
 # is handed a document the commands did not write. Restating is fine; restating
@@ -735,7 +1371,8 @@ def rmtree(path):
         shutil.rmtree(path, onerror=retry)
 
 
-for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR):
+for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR, PREFLIGHT_PROJECT,
+             TRACK_FIXTURE_ROOT):
     rmtree(path)
 
 sys.exit(FAIL)

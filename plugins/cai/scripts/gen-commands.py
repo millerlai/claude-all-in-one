@@ -7,12 +7,12 @@ descriptions total far more than the always-on budget allows, so they must
 stay out of the model's context while remaining user-invocable for tab
 completion. Run this when you want the individual commands:
 
-    python3 gen-commands.py              # write commands/*.md
+    python3 gen-commands.py              # write refactoring-catalog/<slug>/SKILL.md
     python3 gen-commands.py --list       # print the catalog, write nothing
     python3 gen-commands.py --only extract-method move-method
     python3 gen-commands.py --clean      # remove generated commands
 
-Single source of truth: skills/refactoring/references/catalog-index.md
+Single source of truth: skills/refactor/references/catalog-index.md
 """
 
 import argparse
@@ -22,8 +22,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-INDEX = ROOT / "skills" / "refactoring" / "references" / "catalog-index.md"
-COMMANDS = ROOT / "commands"
+INDEX = ROOT / "skills" / "refactor" / "references" / "catalog-index.md"
+COMMANDS = ROOT / "refactoring-catalog"
 
 CHAPTER_FILES = {
     "Composing Methods": "cat-06-composing-methods.md",
@@ -70,15 +70,15 @@ Target: `$ARGUMENTS`
 ## Do this
 
 1. Read the **{name}** card in
-   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactoring/references/{chapter_file}`.
+   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactor/references/{chapter_file}`.
    Its **Pre** and **Mechanics** sections are authoritative — this command does
    not restate them, so that there is one source of truth.
-2. This command delegates to `refactor-apply` with `{slug}` as the refactoring
-   and `$ARGUMENTS` as the target. The safety protocol it runs — pre-flight,
-   step-by-step mechanics with a test after each step, full suite, commit — is
-   defined once in
-   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactoring/SKILL.md` under
-   "## Non-negotiable safety protocol"; it is not restated here.
+2. Apply the safety protocol yourself: pre-flight, step-by-step mechanics with
+   a test after each step, full suite, commit. It is defined once in
+   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactor/SKILL.md` under
+   "## Non-negotiable safety protocol"; it is not restated here. The heading
+   is the anchor on purpose -- a line number here would be stale the next time
+   anything above it is edited, in all 72 of these files at once.
 3. Behaviour must not change. Do not modify tests except for a rename you name
    explicitly in the report. Do not start a second refactoring — report any
    follow-up the card indicates instead.
@@ -117,10 +117,12 @@ def write_commands(entries, only=None):
     for e in entries:
         if only and e["slug"] not in only:
             continue
-        target = COMMANDS / f"{e['slug']}.md"
+        target_dir = COMMANDS / e["slug"]
+        target = target_dir / "SKILL.md"
         if target.exists() and GENERATED_MARKER not in target.read_text(encoding="utf-8"):
-            print(f"  skip (hand-edited): {target.name}", file=sys.stderr)
+            print(f"  skip (hand-edited): {target}", file=sys.stderr)
             continue
+        target_dir.mkdir(exist_ok=True)
         target.write_text(TEMPLATE.format(marker=GENERATED_MARKER, **e), encoding="utf-8")
         written += 1
     return written
@@ -130,9 +132,10 @@ def clean():
     if not COMMANDS.exists():
         return 0
     removed = 0
-    for f in COMMANDS.glob("*.md"):
+    for f in COMMANDS.glob("*/SKILL.md"):
         if GENERATED_MARKER in f.read_text(encoding="utf-8"):
             f.unlink()
+            f.parent.rmdir()
             removed += 1
     return removed
 

@@ -21,19 +21,24 @@ Everything else is advice.
 keep loaded and expensive to look up on demand. Procedures are the reverse:
 long, specific, and irrelevant most of the time.
 
-If it's steps, one more question — **who starts it?** This is what separates a
-skill from a command, and it matters most when running the procedure has
-consequences.
+If it's steps, one more question — **who starts it?** This is a frontmatter
+setting on the skill, not a choice of directory, and it matters most when
+running the procedure has consequences.
 
 ```mermaid
+---
+config:
+  flowchart:
+    defaultRenderer: "elk"
+---
 flowchart TD
     Q["A new piece of guidance"] --> A{"Must it hold even when<br/>the model forgets or disagrees?"}
     A -->|yes| HOOK["hooks/<br/>intercepts the tool call"]
     A -->|no| B{"Standing truth, or<br/>steps for a task?"}
     B -->|standing truth| RULES["rules/ + CLAUDE.md<br/>always loaded"]
     B -->|steps| C{"Who starts it?"}
-    C -->|"the model, when<br/>the task matches"| SKILL["skills/"]
-    C -->|"only the user,<br/>by typing it"| CMD["commands/"]
+    C -->|"the model, when<br/>the task matches"| SKILL["skills/<br/>default frontmatter"]
+    C -->|"only the user,<br/>by typing it"| SKILLCMD["skills/<br/>disable-model-invocation: true"]
     C -->|"the model — but it needs<br/>its own context or model tier"| AGENT["agents/<br/>delegated subagent run"]
 ```
 
@@ -42,23 +47,38 @@ flowchart TD
 | Component | Holds | Triggered by | Costs |
 |---|---|---|---|
 | `rules/`, `CLAUDE.md` | Conventions — how to work, always true | Loaded every session | Tokens in every session, forever |
-| `skills/` | Procedures the model should start on its own | The model, matching the task against the skill's description | Loaded only when matched |
-| `commands/` | Procedures the user must ask for by name | The user typing `/name` | Nothing until invoked |
+| `skills/` | Procedures, whoever is meant to start them | Frontmatter decides: default is model-or-user, `disable-model-invocation: true` restricts it to the user typing `/name`, `user-invocable: false` restricts it to the model | Loaded only when matched or invoked |
+| `commands/` (legacy) | Same as `skills/`, flat-file form predating the frontmatter switches | The user typing `/name` | Nothing until invoked |
 | `agents/` | A delegated job with its own context and model tier | Dispatched, or `@agent-name` | A whole subagent run |
 | `hooks/` | Constraints that must not depend on being remembered | Mechanically, on every matching tool call | Runs on every matching call |
 
-## Skill or command?
+## Who may invoke it?
 
-Both hold procedures; the difference is who pulls the trigger, and it is a
-safety decision more than a style one.
+Custom commands have been merged into skills. A file at
+`.claude/commands/deploy.md` and a skill at `.claude/skills/deploy/SKILL.md`
+both create `/deploy` and work the same way — the directory no longer decides
+who can invoke a component. New work goes in `skills/`; `commands/` is only
+the flat-file form kept for what predates the merge.
 
-A skill fires when the model decides the task matches. That's what you want for
-`git-pr-rebase` — "squash this branch" should just work. A command fires only
-when typed. That's what you want for `setup`, which rewrites files under
-`~/.claude/`: a procedure with side effects outside the repo should never start
-because a description happened to match.
+What decides who can invoke it is frontmatter, and it is a safety decision
+more than a style one. By default a skill fires when the model decides the
+task matches, or when the user types its name — that's fine for
+`refactor`, where "clean up this function" should just work. Set
+`disable-model-invocation: true` and only the user can start it — that's what
+`setup` needs, since it rewrites files under `~/.claude/` and a procedure with
+side effects outside the repo should never start because a description
+happened to match. Set `user-invocable: false` and the inverse holds: the
+model can reach it, the user cannot type it directly.
 
-**If you would be unhappy to see it start on its own, it is a command.**
+**If you would be unhappy to see it start on its own, it needs
+`disable-model-invocation: true`.**
+
+The directory move doesn't remove the trap it replaces: a skill and a command
+that resolve to the same name still collide, and the thin one can win. That's
+what happened to `/cai:build-from-design` — it existed as both
+`commands/build-from-design.md` and `skills/build-from-design/SKILL.md`, both
+produced the same `/name`, and the 37-line command shadowed the 303-line
+skill until the command was deleted.
 
 ## The diagnostic
 
@@ -93,7 +113,21 @@ the genuine constraints with it.
 - Several procedures still live as prose in `rules/` rather than as skills: the
   subagent flow in `model-selection.md`, the test loop in `workflow.md`, and
   the "validate the diagram before shipping" step in `documentation.md`.
-  `skills/finding-unknowns` and `skills/checkpointed-execution` are the worked
-  examples of the fix — in both cases the rule keeps the standing truth (*when*
-  to prototype, *when* a change needs checkpointing) and the skill takes the
-  steps, where they cost nothing until the task matches.
+  `skills/track/references/stage-discover.md` and
+  `skills/track/references/stage-build.md` are the worked examples of the fix
+  — in both cases the rule keeps the standing truth (*when* to prototype,
+  *when* a change needs checkpointing) and the reference takes the steps,
+  where they cost nothing until the task matches.
+- Fixed, but worth keeping as the worked example: `refactor-auto` used to tell
+  the model to run `refactor-scan`, `refactor-plan` and `refactor-apply` as
+  steps in its own loop, and all three carried `disable-model-invocation:
+  true` — which closes them to the model entirely. The instruction had never
+  been executable. Nothing caught it because nothing was looking: the flag
+  reads like "don't fire on your own", and the fact that it also means "the
+  model cannot reach this at all" lives elsewhere on the same page.
+
+  The fix was to stop making them skills. Their procedures are reference files
+  under `skills/refactor/references/` now, and reading a file has no such
+  gate. That is the same shape the stage procedures use, and for the same
+  reason — **if something has to be driven by the model, it cannot be a skill
+  the model is forbidden to invoke.** Check that before reaching for the flag.
