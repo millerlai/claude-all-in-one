@@ -22,11 +22,20 @@ More than one can apply. Pick the one whose answer would change the most
 work, run it, then re-check — a blindspot pass often exposes that the spec
 was ambiguous too.
 
-**On cost.** Standing alone, this stage would normally say what the move
-costs and wait for a go before running it. Inside a track that step moved:
-the track's own preflight already priced this stage before dispatching it,
-so proceed straight into the move once it is picked — do not add a second
-cost estimate on top of one the track already gave.
+**Say what it costs, then wait.** One line: which move you propose, why, and
+roughly what it costs. Then stop.
+
+> Before I touch the auth module I'd like to do a blindspot pass — I've not
+> read this area and the SSO flow probably has conventions I'd break.
+> ~5 minutes. OK?
+
+Skip the offer only when the user already named the move. **Never burn a long
+discovery pass unbidden** — an unwanted one is worse than none, because the
+next one gets refused too.
+
+This holds inside a track as much as outside it. The track's preflight decides
+whether the stage may *start*; it costs nothing and estimates nothing, so it
+cannot stand in for this.
 
 ## The moves
 

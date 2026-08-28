@@ -43,9 +43,14 @@ before reading anything:
 A non-zero exit means building against a document already known to be
 wrong — say so and stop.
 
-## Step 0.5 — Get two answers, once, up front
+## Step 0.5 — Say what it will cost, then get two answers
 
-Not per unit:
+Four lines first, before anything is dispatched: how many units, which of
+them can run alongside another, the verify command each will have to pass,
+and anything in the document you already know you will have to ask about.
+A long pass nobody sized is a long pass nobody agreed to.
+
+Then two answers, once for the whole run and not per unit:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
   procedure needs one commit per verified unit, and the parallel lane below

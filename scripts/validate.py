@@ -125,6 +125,40 @@ for path in skills:
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
 
+
+# A skill body that tells the model to invoke /cai:x, or to read a file under
+# the plugin, is only as good as x and that file still existing. This is the
+# check that was missing when a restructure retired eight skills: goal.md went
+# on naming three of them, every other check stayed green, and the command was
+# broken for anyone who ran it. A body is instructions -- a name in it that
+# resolves to nothing is a 404 handed to a model mid-task.
+CMD_REF = re.compile(r"/cai:([a-z][a-z0-9-]*)")
+PLUGIN_PATH_REF = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+\.\w+)")
+# Names that resolve to something other than a directory under skills/.
+KNOWN_NON_SKILL = {"setup"}
+
+
+def invocable_names():
+    """Everything /cai:<name> can legitimately resolve to."""
+    names = {os.path.basename(os.path.dirname(p)) for p in skills}
+    names |= {os.path.basename(os.path.dirname(p))
+              for p in glob.glob(f"{PLUGIN}/refactoring-catalog/*/SKILL.md")}
+    return names | KNOWN_NON_SKILL
+
+
+ALL_INVOCABLE = invocable_names()
+for path in skills:
+    body = read_text(path)
+    dead_cmds = sorted({m for m in CMD_REF.findall(body) if m not in ALL_INVOCABLE})
+    check(f"{path} names no command that does not exist "
+          f"({len(dead_cmds)}{': ' + ', '.join(dead_cmds[:3]) if dead_cmds else ''})",
+          not dead_cmds)
+    dead_paths = sorted({rel for rel in PLUGIN_PATH_REF.findall(body)
+                         if not os.path.isfile(os.path.join(PLUGIN, rel))})
+    check(f"{path} names no plugin file that does not exist "
+          f"({len(dead_paths)}{': ' + ', '.join(dead_paths[:2]) if dead_paths else ''})",
+          not dead_paths)
+
 # R1: the design's target is 14 skills, not 15 -- it is 15 today only because
 # `goal` stays until someone has actually run a track end to end, which has
 # not happened yet (Unit 8 decision, 2026-08-27). Once that condition is met
@@ -276,6 +310,53 @@ for slug in missing_cards[:5]:
     print("     index names but no card defines:", slug)
 for slug in extra_cards[:5]:
     print("     card defines but index omits:", slug)
+
+# The catalog count check above (72 dirs) only counts; it does not compare
+# names, so renaming a directory keeps the total at 72 and nothing notices.
+# alias_slugs is the catalog-generated directory names, computed above.
+missing_dirs = sorted(idx_slugs - alias_slugs)
+extra_dirs = sorted(alias_slugs - idx_slugs)
+check(f"refactoring-catalog dirs match catalog-index slugs "
+      f"({len(missing_dirs)} missing, {len(extra_dirs)} extra)",
+      not missing_dirs and not extra_dirs)
+for slug in missing_dirs[:5]:
+    print("     index names but no catalog dir exists:", slug)
+for slug in extra_dirs[:5]:
+    print("     catalog dir exists but index omits:", slug)
+
+# gen-commands.py is never invoked by this suite, so a hand-edit to a
+# generated file, or a template drift from what is committed, is invisible.
+# Run it against a scratch copy of just what it reads (its own script plus
+# the single source-of-truth index) so the real refactoring-catalog/ is never
+# touched -- exercising the generator must not leave the tree dirty.
+GEN_COMMANDS = f"{PLUGIN}/scripts/gen-commands.py"
+GEN_SCRATCH = tempfile.mkdtemp(prefix="cai-gen-commands-")
+os.makedirs(os.path.join(GEN_SCRATCH, "scripts"), exist_ok=True)
+shutil.copy(GEN_COMMANDS, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py"))
+os.makedirs(os.path.join(GEN_SCRATCH, "skills", "refactor", "references"), exist_ok=True)
+shutil.copy(INDEX, os.path.join(GEN_SCRATCH, "skills", "refactor", "references", "catalog-index.md"))
+gen_done = subprocess.run([sys.executable, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py")],
+                          capture_output=True, text=True)
+check("gen-commands.py runs cleanly against a scratch copy of the index",
+      gen_done.returncode == 0)
+
+generated = sorted(glob.glob(os.path.join(GEN_SCRATCH, "refactoring-catalog", "*", "SKILL.md")))
+gen_slugs = {os.path.basename(os.path.dirname(p)) for p in generated}
+check(f"gen-commands.py produces the same slugs as committed ({len(gen_slugs)})",
+      gen_slugs == alias_slugs)
+
+regen_mismatches = []
+for slug in sorted(gen_slugs & alias_slugs):
+    gen_text = read_text(os.path.join(GEN_SCRATCH, "refactoring-catalog", slug, "SKILL.md"))
+    committed_text = read_text(os.path.join(CATALOG, slug, "SKILL.md"))
+    if gen_text != committed_text:
+        regen_mismatches.append(slug)
+check(f"gen-commands.py output matches committed refactoring-catalog/ "
+      f"({len(regen_mismatches)} mismatched)", not regen_mismatches)
+for slug in regen_mismatches[:5]:
+    print("     regenerating differs from committed:", slug)
+
+shutil.rmtree(GEN_SCRATCH, ignore_errors=True)
 
 # Check 3: the safety protocol lives in the knowledge skill only (design
 # decisions #3). A component that pastes a rule verbatim instead of pointing
@@ -752,6 +833,36 @@ done = run_preflight("design")
 check("preflight design [unrecognized suffix] -> 2", done.returncode == 2)
 check("preflight design names artifact_kind", "FAIL artifact_kind" in done.stdout)
 
+# The two earlier block reasons: no artifact named at all, and no state.md to
+# even read one from. Both are checked before the artifact is ever resolved.
+write_preflight_state("—")
+done = run_preflight("design")
+check("preflight design [no artifact named] -> 2", done.returncode == 2)
+check("preflight design names artifact_named", "FAIL artifact_named" in done.stdout)
+
+PREFLIGHT_NO_STATE = tempfile.mkdtemp(prefix="cai-preflight-no-state-")
+done = run_preflight("design", track_dir=PREFLIGHT_NO_STATE)
+check("preflight design [no state.md] -> 2", done.returncode == 2)
+check("preflight design names state_md", "FAIL state_md" in done.stdout)
+
+# design's suffix routing for the other two kinds -- only -detail.md is
+# exercised above, so mapping -high-level.md or -delta.md to the wrong kind
+# would go unnoticed.
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-high-level.md"),
+          "w", encoding="utf-8") as fh:
+    fh.write(HLD_OK)
+with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-delta.md"),
+          "w", encoding="utf-8") as fh:
+    fh.write(DELTA_OK)
+
+write_preflight_state("docs/design/widget-high-level.md")
+done = run_preflight("design")
+check("preflight design [-high-level.md routes to hld probe] -> 0", done.returncode == 0)
+
+write_preflight_state("docs/design/widget-delta.md")
+done = run_preflight("design")
+check("preflight design [-delta.md routes to delta probe] -> 0", done.returncode == 0)
+
 done = subprocess.run([sys.executable, PREFLIGHT, "no-such-stage",
                        "--track-dir", PREFLIGHT_TRACK],
                       capture_output=True, text=True)
@@ -774,6 +885,17 @@ write_preflight_state("docs/design/no-breakdown-detail.md")
 done = run_preflight("build")
 check("preflight build [no work breakdown] -> 2", done.returncode == 2)
 check("preflight build names work_breakdown", "FAIL work_breakdown" in done.stdout)
+
+# build reads the same design row as design() -- same two block reasons apply
+# before the artifact is even resolved to a work breakdown.
+write_preflight_state("—")
+done = run_preflight("build")
+check("preflight build [no artifact named] -> 2", done.returncode == 2)
+check("preflight build names artifact_named", "FAIL artifact_named" in done.stdout)
+
+done = run_preflight("build", track_dir=PREFLIGHT_NO_STATE)
+check("preflight build [no state.md] -> 2", done.returncode == 2)
+check("preflight build names state_md", "FAIL state_md" in done.stdout)
 
 # discover only needs the intake row's status; write_preflight_state's default
 # (intake: done) is the passing fixture, an empty status is the blocking one.
@@ -830,6 +952,23 @@ os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
 done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
 check("preflight intake [4 active + done/ archive ignored] -> 0", done.returncode == 0)
 
+# Regression: a bare relative --track-dir (what a caller already sitting in
+# .claude/track/ passes) used to derive an empty parent, count zero active
+# tracks, and let a sixth one through. Exercised with cwd set to the track
+# root itself, since that is what makes the value bare in the first place.
+INTAKE_BARE = temp_repo("work")
+INTAKE_BARE_ROOT = os.path.join(INTAKE_BARE, "track")
+for i in range(5):
+    os.makedirs(os.path.join(INTAKE_BARE_ROOT, f"f{i}"))
+done = subprocess.run(
+    [sys.executable, os.path.abspath(PREFLIGHT), "intake", "--track-dir", "f-new",
+     "--project-dir", os.path.abspath(INTAKE_BARE)],
+    capture_output=True, text=True, cwd=INTAKE_BARE_ROOT)
+check("preflight intake [bare relative --track-dir, 5 active tracks] -> 2",
+      done.returncode == 2)
+check("preflight intake bare --track-dir names active_tracks",
+      "FAIL active_tracks" in done.stdout)
+
 
 # verify has nothing to read from state.md -- it only asks git whether there
 # is a diff to review, so its fixtures are bare repos.
@@ -872,6 +1011,22 @@ SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
 write_ship_state(SHIP_CLEAN_TRACK, "done")
 done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
 check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
+
+# ship's other two reasons: the fixtures above always fill verify's status and
+# always run on a feature branch, so only clean_tree was ever exercised.
+SHIP_NO_VERIFY = temp_repo("ship-no-verify")
+SHIP_NO_VERIFY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_NO_VERIFY_TRACK, "")
+done = run_preflight_at("ship", SHIP_NO_VERIFY, SHIP_NO_VERIFY_TRACK)
+check("preflight ship [verify status empty] -> 2", done.returncode == 2)
+check("preflight ship names verify_status", "FAIL verify_status" in done.stdout)
+
+SHIP_ON_MAIN = temp_repo("main")
+SHIP_ON_MAIN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_ON_MAIN_TRACK, "done")
+done = run_preflight_at("ship", SHIP_ON_MAIN, SHIP_ON_MAIN_TRACK)
+check("preflight ship [on main branch] -> 2", done.returncode == 2)
+check("preflight ship names not_main_branch", "FAIL not_main_branch" in done.stdout)
 
 # Model tiers live in models.json, not in eighteen frontmatters. Three checks,
 # because the failure modes are different: drift (someone edited a frontmatter

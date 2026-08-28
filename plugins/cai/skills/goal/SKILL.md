@@ -1,6 +1,6 @@
 ---
 name: goal
-description: "Review a design doc, then route it: a document with a work breakdown schedule goes to build-from-design unit by unit, everything else goes to a single implementer — both lanes converge on the same test-and-report step. Usage: /cai:goal <path to design/plan doc>"
+description: "Review a design doc, then route it: a document with a work breakdown schedule is built unit by unit, everything else goes to a single implementer — both lanes converge on the same test-and-report step. Usage: /cai:goal <path to design/plan doc>"
 argument-hint: "<path to design/plan doc>"
 ---
 
@@ -34,7 +34,7 @@ it that rule never fires.
 This step runs at the think tier and high effort, because `plan-review` pins
 both in its own frontmatter and a skill's model override holds for the rest of
 the turn. The real trajectory through this file: `plan-review` (think/high) →
-routing → `build-from-design` (build/medium) → the shared verification step
+routing → the `build` stage's reference (build/medium) → the shared verification step
 (build on that lane; still think/high on the other, where nothing overrides it).
 Tier names resolve in `plugins/cai/models.json`; this file never names a model.
 
@@ -44,10 +44,10 @@ Tier names resolve in `plugins/cai/models.json`; this file never names a model.
 criteria. Ask with `AskUserQuestion`, two options — produce a high-level
 design now, or stop and fill the gap yourself. Say plainly, before the user
 answers, that choosing the first option ends this run either way:
-`/cai:design-high-level-doc` hands back a document with `## Status: draft`,
+`/cai:design` in high-level mode hands back `## Status: draft`,
 and only the user can turn that into `approved`.
 
-Agree → invoke the `/cai:design-high-level-doc` command with the user's own
+Agree → invoke `/cai:design` in high-level mode with the user's own
 requirement text, then stop. Decline → stop and say which of the two —
 requirement or acceptance criteria — was missing. Non-interactive (`-p`)
 mode, where the question can't be answered → the same fallback as decline.
@@ -60,7 +60,7 @@ requirement has nothing for either lane to build against.
 Read `## Work breakdown`: does it have data rows — rows other than the
 separator, with `Depends on` filled in? No table, or a table with only its
 header, means no schedule. This criterion is copied verbatim from
-`plugins/cai/skills/build-from-design/SKILL.md:32-34`, not invented here — if
+`plugins/cai/skills/track/references/stage-build.md`, not invented here — if
 this file were looser than the gate it hands off to, the user would get a
 hand-off immediately followed by a rejection.
 
@@ -72,17 +72,17 @@ empty table correctly gets `skeleton: detail` plus the whole-document lane.
 
 ### The unit-by-unit lane — data rows found
 
-Invoke the `build-from-design` skill with the document path and the target
-project directory. **This lane does not invoke `diff-review` and does not
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/stage-build.md` with the document path and the target
+project directory. **This lane does not run the verify stage separately and does not
 write its own report.** Both happen inside that skill's own Step 6
-(`plugins/cai/skills/build-from-design/SKILL.md:276-285`); running either
+(stage-build.md's "Close it out"); running either
 again here would duplicate its close-out.
 
 If that skill's own Step 0 gate fails on any of its four checks, stop and
 relay the rejection verbatim. **Do not fall back to the whole-document
 lane** — each failure means the design document genuinely has a hole;
 building it whole-document just covers the hole with one large diff. Do not
-open git worktrees here — if `build-from-design` runs two units in
+open git worktrees here — if stage-build runs two units in
 parallel, that is its own business.
 
 ### The whole-document lane — no data rows
@@ -90,12 +90,12 @@ parallel, that is its own business.
 Dispatch the `cai:implementer` agent with the design doc as its spec. It
 starts with no context of this conversation, so give it the doc's content or
 path plus the specific files/behaviors it names — not just "see the plan."
-Once it returns, invoke the `diff-review` skill, passing the design doc as
+Once it returns, follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/stage-verify.md`, passing the design doc as
 the requirement for its `conformance` lens.
 
-Fix Blocker/Major findings per `diff-review`'s own "Fixing" section: failing
+Fix Blocker/Major findings per stage-verify.md's own "Fixing" section: failing
 test first, then the fix, then show it passing. If findings remain, run one
-more implementer → diff-review round at most; if still open after that, stop
+more implementer → verify round at most; if still open after that, stop
 and report rather than looping further. Leave Minor findings documented and
 unfixed unless asked. This lane's behavior is unchanged from before this
 rewrite — only which lane it belongs to is now explicit.
@@ -112,8 +112,8 @@ Then write one report with exactly five sections: what was fixed in the
 design doc (Step 1); what was implemented — file by file on the
 whole-document lane, or the unit-by-unit lane's own per-unit landings,
 traceability table, and deviations, quoted rather than rewritten; the
-review verdict and any open Minor findings — `diff-review`'s on the
-whole-document lane, `build-from-design`'s Step 6 verdict on the other; the
+review verdict and any open Minor findings — stage-verify's on the
+whole-document lane, stage-build's close-out verdict on the other; the
 `test-runner` results; and a **Manual verification** section of concrete,
 numbered steps for whatever could not be automated.
 

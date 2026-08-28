@@ -122,12 +122,24 @@ def is_git_repo(cwd):
     return bool(done and done.returncode == 0)
 
 
+UNKNOWN_BRANCH = object()
+
+
 def current_branch(cwd):
-    """Branch name, or None on detached HEAD -- symbolic-ref still answers on
-    an unborn HEAD (a freshly-init'd repo with no commits), which is exactly
-    what intake needs before the first commit exists."""
+    """The branch name, None on a genuinely detached HEAD, or UNKNOWN_BRANCH
+    when git could not be asked at all.
+
+    Those last two have to stay apart. Both used to be None, and both callers
+    read "not main" as permission to proceed -- so a git that timed out or
+    could not be executed silently passed the guard that exists to keep work
+    off a protected branch. Not knowing is a reason to block, not to continue.
+
+    symbolic-ref still answers on an unborn HEAD (a freshly-init'd repo with
+    no commits), which is what intake needs before the first commit exists."""
     done = git(cwd, "symbolic-ref", "--short", "HEAD")
-    return done.stdout.strip() if done and done.returncode == 0 else None
+    if done is None:
+        return UNKNOWN_BRANCH
+    return done.stdout.strip() if done.returncode == 0 else None
 
 
 def active_tracks(track_root):
@@ -147,10 +159,16 @@ def intake(track_dir, project_dir):
         branch_check = (False, "not_main_branch (%s is not a git repository)" % project_dir)
     else:
         branch = current_branch(project_dir)
-        branch_check = (branch not in ("main", "master"),
-                         "not_main_branch (branch is %s)" % (branch or "detached HEAD"))
+        branch_check = (branch is not UNKNOWN_BRANCH and branch not in ("main", "master"),
+                         "not_main_branch (branch is %s)" % (
+                             "unknown -- git did not answer" if branch is UNKNOWN_BRANCH
+                             else branch or "detached HEAD"))
 
-    track_root = os.path.dirname(os.path.normpath(track_dir))
+    # abspath, not normpath: a bare `--track-dir feature-a` -- which is what a
+    # caller already sitting in .claude/track/ passes -- leaves dirname() empty,
+    # os.path.isdir("") is False, and the cap then counts zero tracks and lets
+    # a sixth one through.
+    track_root = os.path.dirname(os.path.abspath(track_dir))
     active = active_tracks(track_root)
     active_check = (len(active) < 5,
                      "active_tracks (%d active: %s)" % (len(active), ", ".join(active) or "none"))
@@ -244,8 +262,10 @@ def ship(track_dir, project_dir):
         clean_check = (clean, "clean_tree (working tree %s)" %
                         ("is clean" if clean else "has uncommitted changes"))
         branch = current_branch(project_dir)
-        branch_check = (branch not in ("main", "master"),
-                         "not_main_branch (branch is %s)" % (branch or "detached HEAD"))
+        branch_check = (branch is not UNKNOWN_BRANCH and branch not in ("main", "master"),
+                         "not_main_branch (branch is %s)" % (
+                             "unknown -- git did not answer" if branch is UNKNOWN_BRANCH
+                             else branch or "detached HEAD"))
 
     return [status_check, clean_check, branch_check]
 

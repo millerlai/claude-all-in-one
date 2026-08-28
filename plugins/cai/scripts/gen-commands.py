@@ -76,7 +76,9 @@ Target: `$ARGUMENTS`
 2. Apply the safety protocol yourself: pre-flight, step-by-step mechanics with
    a test after each step, full suite, commit. It is defined once in
    `${{CLAUDE_PLUGIN_ROOT}}/skills/refactor/SKILL.md` under
-   "## Non-negotiable safety protocol" (line 28); it is not restated here.
+   "## Non-negotiable safety protocol"; it is not restated here. The heading
+   is the anchor on purpose -- a line number here would be stale the next time
+   anything above it is edited, in all 72 of these files at once.
 3. Behaviour must not change. Do not modify tests except for a rename you name
    explicitly in the report. Do not start a second refactoring — report any
    follow-up the card indicates instead.

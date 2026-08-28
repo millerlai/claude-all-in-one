@@ -21,6 +21,17 @@ Most work entering this stage from `intake`/`discover` wants High-level
 first, then Detail once the user approves it. Delta only applies when code
 already exists and nobody wrote down why it looks the way it does.
 
+## Say what it will cost, then wait
+
+Before either mode starts, four lines: the document path and the headings it
+will carry; how much of the target directory has to be read and how many
+documentation sources fetched; what is already unclear enough that you will
+have to ask; and what this will not decide. Then wait for a go.
+
+Detail mode is the longer of the two and the one most worth sizing — it reads
+the whole target directory and renders every diagram. A pass that expensive
+should not begin on an assumption that it was wanted.
+
 ## The two rules High-level and Detail both obey
 
 **The evidence rule.** Every sentence about how something currently
