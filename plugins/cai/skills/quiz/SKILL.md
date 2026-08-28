@@ -4,6 +4,7 @@ description: "Quiz yourself on a diff before merging — a report on what change
 argument-hint: "[base-ref — defaults to the branch point]"
 model: sonnet
 effort: high
+disable-model-invocation: true
 ---
 
 Quiz the user on the changes in this branch before they merge: $ARGUMENTS
