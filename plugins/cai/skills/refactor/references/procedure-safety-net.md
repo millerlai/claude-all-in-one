@@ -1,33 +1,25 @@
----
-name: refactor-safety-net
-description: Build characterisation tests around untested legacy code so it can be refactored safely - pin the current behaviour, including behaviour that looks wrong. Use when code needs refactoring but has no test coverage, or when refactor-scan or refactor-apply reports a missing safety net.
-argument-hint: "<path or class to pin>"
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash
-disable-model-invocation: true
----
+# Build a safety net — characterisation tests before touching risky code
 
-# Build a safety net
-
-Refactoring without tests is editing and hoping. This skill writes
+Refactoring without tests is editing and hoping. This procedure writes
 **characterisation tests**: tests that document what the code *currently does*,
 not what it *should* do.
 
 Target: `$ARGUMENTS`
 
-This is what `refactor-scan` means when it flags a finding under "Untestable
-areas," and what `refactor-plan` means by "Blocked — run `refactor-safety-net`
-first." Once this skill reports a green baseline, planning can order steps
-against it.
+This is what `procedure-scan.md` means when it flags a finding under
+"Untestable areas," and what `procedure-plan.md` means by "Blocked — run
+`procedure-safety-net.md` first." Once this procedure reports a green
+baseline, planning can order steps against it.
 
-**Write scope is a prose constraint, not a mechanical one.** This skill
+**Write scope is a prose constraint, not a mechanical one.** This procedure
 legitimately writes both tests and the seam-creating refactorings that make
 them possible, so the tool level cannot narrow `Write`/`Edit` to "tests and
-seams only" the way a diagnose-only skill narrows it to nothing. Start on a
+seams only" the way a diagnose-only procedure narrows it to nothing. Start on a
 clean working tree and commit after every seam-creating step — the same
 checkpoint discipline as `plugins/cai/rules/workflow.md` — so a write that
 strayed past a seam is visible in the diff and trivial to revert. Do not run
-this alongside `refactor-apply` or `refactor-auto` on the same target: those
-also write, and two writers on one target race.
+this alongside `procedure-apply.md` or `procedure-auto.md` on the same target:
+those also write, and two writers on one target race.
 
 ## The key distinction
 
@@ -39,7 +31,7 @@ also write, and two writers on one target race.
 
 **If the code does something wrong, pin the wrong behaviour.** Add a comment
 saying you believe it is wrong. Fixing it is a separate task under the other
-hat (see `refactoring`'s two hats) — mixing the fix into the safety net
+hat (see the `refactor` skill's two hats) — mixing the fix into the safety net
 destroys the net's entire purpose.
 
 ## Steps
@@ -127,5 +119,5 @@ Not ready: `Gateway._retry_with_backoff`.
   output.
 - Report the mutation count and outcome every time. A report without it is not
   evidence the net works, whatever else it says.
-- Once a target is pinned and green, hand it back — this skill only builds
+- Once a target is pinned and green, hand it back — this procedure only builds
   the net.

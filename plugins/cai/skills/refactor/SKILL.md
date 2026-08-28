@@ -1,6 +1,7 @@
 ---
-name: refactoring
+name: refactor
 description: Use when improving the internal structure of existing code without changing its behaviour - cleaning up a long method, breaking up a god class, removing duplication, taming conditionals, fixing an inheritance hierarchy, or when the user says refactor, code smell, technical debt, tidy up, restructure, or names a specific refactoring such as Extract Method or Replace Conditional with Polymorphism. Also use before adding a feature to code that resists the change.
+model: sonnet
 ---
 
 # Refactoring
@@ -31,7 +32,7 @@ Run this loop for **every** refactoring, no exceptions.
 
 1. **Establish the net.** Find the test command and confirm the relevant tests
    pass *before* touching anything. If there is no coverage for the target, stop
-   and build characterisation tests first (see `refactor-safety-net`).
+   and build characterisation tests first (see `references/procedure-safety-net.md`).
 2. **Take one small step.** One named refactoring, one target. Not two.
 3. **Compile / typecheck.**
 4. **Run the tests.** Green → continue. Red → revert this step, do not debug
@@ -56,16 +57,16 @@ Hard rules:
 
 | File | Read when |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/smells.md` | Diagnosing: you have code, you need to name what is wrong |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/selection.md` | Choosing and sequencing refactorings, scoring, budget |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/catalog-index.md` | You need the one-line summary of all 72 and where each lives |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-06-composing-methods.md` | Method-level: extract, inline, temps, algorithm |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-07-moving-features.md` | Between objects: move method/field, extract/inline class, delegation |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-08-organizing-data.md` | Data: encapsulation, type codes, value/reference, collections |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-09-conditionals.md` | Conditionals: decompose, guard clauses, polymorphism, null object |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-10-method-calls.md` | Interfaces: rename, parameters, factories, errors |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-11-generalization.md` | Hierarchies: pull up/push down, extract super/sub/interface, template method |
-| `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-12-big-refactorings.md` | Multi-week structural campaigns |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/smells.md` | Diagnosing: you have code, you need to name what is wrong |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/selection.md` | Choosing and sequencing refactorings, scoring, budget |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/catalog-index.md` | You need the one-line summary of all 72 and where each lives |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-06-composing-methods.md` | Method-level: extract, inline, temps, algorithm |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-07-moving-features.md` | Between objects: move method/field, extract/inline class, delegation |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-08-organizing-data.md` | Data: encapsulation, type codes, value/reference, collections |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-09-conditionals.md` | Conditionals: decompose, guard clauses, polymorphism, null object |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-10-method-calls.md` | Interfaces: rename, parameters, factories, errors |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-11-generalization.md` | Hierarchies: pull up/push down, extract super/sub/interface, template method |
+| `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-12-big-refactorings.md` | Multi-week structural campaigns |
 
 ## Default workflow
 
@@ -73,17 +74,17 @@ Hard rules:
 scan (name the smells)  →  plan (ordered, budgeted)  →  apply (one at a time)  →  verify
 ```
 
-- `refactor-scan` — inventory smells in a target, with evidence and severity
-- `refactor-plan` — turn a scan into an ordered, dependency-aware plan
-- `refactor-apply` — execute one named refactoring by the book's mechanics
-- `refactor-auto` — run the whole loop autonomously within a budget
-- `refactor-safety-net` — build characterisation tests before touching risky code
+- `references/procedure-scan.md` — inventory smells in a target, with evidence and severity
+- `references/procedure-plan.md` — turn a scan into an ordered, dependency-aware plan
+- `references/procedure-apply.md` — execute one named refactoring by the book's mechanics
+- `references/procedure-auto.md` — run the whole loop autonomously within a budget
+- `references/procedure-safety-net.md` — build characterisation tests before touching risky code
 
 ## Choosing a refactoring
 
 Do not pick by taste. Pick by this chain:
 
-1. **Name the smell** (`${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/smells.md`). If you cannot name it, you do not
+1. **Name the smell** (`${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/smells.md`). If you cannot name it, you do not
    yet have a reason to change the code.
 2. **Look up the candidates** the smell routes to.
 3. **Check preconditions** in the refactoring's card. Most failed refactorings

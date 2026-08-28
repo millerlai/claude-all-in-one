@@ -1,12 +1,4 @@
----
-name: refactor-apply
-description: Execute one named refactoring from the 72-refactoring catalog on a specific target, following its mechanics step by step with a compile-and-test check after each step. Use when the user names a refactoring such as Extract Method, Move Method, Replace Conditional with Polymorphism, or asks to apply the next step of a refactoring plan.
-argument-hint: "<refactoring-name> <target>   e.g. extract-method src/billing/invoice.py:180-214"
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash
-disable-model-invocation: true
----
-
-# Apply one refactoring
+# Apply one refactoring — execute a single named refactoring on a target
 
 This is the dispatcher for all 72 refactorings. It executes **exactly one** on
 **exactly one** target.
@@ -15,13 +7,13 @@ Request: `$ARGUMENTS`
 
 ## Resolve
 
-1. Match the named refactoring against `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/catalog-index.md`.
+1. Match the named refactoring against `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/catalog-index.md`.
    Accept the slug (`extract-method`), the full name (`Extract Method`), or a
    close variant. Ambiguous → ask which one; do not guess.
 2. Open the card in the matching `cat-*.md`. Read **Pre** and **Mechanics** before
    touching anything.
 3. If the user described a *problem* rather than naming a refactoring, do not
-   improvise — route through `refactor-scan` to name the smell first.
+   improvise — run `procedure-scan.md` to name the smell first.
 
 ## Pre-flight (all four, every time)
 
@@ -29,7 +21,7 @@ Request: `$ARGUMENTS`
 |---|---|
 | Working tree clean (or changes are the user's own, acknowledged) | Ask before proceeding |
 | Test command known and **currently green** | Stop. Report the red tests; do not fix them here |
-| Target has test coverage | Stop and offer `refactor-safety-net` |
+| Target has test coverage | Stop and offer `procedure-safety-net.md` |
 | Card's **Pre** conditions hold | Report which one fails and name the correct alternative |
 
 State the baseline explicitly: `Baseline: 214 tests green @ a3f21c9`.
@@ -38,7 +30,7 @@ State the baseline explicitly: `Baseline: 214 tests green @ a3f21c9`.
 
 Follow the card's numbered mechanics **in order**. The compile/test loop after
 each step, and what counts as green or red, is the safety protocol in
-`${CLAUDE_PLUGIN_ROOT}/skills/refactoring/SKILL.md` under
+`${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md` under
 "## Non-negotiable safety protocol" — follow it there; it is not restated here.
 
 Rules while executing:
@@ -57,7 +49,7 @@ Rules while executing:
 ## Finish
 
 The full-suite run and the commit are the safety protocol's own finishing
-steps (`${CLAUDE_PLUGIN_ROOT}/skills/refactoring/SKILL.md`,
+steps (`${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`,
 "## Non-negotiable safety protocol") — do them there, then:
 
 1. Show the diff summary: files touched, lines added/removed.

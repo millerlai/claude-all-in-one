@@ -20,12 +20,12 @@ Target: `$ARGUMENTS`
 ## Do this
 
 1. Read the **Substitute Algorithm** card in
-   `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/cat-06-composing-methods.md`.
+   `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/cat-06-composing-methods.md`.
    Its **Pre** and **Mechanics** sections are authoritative — this command does
    not restate them, so that there is one source of truth.
 2. Apply the safety protocol yourself: pre-flight, step-by-step mechanics with
    a test after each step, full suite, commit. It is defined once in
-   `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/SKILL.md` under
+   `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md` under
    "## Non-negotiable safety protocol" (line 28); it is not restated here.
 3. Behaviour must not change. Do not modify tests except for a rename you name
    explicitly in the report. Do not start a second refactoring — report any

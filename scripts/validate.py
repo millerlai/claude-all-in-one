@@ -128,7 +128,7 @@ if os.path.isfile(TEMPLATE) and rules:
         print("     also in rules/:", line[:90])
 
 
-REFACTORING = f"{PLUGIN}/skills/refactoring"
+REFACTORING = f"{PLUGIN}/skills/refactor"
 
 
 def referenced_paths(path):
@@ -199,13 +199,12 @@ for slug in extra_cards[:5]:
 # decisions #3). A component that pastes a rule verbatim instead of pointing
 # back here is exactly what goes stale the day the rule changes.
 #
-# The agents are covered as well as the process skills, because the design's
-# own failure mode counts three copies of the protocol -- the knowledge skill,
-# refactor-apply, and refactoring-surgeon -- and a check that watched only two
-# of the three would leave the copy inside the agent free to drift.
+# refactoring-detector and refactoring-surgeon retired into this skill (Unit
+# 6b), and refactor-scan/plan/apply/safety-net/auto are now reference files
+# under skills/refactor/references/ rather than separate agents or skills --
+# those reference files are what this check watches for a pasted copy now.
 proto_lines = protocol_lines(SKILL)
-for path in sorted(glob.glob(f"{PLUGIN}/skills/refactor-*/SKILL.md")
-                   + glob.glob(f"{PLUGIN}/agents/refactoring-*.md")):
+for path in sorted(glob.glob(f"{REFACTORING}/references/procedure-*.md")):
     # Both sides must extract the same shapes, or widening one half silently
     # guards nothing: bullets() alone would miss a pasted numbered loop step.
     with open(path, encoding="utf-8") as fh:
@@ -214,7 +213,38 @@ for path in sorted(glob.glob(f"{PLUGIN}/skills/refactor-*/SKILL.md")
     restated = sorted(candidates & proto_lines)
     check(f"{path} does not restate the safety protocol ({len(restated)} duplicated)", not restated)
     for line in restated[:5]:
-        print("     also in refactoring/SKILL.md:", line[:90])
+        print("     also in refactor/SKILL.md:", line[:90])
+
+# Unit 6b: six refactoring skills collapsed into one (skills/refactor/), and
+# two single-caller agents retired into it. The rename itself is worth its
+# own check, separately from the drift check above -- a stray refactor-*/
+# directory left behind after the merge is exactly the kind of thing nobody
+# notices until someone opens the wrong one.
+check(f"{REFACTORING} exists", os.path.isdir(REFACTORING))
+stray_refactor_dirs = sorted(
+    d for d in glob.glob(f"{PLUGIN}/skills/refactor-*") if os.path.isdir(d))
+check(f"no skills/refactor-*/ directory remains ({len(stray_refactor_dirs)} found)",
+      not stray_refactor_dirs)
+
+# The heading itself, not just the bullet shapes protocol_lines() extracts --
+# a second copy that paraphrases the loop instead of pasting it verbatim
+# would slip past the restatement check above but still be a second place to
+# keep the protocol in sync. Matched as an actual heading line, not the
+# quoted citation procedure-apply.md and others make in prose when pointing
+# back at it.
+protocol_heading_files = sorted(
+    p for p in glob.glob(f"{REFACTORING}/**/*.md", recursive=True)
+    if re.search(r"^## Non-negotiable safety protocol$", read_text(p), re.MULTILINE))
+check(f"the safety protocol appears in exactly one file under {REFACTORING} "
+      f"({len(protocol_heading_files)} found)", len(protocol_heading_files) == 1)
+
+# Six, not five. `refactoring-surgeon` merged into the refactor skill because
+# it executes one refactoring on one target -- sequential work with nothing to
+# parallelise. `refactoring-detector` did not: procedure-scan dispatches one
+# per module group, in parallel, and merging it away silently turned a
+# whole-project scan sequential. Caller count was the wrong test on its own.
+AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+check(f"agents/ holds exactly 6 files ({len(AGENTS)})", len(AGENTS) == 6)
 
 hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
 print("PASS hooks.json is valid JSON")
@@ -802,6 +832,17 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
     spec = json.load(open(MODELS_JSON, encoding="utf-8"))
     aliases = {r["alias"] for r in spec["roles"].values()}
     assigned = set(spec["assignments"])
+
+    # The other direction from the orphan check below: a role assignment that
+    # names a file nobody shipped (or already deleted, e.g. a retired agent)
+    # is stale the moment it's written -- exactly the failure mode retiring
+    # refactoring-detector/refactoring-surgeon into skills/refactor/ could
+    # leave behind if their models.json rows were not removed with them.
+    dangling = sorted(p for p in assigned if not os.path.isfile(f"{PLUGIN}/{p}"))
+    check(f"models.json names no assignment whose file is missing ({len(dangling)} dangling)",
+          not dangling)
+    for p in dangling[:5]:
+        print("     dangling assignment:", p)
 
     # Anything that declares a model must be in the table. Without this, a new
     # agent silently keeps whatever tier its author typed and re-tiering a role

@@ -1,14 +1,7 @@
----
-name: refactor-scan
-description: Scan a class, file, module or whole project for code smells and report each finding with evidence, severity and candidate refactorings. Read-only - never edits code. Use when the user asks what is wrong with this code, where the technical debt is, or asks for a code smell / refactoring assessment.
-argument-hint: "[path, class name, or module — defaults to the current directory]"
-disallowed-tools: Write, Edit
-disable-model-invocation: true
----
+# Refactoring scan — inventory smells in a target, with evidence and severity
 
-# Refactoring scan
-
-Diagnose only. **Do not modify any file in this skill.** The output is a report.
+Diagnose only. **Do not modify any file while running this procedure.** The
+output is a report.
 
 Target: `$ARGUMENTS` (default: current directory).
 
@@ -32,7 +25,7 @@ continue without it — do not stop the scan over it.
 
 **3. Check the safety net.** Locate tests covering the target and note the
 coverage. Findings in untested code get a higher risk score and must be
-flagged as needing `refactor-safety-net` first.
+flagged as needing `procedure-safety-net.md` first.
 
 **4. Decide how to cover it.**
 - **Single class or file:** read it yourself and continue inline through
@@ -48,7 +41,7 @@ flagged as needing `refactor-safety-net` first.
 
 **5. Name the smells** (only for scope you read yourself in step 4). Work
 through the 22 smells in
-`${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/smells.md`. Record only
+`${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/smells.md`. Record only
 what you can evidence with a line range and a concrete observation.
 
 **6. Score.** `severity = impact × churn ÷ risk` (definitions in
@@ -58,9 +51,9 @@ what you can evidence with a line range and a concrete observation.
 table, checking preconditions in the relevant `cat-*.md` card. Give one
 primary candidate, not a menu.
 
-**8. Reconcile.** If you dispatched detectors in step 4, merge each one's
-findings into a single severity-ordered list; otherwise this is just your own
-step 5–7 output.
+**8. Reconcile.** If you covered the scope in groups in step 4, merge each
+group's findings into a single severity-ordered list; otherwise this is just
+your own step 5–7 output.
 
 ## Output format
 
@@ -93,7 +86,7 @@ Calls 5 accessors on `Money` and 0 on `self`.
   characterisation tests before any change.
 
 ## Suggested next step
-`/refactor-plan src/billing/invoice.py` — 4 findings there form one coherent chain.
+`/refactor plan src/billing/invoice.py` — 4 findings there form one coherent chain.
 ```
 
 ## Rules

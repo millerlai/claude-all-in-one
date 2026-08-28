@@ -12,7 +12,7 @@ completion. Run this when you want the individual commands:
     python3 gen-commands.py --only extract-method move-method
     python3 gen-commands.py --clean      # remove generated commands
 
-Single source of truth: skills/refactoring/references/catalog-index.md
+Single source of truth: skills/refactor/references/catalog-index.md
 """
 
 import argparse
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-INDEX = ROOT / "skills" / "refactoring" / "references" / "catalog-index.md"
+INDEX = ROOT / "skills" / "refactor" / "references" / "catalog-index.md"
 COMMANDS = ROOT / "refactoring-catalog"
 
 CHAPTER_FILES = {
@@ -70,12 +70,12 @@ Target: `$ARGUMENTS`
 ## Do this
 
 1. Read the **{name}** card in
-   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactoring/references/{chapter_file}`.
+   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactor/references/{chapter_file}`.
    Its **Pre** and **Mechanics** sections are authoritative — this command does
    not restate them, so that there is one source of truth.
 2. Apply the safety protocol yourself: pre-flight, step-by-step mechanics with
    a test after each step, full suite, commit. It is defined once in
-   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactoring/SKILL.md` under
+   `${{CLAUDE_PLUGIN_ROOT}}/skills/refactor/SKILL.md` under
    "## Non-negotiable safety protocol" (line 28); it is not restated here.
 3. Behaviour must not change. Do not modify tests except for a rename you name
    explicitly in the report. Do not start a second refactoring — report any

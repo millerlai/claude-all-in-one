@@ -1,6 +1,6 @@
 # Catalog index — 72 refactorings
 
-`slug` is the identifier used by `/refactor-apply <slug>` and by the generated
+`slug` is the identifier used by `procedure-apply.md <slug>` and by the generated
 per-refactoring commands. **Risk**: L = local and mechanical, M = crosses class
 boundaries, H = wide blast radius or behaviour-substituting.
 

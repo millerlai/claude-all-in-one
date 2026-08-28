@@ -1,17 +1,9 @@
----
-name: refactor-auto
-description: Run the full refactoring loop autonomously on a class, file or module - scan for smells, plan an ordered sequence, then apply and verify each refactoring one at a time within a step budget, committing after each green step. Use when the user asks to just refactor this, clean this up, or tidy up a module end to end.
-argument-hint: "<path or class> [--budget N] [--dry-run]"
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash
-disable-model-invocation: true
----
+# Autonomous refactoring loop — run scan, plan and apply end to end
 
-# Autonomous refactoring loop
-
-Drives `refactor-plan` and `refactor-apply` in turn within a single approved
-budget. Because it is autonomous, the guardrails are stricter, not looser: one
-approval covers the whole plan, but the first edit only happens after the plan
-has been shown and approved.
+Drives `procedure-plan.md` and `procedure-apply.md` in turn within a single
+approved budget. Because it is autonomous, the guardrails are stricter, not
+looser: one approval covers the whole plan, but the first edit only happens
+after the plan has been shown and approved.
 
 Target: `$ARGUMENTS`
 
@@ -23,7 +15,7 @@ Target: `$ARGUMENTS`
    produce a roadmap and let the user pick a module.
 4. The target is not generated code, vendored code, or migrations.
 
-If any gate fails, say which and stop. Offer `refactor-safety-net` for #1.
+If any gate fails, say which and stop. Offer `procedure-safety-net.md` for #1.
 
 The loop holds the target repo's write access for its whole run. Nothing else
 that writes may work the same target while it is going — a second writer moves
@@ -33,15 +25,15 @@ against a baseline that has shifted is not a brake.
 ## Loop
 
 ```
-1. SCAN     → run the refactor-scan procedure for evidenced findings
-2. PLAN     → run the refactor-plan procedure to get an ordered, budgeted
+1. SCAN     → follow procedure-scan.md's steps for evidenced findings
+2. PLAN     → follow procedure-plan.md's steps to get an ordered, budgeted
               checklist (docs/refactoring-plan.md by default)
 3. CONFIRM  → show the whole plan, get one approval for it
 4. For each step, until the budget is spent:
-     a. run the refactor-apply procedure for that step's named refactoring
+     a. follow procedure-apply.md's steps for that step's named refactoring
      b. check the circuit breakers below
      c. on green: continue to the next step
-     d. on red: the step's own procedure reverts and reports it; count it
+     d. on red: procedure-apply.md's own steps revert and report it; count it
         toward the circuit breakers and continue
 5. VERIFY   → full suite + before/after summary
 6. REPORT   → the format below
@@ -65,7 +57,7 @@ not just the step in progress:
 - **Two consecutive steps go red.**
 - **Cumulative diff passes ~400 lines.**
 - **A step would need to change a public API** with no agreed deprecation path.
-- **The plan reaches a Big Refactoring** (`refactoring/references/cat-12-big-refactorings.md`).
+- **The plan reaches a Big Refactoring** (`refactor/references/cat-12-big-refactorings.md`).
 - **A test file was modified.** This is the most important one — a modified
   test means behaviour changed, which means it was not a refactoring.
 
