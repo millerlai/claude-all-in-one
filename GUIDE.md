@@ -63,7 +63,7 @@ the flat-file form kept for what predates the merge.
 What decides who can invoke it is frontmatter, and it is a safety decision
 more than a style one. By default a skill fires when the model decides the
 task matches, or when the user types its name — that's fine for
-`git-pr-rebase`, where "squash this branch" should just work. Set
+`refactor`, where "clean up this function" should just work. Set
 `disable-model-invocation: true` and only the user can start it — that's what
 `setup` needs, since it rewrites files under `~/.claude/` and a procedure with
 side effects outside the repo should never start because a description
@@ -113,12 +113,21 @@ the genuine constraints with it.
 - Several procedures still live as prose in `rules/` rather than as skills: the
   subagent flow in `model-selection.md`, the test loop in `workflow.md`, and
   the "validate the diagram before shipping" step in `documentation.md`.
-  `skills/finding-unknowns` and `skills/checkpointed-execution` are the worked
-  examples of the fix — in both cases the rule keeps the standing truth (*when*
-  to prototype, *when* a change needs checkpointing) and the skill takes the
-  steps, where they cost nothing until the task matches.
-- `skills/refactor-auto/SKILL.md:36-41` tells the model to run
-  `refactor-scan`, `refactor-plan`, and `refactor-apply` as steps in its own
-  loop — but all three carry `disable-model-invocation: true`, which the
-  platform refuses. Exactly the confusion this document exists to prevent,
-  live in the repo it documents.
+  `skills/track/references/stage-discover.md` and
+  `skills/track/references/stage-build.md` are the worked examples of the fix
+  — in both cases the rule keeps the standing truth (*when* to prototype,
+  *when* a change needs checkpointing) and the reference takes the steps,
+  where they cost nothing until the task matches.
+- Fixed, but worth keeping as the worked example: `refactor-auto` used to tell
+  the model to run `refactor-scan`, `refactor-plan` and `refactor-apply` as
+  steps in its own loop, and all three carried `disable-model-invocation:
+  true` — which closes them to the model entirely. The instruction had never
+  been executable. Nothing caught it because nothing was looking: the flag
+  reads like "don't fire on your own", and the fact that it also means "the
+  model cannot reach this at all" lives elsewhere on the same page.
+
+  The fix was to stop making them skills. Their procedures are reference files
+  under `skills/refactor/references/` now, and reading a file has no such
+  gate. That is the same shape the stage procedures use, and for the same
+  reason — **if something has to be driven by the model, it cannot be a skill
+  the model is forbidden to invoke.** Check that before reaching for the flag.

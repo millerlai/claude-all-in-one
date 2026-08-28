@@ -19,7 +19,7 @@ spends the person's time on something you could have found yourself.
 ## Step 2 — Ask one question at a time
 
 Whatever is still ambiguous after exploring goes to the user, following the
-interview move (`finding-unknowns`, move C):
+interview move (`stage-discover.md`, move C):
 
 - Open with the count and the ordering — "4 open questions, ordered by
   blast radius."
@@ -42,8 +42,8 @@ Once the request is unambiguous, propose 2–3 approaches. Each one carries:
 - how it fails — the situation where this would be the wrong choice.
 
 Mark at most one **(recommended)**, and say why from the trade-offs above —
-never from preference alone. This is the same option-weighing
-`design-high-level-doc` runs before an architecture choice, sized for a raw
+never from preference alone. This is the same option-weighing `stage-design.md`'s
+High-level mode runs before an architecture choice, sized for a raw
 request rather than a full feasibility table.
 
 ## Step 4 — Wait for approval

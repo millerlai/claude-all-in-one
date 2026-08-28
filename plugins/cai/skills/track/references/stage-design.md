@@ -199,6 +199,33 @@ before spending any reading on `plan-review`'s findings. This is the design
 gate `track`'s human checkpoint sits on: nothing after this stage starts
 until a person signs off on the design artifact.
 
+## When to skip this stage entirely
+
+A design document that nobody needed is the most expensive kind, because it
+reads exactly like one that was needed. Each of these belongs somewhere else:
+
+- **The change is small enough that a code review would settle it.** A
+  feasibility table over a two-file change is ceremony, and ceremony is what
+  makes someone skip this stage the time it would have mattered.
+- **The decisions are already made and you want them written down.** That is
+  dictation, not design — write the document, but skip the option-weighing
+  this stage exists for rather than staging a choice nobody is making.
+- **Nothing is being designed; something is broken.** That is `/cai:debug`:
+  reproduce it, find the root cause, fix that.
+- **The requirements themselves are the unknown.** Run `discover` first, then
+  come back — this stage traces a design against requirements, and it has
+  nothing to trace against yet.
+- **Detail mode only:** the high-level design is still `draft`, or its open
+  questions are unanswered. An open architecture question is a decision the
+  detail document would otherwise make by accident, one implementation detail
+  at a time.
+- **Detail mode only:** the design is agreed and what you want is the code.
+  That is the `build` stage.
+- **Delta mode only:** the branch is a few lines — read the diff. To check
+  your own understanding before merging use `/cai:quiz`; to judge whether the
+  change is any *good* use the `verify` stage. Delta mode recovers what was
+  decided, which is a third thing.
+
 ## Closing
 
 Before handing off, write into `state.md`'s `note` cell for `design`: which

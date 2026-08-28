@@ -94,6 +94,13 @@ section 3 before touching anything in it.
   `stage-design.md`'s gate, via `plan-review`.
 - The change is one file and a few lines. Read it.
 
+## When this is the wrong tool
+
+- **Checking your own understanding of the diff, rather than its quality** —
+  that is `/cai:quiz`, which stops and asks you questions. This stage never
+  stops for an answer, because inside a track it has to run to completion.
+- **Reviewing a plan rather than code** — that is `plan-review`.
+
 ## Closing
 
 Before handing off, write into `state.md`'s `note` cell for `verify`: the

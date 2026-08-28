@@ -190,6 +190,29 @@ Take the conservative option, log it, keep going. A deviation that changes
 an interface another unit depends on goes to the user before the dependent
 unit starts.
 
+## Step 5.5 — Stopping before you are finished
+
+**No hook fires before a session dies.** `SessionStart`, `SessionEnd`,
+`UserPromptSubmit`, `Stop`, `StopFailure`, `PreToolUse`, `PostToolUse` — none
+of them warn that the budget is about to run out. Nothing enforces this step;
+it holds only because the state table is updated as you go, which is why
+Step 3 ends by re-reading it. **The table is the handoff.**
+
+When a run is getting long, stop at a clean commit boundary rather than
+starting a unit you may not finish, and append to `state.md`:
+
+```md
+## Handoff
+- Done: units 1–3 (commits abc123, def456, 789abc)
+- Next: unit 4 — <the first concrete action>
+- In flight: <uncommitted state, or "none">
+- Watch out for: <what the next session would otherwise rediscover>
+```
+
+`In flight: none` is the goal. Anything else means the stopping point was
+wrong — a half-finished unit is the one thing a fresh session cannot recover
+from the table alone.
+
 ## Step 6 — Close it out
 
 Units all green is not done:

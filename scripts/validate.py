@@ -96,6 +96,17 @@ for path in skills:
     keys = frontmatter_keys(path)
     check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
 
+# R1: the design's target is 14 skills, not 15 -- it is 15 today only because
+# `goal` stays until someone has actually run a track end to end, which has
+# not happened yet (Unit 8 decision, 2026-08-27). Once that condition is met
+# and `goal` retires, this list drops to 14 and loses that name.
+SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git", "goal",
+               "intake", "plan-review", "quiz", "refactor", "setup", "ship",
+               "track", "verify"]
+skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
+check(f"skills/ holds exactly the 15 names {SKILL_NAMES} ({skill_dirs})",
+      skill_dirs == SKILL_NAMES)
+
 # The 72 generated refactoring aliases moved out of the main line into their
 # own directory (see .claude-plugin/plugin.json's additive "skills" key), so
 # they get the same frontmatter check plus the one property that keeps their
@@ -154,15 +165,15 @@ def referenced_paths(path):
 
 def index_slugs(path):
     """Slugs the catalog index declares as the single source of truth for
-    what /refactor-apply <slug> can be called with."""
+    what /cai:<slug> and procedure-apply.md can be called with."""
     text = read_text(path)
     return set(re.findall(r"^\|\s*\d+\s*\|[^|]*\|\s*`([a-z0-9-]+)`\s*\|", text, re.MULTILINE))
 
 
 def card_slugs(paths):
     """Slugs actually defined by a '### N. Name `slug`' heading in the card
-    files. If the index and this ever disagree, refactor-apply looks up a
-    slug the index promised and the card never defines."""
+    files. If the index and this ever disagree, procedure-apply.md looks
+    up a slug the index promised and the card never defines."""
     slugs = set()
     for path in paths:
         text = read_text(path)
@@ -194,7 +205,7 @@ for p in missing_refs[:5]:
 
 # Check 2: the index is the single source of truth for slugs (see design
 # decisions #4). A slug it declares but no card defines is a 404 the moment
-# /refactor-apply is called with it; the reverse means a card nobody can reach.
+# /cai:<slug> is invoked; the reverse means a card nobody can reach.
 INDEX = f"{REFACTORING}/references/catalog-index.md"
 CARDS = sorted(glob.glob(f"{REFACTORING}/references/cat-*.md"))
 idx_slugs = index_slugs(INDEX)
@@ -320,26 +331,6 @@ for root, dirs, files in os.walk("."):
 check(f"no text file carries a UTF-8 BOM ({len(bom_files)} found)", not bom_files)
 for path in bom_files[:5]:
     print("     BOM:", path)
-
-
-# The evidence and decision rules are copied verbatim into both design commands
-# on purpose: a command's text is only loaded when that command runs, so a
-# cross-reference would point at something the model cannot see. Duplication
-# nothing checks is duplication that drifts, and the drift is silent.
-def rule_block(path):
-    body = read_text(path).split("## The two rules everything below obeys", 1)[-1]
-    return body.split("These two rules appear", 1)[0].strip()
-
-
-DESIGN_CMDS = [f"{PLUGIN}/skills/design-high-level-doc/SKILL.md",
-               f"{PLUGIN}/skills/design-implementation-detail-doc/SKILL.md"]
-# Guarding on existence without checking it lets the drift check disappear the
-# day a file is renamed -- which is exactly the drift it exists to catch.
-for path in DESIGN_CMDS:
-    check(f"design command ships ({path})", os.path.isfile(path))
-if all(os.path.isfile(p) for p in DESIGN_CMDS):
-    one, two = (rule_block(p) for p in DESIGN_CMDS)
-    check("design commands carry one identical rule block", bool(one) and one == two)
 
 
 # A component that tells the model to run `plugins/cai/scripts/...` works only

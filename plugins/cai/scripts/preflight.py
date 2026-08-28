@@ -192,7 +192,7 @@ def build(track_dir, project_dir):
 
 def find_base_ref(cwd):
     """The first usable base ref: the remote's default branch if origin
-    answers, else a local main or master. diff-review's SKILL.md walks the
+    answers, else a local main or master. stage-verify.md walks the
     same chain to pick a ref a human would review against; this only needs to
     know whether a base exists at all, so it stops at the first hit."""
     done = git(cwd, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")

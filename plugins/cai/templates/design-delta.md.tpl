@@ -1,5 +1,5 @@
 <!--
-  cai delta design template, filled in by /cai:design-delta-doc.
+  cai delta design template, filled in by /cai:design in delta mode.
 
   Every heading below is required. `design_probe.py --kind delta <this file>`
   fails if one is missing or still empty, so this template does not pass its

@@ -22,7 +22,7 @@ git merge-base HEAD "origin/${DEFAULT:-main}"
 ```
 
 If `origin/HEAD` is unset, fall back to `origin/main`, then `origin/master`,
-then local `main` — the same detection `/cai:git-pr-rebase` uses. If the range
+then local `main` — the same detection `/cai:ship` uses. If the range
 is empty, say so and stop.
 
 ## Step 2 — Read the diff

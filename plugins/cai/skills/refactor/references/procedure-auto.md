@@ -94,7 +94,7 @@ plainly instead of hedging.
 
 Where the run departed from the approved plan — a step reordered, a target
 narrowed, a refactoring swapped for a cheaper one — log it in the format
-`checkpointed-execution` already defines, under a `## Deviations` heading:
+`stage-build.md` already defines, under a `## Deviations` heading:
 
 ```md
 - Step 4 — plan said Extract Class, did Extract Method.

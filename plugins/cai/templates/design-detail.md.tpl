@@ -1,6 +1,6 @@
 <!--
   cai detail design template, filled in by
-  /cai:design-implementation-detail-doc.
+  /cai:design in detail mode.
 
   Every heading below is required. `design_probe.py --kind detail <this file>`
   fails if one is missing or still empty, so this template does not pass its
@@ -215,7 +215,7 @@ Status: approved <YYYY-MM-DD>
   down is found by the engineer assigned the unit that needs it, that morning.
 
   When implementation finds this document wrong, workflow.md requires the
-  deviation logged rather than silently re-scoped, and checkpointed-execution
+  deviation logged rather than silently re-scoped, and stage-build.md
   already defines the format. Point the team at that one; do not invent a second.
 -->
 

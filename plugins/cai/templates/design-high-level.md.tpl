@@ -1,5 +1,5 @@
 <!--
-  cai high-level design template, filled in by /cai:design-high-level-doc.
+  cai high-level design template, filled in by /cai:design in high-level mode.
 
   Every heading below is required. `design_probe.py --kind hld <this file>`
   fails if one is missing or still empty, so this template does not pass its
@@ -15,7 +15,7 @@
 
 <!--
   `draft` until the user says otherwise, then `approved YYYY-MM-DD` taken from
-  `date +%F`. /cai:design-implementation-detail-doc reads this line and refuses
+  `date +%F`. /cai:design in detail mode reads this line and refuses
   to start on a draft, so a status you set yourself is a gate you opened
   yourself.
 -->
@@ -93,7 +93,7 @@ draft
 ## Open questions
 
 <!--
-  What the user still has to decide. /cai:design-implementation-detail-doc
+  What the user still has to decide. /cai:design in detail mode
   refuses to start unless this is empty or every entry carries the answer it
   got, so leaving something here is a real stop, not a note.
 -->
