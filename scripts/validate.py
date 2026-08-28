@@ -59,6 +59,35 @@ def frontmatter_keys(path):
     return set(re.findall(r"^([A-Za-z][\w-]*):", text[3:end], re.MULTILINE))
 
 
+def frontmatter_description(path):
+    """The `description` frontmatter value as the model actually sees it.
+
+    Same trick frontmatter_keys() relies on: a YAML `>`/`>-` block scalar's
+    continuation lines are indented, so `^[A-Za-z][\\w-]*:` never matches them
+    as a new key -- here that lets a single regex capture the description
+    line plus every indented line under it, stopping at the next top-level
+    key. Folded lines are joined with spaces, which is what YAML folding does
+    to them; a plain quoted value just has its quotes stripped.
+    """
+    text = read_text(path)
+    if not text.startswith("---"):
+        return ""
+    end = text.find("\n---", 3)
+    if end == -1:
+        return ""
+    body = text[3:end]
+    m = re.search(r"^description:[ \t]*(.*)$((?:\n[ \t]+.*)*)", body, re.MULTILINE)
+    if not m:
+        return ""
+    first, continuation = m.group(1).strip(), m.group(2)
+    cont_lines = [ln.strip() for ln in continuation.splitlines() if ln.strip()]
+    if first in (">", ">-", ">+", "|", "|-", "|+"):
+        return " ".join(cont_lines)
+    if len(first) >= 2 and first[0] == first[-1] and first[0] in "\"'":
+        return first[1:-1]
+    return first
+
+
 mp = json.load(open(".claude-plugin/marketplace.json"))
 check("marketplace has name/owner/plugins", all(k in mp for k in ("name", "owner", "plugins")))
 
@@ -126,6 +155,35 @@ check(f"{PLUGIN}/commands is gone", not os.path.isdir(f"{PLUGIN}/commands"))
 alias_slugs = {os.path.basename(os.path.dirname(p)) for p in catalog_skills}
 leaked_aliases = sorted(alias_slugs & {os.path.basename(os.path.dirname(p)) for p in skills})
 check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not leaked_aliases)
+
+# The always-on budget: every description a model can match on without being
+# asked is sent to it in every session, whether or not that component ever
+# fires. Scanned by directory shape rather than by tag, on purpose -- the
+# restructure moved files between directories, and a check keyed to a
+# directory would have moved with them, changing the number without changing
+# what it costs. Skips anything gated by `disable-model-invocation: true`
+# (the 72 catalog aliases, plus any main-line skill given the same flag),
+# since those never reach the model unbidden.
+#
+# This is a ratchet, not the design's target. UC4's target is 4,673
+# characters; measured here, this repo is not there yet, and a ratchet is
+# what stops the total drifting back up while that gap is still open. Two
+# things are known to still be on the table for closing it: retiring `goal`
+# once a track has actually been run end to end (see the SKILL_NAMES comment
+# above), and shortening the longest descriptions -- which trades against
+# those same descriptions still needing to be long enough to trigger, so it
+# is not done here.
+ALWAYS_ON_CEILING = 5468
+always_on_paths = (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+                   + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                   + sorted(glob.glob(f"{CATALOG}/*/SKILL.md")))
+always_on_total = sum(
+    len(frontmatter_description(p)) for p in always_on_paths
+    if "disable-model-invocation: true" not in read_text(p))
+print(f"     always-on description budget: {always_on_total} chars "
+      f"(design target: 4673)")
+check(f"always-on description budget does not exceed {ALWAYS_ON_CEILING} chars "
+      f"({always_on_total})", always_on_total <= ALWAYS_ON_CEILING)
 
 # /cai:setup copies these out to ~/.claude/rules/; an empty dir would
 # make setup a silent no-op.

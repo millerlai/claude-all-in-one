@@ -4,25 +4,101 @@ A [Claude Code](https://claude.com/claude-code) plugin that installs a working
 set of everyday capabilities — cheaper model routing, safer git, and a shared
 set of behavioural rules — into every project on your machine.
 
-## What you get
+## The shape of it
+
+Four layers, plus one underneath all of them.
+
+- **The track.** `/cai:track <feature>` carries one feature through six SDLC
+  stages, keeping state in `.claude/track/<feature>/state.md` so a new session
+  with no memory of this conversation can resume it. `/cai:track status` names
+  where it stopped; `/cai:track skip <stage> --reason "<why>"` records why a
+  stage was skipped instead of silently omitting it.
+- **The six stages.** `intake`, `discover`, `design`, `build`, `verify`,
+  `ship`. Each stage's procedure is a reference file under
+  `skills/track/references/stage-*.md`, read two ways: by the subagent the
+  track dispatches, and by that stage's own thin skill (`/cai:intake`,
+  `/cai:discover`, `/cai:design`, `/cai:build`, `/cai:verify`, `/cai:ship`)
+  when someone wants to run just that stage, track or no track. Exactly two
+  stages stop for a human sign-off: after `design`, before any code exists,
+  and before the irreversible operations inside `ship` — merging, tagging,
+  publishing.
+- **The tools.** Reachable any time, with no track running: `/cai:refactor`,
+  `/cai:debug`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`.
+- **The knowledge.** Reference files that cost nothing until something reads
+  them: 72 named refactoring cards under `refactoring-catalog/`, the
+  smell-to-refactoring routing table, and the six stage procedures above.
+
+Underneath all of it: `preflight.py`, `track_state.py`, `design_probe.py`, and
+`validate.py` answer what a deterministic check can settle — is this stage
+allowed to start, where did the track stop, does this design document actually
+have the shape it claims — before anything reaches a model.
+
+### The track's tools
+
+| Command | What it does |
+|---|---|
+| `/cai:track <feature>` | Create or resume a track. Refuses `current` and `done` as names; refuses a sixth active track (`done/` tracks don't count). |
+| `/cai:intake` | Turn a request into an acceptance-testable problem statement before any code exists: explore context, ask one question at a time, propose 2-3 approaches, wait for approval. User-invoked only. |
+| `/cai:discover` | Surface what you don't know before writing code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Also fires on its own when the codebase is unfamiliar or the result will be judged by look and feel. |
+| `/cai:design` | Write a design document for review: high-level (architecture options, stops before implementation detail), detail (an approved high-level design turned into something a team can build from), or delta (recovers the decisions already made in a built branch). User-invoked only. |
+| `/cai:build` | Build a detail design's work breakdown unit by unit, test-first, verifying and committing each one before the next starts — or cut your own checkpointed units with no design doc. User-invoked only. |
+| `/cai:verify` | Dispatch three read-only reviewers (correctness, conformance, coverage) over a branch diff in parallel, reconcile their findings, then fix Blockers and Majors with a failing test before and a passing one after. |
+| `/cai:ship` | Squash a branch into one conventional commit, write a release note, and stop before merging, tagging, or publishing until a person confirms. User-invoked only. |
+
+### The other tools
+
+| Command | What it does |
+|---|---|
+| `/cai:refactor` | Restructure code without changing its behaviour: the safety-net loop, the smell routing table, and the mechanics for all 72 named refactorings, on the `build` tier. |
+| `/cai:debug` | Find the root cause of a bug before proposing any fix — a failing test, a crash, a stack trace, something that used to work and stopped. |
+| `/cai:git` | Runs git and `gh` operations on the `chore` tier instead of the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
+| `/cai:chore` | Runs any mechanical one-off — renames, formatting, lookups — on the `chore` tier, and reports back if the task turns out to need real reasoning. |
+| `/cai:quiz` | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |
+| `/cai:plan-review` | Reads an implementation plan, design doc, or spec the way a senior architect would: traces every design element back to a requirement, then eight lenses — over-engineering, boundaries, data and state, failure modes, testability, delivery, sequencing, and precision. Ships a skeleton for each kind of design document. Runs on Claude's own plans too, before they reach you. |
+
+### The 72 named refactorings
+
+Every refactoring in Fowler's catalog is also its own slash command —
+`/cai:extract-method`, `/cai:replace-conditional-with-polymorphism`, and 70
+more — living under `plugins/cai/refactoring-catalog/`. Each one carries
+`disable-model-invocation: true`, so only a person typing the name can start
+it, and its `description` is skipped by the always-on budget check below —
+72 procedures that would otherwise sit in every session's context whether
+or not anyone ever refactors that day.
+
+### `/cai:goal` — still here, on its way out
+
+`/cai:goal` predates the track: it reviews a design document and routes it —
+a work breakdown goes unit by unit, everything else to a single implementer,
+both converging on the same test-and-report step. It still ships and still
+works, but `/cai:track` is meant to replace it, and `goal`'s own routing
+already overlaps what the `design` → `build` → `verify` stages now do more
+explicitly. It stays only until someone has actually run a track end to end —
+that hasn't happened yet — at which point it retires. If you're starting
+fresh, reach for `/cai:track` instead.
+
+### Subagents
+
+No component names a model — everything below names a **tier**; see
+[Model tiers](#model-tiers). Each subagent is dispatched either by a track
+stage or by one of the tools above.
+
+| Agent | Tier | Dispatched by |
+|---|---|---|
+| `explorer` | `chore` | Read-only scouting. |
+| `test-runner` | `chore` | Runs the repo's own automated checks. |
+| `shipper` | `chore` | The `ship` stage. |
+| `implementer` | `build` | The `build` stage, `/cai:build`, `/cai:goal`. |
+| `reviewer` | `build` | The `verify` stage, `/cai:verify`, one lens of a diff at a time. |
+| `refactoring-detector` | `build` | Parallel smell analysis across module groups during a refactoring scan. |
+| `verifier` | `build` | The `verify` stage. |
+| `architect` | `think` | The `intake` and `discover` stages. |
+| `designer` | `think` | The `design` stage. |
+
+### Also always on
 
 | | |
 |---|---|
-| **Cost-tiered subagents** | `explorer` (read-only scouting), `implementer`, `test-runner`, `reviewer` (read-only, one lens of a diff at a time), `architect` (read-only design). Each carries its own tier — see [Model tiers](#model-tiers) — so Claude gets the cheapest one that can do the job instead of defaulting to the strongest. |
-| **`/cai:git`** | Runs git and `gh` operations on the chore tier rather than the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
-| **`/cai:chore`** | Runs any mechanical one-off — renames, formatting, lookups — under Haiku, and reports back if the task turns out to need real reasoning. Named for the kind of work, not the model that runs it, so it survives the next model generation. |
-| **`/cai:git-pr-rebase`** | Squashes a PR branch into one well-written conventional commit. Takes a backup branch first and shows you the message before rewriting anything. |
-| **`finding-unknowns`** | Fires before implementation when the code is unfamiliar, the spec is vague, the solution space is unexplored, or the result is judged by look and feel — and offers the cheapest artifact that would settle it: a blindspot pass, a vocabulary ladder, a one-question-at-a-time interview, a sized option list, or four incompatible mocks. Asks before it runs. |
-| **`/cai:design-high-level-doc`** | Writes the high-level design and stops there. Use cases first, then a feasibility table marking every capability the design needs `verified`, `UNVERIFIED`, or `infeasible` against a real `file:line` or the vendor's own documentation — never against what a library is generally assumed to do. Gathering that evidence is delegated to Haiku; reading it is not. The main flow and the components as Mermaid that gets rendered rather than eyeballed, and every architecture choice put to you one at a time with the options costed, instead of picked and then justified. |
-| **`/cai:design-implementation-detail-doc`** | Turns an approved high-level design into something an engineering team can build from without asking follow-up questions: a traceability table proving every use case is reached, a glossary written *before* the prose, four validated diagrams, per-component signatures and data shapes, and a `Naming` table where every name the system will create is either your decision or an existing convention with the line that shows it — never an invented `p5` or `u3`. Gates on the high-level design's own `Status` line rather than on the conversation, so it works in a fresh session. |
-| **`templates/design-*.md.tpl`** | The two shapes the commands write to, so a second run does not produce a second format. Guidance lives in HTML comments that the probe does not count as content — an untouched template fails its own probe, which `validate.py` asserts, along with the templates, `design_probe.py`, and `plan-review`'s skeletons all listing the same headings. |
-| **`design_probe.py`** | What stops the two commands above being prose nobody checks. Zero-dependency, zero-token, and run before any review: are the headings filled, does every capability carry an id and a citation, is every capability cited by some option, does any recommendation rest on something `UNVERIFIED`, is every use case in the high-level design reached by the detail design, does every glossary `file:line` resolve to a file that long. `validate.py` exercises it with one clean document per kind and one deliberate defect per probe. |
-| **`plan-review`** | Reads an implementation plan, design doc, or spec the way a senior architect would. Traces every design element back to a requirement first — an element no requirement reaches is neither kept quietly nor cut quietly, it comes back as the requirement it implies, for you to accept or reject. Then eight lenses: over-engineering, boundaries, data and state, failure modes, testability, delivery, the plan's own sequencing, and precision — the sentence two engineers would implement differently while both claiming they followed it. Ships a skeleton for each kind of document, high-level and detail. Runs on Claude's own plans too, before they reach you. |
-| **`/cai:quiz`** | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |
-| **`/cai:goal`** | Takes a design/plan doc from requirement to verified implementation, and routes it rather than treating every document the same. It reviews first — telling `plan-review` which skeleton applies, which is what makes a detail design get the precision lens first — and then reads the document's `## Work breakdown`. Data rows mean there is a schedule, so it hands off to `/cai:build-from-design` for the unit-by-unit lane, which owns its own review and report; anything else goes down the whole-document lane, one Sonnet implementer against the whole doc, then `diff-review` for conformance. Both lanes converge on the shared verification step: Haiku runs whatever automated checks the repo already has, and one report comes out with a numbered manual-verification checklist. A document too thin to review at all doesn't get implemented on a guess — it offers to write the high-level design first, and stops. |
-| **`/cai:build-from-design`** | Builds an approved detail design one unit at a time, treating its `Work breakdown` table as the schedule rather than handing the whole document to one implementer. Each unit gets a brief quoted from the sections it actually needs — its interface block, its naming rows, its change points, and the paths belonging to *other* units that it must not touch — then Sonnet implements it, Haiku runs its verify command, and it is committed before the next one starts. Two units the document marks as parallel-safe can run in their own git worktrees, but only after their change-point paths are checked for overlap by hand: the design is a plan written before the code existed and can be wrong about that. Closes by filling in the traceability table with real `file:line`s, because every unit being green is not the same as every use case being reached. |
-| **`diff-review`** | Sends three read-only `reviewer` agents over the branch diff in parallel — correctness, conformance, coverage — then reconciles them into one ranked list, verifying each finding against the file before reporting it. Code that does more than was asked comes back as a requirement to confirm, not a silent deletion. |
-| **`checkpointed-execution`** | Runs a long multi-file change as units that each compile, verify, and commit on their own, tracked in a status table, so a session limit resumes instead of reverting. Asks once, up front, for permission to commit per unit. |
 | **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes, `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. Hands the command back with the fix rather than just a refusal. |
 | **Shared rules** | Seven instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, and write docs. Installed to user scope by `/cai:setup`. |
 
@@ -141,10 +217,9 @@ the same invariant on the shipped template.
 
 ## Also included
 
-- `docs/multi-repo.md` — cross-repo sessions with `--add-dir` and worktrees,
-  plus `templates/multi-repo.settings.json`.
-- `docs/multi-session.md` — sessions, background agents, agent teams, memory.
-  Agent teams are experimental and need `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
+- `templates/multi-repo.settings.json` — drop into a repo's `.claude/settings.json`
+  to grant Claude access to a sibling repo via `additionalDirectories`, and
+  optionally load that repo's own `CLAUDE.md`/rules too.
 - Optional: [mermaid-cli](https://github.com/mermaid-js/mermaid-cli)
   (`npm install -g @mermaid-js/mermaid-cli`) so Claude can actually render and
   validate the diagrams `documentation.md` asks for.
@@ -177,6 +252,10 @@ python scripts/validate.py
 ```
 
 It checks the manifests, that every agent/command/skill has the frontmatter
-Claude Code needs to load it, that hook commands point at files that exist, and
-that the guard still blocks what it should — through the same dispatcher the
-hook uses, on your platform.
+Claude Code needs to load it, that hook commands point at files that exist,
+that the guard still blocks what it should, and — because every `description`
+the model can match on is sent to it in every session — that the combined
+size of every agent's and skill's `description` (skipping the 72 refactoring
+cards, which carry `disable-model-invocation: true` and so never reach the
+model unbidden) hasn't grown past what it measured last. It's a ratchet, not
+a target: it can only shrink or hold, never quietly drift back up.
