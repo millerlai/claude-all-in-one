@@ -4,6 +4,12 @@ A [Claude Code](https://claude.com/claude-code) plugin that installs a working
 set of everyday capabilities — cheaper model routing, safer git, and a shared
 set of behavioural rules — into every project on your machine.
 
+Three documents, and they answer different questions. This one is what the
+pieces are. [`MANUAL.md`](MANUAL.md) is how to drive them — what to type, what
+happens next, and what every refusal means. [`GUIDE.md`](GUIDE.md) is where a
+new piece of guidance belongs when you are extending the plugin rather than
+using it.
+
 ## The shape of it
 
 Four layers, plus one underneath all of them.
@@ -32,6 +38,70 @@ Underneath all of it: `preflight.py`, `track_state.py`, `design_probe.py`, and
 `validate.py` answer what a deterministic check can settle — is this stage
 allowed to start, where did the track stop, does this design document actually
 have the shape it claims — before anything reaches a model.
+
+### The six stages, and who runs each one
+
+Stages run in order, top to bottom. The dotted line off each one names the
+subagent it dispatches to — `stages.json` decides that, never judgement,
+because the model tier rides on the agent. Agent colour is that tier: purple
+is `think`, teal is `build`, grey is `chore`. Amber is a person: exactly two
+boundaries wait for one.
+
+```mermaid
+---
+config:
+  flowchart:
+    defaultRenderer: "elk"
+---
+flowchart TB
+    START(["/cai:track feature"]) --> S1
+
+    S1["intake<br/>a problem statement you can check"] --> S2
+    S2["discover<br/>what nobody knows yet"] --> S3
+    S3["design<br/>high-level, detail, or delta"] --> HG1
+    HG1[/"human gate<br/>sign off, no code exists yet"/] --> S4
+    S4["build<br/>the work breakdown, unit by unit"] --> S5
+    S5["verify<br/>three lenses over the diff"] --> S6
+    S6["ship<br/>one commit, plus a release note"] --> HG2
+    HG2[/"human gate<br/>before merge, tag, publish"/] --> DONE(["/cai:track done"])
+
+    S1 -.-> AR
+    S2 -.-> AR
+    S3 -.-> DE
+    S4 -.-> IM
+    S5 -.-> VE
+    S6 -.-> SH
+
+    AR(["architect · think<br/>Read Grep Glob"])
+    DE(["designer · think<br/>+ Write"])
+    IM(["implementer · build<br/>+ Edit, Bash"])
+    VE(["verifier · build<br/>tests + git reads"])
+    SH(["shipper · chore<br/>git + gh"])
+
+    classDef stage fill:#e8eefc,stroke:#4a6fb5,color:#17335f
+    classDef human fill:#fff3cd,stroke:#c79100,color:#6b4e00
+    classDef think fill:#efe6f7,stroke:#7d5ba6,color:#3d2757
+    classDef build fill:#e6eef3,stroke:#4a7c94,color:#1f3f4d
+    classDef chore fill:#eceff1,stroke:#78909c,color:#37474f
+    classDef ends fill:#ffffff,stroke:#9aa5b1,color:#33404d
+
+    class S1,S2,S3,S4,S5,S6 stage
+    class HG1,HG2 human
+    class AR,DE think
+    class IM,VE build
+    class SH chore
+    class START,DONE ends
+```
+
+Two things the diagram cannot show. Every stage runs `preflight.py` first — a
+check that costs nothing and refuses before any model is called; the shape of
+that is in [`MANUAL.md`](MANUAL.md). And `architect` appears twice because
+`intake` and `discover` both only read: one agent, two callers, which is the
+test for whether an agent deserves its own file at all.
+
+Agent choice follows tool grant, not tier. `design` needs an agent that can
+`Write`, `ship` one that can run `git` — picking by tier alone is how an
+earlier draft pointed `ship` at a read-only agent that could never have pushed.
 
 ### The track's tools
 
