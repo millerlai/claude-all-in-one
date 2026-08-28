@@ -31,6 +31,19 @@ def read_text(path):
         return fh.read()
 
 
+def agent_tools_line(path):
+    """The raw value of an agent's `tools:` frontmatter line, or None when
+    there is no frontmatter or no such line."""
+    text = read_text(path)
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    if end == -1:
+        return None
+    m = re.search(r"^tools:[ \t]*(.+)$", text[3:end], re.MULTILINE)
+    return m.group(1) if m else None
+
+
 def frontmatter_keys(path):
     """Return the top-level keys of a markdown file's YAML frontmatter.
 
@@ -244,7 +257,7 @@ check(f"the safety protocol appears in exactly one file under {REFACTORING} "
 # per module group, in parallel, and merging it away silently turned a
 # whole-project scan sequential. Caller count was the wrong test on its own.
 AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-check(f"agents/ holds exactly 6 files ({len(AGENTS)})", len(AGENTS) == 6)
+check(f"agents/ holds exactly 9 files ({len(AGENTS)})", len(AGENTS) == 9)
 
 hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
 print("PASS hooks.json is valid JSON")
@@ -891,6 +904,17 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
     for line in leaked[:8]:
         print(f"     {line}")
 
+# What each stage's agent must be granted, checked against its `tools:`
+# frontmatter rather than its name -- picking an agent by tier alone is
+# exactly what pointed design at architect (can't Write) and ship at
+# explorer (can't run git) before designer/verifier/shipper existed.
+STAGE_TOOL_NEEDS = {
+    "design": ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
+    "verify": ("a test command", lambda tools: re.search(
+        r"pytest|go test|npm test|unittest", tools, re.IGNORECASE) is not None),
+    "ship": ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
+}
+
 # The track skill's stage table. Shape checks only -- the six stage prose
 # files and their wrapper skills are later units and do not exist yet.
 STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
@@ -945,6 +969,29 @@ if os.path.isfile(STAGES_JSON):
         wrapper_end = wrapper_text.find("\n---", 3) + 4 if wrapper_text.startswith("---") else 0
         wrapper_lines = len(wrapper_text[wrapper_end:].splitlines())
         check(f"{wrapper} body is under 25 lines ({wrapper_lines})", wrapper_lines < 25)
+
+    # The original mis-assignment picked a stage's agent by tier alone --
+    # design pointed at architect (Read-only), ship at explorer (no git) --
+    # and both named agents that could not do the stage's job. Assert the
+    # agent exists, is tiered, and is actually granted what the stage needs,
+    # so a future re-assignment by tier alone fails here instead of at
+    # someone's runtime.
+    for row in stages:
+        agent_name = row["agent"]
+        agent_path = f"{PLUGIN}/agents/{agent_name}.md"
+        check(f"stage {row['id']}'s agent ({agent_name}) exists", os.path.isfile(agent_path))
+
+        rel_agent = f"agents/{agent_name}.md"
+        check(f"stage {row['id']}'s agent ({agent_name}) has a models.json assignment",
+              rel_agent in assigned)
+
+        need = STAGE_TOOL_NEEDS.get(row["id"])
+        if need is None or not os.path.isfile(agent_path):
+            continue
+        label, predicate = need
+        tools_line = agent_tools_line(agent_path)
+        check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
+              tools_line is not None and predicate(tools_line))
 
 # track/SKILL.md routes rather than implements, so it is read start to finish
 # every time someone reaches for it -- same reasoning and the same 120-line
