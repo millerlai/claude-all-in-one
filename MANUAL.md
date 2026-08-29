@@ -51,7 +51,7 @@ config:
 flowchart LR
     S(["stage begins"]) --> P["preflight.py <stage><br/>costs nothing"]
     P -->|"exit 2"| B["stops and names<br/>what is missing"]
-    P -->|"exit 0"| D["dispatched to the agent<br/>stages.json names"]
+    P -->|"exit 0"| D["run by the agent stages.json names,<br/>or here when it names none"]
     D --> G{"the stage's own gate"}
     G -->|"fails"| F["fix, bounded"]
     F --> P

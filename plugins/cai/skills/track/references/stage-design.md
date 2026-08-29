@@ -1,8 +1,12 @@
 # stage-design — decide what to build, before code exists
 
-This file is read two ways: by the subagent the track dispatches to run this
-stage, and by `/cai:design` when someone runs the stage standing alone, with
-no track underneath it. The procedure below is the same either way.
+This file is read two ways: by a track that has reached this stage, and by
+`/cai:design` when someone runs the stage standing alone, with no track
+underneath it. The procedure below is the same either way, and neither way
+runs in a subagent — the decision rule below sends architecture-level choices
+to `AskUserQuestion`, which Claude Code removes from every subagent even when
+its `tools:` field names it. Work handed to `designer` comes back with those
+choices unresolved, for whoever dispatched it to put to the user.
 
 The failure this stage exists to catch is a design that arrives already
 committed — plausible, detailed, and resting on an architecture nobody was
