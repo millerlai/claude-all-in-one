@@ -26,6 +26,7 @@ DEFAULT_TRACK_ROOT = os.path.join(".claude", "track")
 # table_row_count() below, and the report, for why.)
 sys.path.insert(0, HERE)
 import preflight  # noqa: E402
+import ledger  # noqa: E402
 
 
 def stage_ids():
@@ -84,6 +85,13 @@ def format_status(feature, track_dir, order):
         if status == "skipped":
             skipped.append((sid, note))
             line += "  (reason: %s)" % note
+        # Who let this one through, from the ledger record that says it passed
+        # -- not from state.md, which has no column for it. A stage that has
+        # not passed, or a track with no ledger at all, adds nothing here, so
+        # every existing track's output is byte-for-byte what it was.
+        passed = ledger.last_passed(track_dir, sid)
+        if passed:
+            line += "  (gate: %s)" % passed.get("gate", "unknown")
         lines.append(line)
         if next_stage is None and status not in ("done", "skipped"):
             next_stage = sid
