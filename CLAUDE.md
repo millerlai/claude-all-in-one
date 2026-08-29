@@ -11,6 +11,7 @@ their single source of truth so editing them here changes what users get.
 @plugins/cai/rules/model-selection.md
 @plugins/cai/rules/memory.md
 @plugins/cai/rules/documentation.md
+@plugins/cai/rules/option-explainer.md
 
 `communication.md` is deliberately not imported: the shipped copy defaults to
 English, while the response language belongs to whoever is working — it is set

@@ -3,8 +3,9 @@
 Bias toward caution over speed. For trivial tasks, use judgment.
 
 The detailed rules — communication, epistemics, coding, workflow, model
-selection, memory, documentation — live in `~/.claude/rules/`, installed by
-`/cai:setup`. They load automatically alongside this file, so do not
+selection, memory, documentation, laying out options — live in
+`~/.claude/rules/`, installed by `/cai:setup`. They load automatically
+alongside this file, so do not
 paste them in here: a second copy is sent to the model in every session and the
 two drift apart as soon as one is edited.
 
