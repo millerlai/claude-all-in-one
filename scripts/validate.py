@@ -833,12 +833,23 @@ done = run_preflight("design")
 check("preflight design [unrecognized suffix] -> 2", done.returncode == 2)
 check("preflight design names artifact_kind", "FAIL artifact_kind" in done.stdout)
 
-# The two earlier block reasons: no artifact named at all, and no state.md to
-# even read one from. Both are checked before the artifact is ever resolved.
+# A design row that names nothing is the normal state before the stage runs --
+# SKILL.md creates every row empty, and the document is what the stage writes.
+# These two cases used to assert the opposite, which locked in a gate that
+# could never open on a fresh track: `design` was unreachable and nobody knew
+# until someone ran it. Both now assert the stage is allowed to start.
 write_preflight_state("—")
 done = run_preflight("design")
-check("preflight design [no artifact named] -> 2", done.returncode == 2)
-check("preflight design names artifact_named", "FAIL artifact_named" in done.stdout)
+check("preflight design [no artifact named yet] -> 0", done.returncode == 0)
+check("preflight design says the stage writes it",
+      "PASS artifact_named (no design document yet" in done.stdout)
+
+# ...but naming something that is not there is still a block: that is a design
+# row pointing at a document somebody moved or misspelled, not a fresh track.
+write_preflight_state("docs/design/never-written-detail.md")
+done = run_preflight("design")
+check("preflight design [named but missing] -> 2", done.returncode == 2)
+check("preflight design names artifact_exists", "FAIL artifact_exists" in done.stdout)
 
 PREFLIGHT_NO_STATE = tempfile.mkdtemp(prefix="cai-preflight-no-state-")
 done = run_preflight("design", track_dir=PREFLIGHT_NO_STATE)

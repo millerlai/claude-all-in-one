@@ -88,7 +88,21 @@ def design(track_dir, project_dir):
 
     artifact = row[2] if len(row) > 2 else ""
     if not artifact or artifact == "—":
-        return [(False, "artifact_named (design row names no artifact)")]
+        # An empty cell is the normal state of the design row before this
+        # stage has run -- SKILL.md creates every row empty, and the document
+        # this cell would name is the thing the stage exists to produce.
+        #
+        # Failing here made `design` unreachable on any fresh track: every
+        # check below is a property of a *finished* document (a legal suffix,
+        # a file that resolves, a probe that passes), so the gate could never
+        # open on the run that was supposed to write one. Found by running it.
+        #
+        # The checks still apply when the cell names something, which is the
+        # case this stage is re-run for: revising a design that already
+        # exists. The stage is not left ungated either way -- a person signs
+        # off after it, and `build` has its own work_breakdown and
+        # artifact_unchanged checks.
+        return [(True, "artifact_named (no design document yet -- this stage writes it)")]
 
     kind = None
     for suffix, k in SUFFIX_KIND.items():
