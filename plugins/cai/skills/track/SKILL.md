@@ -47,16 +47,36 @@ For the stage about to run:
 
 1. **Preflight.** `python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py <stage>
    --track-dir .claude/track/<feature> --project-dir <project root>`. Exit 2 means
-   stop and report every line it printed — no model work happens. Exit 0
-   means proceed.
+   stop and report every line it printed — no model work happens. Record it
+   as `blocked` first, per step 3. Exit 0 means proceed.
 2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work
    to the subagent named in that row's `agent` field — never choose by
    judgement, the field decides, because model tier rides on it. Tell the
    agent to read its `reference` file, resolved against
    `${CLAUDE_PLUGIN_ROOT}/skills/track/`.
-3. **Record.** When the agent's work passes the stage's own gate, overwrite
-   that stage's row in `state.md` (status, artifact, note) — never append a
-   row; the table's row count must stay equal to `stages.json`'s.
+3. **Record.** Every attempt goes in the ledger, not only the ones that
+   worked — a stage whose failures leave no trace cannot say how many times
+   it has been tried, or why it failed last time:
+
+   ```
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/ledger.py append
+       --track-dir .claude/track/<feature> --stage <stage>
+       --outcome passed|failed|blocked --gate auto|human
+       [--artifact <path>] --note "<why, one line>"
+   ```
+
+   - **Preflight exited 2** → `blocked`, then stop and report; leave
+     `state.md` alone. **Unless** its output holds `FAIL ledger_attempts` —
+     that stage is already at its cap, and another `blocked` only pushes the
+     count further past it. Report and stop without appending.
+   - **The work did not pass the stage's own gate** → `failed`, `--note`
+     saying what failed, then stop and report; leave `state.md` alone.
+   - **It passed** → `passed` **first**, and only once `ledger.py` exits 0,
+     overwrite that stage's row in `state.md` (status, artifact, note) —
+     never append a row; the row count must stay equal to `stages.json`'s.
+
+   `--gate human` belongs to the two human gates below and nowhere else. A
+   non-zero exit stops the step: report it and leave `state.md` untouched.
 
 ## Human gates
 
@@ -80,10 +100,16 @@ every stage's status, the next unfinished stage, and the reason on every
 
 ## `/cai:track skip <stage> --reason "<why>"`
 
-`--reason` is required — refuse the subcommand without it. Overwrite the
-named stage's row: `status` = `skipped`, `note` = the reason, `artifact` =
-`—`. Then proceed to the next stage's preflight as in "Running a stage"
-above.
+`--reason` is required — refuse the subcommand without it. Append it to the
+ledger first (step 3's command, `--outcome skipped --artifact — --note
+"<the reason>"`), then overwrite the named stage's row: `status` = `skipped`,
+`note` = the reason, `artifact` = `—`. Then proceed to the next stage's
+preflight as in "Running a stage" above.
+
+A skip also clears that stage's retry count, so this is the way out of a stage
+preflight has capped. The other two are `CAI_TRACK_MAX_ATTEMPTS` (a bigger
+number, or `0` for no cap) and deleting `ledger.jsonl`; the
+`FAIL ledger_attempts` message prints all three.
 
 ## `/cai:track done`
 

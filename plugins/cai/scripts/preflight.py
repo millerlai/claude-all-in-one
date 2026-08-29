@@ -150,13 +150,13 @@ def ledger_attempts(track_dir, stage):
                                  r.get("note") or "no note given")
         for r in ledger.streak(track_dir, stage))
     return False, (
-        "ledger_attempts (%d of %d since %s last passed)\n%s\n"
+        "ledger_attempts (%d of %d since %s last passed or was skipped)\n%s\n"
         "       clear it with any one of:\n"
         "         /cai:track skip %s --reason \"<why>\"\n"
         "         %s=<a bigger number, or 0 for no cap>\n"
         "         delete %s"
         % (count, limit, stage, history, stage, MAX_ATTEMPTS_ENV,
-           os.path.join(track_dir, ledger.LEDGER_NAME)))
+           os.path.normpath(os.path.join(track_dir, ledger.LEDGER_NAME))))
 
 
 def ledger_intact(track_dir):

@@ -5,6 +5,11 @@
 
 __pycache__/
 
+# Per-feature track state: state.md and the attempt ledger beside it. Local
+# working state for whoever is driving a track, not something to share -- and
+# the ledger is append-only, so a tracked one would conflict on every merge.
+.claude/track/
+
 # Scratch and reference material. Tracked docs stay tracked; new ones need
 # an explicit `git add -f`.
 docs/
