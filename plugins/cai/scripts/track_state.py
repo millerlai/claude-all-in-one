@@ -148,6 +148,15 @@ class ArgParser(argparse.ArgumentParser):
 
 
 def main():
+    # state.md's note column is prose a person wrote -- a skip reason, a
+    # sentence about what is still open -- so this script prints whatever
+    # alphabet they used, and `—` is state.md's own "no artifact" cell. On
+    # Windows a piped stdout defaults to the ANSI codepage and the caller
+    # cannot decode what comes back. The console path is already UTF-8
+    # (PEP 528), so only the pipe changes.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
     ap = ArgParser(description=__doc__.splitlines()[0])
     ap.add_argument("command", choices=["status", "resolve"])
     ap.add_argument("--track-root", default=DEFAULT_TRACK_ROOT)
