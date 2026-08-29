@@ -25,6 +25,13 @@ per-user in `~/.claude/rules/` by `/cai:setup`.
 Run `python scripts/validate.py` — it checks the manifests, every component's
 frontmatter, and that the bash guard still blocks what it should.
 
+Run `python -m pytest` too — the tests under `tests/`, which exercise what the
+scripts in `plugins/cai/scripts/` actually do. It needs `pytest` installed
+(`pip install pytest`), this repo's only development-time dependency. `tests/`
+sits at the repo root rather than under `plugins/cai/` so that neither it nor
+pytest ever reaches an installed copy: `.claude-plugin/marketplace.json:11`
+ships `./plugins/cai` and nothing else.
+
 You should rarely need to run it by hand: `.claude/settings.json` registers a
 `PostToolUse` hook that runs it whenever the **Edit or Write tool** touches
 `plugins/cai/` or `.claude-plugin/`, and reports the failures. The matcher is
@@ -47,4 +54,5 @@ and CMD.exe prints them before the first line runs. PowerShell's `>`, `>>` and
 note above says to reach for Edit/Write instead of redirecting into a file.
 
 Changing the guard means adding a case to `CASES` in `scripts/validate.py`.
-It is the only test this repo has.
+That file and `tests/` are the two places this repo keeps tests: `validate.py`
+checks the plugin's shape and the guard, `tests/` checks what the scripts do.
