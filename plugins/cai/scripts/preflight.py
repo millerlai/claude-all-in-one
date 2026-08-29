@@ -10,6 +10,7 @@ Usage:  preflight.py <stage-id> --track-dir DIR [--project-dir DIR]
 Exit:   0 passed, 2 blocked, 1 usage error (unknown stage, missing --track-dir).
 """
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -18,6 +19,16 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 STAGES_JSON = os.path.join(HERE, "..", "skills", "track", "stages.json")
 DESIGN_PROBE = os.path.join(HERE, "design_probe.py")
+
+# The attempt ledger is read here, not shelled out to: this script already
+# opens state.md itself, and counting integers does not need a process
+# boundary. ledger.py imports nothing back, which is what keeps the
+# track_state -> preflight -> ledger chain from closing into a cycle.
+sys.path.insert(0, HERE)
+import ledger  # noqa: E402
+
+DEFAULT_MAX_ATTEMPTS = 5
+MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
 
 # The three suffixes the /cai:design-*-doc commands already write. state.md
 # carries no separate field for this -- the filename is the convention.
@@ -106,6 +117,84 @@ def design(track_dir, project_dir):
     return checks
 
 
+def max_attempts():
+    """The retry cap: CAI_TRACK_MAX_ATTEMPTS, or 5. `0` means no cap.
+
+    Anything unusable -- not a number, negative -- is the default rather than
+    an error. This variable exists to let someone out of a stage that has
+    stopped letting them in; it must never become the reason they are stuck."""
+    try:
+        value = int(os.environ.get(MAX_ATTEMPTS_ENV, ""))
+    except ValueError:
+        return DEFAULT_MAX_ATTEMPTS
+    return value if value >= 0 else DEFAULT_MAX_ATTEMPTS
+
+
+def ledger_attempts(track_dir, stage):
+    """How many times this stage has failed since it last passed or was
+    skipped, and whether that is still under the cap.
+
+    Blocking is only half the job. A caller who is told "5 of 5" and nothing
+    else has to go and read the ledger, which is the trip this whole design
+    exists to remove -- so the failing label carries every attempt's reason
+    and all three ways out."""
+    limit = max_attempts()
+    count = ledger.attempts(track_dir, stage)
+    if limit == 0:
+        return True, "ledger_attempts (%d so far, no cap -- %s=0)" % (count, MAX_ATTEMPTS_ENV)
+    if count < limit:
+        return True, "ledger_attempts (%d of %d)" % (count, limit)
+
+    history = "\n".join(
+        "       %d. %s -- %s" % (r.get("attempt"), r.get("outcome"),
+                                 r.get("note") or "no note given")
+        for r in ledger.streak(track_dir, stage))
+    return False, (
+        "ledger_attempts (%d of %d since %s last passed or was skipped)\n%s\n"
+        "       clear it with any one of:\n"
+        "         /cai:track skip %s --reason \"<why>\"\n"
+        "         %s=<a bigger number, or 0 for no cap>\n"
+        "         delete %s"
+        % (count, limit, stage, history, stage, MAX_ATTEMPTS_ENV,
+           os.path.normpath(os.path.join(track_dir, ledger.LEDGER_NAME))))
+
+
+def ledger_intact(track_dir):
+    """Reports broken ledger lines. Never blocks on them.
+
+    R5 says one unparseable line must not stop the track, and a FAIL here
+    hangs off all six stages -- which is precisely stopping the track. So a
+    corrupt ledger is loud and harmless: every stage says so, none refuses."""
+    lines = ledger.malformed_lines(track_dir)
+    if not lines:
+        return True, "ledger_intact (0 malformed)"
+    return True, "ledger_intact (%d malformed line(s) at %s)" % (
+        len(lines), ", ".join(str(n) for n in lines))
+
+
+def artifact_unchanged(track_dir, project_dir):
+    """UC5: prove build is reading the document a person actually signed off.
+
+    Both the path and the digest come from the ledger record, not from
+    state.md. The cell in state.md can be overwritten by any later stage; the
+    record of what passed cannot."""
+    record = ledger.last_passed(track_dir, "design")
+    if record is None or not record.get("sha256"):
+        return True, "artifact_unchanged (no signed-off design recorded)"
+
+    artifact = record.get("artifact") or ""
+    doc = resolve(artifact, project_dir, track_dir)
+    if doc is None:
+        return False, ("artifact_unchanged (%s was signed off and is not there now)"
+                       % artifact)
+    with open(doc, "rb") as fh:
+        now = hashlib.sha256(fh.read()).hexdigest()
+    if now != record["sha256"]:
+        return False, ("artifact_unchanged (%s changed since sign-off: %s now, %s then)"
+                       % (artifact, now[:12], record["sha256"][:12]))
+    return True, "artifact_unchanged (%s)" % artifact
+
+
 def git(cwd, *args):
     """Same shape as bash_guard.py's own git() helper -- duplicated rather
     than imported, since bash_guard is out of scope for this change and the
@@ -189,23 +278,29 @@ def discover(track_dir, project_dir):
 
 
 def build(track_dir, project_dir):
+    # Computed first so it survives the early returns below: it answers from
+    # the ledger, so it is just as valid when state.md is the thing that is
+    # broken -- and "the design changed after sign-off" is worth saying even
+    # then.
+    unchanged = artifact_unchanged(track_dir, project_dir)
+
     row = state_row(track_dir, "design")
     if row is None:
-        return [(False, "state_md (cannot read state.md or find the design row)")]
+        return [unchanged, (False, "state_md (cannot read state.md or find the design row)")]
 
     artifact = row[2] if len(row) > 2 else ""
     if not artifact or artifact == "—":
-        return [(False, "artifact_named (design row names no artifact)")]
+        return [unchanged, (False, "artifact_named (design row names no artifact)")]
 
     doc = resolve(artifact, project_dir, track_dir)
     if doc is None:
-        return [(False, "artifact_exists (%s not found)" % artifact)]
+        return [unchanged, (False, "artifact_exists (%s not found)" % artifact)]
 
     with open(doc, encoding="utf-8") as fh:
         has_breakdown = "## Work breakdown" in fh.read()
     label = ("work_breakdown (%s)" % artifact if has_breakdown else
              "work_breakdown (%s has no ## Work breakdown heading)" % artifact)
-    return [(has_breakdown, label)]
+    return [unchanged, (has_breakdown, label)]
 
 
 def find_base_ref(cwd):
@@ -284,6 +379,13 @@ class ArgParser(argparse.ArgumentParser):
 
 
 def main():
+    # ledger_attempts quotes the notes a person wrote, so this script now
+    # prints whatever alphabet they used. On Windows a piped stdout defaults
+    # to the ANSI codepage and the caller cannot decode what comes back; the
+    # console path is already UTF-8 (PEP 528), so only the pipe changes.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
     ap = ArgParser(description=__doc__.splitlines()[0])
     ap.add_argument("stage")
     ap.add_argument("--track-dir", required=True)
@@ -294,8 +396,16 @@ def main():
         print("unknown stage: %s" % args.stage, file=sys.stderr)
         return 1
 
+    # The two ledger checks are added here rather than inside each of the six
+    # stage functions: several of those return a single failing check early,
+    # and UC8 asks for the ledger's condition on every stage, including the
+    # ones that are already blocked for another reason.
+    checks = list(STAGES[args.stage](args.track_dir, args.project_dir))
+    checks.append(ledger_attempts(args.track_dir, args.stage))
+    checks.append(ledger_intact(args.track_dir))
+
     failed = 0
-    for ok, label in STAGES[args.stage](args.track_dir, args.project_dir):
+    for ok, label in checks:
         print(("PASS " if ok else "FAIL ") + label)
         failed += not ok
     print("-- %s: %d probe(s) failed" % (args.stage, failed))

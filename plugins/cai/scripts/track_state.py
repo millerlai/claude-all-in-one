@@ -26,6 +26,7 @@ DEFAULT_TRACK_ROOT = os.path.join(".claude", "track")
 # table_row_count() below, and the report, for why.)
 sys.path.insert(0, HERE)
 import preflight  # noqa: E402
+import ledger  # noqa: E402
 
 
 def stage_ids():
@@ -84,6 +85,13 @@ def format_status(feature, track_dir, order):
         if status == "skipped":
             skipped.append((sid, note))
             line += "  (reason: %s)" % note
+        # Who let this one through, from the ledger record that says it passed
+        # -- not from state.md, which has no column for it. A stage that has
+        # not passed, or a track with no ledger at all, adds nothing here, so
+        # every existing track's output is byte-for-byte what it was.
+        passed = ledger.last_passed(track_dir, sid)
+        if passed:
+            line += "  (gate: %s)" % passed.get("gate", "unknown")
         lines.append(line)
         if next_stage is None and status not in ("done", "skipped"):
             next_stage = sid
@@ -140,6 +148,15 @@ class ArgParser(argparse.ArgumentParser):
 
 
 def main():
+    # state.md's note column is prose a person wrote -- a skip reason, a
+    # sentence about what is still open -- so this script prints whatever
+    # alphabet they used, and `—` is state.md's own "no artifact" cell. On
+    # Windows a piped stdout defaults to the ANSI codepage and the caller
+    # cannot decode what comes back. The console path is already UTF-8
+    # (PEP 528), so only the pipe changes.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
     ap = ArgParser(description=__doc__.splitlines()[0])
     ap.add_argument("command", choices=["status", "resolve"])
     ap.add_argument("--track-root", default=DEFAULT_TRACK_ROOT)
