@@ -61,16 +61,22 @@ For the stage about to run:
    ```
    python ${CLAUDE_PLUGIN_ROOT}/scripts/ledger.py append
        --track-dir .claude/track/<feature> --stage <stage>
-       --outcome passed|failed|blocked --gate auto|human
+       --outcome passed|failed|blocked|unavailable --gate auto|human
        [--artifact <path>] --note "<why, one line>"
    ```
 
-   - **Preflight exited 2** → `blocked`, then stop and report; leave
-     `state.md` alone. **Unless** its output holds `FAIL ledger_attempts` —
-     that stage is already at its cap, and another `blocked` only pushes the
-     count further past it. Report and stop without appending.
+   Only the passing path touches `state.md`; the rest append and stop.
+
+   - **Preflight exited 2** → `blocked`. **Unless** its output holds
+     `FAIL ledger_attempts` — that stage is already at its cap and another
+     record only pushes the count further past it; report without appending.
+   - **The dispatch never ran: HTTP 429/500/502/503/529, or error type
+     `rate_limit_error`, `overloaded_error`, `api_error`** → `unavailable`,
+     with `--note` quoting the provider's error verbatim. This one does not
+     count toward the retry cap, so a run that produced bad work is `failed`,
+     never this.
    - **The work did not pass the stage's own gate** → `failed`, `--note`
-     saying what failed, then stop and report; leave `state.md` alone.
+     saying what failed.
    - **It passed** → `passed` **first**, and only once `ledger.py` exits 0,
      overwrite that stage's row in `state.md` (status, artifact, note) —
      never append a row; the row count must stay equal to `stages.json`'s.

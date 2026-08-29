@@ -92,6 +92,44 @@ def test_an_unusable_setting_falls_back_to_the_default(tmp_path):
         assert "5 of 5" in done.stdout
 
 
+# --- UC9: rate limits must not lock out a stage nobody did wrong in --------
+
+def test_provider_refusals_never_reach_the_cap(tmp_path):
+    track = make_track(tmp_path)
+    for _ in range(8):
+        ledger.append(track, "discover", "unavailable",
+                      note="429 rate_limit_error from the provider")
+
+    done = run("discover", track)
+    assert done.returncode == 0, done.stdout
+    assert "PASS ledger_attempts (0 of 5)" in done.stdout
+
+
+def test_refusals_and_real_failures_are_counted_apart(tmp_path):
+    track = make_track(tmp_path)
+    for n in range(3):
+        ledger.append(track, "discover", "failed", note="unknown %d open" % n)
+    for _ in range(5):
+        ledger.append(track, "discover", "unavailable", note="529 overloaded_error")
+
+    done = run("discover", track)
+    assert done.returncode == 0
+    assert "PASS ledger_attempts (3 of 5)" in done.stdout
+
+
+def test_the_blocking_message_shows_the_refusals_it_did_not_count(tmp_path):
+    # Not counted is not the same as not shown. Someone at the cap needs to see
+    # that five of the eight lines were the provider, not their code.
+    track = make_track(tmp_path)
+    for n in range(5):
+        ledger.append(track, "discover", "failed", note="unknown %d open" % n)
+    ledger.append(track, "discover", "unavailable", note="429 rate_limit_error")
+
+    out = run("discover", track).stdout
+    assert "FAIL ledger_attempts (5 of 5" in out
+    assert "unavailable -- 429 rate_limit_error" in out
+
+
 # --- D12: a skip clears the cap, so the stage is never locked out for good --
 
 def test_a_skip_reopens_a_capped_stage(tmp_path):

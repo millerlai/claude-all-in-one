@@ -34,8 +34,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 STAGES_JSON = os.path.join(HERE, "..", "skills", "track", "stages.json")
 LEDGER_NAME = "ledger.jsonl"
 
-OUTCOMES = ("passed", "failed", "blocked", "skipped")
+OUTCOMES = ("passed", "failed", "blocked", "skipped", "unavailable")
 GATES = ("auto", "human")
+
+# What the retry cap is allowed to count. `unavailable` is deliberately absent:
+# a provider that refused to serve the request did not produce an attempt that
+# failed, it produced no attempt at all, and five rate limits must not lock a
+# stage nobody did anything wrong in.
+COUNTS_AS_RETRY = ("failed", "blocked")
 
 # A record has to land in one write, and one write is only atomic up to a size
 # the platform decides. 4096 is the user's call (2026-08-29); the note gets
@@ -259,7 +265,7 @@ def last_passed(track_dir, stage):
 
 def attempts(track_dir, stage):
     return sum(1 for r in streak(track_dir, stage)
-               if r.get("outcome") in ("failed", "blocked"))
+               if r.get("outcome") in COUNTS_AS_RETRY)
 
 
 def fingerprint(track_dir, stage):
@@ -280,9 +286,12 @@ def show(track_dir, stage=None):
         if record.get("malformed"):
             print("%4d  malformed  %s" % (record["line"], record["raw"]))
             continue
-        print("%4d  %s  %-8s  %-7s  %-5s  %s  %s" % (
+        # The outcome column is as wide as the longest value in OUTCOMES, so
+        # adding one there cannot silently break the alignment again.
+        print("%4d  %s  %-8s  %-*s  %-5s  %s  %s" % (
             record.get("line", 0), record.get("ts", ""), record.get("stage", ""),
-            record.get("outcome", ""), record.get("gate", ""),
+            max(len(o) for o in OUTCOMES), record.get("outcome", ""),
+            record.get("gate", ""),
             record.get("artifact") or NO_ARTIFACT, record.get("note", "")))
     return 0
 

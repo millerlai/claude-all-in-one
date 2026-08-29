@@ -96,6 +96,39 @@ def test_skipped_also_resets_the_streak(tmp_path):
     assert ledger.last_passed(track, "verify") is None
 
 
+# --- UC9: a provider that refused to serve did not produce an attempt ------
+
+def test_provider_refusals_do_not_burn_the_retry_budget(tmp_path):
+    track = str(tmp_path)
+    for n in range(3):
+        ledger.append(track, "build", "failed", note="unit %d still red" % n)
+    for _ in range(5):
+        ledger.append(track, "build", "unavailable",
+                      note="429 rate_limit_error from the provider")
+
+    # Eight records, three of which are this stage's fault.
+    assert len(ledger.streak(track, "build")) == 8
+    assert ledger.attempts(track, "build") == 3
+
+
+def test_a_refusal_is_still_a_record_a_person_can_see(tmp_path):
+    # Not counting it must not mean hiding it: five rate limits in a row is
+    # something the person reading `show` needs to know happened.
+    track = str(tmp_path)
+    ledger.append(track, "verify", "unavailable", note="529 overloaded_error")
+
+    done = run("show", "--track-dir", track)
+    assert "unavailable" in done.stdout
+    assert "529 overloaded_error" in done.stdout
+
+
+def test_the_retry_count_is_defined_in_exactly_one_place(tmp_path):
+    # attempts() must read COUNTS_AS_RETRY rather than repeat the list, or the
+    # next outcome value added will be counted by accident.
+    assert "unavailable" not in ledger.COUNTS_AS_RETRY
+    assert set(ledger.COUNTS_AS_RETRY) <= set(ledger.OUTCOMES)
+
+
 # --- UC5: the fingerprint is of the bytes on disk, unnormalised ------------
 
 def test_fingerprint_is_the_sha256_of_the_artifact(tmp_path):
