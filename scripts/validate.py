@@ -799,15 +799,16 @@ with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md")
     fh.write(DETAIL_OK.replace("scripts/validate.py:41", "docs/design/hld.md:1"))
 
 
-def write_preflight_state(artifact_cell):
+def write_preflight_state(artifact_cell, design_status="done"):
     # state.md is overwritten in place, never appended to -- each case
     # replaces the whole file rather than editing one cell.
     text = ("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
             "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
             "|---|---|---|---|\n| intake | done | — | |\n"
             "| discover | done | — | |\n"
-            "| design | done | %s | |\n"
-            "| build | | | |\n| verify | | | |\n| ship | | | |\n" % artifact_cell)
+            "| design | %s | %s | |\n"
+            "| build | | | |\n| verify | | | |\n| ship | | | |\n"
+            % (design_status, artifact_cell))
     with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
         fh.write(text)
 
@@ -897,6 +898,16 @@ done = run_preflight("build")
 check("preflight build [no work breakdown] -> 2", done.returncode == 2)
 check("preflight build names work_breakdown", "FAIL work_breakdown" in done.stdout)
 
+# `/cai:track skip design` is supported, and it lands on this check for the
+# rest of the track's life. Blocking is right -- there is no design to build
+# from -- but the reason has to say so, or it reads as a broken state.md and
+# leaves the person guessing that `skip build` is the way on.
+write_preflight_state("—", design_status="skipped")
+done = run_preflight("build")
+check("preflight build [design was skipped] -> 2", done.returncode == 2)
+check("preflight build says the design was skipped",
+      "design was skipped" in done.stdout and "skip build too" in done.stdout)
+
 # build reads the same design row as design() -- same two block reasons apply
 # before the artifact is even resolved to a work breakdown.
 write_preflight_state("—")
@@ -962,6 +973,20 @@ for i in range(4):
 os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
 done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
 check("preflight intake [4 active + done/ archive ignored] -> 0", done.returncode == 0)
+
+# A track that git tracks makes the working tree dirty by existing, and the
+# stage that then refuses is `ship`, whose clean_tree failure says nothing
+# about why. intake says so while the fix is still one line -- and says it
+# without blocking, because committing your track is a legitimate choice.
+check("preflight intake warns when the track is not ignored",
+      "track_ignored" in done.stdout and "NOT ignored" in done.stdout)
+check("preflight intake does not block on it", done.returncode == 0)
+
+with open(os.path.join(INTAKE_OK, ".gitignore"), "w", encoding="utf-8") as fh:
+    fh.write("track/\n")
+done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
+check("preflight intake is quiet once the track is ignored",
+      "track_ignored" in done.stdout and "NOT ignored" not in done.stdout)
 
 # Regression: a bare relative --track-dir (what a caller already sitting in
 # .claude/track/ passes) used to derive an empty parent, count zero active

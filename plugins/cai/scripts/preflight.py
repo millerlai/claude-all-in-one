@@ -279,7 +279,32 @@ def intake(track_dir, project_dir):
     feature = os.path.basename(os.path.normpath(track_dir))
     name_check = (feature not in ("current", "done"), "reserved_name (%s)" % feature)
 
-    return [branch_check, active_check, name_check]
+    return [branch_check, active_check, name_check,
+            track_ignored(track_dir, project_dir)]
+
+
+def track_ignored(track_dir, project_dir):
+    """Whether git ignores this track's own files. Reports, never blocks.
+
+    It reports at `intake` because that is where the fix is one line, while
+    the bill arrives at `ship`: that stage requires a clean working tree, and
+    a track whose state.md and ledger are tracked makes the tree dirty simply
+    by existing. What the person sees then is `clean_tree (working tree has
+    uncommitted changes)` -- true, and no help at all in working out that
+    their own bookkeeping is what is blocking them.
+
+    Not a gate: plenty of people will not care, and a track is still perfectly
+    usable in a repo that commits it."""
+    if not is_git_repo(project_dir):
+        return True, "track_ignored (%s is not a git repository)" % project_dir
+    done = git(project_dir, "check-ignore", "-q", track_dir)
+    if done is None:
+        return True, "track_ignored (git did not answer)"
+    if done.returncode == 0:
+        return True, "track_ignored (%s)" % track_dir
+    return True, ("track_ignored (%s is NOT ignored -- add `.claude/track/` to "
+                  ".gitignore, or ship's clean_tree will trip over this "
+                  "track's own files)" % track_dir)
 
 
 def discover(track_dir, project_dir):
@@ -304,7 +329,16 @@ def build(track_dir, project_dir):
 
     artifact = row[2] if len(row) > 2 else ""
     if not artifact or artifact == "—":
-        return [unchanged, (False, "artifact_named (design row names no artifact)")]
+        # `/cai:track skip design` is a supported move, and it lands here: the
+        # row it writes names no artifact, so this check fails from then on.
+        # That is the right answer -- there is no design to build from -- but
+        # "design row names no artifact" reads like a misconfiguration rather
+        # than the consequence of something the person deliberately did, and
+        # leaves them guessing that `skip build` is the way forward.
+        skipped = (row[1] if len(row) > 1 else "") == "skipped"
+        why = (" -- design was skipped, so there is no design to build from; "
+               "skip build too, or fill the design row in" if skipped else "")
+        return [unchanged, (False, "artifact_named (design row names no artifact%s)" % why)]
 
     doc = resolve(artifact, project_dir, track_dir)
     if doc is None:
