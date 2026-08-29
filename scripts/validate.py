@@ -159,15 +159,20 @@ for path in skills:
           f"({len(dead_paths)}{': ' + ', '.join(dead_paths[:2]) if dead_paths else ''})",
           not dead_paths)
 
-# R1: the design's target is 14 skills, not 15 -- it is 15 today only because
-# `goal` stays until someone has actually run a track end to end, which has
-# not happened yet (Unit 8 decision, 2026-08-27). Once that condition is met
-# and `goal` retires, this list drops to 14 and loses that name.
+# R1: the design's target is 14 skills -- it is 16 today for two separate
+# reasons. `goal` stays until someone has actually run a track end to end,
+# which has not happened yet (Unit 8 decision, 2026-08-27); once it retires
+# this list drops to 15. `options` is an addition rather than a leftover: the
+# always-on rule it backs (rules/option-explainer.md) has to fit in 45 lines,
+# and the skeleton, dimension library and worked example do not
+# (docs/design/2026-08-29-option-explainer-with-eli5-high-level.md,
+# Decision 2). It carries `disable-model-invocation: true`, so it costs the
+# always-on budget below nothing.
 SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git", "goal",
-               "intake", "plan-review", "quiz", "refactor", "setup", "ship",
-               "track", "verify"]
+               "intake", "options", "plan-review", "quiz", "refactor", "setup",
+               "ship", "track", "verify"]
 skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
-check(f"skills/ holds exactly the 15 names {SKILL_NAMES} ({skill_dirs})",
+check(f"skills/ holds exactly the 16 names {SKILL_NAMES} ({skill_dirs})",
       skill_dirs == SKILL_NAMES)
 
 # The 72 generated refactoring aliases moved out of the main line into their
@@ -219,10 +224,57 @@ print(f"     always-on description budget: {always_on_total} chars "
 check(f"always-on description budget does not exceed {ALWAYS_ON_CEILING} chars "
       f"({always_on_total})", always_on_total <= ALWAYS_ON_CEILING)
 
+# `options` has to keep that flag, and the budget above is the wrong thing to
+# rely on for it: dropping the flag does trip the ceiling today, but only
+# because the ratchet happens to leave 17 characters of headroom. Say it
+# outright instead, the way the catalog aliases already do above.
+OPTIONS_SKILL = f"{PLUGIN}/skills/options/SKILL.md"
+check(f"{OPTIONS_SKILL} disables model invocation",
+      "disable-model-invocation: true" in read_text(OPTIONS_SKILL))
+
 # /cai:setup copies these out to ~/.claude/rules/; an empty dir would
 # make setup a silent no-op.
 rules = sorted(glob.glob(f"{PLUGIN}/rules/*.md"))
 check("rules ship with the plugin", bool(rules))
+
+# Every rules/*.md file is L1: loaded into every session whether or not it
+# ever fires, unlike a skill body that is only read once invoked. There was
+# no check on that cost until option-explainer.md's own design set 45 as the
+# ceiling (its trailing comment carries the reasoning); this is what stops a
+# future edit drifting past it unnoticed the way it could before this check
+# existed. Same pattern as the goal.md line-ceiling check above.
+RULES_LINE_CEILING = 45
+for path in rules:
+    n = len(read_text(path).splitlines())
+    check(f"{path} is within its {RULES_LINE_CEILING}-line ceiling ({n})", n <= RULES_LINE_CEILING)
+
+# The root CLAUDE.md's @-imports are what makes a rule file active for anyone
+# working in this checkout; nothing compared that list to rules/*.md itself,
+# so a new rule file could land with no import line and every check above
+# would still be green. communication.md is the one deliberate exception --
+# CLAUDE.md:15-17 explains why it is not imported (response language is
+# per-user, set by /cai:setup into ~/.claude/rules/, not by this repo) -- so
+# it is carved out here rather than failing on it every run.
+ROOT_CLAUDE = "CLAUDE.md"
+KNOWN_UNIMPORTED_RULES = {"communication"}
+# Pinned, because the set is an escape hatch from the check right below it:
+# adding a name here silences a genuinely missing import and nothing else
+# would notice. Growing it should take deleting this line, so that whoever
+# does has to say why in the same edit.
+check(f"{ROOT_CLAUDE} import exceptions are exactly ['communication'] "
+      f"({sorted(KNOWN_UNIMPORTED_RULES)})",
+      KNOWN_UNIMPORTED_RULES == {"communication"})
+imported_rules = set(re.findall(r"^@plugins/cai/rules/([\w-]+)\.md$", read_text(ROOT_CLAUDE), re.MULTILINE))
+rule_names = {os.path.splitext(os.path.basename(p))[0] for p in rules}
+missing_imports = sorted(rule_names - imported_rules - KNOWN_UNIMPORTED_RULES)
+extra_imports = sorted(imported_rules - rule_names)
+check(f"{ROOT_CLAUDE} imports match rules/*.md, exceptions {sorted(KNOWN_UNIMPORTED_RULES)} "
+      f"({len(missing_imports)} missing, {len(extra_imports)} extra)",
+      not missing_imports and not extra_imports)
+for name in missing_imports[:5]:
+    print("     rules/ has it but CLAUDE.md does not import it:", name)
+for name in extra_imports[:5]:
+    print("     CLAUDE.md imports it but rules/ does not have it:", name)
 
 TEMPLATE = f"{PLUGIN}/templates/CLAUDE.md.tpl"
 check("user CLAUDE.md template ships", os.path.isfile(TEMPLATE))
