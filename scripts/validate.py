@@ -170,9 +170,9 @@ for path in skills:
 # always-on budget below nothing.
 SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git", "goal",
                "intake", "options", "plan-review", "quiz", "refactor", "setup",
-               "ship", "track", "verify"]
+               "ship", "track", "usage", "verify"]
 skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
-check(f"skills/ holds exactly the 16 names {SKILL_NAMES} ({skill_dirs})",
+check(f"skills/ holds exactly the 17 names {SKILL_NAMES} ({skill_dirs})",
       skill_dirs == SKILL_NAMES)
 
 # The 72 generated refactoring aliases moved out of the main line into their
