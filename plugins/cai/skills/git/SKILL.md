@@ -12,6 +12,7 @@ Rules:
 - Commit messages: English, conventional-commit style (feat:, fix:, refactor:, etc.), explain why not what.
 - Write multi-line messages to a file and pass `git commit -F <file>`, or use repeated single-line `-m` flags. Never `@'...'@` — that is PowerShell here-string syntax, and in the Bash tool it leaves literal `@` characters in the message.
 - Never force-push, `reset --hard`, or skip hooks (`--no-verify`) unless explicitly asked.
+- Commit or stash before anything that discards uncommitted work — `git checkout -- <paths>`, `git restore`, a breach or mutation test that rewrites files. Restoring "to HEAD" is not undoing the last thing you did; it throws away everything since the last commit, including the fix you were checking.
 - Never push unless explicitly asked to push (a request that includes "push" or "pr" counts as asking).
 - "pr" means create a GitHub PR: ensure the branch is pushed with an upstream (`git push -u origin <branch>` if none set), then `gh pr create` with a short title (<70 chars) and a body summarizing the commits since the base branch, passed via `--body-file` (a heredoc also works, but only in Bash). Never merge or close a PR unless explicitly asked.
 - Report back concisely: branch, commit hash/message, push target, or PR URL.

@@ -31,6 +31,13 @@ BRANCH = (
     "blocked it and ask them to run it manually."
 )
 
+COMMIT_FIRST = (
+    "The working tree has uncommitted changes and this throws them away. "
+    "Commit them, or `git stash` so they stay recoverable, and run it again. "
+    "If the user explicitly asked to discard them, tell them the guard "
+    "blocked it and ask them to run it manually."
+)
+
 # git takes global options before the verb, so `git -C <dir> push --force` and
 # `git -c k=v reset --hard` walk straight past a pattern anchored on `git push`.
 # Tolerating a run of them is the difference between a rule and a suggestion.
@@ -52,6 +59,31 @@ BLOCKED = [
     # `rm --recursive --force`. Lookaheads catch any order or spelling.
     (r"\brm\b(?=" + ARGS + r"\s-(?:[a-zA-Z]*[rR]|-recursive))(?=" + ARGS + r"\s-(?:[a-zA-Z]*f|-force))",
      "recursive force delete", CONFIRM),
+]
+
+# Discarding uncommitted work is destructive only when there is uncommitted
+# work: `git checkout -- .` on a clean tree is a no-op and `git restore
+# --staged` merely unstages. So these are checked against `git status` rather
+# than blocked outright -- the same reason the commit rule below reads the
+# branch instead of refusing every commit.
+#
+# What this catches is a verification step eating the fix it was meant to
+# check: a breach test, a mutation run, or a plain "undo that" reverting edits
+# that were never committed. `git reset --hard` above already covers its own
+# spelling; these are the two that reach the same files by path.
+DISCARD = [
+    # Pathspec mode, which is what `--` and a bare `.` both mean here. Without
+    # either, `git checkout -b x` and `git checkout main` are branch moves and
+    # git refuses them itself rather than overwriting anything.
+    (GIT + r"checkout\b" + ARGS + r"(?:\s--(?:\s|$)|\s\.(?:\s|$))",
+     "git checkout discards uncommitted changes to those paths", COMMIT_FIRST),
+    # `--staged` alone only unstages, so it must go through; `--worktree`
+    # alongside it reaches the files again, so the second entry catches the
+    # combination the first one lets past.
+    (GIT + r"restore\b(?!" + ARGS + r"\s--staged\b)",
+     "git restore discards uncommitted changes", COMMIT_FIRST),
+    (GIT + r"restore\b" + ARGS + r"\s--worktree\b",
+     "git restore --worktree discards uncommitted changes", COMMIT_FIRST),
 ]
 
 # A here-string is correct PowerShell and garbage in Bash, so this can only be
@@ -110,6 +142,23 @@ def current_branch(cwd):
     return done.stdout.strip() if done and done.returncode == 0 else None
 
 
+def worktree_dirty(cwd):
+    """Whether there is uncommitted work here that these commands could lose.
+
+    `--untracked-files=no` is the whole predicate, not a speed knob. Neither
+    `git checkout -- <paths>` nor `git restore` touches an untracked file, so
+    counting one as dirty would block both in every repo carrying build
+    output or a scratch file -- which is most of them, and is the guard
+    blocking work it cannot damage.
+
+    Fails open, like current_branch() above and for the same reason: a git
+    that cannot answer -- no repo, no git, a timeout -- must not be what
+    starts blocking checkouts. Not knowing is a reason to allow here, where
+    the alternative is refusing an operation that discards nothing."""
+    done = git(cwd, "status", "--porcelain", "--untracked-files=no")
+    return bool(done and done.returncode == 0 and done.stdout.strip())
+
+
 def deny(reason, command, advice):
     sys.stderr.write(
         f"bash_guard blocked this command: {reason}.\n"
@@ -147,6 +196,14 @@ def main() -> int:
     # both land elsewhere. Naming the directory makes a wrong verdict
     # diagnosable instead of baffling.
     cwd = payload.get("cwd")
+
+    # Pattern first, git second, and the git call made at most once: `git
+    # status` is a subprocess, and asking it on every Bash call would tax
+    # every command in the session to decide two of them.
+    discard = next(((r, a) for p, r, a in DISCARD if re.search(p, code)), None)
+    if discard and worktree_dirty(cwd):
+        return deny(discard[0], command, discard[1])
+
     if COMMIT.search(code) and current_branch(cwd) in PROTECTED:
         return deny("committing directly to a protected branch", command,
                     f"Branch read from {cwd or 'the hook working directory'}. " + BRANCH)

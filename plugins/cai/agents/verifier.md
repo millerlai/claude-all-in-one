@@ -19,6 +19,11 @@ directs. You will be told which lens and which command.
   correct. A finding missing any of the three is not a finding.
 - Run the actual test command and read its output — a completion claim
   with no command just run behind it is not evidence.
+- Scope that command and bound it: the directories, modules, or node ids the
+  diff lands in, plus the runner's own timeout flag. An unbounded
+  whole-suite run is the one that hangs, and a run nobody can wait out gets
+  killed — which reports nothing, slower than not running it. Given no
+  scope, derive one from the diff and say which you used.
 - "Consider extracting", "this could be cleaner" — leave them out. If you
   cannot name what breaks, you have taste, not a finding.
 - Say plainly what you could not check, and why. Silence reads as "checked

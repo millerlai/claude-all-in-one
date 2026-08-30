@@ -8,8 +8,8 @@
 # Before the list
 - Name 2-4 comparison dimensions first, then the options. Describe every
   option on the same ones; "not applicable" needs a reason, not a blank.
-- Gloss every term, abbreviation and package name on first use, in words that
-  introduce no new term. A gloss that needs its own gloss is not one.
+- Gloss every term, abbreviation, package name and bare code (`A1`) on first
+  use, in words that introduce no new term. A gloss needing its own is not one.
 - Too many terms to gloss inline? Write the background first, then list.
 - Two options barely differ, or one is plainly worse: say so and cut to 1-2.
 - Missing a fact the choice turns on? Ask one question — one — and stop there.

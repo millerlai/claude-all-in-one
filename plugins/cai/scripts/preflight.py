@@ -346,9 +346,29 @@ def build(track_dir, project_dir):
 
     with open(doc, encoding="utf-8") as fh:
         has_breakdown = "## Work breakdown" in fh.read()
-    label = ("work_breakdown (%s)" % artifact if has_breakdown else
-             "work_breakdown (%s has no ## Work breakdown heading)" % artifact)
-    return [unchanged, (has_breakdown, label)]
+    if has_breakdown:
+        return [unchanged, (True, "work_breakdown (%s)" % artifact)]
+
+    # Only a detail design promises a schedule: `## Work breakdown` is in
+    # design_probe.py's DETAIL_HEADINGS and in no other kind's list, and
+    # neither the high-level nor the delta template carries the heading at
+    # all. Blocking every kind on it made a signed-off high-level or delta
+    # design unbuildable -- and the only way out, editing the heading in,
+    # then tripped artifact_unchanged above, because that edit lands after
+    # sign-off. Both halves of that trap were reachable from one track.
+    #
+    # There is nothing to block on either way: stage-build.md's "Two
+    # situations, same discipline" already cuts the units itself when no
+    # work breakdown exists, and goal/SKILL.md routes the same document to
+    # its whole-document lane. A gate stricter than the stage behind it is
+    # the gate that is wrong.
+    kind = next((k for suffix, k in SUFFIX_KIND.items()
+                 if artifact.endswith(suffix)), None)
+    if kind == "detail":
+        return [unchanged, (False, "work_breakdown (%s is a detail design and "
+                                   "has no ## Work breakdown heading)" % artifact)]
+    return [unchanged, (True, "work_breakdown (%s carries none -- stage-build.md "
+                              "cuts the units instead)" % artifact)]
 
 
 def find_base_ref(cwd):

@@ -11,6 +11,10 @@
 - Stop and ask only when the decision is hard to reverse, materially widens scope, or
   interpretations differ enough to mean different work. Then name the options; don't
   pick silently. A simpler approach existing is a one-line note, not a full stop.
+- A question is not a decision. Advice, comparison, "what are my options", "which X
+  should I use" — answer in prose, with a recommendation and why. Reaching for a
+  question tool, a brainstorming pass, or any multi-step workflow instead answers
+  nothing and costs a turn; do it only when asked, or when that work is under way.
 
 # Verification & Completion
 - Before claiming a task complete, run the actual build/tests and read the real output.
