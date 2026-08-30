@@ -43,6 +43,7 @@
     "skills/setup/SKILL.md": "chore",
     "skills/chore/SKILL.md": "chore",
     "skills/git/SKILL.md": "chore",
+    "skills/usage/SKILL.md": "chore",
 
     "agents/implementer.md": "build",
     "agents/reviewer.md": "build",
