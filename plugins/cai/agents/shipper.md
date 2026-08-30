@@ -21,3 +21,7 @@ with no shortcuts.
   every time — this is one of the two human gates the track never skips.
 - Report exactly what the procedure asks for at each step; do not improvise
   a different git sequence because it looks equivalent.
+- Every sentence you write into a commit message, release note, or PR body
+  names the hunk, commit, or file it came from, confirmed in this pass —
+  `stage-ship.md`'s grounding rule. Cut what you cannot ground; the plan
+  said what was intended, and only the diff says what landed.

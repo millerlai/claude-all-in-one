@@ -8,6 +8,31 @@ no track underneath it. The procedure below is the same either way.
 confirm with the person first.** This is one of the two human gates the
 track never skips; running this stage standing alone does not remove it.
 
+## The grounding rule
+
+Everything this stage writes — the commit message, the release note, the PR
+body — is prose about a diff, read later by people who will not open the
+diff to check it. That is exactly the shape a plausible sentence survives
+in: a use case renumbered, a file described that was never added, a report
+named that does not exist.
+
+So every factual claim in what you hand back names the diff line, commit,
+or file it came from, and you confirmed that source in this pass. Three
+things settle a claim and nothing else does: a hunk in `git diff
+<BASE>..HEAD`, a line in `git log <BASE>..HEAD`, or a file you opened and
+read. Not the design document's plan for the change — that says what was
+intended, not what landed. Not the branch name. Not what the last stage
+reported.
+
+A claim you cannot ground gets cut, not softened. "Also improves error
+handling" with no hunk behind it is not a weaker claim than the ones that
+have one; it is the one that will be wrong.
+
+**When this stage runs as a dispatched subagent, the main session applies
+this rule again to its output before using it** — re-derive each claim from
+the diff itself. A subagent's report is a draft, and the diff is the only
+thing that outranks it.
+
 ## Step 1 — Preflight checks
 
 ```bash
@@ -58,6 +83,7 @@ Read `git log <BASE>..HEAD --pretty=format:'%h %s%n%b'` and the diff stat.
 Compose one conventional commit message in English: `type(scope): summary`,
 imperative mood, ≤72 chars, then 2–6 body bullets summarizing the *net*
 change — not a replay of intermediate commits, and not fixup/WIP noise.
+Every bullet is a claim; the grounding rule above applies to each one.
 
 **Show the drafted message to the user and wait for confirmation** before
 Step 5. This is history-rewriting; never skip confirmation.
@@ -88,7 +114,10 @@ One paragraph, written for someone who was not in this conversation: what
 changed, why (the requirement it satisfies, not the mechanism), and
 anything a caller needs to do differently. Pull the "why" from the design
 document this track produced, if one exists, rather than re-deriving it
-from the diff. Put it wherever this project keeps release notes — a
+from the diff — but the *what* still comes from the diff under the
+grounding rule, since a design document describes a plan and this paragraph
+describes what shipped. Where the two disagree, the diff is right and the
+gap is worth a sentence. Put it wherever this project keeps release notes — a
 `CHANGELOG.md` entry if one exists, otherwise the PR description.
 
 ## Rollback

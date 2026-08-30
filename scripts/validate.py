@@ -557,8 +557,31 @@ def detached_repo():
     return path
 
 
+def dirty_repo(untracked_only=False):
+    """A repo with uncommitted work. The discard rules are gated on this
+    state, so a clean fixture can only ever prove the allow half of each.
+
+    `untracked_only` builds the case the gate must *not* fire on: a file git
+    has never seen. `git checkout -- .` and `git restore` cannot touch one,
+    so a repo holding only build output is not at risk from either."""
+    path = temp_repo("work")
+    tracked = os.path.join(path, "tracked.txt")
+    with open(tracked, "w", encoding="utf-8") as fh:
+        fh.write("committed\n")
+    subprocess.run(["git", "-C", path, "add", "tracked.txt"], capture_output=True, text=True)
+    subprocess.run(["git", "-C", path, "-c", "user.email=t@example.com",
+                    "-c", "user.name=t", "commit", "-m", "add"],
+                   capture_output=True, text=True)
+    name = "scratch.txt" if untracked_only else "tracked.txt"
+    with open(os.path.join(path, name), "w", encoding="utf-8") as fh:
+        fh.write("work nobody has committed yet\n")
+    return path
+
+
 WORK = temp_repo("work")
 MAIN = temp_repo("main")
+DIRTY = dirty_repo()
+UNTRACKED_ONLY = dirty_repo(untracked_only=True)
 NOT_A_REPO = tempfile.mkdtemp(prefix="cai-guard-bare-")
 DETACHED = detached_repo()
 UNBORN = temp_repo("main", commit=False)
@@ -624,8 +647,35 @@ CASES = [
     # A repo with no commits yet reports branch `main`, but blocking its first
     # commit is unescapable: you cannot branch off a history that isn't there.
     ("Bash", "git commit -m 'chore: initial commit'", 0, UNBORN),
+    # Discarding uncommitted work. Both halves of the gate matter: blocked on
+    # a dirty tree, allowed on a clean one, where the same command throws
+    # nothing away and refusing it would be the guard blocking ordinary work.
+    ("Bash", "git checkout -- .", 2, DIRTY),
+    ("Bash", "git checkout -- src/foo.py", 2, DIRTY),
+    ("Bash", "git checkout .", 2, DIRTY),
+    ("Bash", "git restore src/foo.py", 2, DIRTY),
+    ("Bash", "git restore --staged --worktree src/foo.py", 2, DIRTY),
+    ("PowerShell", "git checkout -- .", 2, DIRTY),
+    ("Bash", "git checkout -- .", 0, WORK),
+    ("Bash", "git restore src/foo.py", 0, WORK),
+    # Untracked files are not at risk from either command, and treating them
+    # as dirty would block both in every repo carrying build output.
+    ("Bash", "git checkout -- .", 0, UNTRACKED_ONLY),
+    ("Bash", "git restore src/foo.py", 0, UNTRACKED_ONLY),
+    # Branch moves are not pathspec mode. `-b` creates, a bare name switches,
+    # and git refuses either itself rather than overwriting a modified file --
+    # blocking them would break the branch-first rule the guard also enforces.
+    ("Bash", "git checkout -b fix/thing", 0, DIRTY),
+    ("Bash", "git checkout main", 0, DIRTY),
+    ("Bash", "git checkout -b feat/v1.2", 0, DIRTY),
+    # `--staged` on its own unstages and touches no file in the working tree.
+    ("Bash", "git restore --staged src/foo.py", 0, DIRTY),
+    # Same command-boundary discipline as the rules above.
+    ("Bash", "git log --oneline && ls .", 0, DIRTY),
+    ("Bash", "git checkout -- .", 0, NOT_A_REPO),
     # Heredoc bodies are data. Writing a PR body or release note that mentions
     # a git command is not running that command.
+    ("Bash", "cat > notes.md <<'EOF'\ngit checkout -- . undoes edits\nEOF", 0, DIRTY),
     ("Bash", "cat > notes.md <<'EOF'\ngit commit -m x rewrites nothing\nEOF", 0, MAIN),
     ("Bash", "cat > s.ps1 <<'EOF'\n$m = @'\nhello\n'@\nEOF", 0, WORK),
     # ...but the heredoc feeding a real commit must not hide the commit itself.
