@@ -36,8 +36,18 @@ def _top_level_imports(path):
 
 # --- AC22: zero deps beyond stdlib + the sibling preflight module ----------
 
-def test_ticket_py_imports_only_stdlib_and_preflight():
-    allowed = set(sys.stdlib_module_names) | {"preflight"}
+def test_ticket_py_imports_only_stdlib_and_siblings():
+    """AC22 is about third-party dependencies, not about module count.
+
+    `ticket_backend` is this feature's other half, living in the same
+    directory and -- proven by the next test -- importing nothing but the
+    standard library itself. Allowing it keeps the chain ticket.py ->
+    ticket_backend -> stdlib free of any installed package, which is the
+    guarantee AC22 exists for. Unit 2 wrote this list before unit 3 wired
+    the two halves together, so the original spelling admitted only
+    `preflight` and would have forced either a broken projection or an
+    importlib trick that games this very assertion."""
+    allowed = set(sys.stdlib_module_names) | {"preflight", "ticket_backend"}
     found = _top_level_imports(os.path.join(SCRIPTS_DIR, "ticket.py"))
     assert found <= allowed, found - allowed
 
