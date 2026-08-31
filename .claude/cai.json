@@ -1,0 +1,6 @@
+{
+  "ticket": {
+    "enabled": true,
+    "backend": "github"
+  }
+}

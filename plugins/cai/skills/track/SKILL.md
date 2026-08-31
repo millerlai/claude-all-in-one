@@ -84,6 +84,7 @@ For the stage about to run:
    `--gate human` belongs to the two human gates below and nowhere else. A
    non-zero exit stops the step: report it and leave `state.md` untouched.
 
+When `.claude/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `/cai:track skip`.
 ## Human gates
 
 Exactly two stages stop for a person, never more:
