@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""The capability interface between the track system and an external ticket
+CLI, plus the GitHub implementation. Zero deps.
+
+Four semantic capabilities -- whoami, read, upsert_comment, transition_once
+-- are kept apart from "which CLI, which subcommands" (Backend/GitHubBackend
+below), and every external result is squeezed down to one of six category
+words before it leaves this file (classify()). Nothing here raises: a CLI
+that is absent or hung is exactly as normal a result as a 401 is, because
+this feature must never be the reason a track stage fails (see the detail
+design's `## Requirement`).
+
+Where this sits in `ticket` -> `preflight` -> `ledger` -> `usage_collector`
+(one direction, no cycle): this file imports nothing from this repo, so
+`ticket.py` can import it without closing a loop back to itself.
+"""
+import json
+import os
+import subprocess
+import tempfile
+
+CATEGORIES = ("ok", "auth-failed", "ticket-not-found",
+              "forbidden", "unreachable", "unclassified")
+TIMEOUT_SECONDS = 10
+
+# The test seam: a subprocess only sees its own environment, not a
+# monkeypatch (tests/conftest.py:56), so this follows CAI_USAGE_LEDGER's
+# shape (usage_collector.py:44) rather than reaching for one. A value
+# starting with `[` is a JSON argv array; anything else is a single
+# executable path.
+CLI_ENV = "CAI_TICKET_CLI"
+
+# The four stderr wordings below are captured verbatim from real `gh`
+# output (HLD C1-C6, main session 2026-08-31), not invented. `forbidden` is
+# deliberately absent here: GitHub answers unauthorized reads with
+# "Could not resolve" rather than 403 (to avoid leaking existence), so 403
+# only ever shows up on a write path, and upsert_comment checks for it
+# itself as the DD10 identity-change signal -- classify() never returns
+# "forbidden".
+_AUTH_FAILED = ("http 401", "bad credentials")
+_TICKET_NOT_FOUND = ("could not resolve to an issue or pull request",
+                     "could not resolve to a repository")
+_UNREACHABLE_STDERR = ("error connecting to",)
+
+
+def classify(exc, returncode, stderr):
+    """One of CATEGORIES, purifying a subprocess result down to a closed set
+    so raw stderr -- which can carry a credential-bearing URL, per the 401
+    message's own `https://api.github.com/graphql` -- has no path into any
+    saved file. Only the category word may survive past this function."""
+    if isinstance(exc, (FileNotFoundError, subprocess.TimeoutExpired, OSError)):
+        return "unreachable"
+    if returncode == 0:
+        return "ok"
+    low = (stderr or "").lower()
+    if any(needle in low for needle in _AUTH_FAILED):
+        return "auth-failed"
+    if any(needle in low for needle in _TICKET_NOT_FOUND):
+        return "ticket-not-found"
+    if any(needle in low for needle in _UNREACHABLE_STDERR):
+        return "unreachable"
+    # Covers "body is too long" and everything else the caller has not
+    # taught this function to recognise -- both are "unclassified" on
+    # purpose, per the detail design's classify() decision order.
+    return "unclassified"
+
+
+def _cli_prefix():
+    """The argv prefix that invokes the ticket CLI: ["gh"], or CAI_TICKET_CLI's
+    override. Measured on Windows: CreateProcess only appends `.exe` to a bare
+    name, so a `.cmd` stub given without its extension fails with
+    `WinError 2` -- callers must pass the full path, and this warns once when
+    that looks like it was forgotten."""
+    override = os.environ.get(CLI_ENV)
+    if not override:
+        return ["gh"]
+    argv = json.loads(override) if override.startswith("[") else [override]
+    if "." not in os.path.basename(argv[0]):
+        print("warning: %s's executable %r has no file extension -- on "
+              "Windows this fails with WinError 2 unless it is one of the "
+              "names CreateProcess resolves on its own" % (CLI_ENV, argv[0]))
+    return argv
+
+
+def run(args, cwd=None):
+    """Runs the ticket CLI with `args` appended to its configured prefix.
+    Returns (CompletedProcess | None, category). Never raises: the two
+    exceptions a hung or absent CLI can produce are caught right here and
+    turned into "unreachable", matching preflight.py:212-220's shape for
+    calling an external process without going through a shell."""
+    argv = _cli_prefix() + list(args)
+    try:
+        done = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
+                              timeout=TIMEOUT_SECONDS)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        category = classify(exc, -1, "")
+        print("backend %s -> %s" % (" ".join(argv), category))
+        return None, category
+    category = classify(None, done.returncode, done.stderr)
+    print("backend %s -> %s" % (" ".join(argv), category))
+    return done, category
+
+
+def _numeric_comment_id(url):
+    """The digits after `#issuecomment-` in a comment's `url` field -- the id
+    the REST PATCH endpoint accepts. Not the same value `--json comments`
+    calls `id` (a GraphQL node id like `IC_kwDOSxA3Cc8AAAABRjw0GQ`), which
+    the endpoint rejects; feeding it the node id is the easiest mistake on
+    this path (measured, main session 2026-08-31)."""
+    return url.rsplit("#issuecomment-", 1)[-1]
+
+
+def _is_forbidden(stderr):
+    low = (stderr or "").lower()
+    return "403" in low or "forbidden" in low
+
+
+class Backend:
+    """Four semantic capabilities a ticket system must offer. Every method
+    returns (value, category) and never raises -- classify() is what turns
+    an external failure into a category instead of an exception."""
+    name = None
+
+    def whoami(self, project_dir):
+        raise NotImplementedError
+
+    def read(self, project_dir, ref):
+        raise NotImplementedError
+
+    def upsert_comment(self, project_dir, ref, marker, body, login):
+        raise NotImplementedError
+
+    def transition_once(self, project_dir, ref):
+        raise NotImplementedError
+
+
+class GitHubBackend(Backend):
+    name = "github"
+
+    def whoami(self, project_dir):
+        done, category = run(["api", "user", "--jq", ".login"], cwd=project_dir)
+        if category != "ok":
+            return None, category
+        return done.stdout.strip(), "ok"
+
+    def read(self, project_dir, ref):
+        done, category = run(
+            ["issue", "view", str(ref), "--json", "number,title,body"],
+            cwd=project_dir)
+        if category != "ok":
+            return None, category
+        try:
+            data = json.loads(done.stdout)
+        except ValueError:
+            return None, "unclassified"
+        value = {"number": str(data.get("number", "")),
+                 "title": data.get("title", ""),
+                 "body": data.get("body", "")}
+        return value, "ok"
+
+    def upsert_comment(self, project_dir, ref, marker, body, login):
+        # Repo resolution is left to `gh` itself, from the project's git
+        # remote (see the detail design's `## Requirement`: this version
+        # does not support a cross-repo ticket) -- so `{owner}`/`{repo}` are
+        # literal placeholders `gh api` fills in from `cwd`, not values this
+        # code computes.
+        listed, list_category = run(
+            ["issue", "view", str(ref), "--json", "comments"], cwd=project_dir)
+        if list_category != "ok":
+            return None, list_category
+        try:
+            comments = json.loads(listed.stdout).get("comments") or []
+        except ValueError:
+            return None, "unclassified"
+
+        # Marker find-back: body contains the marker AND author is the
+        # passed-in (cached) login. No up-front identity check -- that is
+        # what keeps a cache hit at 2 round trips (DD10).
+        match = next(
+            (c for c in comments if marker in (c.get("body") or "")
+             and (c.get("author") or {}).get("login") == login), None)
+
+        if match is not None:
+            endpoint = "repos/{owner}/{repo}/issues/comments/%s" % (
+                _numeric_comment_id(match.get("url", "")))
+            write_done, write_category = run(
+                ["api", "--method", "PATCH", endpoint, "-f", "body=" + body],
+                cwd=project_dir)
+            url = match.get("url")
+        else:
+            # Body goes through a file, not argv, so a six-row table's
+            # newlines and quotes never touch the command line.
+            fd, tmp_path = tempfile.mkstemp(suffix=".md")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write(body)
+                write_done, write_category = run(
+                    ["issue", "comment", str(ref), "--body-file", tmp_path],
+                    cwd=project_dir)
+            finally:
+                os.unlink(tmp_path)
+            url = write_done.stdout.strip() if write_done is not None else None
+
+        if write_category == "ok":
+            return url, "ok"
+
+        # 403 (or "forbidden") in a write's stderr is always "forbidden" --
+        # classify()'s own decision order has no 403 rule, and the design
+        # reserves this category for exactly this signal on a write path
+        # (a read never produces it: GitHub answers an unreadable repo with
+        # "Could not resolve" instead, precisely to avoid leaking it).
+        #
+        # DD10's extra whoami only decides which *message* to print, not the
+        # category: an identity change gets told apart from a plain
+        # permissions problem on the same account, but both are "forbidden".
+        stderr = write_done.stderr if write_done is not None else ""
+        if _is_forbidden(stderr):
+            current_login, whoami_category = self.whoami(project_dir)
+            if whoami_category == "ok" and current_login != login:
+                print("identity differs: this track was cached under login "
+                      "%r, but the CLI is currently authenticated as %r -- "
+                      "the projection was not written, and no second marked "
+                      "comment was created; confirm the new identity and "
+                      "re-run `ticket.py point --ref %s`"
+                      % (login, current_login, ref))
+            else:
+                print("permission denied updating the mirror comment on "
+                      "ticket %s -- the login %r does not currently have "
+                      "permission to edit it; the projection was not "
+                      "written" % (ref, login))
+            return None, "forbidden"
+        return None, write_category
+
+    def transition_once(self, project_dir, ref):
+        # Idempotent by measurement: `gh issue close` on an already-closed
+        # issue still exits 0 (`! Issue ... is already closed`), so a retry
+        # never produces an error state.
+        done, category = run(["issue", "close", str(ref)], cwd=project_dir)
+        return category == "ok", category
+
+
+class StubBackend(Backend):
+    name = "local-stub"
+
+    # Unit 2's job: a purely local, no-network implementation for AC22/AC23.
+    pass
+
+
+BACKENDS = {"github": GitHubBackend, "local-stub": StubBackend}
+
+
+def get(name):
+    cls = BACKENDS.get(name)
+    return cls() if cls else None
