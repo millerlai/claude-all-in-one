@@ -4,9 +4,12 @@ This file is read two ways: by the subagent the track dispatches to run this
 stage, and by `/cai:ship` when someone runs the stage standing alone, with
 no track underneath it. The procedure below is the same either way.
 
-**Before the irreversible operations below — merging, tagging, publishing —
-confirm with the person first.** This is one of the two human gates the
-track never skips; running this stage standing alone does not remove it.
+**Before the irreversible operations below — merging, tagging, publishing,
+and closing the linked ticket — confirm with the person first.** This is
+one of the two human gates the track never skips; running this stage
+standing alone does not remove it. Closing the ticket joins this same gate
+rather than adding a third — see `references/ticket-mirror.md`'s ship
+section for that confirmation's own separate item.
 
 ## The grounding rule
 

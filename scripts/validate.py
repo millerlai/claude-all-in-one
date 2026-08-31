@@ -1336,14 +1336,22 @@ if os.path.isfile(STAGES_JSON):
               tools_line is not None and predicate(tools_line))
 
 # track/SKILL.md routes rather than implements, so it is read start to finish
-# every time someone reaches for it -- same reasoning and the same 120-line
-# ceiling as goal.md above.
+# every time someone reaches for it -- same reasoning as goal.md above. The
+# ceiling was 120 and the file sat exactly on it, which is a ceiling that has
+# stopped measuring anything: the next line to be added, whatever it is, fails
+# regardless of whether it earns its place. Raised to 122 when ticket
+# mirroring needed one line to point the main session at its reference
+# (2026-08-31), deliberately by two rather than one so the number is a budget
+# again and not a tripwire. Raising it further is a decision, not a formality:
+# every line here is read by every session that reaches for /cai:track.
+TRACK_SKILL_MAX = 122
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)
     track_body_start = track_text.find("\n---", 3) + 4 if track_text.startswith("---") else 0
     track_lines = len(track_text[track_body_start:].splitlines())
-    check(f"{TRACK_SKILL} is within its 120-line ceiling ({track_lines})", track_lines <= 120)
+    check(f"{TRACK_SKILL} is within its {TRACK_SKILL_MAX}-line ceiling ({track_lines})",
+          track_lines <= TRACK_SKILL_MAX)
 
 # track_state.py resolves .claude/track/current -> state.md from files alone,
 # with no model call -- UC1's acceptance test ("a fresh session resumes from
