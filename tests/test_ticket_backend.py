@@ -360,6 +360,109 @@ def test_upsert_comment_403_with_the_same_identity_is_still_forbidden(tmp_path, 
     assert "identity" not in out.lower()
 
 
+# --- non-ASCII stdout: gh always answers UTF-8, decoding must not depend on
+#     the console's own locale (e2e bug report, 2026-08-31: cp950 crashed
+#     mid-projection the moment the mirror comment itself carried Chinese) --
+
+def test_upsert_comment_reads_back_non_ascii_content_it_wrote(tmp_path, monkeypatch):
+    # The mirror comment's body is state.md's note, and this repo's own
+    # notes are written in Chinese. `gh` always emits UTF-8 regardless of
+    # the console's locale, so the fake CLI writes raw UTF-8 bytes straight
+    # to the stdout pipe -- bypassing its own text-mode stdout, which on a
+    # cp950 console would choke on the very content it is meant to produce.
+    marker = "[cai track: x]"
+    log = tmp_path / "calls.log"
+    script = (
+        "import json, sys\n"
+        "argv = sys.argv[1:]\n"
+        "with open(%r, 'a', encoding='utf-8') as fh:\n"
+        "    fh.write(' '.join(argv) + '\\n')\n"
+        "if argv[:2] == ['issue', 'view']:\n"
+        "    payload = {'comments': [\n"
+        "        {'body': '[cai track: x]\\n中文筆記，投影內容',\n"
+        "         'author': {'login': 'octocat'},\n"
+        "         'url': 'https://github.com/o/r/issues/48#issuecomment-111'}]}\n"
+        "    sys.stdout.buffer.write(json.dumps(payload, ensure_ascii=False)"
+        ".encode('utf-8'))\n"
+        "elif argv[:3] == ['api', '--method', 'PATCH']:\n"
+        "    payload = {'html_url': "
+        "'https://github.com/o/r/issues/48#issuecomment-111'}\n"
+        "    sys.stdout.buffer.write(json.dumps(payload).encode('utf-8'))\n"
+        "else:\n"
+        "    sys.exit(3)\n"
+    ) % str(log)
+    set_cli(monkeypatch, fake_cli(tmp_path, script))
+    backend = tb.GitHubBackend()
+    url, category = backend.upsert_comment(
+        str(tmp_path), "48", marker, marker + "\n新的中文內容", "octocat")
+
+    assert category == "ok"
+    assert url == "https://github.com/o/r/issues/48#issuecomment-111"
+    calls = log.read_text(encoding="utf-8").splitlines()
+    # the marker match found the comment and updated it -- no second create
+    assert not any(c.startswith("issue comment") for c in calls)
+
+
+def test_invalid_byte_sequences_never_crash_the_parse(tmp_path, monkeypatch):
+    # Bytes that are not valid UTF-8 at all -- errors="replace" must turn
+    # this into mangled-but-decodable text, not a UnicodeDecodeError, and a
+    # json.loads() that then fails on the mangled text must become
+    # "unclassified", not an escaping exception.
+    log = tmp_path / "calls.log"
+    script = (
+        "import sys\n"
+        "argv = sys.argv[1:]\n"
+        "with open(%r, 'a', encoding='utf-8') as fh:\n"
+        "    fh.write(' '.join(argv) + '\\n')\n"
+        "sys.stdout.buffer.write(b'\\xff\\xfe not valid utf-8 or json')\n"
+    ) % str(log)
+    set_cli(monkeypatch, fake_cli(tmp_path, script))
+    backend = tb.GitHubBackend()
+
+    value, category = backend.read(str(tmp_path), "48")
+    assert value is None
+    assert category == "unclassified"
+
+
+class _FakeCompletedProcess:
+    def __init__(self, returncode, stdout, stderr):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def test_backend_methods_never_raise_when_stdout_is_none(monkeypatch):
+    # subprocess.run() itself does not raise here: a background reader
+    # thread's own decode failure is swallowed by Python's default thread
+    # excepthook (it only prints a traceback), leaving the CompletedProcess
+    # it produces with stdout=None. No `except` clause in run() can catch
+    # that -- every call site has to treat a non-str stdout as a parse
+    # failure instead of assuming subprocess.run() always hands back text.
+    def fake_run(*args, **kwargs):
+        return _FakeCompletedProcess(0, None, "")
+
+    monkeypatch.setattr(tb.subprocess, "run", fake_run)
+    backend = tb.GitHubBackend()
+
+    value, category = backend.whoami(".")
+    assert value is None
+    assert category == "unclassified"
+
+    value, category = backend.read(".", "48")
+    assert value is None
+    assert category == "unclassified"
+
+    url, category = backend.upsert_comment(".", "48", "[m]", "body", "octocat")
+    assert url is None
+    assert category == "unclassified"
+
+    # transition_once never reads stdout, so a None value cannot break it --
+    # this call exists only to prove that all four methods survive, not
+    # just the three that parse output.
+    ok, category = backend.transition_once(".", "48")
+    assert category == "ok"
+
+
 # --- StubBackend: registered but not this unit's job ------------------------
 
 def test_stub_backend_is_registered_and_answers_without_a_process():
@@ -402,3 +505,49 @@ def test_missing_extension_warns(tmp_path, monkeypatch, capsys):
     backend.whoami(str(tmp_path))
     out = capsys.readouterr().out
     assert "extension" in out.lower()
+
+
+# --- observability: one line per call, never the payload --------------------
+
+def test_argv_summary_never_prints_the_body_it_carries():
+    """The design asks for an argv *summary*. A comment body is a whole
+    rendered table, and printing it verbatim both breaks the one-line
+    contract and puts the table on screen on every projection."""
+    body = ("[cai track: x]\nline two\n| stage | status | note |\n"
+            + "| intake | done | " + "y" * 300 + " |")
+    line = tb._argv_summary(["api", "--method", "PATCH",
+                             "repos/o/r/issues/comments/1", "-f",
+                             "body=" + body])
+    assert "\n" not in line
+    assert "y" * 50 not in line
+    assert "api --method PATCH" in line
+    assert len(line) < 200
+
+
+def test_argv_summary_leaves_short_arguments_alone():
+    line = tb._argv_summary(["issue", "view", "48", "--json", "comments"])
+    assert line == "issue view 48 --json comments"
+
+
+def test_run_prints_one_summarised_line_per_call(tmp_path, monkeypatch, capsys):
+    """Asserting on run()'s real output, not just on the helper.
+
+    The first version of this fix changed only the summary helper and one of
+    run()'s two print sites, so the helper's own tests passed while the line
+    a projection actually prints was unchanged. Only driving run() catches
+    that."""
+    script = "import sys\nsys.exit(0)\n"
+    set_cli(monkeypatch, fake_cli(tmp_path, script))
+    body = "line one\nline two\n" + "z" * 300
+    run_out = tb.run(["api", "--method", "PATCH", "-f", "body=" + body],
+                     cwd=str(tmp_path))
+    printed = capsys.readouterr().out.strip()
+    assert len(printed.splitlines()) == 1
+    assert "z" * 50 not in printed
+    # The line starts with the configured CLI prefix (here python.exe plus
+    # the fake script), so the subcommand is inside it rather than at the
+    # front -- what matters is that it survives summarising while the body
+    # does not.
+    assert "api --method PATCH" in printed
+    assert printed.endswith("-> ok")
+    assert run_out[1] == "ok"
