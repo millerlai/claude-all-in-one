@@ -362,11 +362,18 @@ def test_upsert_comment_403_with_the_same_identity_is_still_forbidden(tmp_path, 
 
 # --- StubBackend: registered but not this unit's job ------------------------
 
-def test_stub_backend_is_registered_and_left_for_unit_2():
+def test_stub_backend_is_registered_and_answers_without_a_process():
+    """The registry resolves both names, and the stub is real.
+
+    Unit 1 left this asserting NotImplementedError because the stub was a
+    placeholder; unit 2 implemented it, so the assertion that matters now is
+    the one AC23 rests on -- a second backend answers the same four methods
+    with no external process at all."""
     stub = tb.get("local-stub")
     assert stub.name == "local-stub"
-    with pytest.raises(NotImplementedError):
-        stub.whoami(".")
+    login, category = stub.whoami(".")
+    assert category in tb.CATEGORIES
+    assert login
 
 
 # --- observability: timeout is always passed --------------------------------

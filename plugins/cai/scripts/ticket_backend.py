@@ -240,10 +240,25 @@ class GitHubBackend(Backend):
 
 
 class StubBackend(Backend):
+    """A no-network backend: every method answers from fixed, in-memory
+    values and never touches `subprocess` or the filesystem. This is the
+    assertable form of AC23 -- a second backend, registered in BACKENDS,
+    costs preflight.py and plugins/cai/skills/track/ zero lines, and this
+    one proves it by being incapable of an external call in the first
+    place, rather than merely not making one today."""
     name = "local-stub"
 
-    # Unit 2's job: a purely local, no-network implementation for AC22/AC23.
-    pass
+    def whoami(self, project_dir):
+        return "local-stub-user", "ok"
+
+    def read(self, project_dir, ref):
+        return {"number": str(ref), "title": "stub ticket %s" % ref, "body": ""}, "ok"
+
+    def upsert_comment(self, project_dir, ref, marker, body, login):
+        return "local-stub://%s/comment" % ref, "ok"
+
+    def transition_once(self, project_dir, ref):
+        return True, "ok"
 
 
 BACKENDS = {"github": GitHubBackend, "local-stub": StubBackend}
