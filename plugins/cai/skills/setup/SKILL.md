@@ -50,8 +50,12 @@ currently reads:
 - Respond in English; keep technical terms in their original form.
 ```
 
-For a non-English choice, keep technical terms in their original form — e.g. for
-Traditional Chinese: `- Respond in Traditional Chinese; keep technical terms in English.`
+Substitute the language name and nothing else. The rest of the line is
+language-neutral and stays verbatim:
+
+```
+- Respond in <language>; keep technical terms in their original form.
+```
 
 If the user picks English, leave the line as-is.
 

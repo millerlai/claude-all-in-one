@@ -491,6 +491,27 @@ setup_text = read_text(SETUP)
 check("setup.md invokes cmd as //c (MSYS would eat a lone /c)",
       "cmd //c" in setup_text and not re.search(r"cmd\s+/(?!/)c\b", setup_text))
 
+# Step 3 is the one place that rewrites a shipped rule into ~/.claude, and the
+# bullets it quotes are the whole specification of what that rewrite may touch.
+# They drifted: the worked example replaced the language-neutral second clause
+# with "keep technical terms in English", so /cai:setup wrote that into a real
+# user's installed rules -- a rule the plugin never shipped -- while every
+# check here stayed green. Both bullets now carry <language> or English in the
+# one slot that varies, and reduce to the shipped line; a future edit that
+# rewrites anything else fails here instead of in someone's ~/.claude.
+COMMUNICATION = f"{PLUGIN}/rules/communication.md"
+shipped_bullets = re.findall(r"^- Respond in .*$", read_text(COMMUNICATION), re.M)
+setup_bullets = re.findall(r"^- Respond in .*$", setup_text, re.M)
+check(f"{COMMUNICATION} has exactly one 'Respond in' bullet "
+      f"({len(shipped_bullets)})", len(shipped_bullets) == 1)
+check(f"setup.md quotes that bullet twice -- the current line and the "
+      f"<language> template ({len(setup_bullets)})", len(setup_bullets) == 2)
+if shipped_bullets and len(setup_bullets) == 2:
+    check("setup.md's bullets differ from communication.md's in the language "
+          "name alone",
+          all(b.replace("<language>", "English") == shipped_bullets[0]
+              for b in setup_bullets))
+
 GUARD = f"{PLUGIN}/scripts/bash_guard.py"
 DISPATCHER = f"{PLUGIN}/hooks/run-guard.cmd"
 
