@@ -1250,8 +1250,8 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
 # frontmatter rather than its name -- picking an agent by tier alone is
 # exactly what pointed design at architect (can't Write) and ship at
 # explorer (can't run git) before designer/verifier/shipper existed.
+# `design` is absent because it has no agent at all; see the null check below.
 STAGE_TOOL_NEEDS = {
-    "design": ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
     "verify": ("a test command", lambda tools: re.search(
         r"pytest|go test|npm test|unittest", tools, re.IGNORECASE) is not None),
     "ship": ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
@@ -1318,8 +1318,20 @@ if os.path.isfile(STAGES_JSON):
     # agent exists, is tiered, and is actually granted what the stage needs,
     # so a future re-assignment by tier alone fails here instead of at
     # someone's runtime.
+    # design is the one stage with no agent: stage-design.md's decision rule
+    # sends every architecture-level choice to AskUserQuestion, and Claude Code
+    # removes that tool from every subagent even when the `tools:` field names
+    # it -- so a dispatched design stage cannot obey its own procedure. Running
+    # in the session that reached it is the only shape that can. Assert it, or
+    # the next re-assignment by tier puts the stage back where it cannot ask.
+    design_row = next((r for r in stages if r["id"] == "design"), None)
+    check("stages.json runs design in-session (agent: null)",
+          design_row is not None and design_row["agent"] is None)
+
     for row in stages:
         agent_name = row["agent"]
+        if agent_name is None:
+            continue
         agent_path = f"{PLUGIN}/agents/{agent_name}.md"
         check(f"stage {row['id']}'s agent ({agent_name}) exists", os.path.isfile(agent_path))
 

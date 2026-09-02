@@ -49,11 +49,11 @@ For the stage about to run:
    --track-dir .claude/track/<feature> --project-dir <project root>`. Exit 2 means
    stop and report every line it printed — no model work happens. Record it
    as `blocked` first, per step 3. Exit 0 means proceed.
-2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work
-   to the subagent named in that row's `agent` field — never choose by
-   judgement, the field decides, because model tier rides on it. Tell the
-   agent to read its `reference` file, resolved against
-   `${CLAUDE_PLUGIN_ROOT}/skills/track/`.
+2. **Dispatch.** Look up this stage's row in `stages.json`; its `reference`
+   resolves against `${CLAUDE_PLUGIN_ROOT}/skills/track/`. `agent: null` means
+   read that file and run the stage here, because it needs `AskUserQuestion`
+   and no subagent has it. Otherwise tell the named subagent to read it and do
+   the work — never choose by judgement, the field decides, model tier rides on it.
 3. **Record.** Every attempt goes in the ledger, not only the ones that
    worked — a stage whose failures leave no trace cannot say how many times
    it has been tried, or why it failed last time:

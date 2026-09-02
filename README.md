@@ -21,9 +21,9 @@ Four layers, plus one underneath all of them.
   stage was skipped instead of silently omitting it.
 - **The six stages.** `intake`, `discover`, `design`, `build`, `verify`,
   `ship`. Each stage's procedure is a reference file under
-  `skills/track/references/stage-*.md`, read two ways: by the subagent the
-  track dispatches, and by that stage's own thin skill (`/cai:intake`,
-  `/cai:discover`, `/cai:design`, `/cai:build`, `/cai:verify`, `/cai:ship`)
+  `skills/track/references/stage-*.md`, read two ways: by the track, and by
+  that stage's own thin skill (`/cai:intake`, `/cai:discover`, `/cai:design`,
+  `/cai:build`, `/cai:verify`, `/cai:ship`)
   when someone wants to run just that stage, track or no track. Exactly two
   stages stop for a human sign-off: after `design`, before any code exists,
   and before the irreversible operations inside `ship` — merging, tagging,
@@ -43,9 +43,11 @@ have the shape it claims — before anything reaches a model.
 
 Stages run in order, top to bottom. The dotted line off each one names the
 subagent it dispatches to — `stages.json` decides that, never judgement,
-because the model tier rides on the agent. Agent colour is that tier: purple
-is `think`, teal is `build`, grey is `chore`. Amber is a person: exactly two
-boundaries wait for one.
+because the model tier rides on the agent. `design` has no such line: it runs
+in the session that reached it, because its decision rule has to reach
+`AskUserQuestion` and no subagent has that tool. Agent colour is the tier:
+purple is `think`, teal is `build`, grey is `chore`. Amber is a person:
+exactly two boundaries wait for one.
 
 ```mermaid
 ---
@@ -67,13 +69,11 @@ flowchart TB
 
     S1 -.-> AR
     S2 -.-> AR
-    S3 -.-> DE
     S4 -.-> IM
     S5 -.-> VE
     S6 -.-> SH
 
     AR(["architect · think<br/>Read Grep Glob"])
-    DE(["designer · think<br/>+ Write"])
     IM(["implementer · build<br/>+ Edit, Bash"])
     VE(["verifier · build<br/>tests + git reads"])
     SH(["shipper · chore<br/>git + gh"])
@@ -87,7 +87,7 @@ flowchart TB
 
     class S1,S2,S3,S4,S5,S6 stage
     class HG1,HG2 human
-    class AR,DE think
+    class AR think
     class IM,VE build
     class SH chore
     class START,DONE ends
@@ -151,8 +151,8 @@ fresh, reach for `/cai:track` instead.
 ### Subagents
 
 No component names a model — everything below names a **tier**; see
-[Model tiers](#model-tiers). Each subagent is dispatched either by a track
-stage or by one of the tools above.
+[Model tiers](#model-tiers). Each subagent is dispatched by a track stage, by
+one of the tools above, or — `designer` only — by hand.
 
 | Agent | Tier | Dispatched by |
 |---|---|---|
@@ -164,7 +164,7 @@ stage or by one of the tools above.
 | `refactoring-detector` | `build` | Parallel smell analysis across module groups during a refactoring scan. |
 | `verifier` | `build` | The `verify` stage. |
 | `architect` | `think` | The `intake` and `discover` stages. |
-| `designer` | `think` | The `design` stage. |
+| `designer` | `think` | Nothing automatic — the `design` stage runs in-session so it can ask. Dispatch it by hand to draft the document alone; it hands its open questions back. |
 
 ### Also always on
 

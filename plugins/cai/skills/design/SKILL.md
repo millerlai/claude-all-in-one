@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 Run the design stage for: $ARGUMENTS
 
-The procedure lives in one place, read by whoever runs this stage — a
-track's subagent or this command:
+The procedure lives in one place, read by whoever runs this stage — a track,
+or this command:
 `${CLAUDE_PLUGIN_ROOT}/skills/track/references/stage-design.md`. Read it in
 full, pick the mode it describes (high-level / detail / delta), and follow
-it.
+it. Run it here, in this session: it has to reach `AskUserQuestion`, and no
+subagent can.
 
 **Running this stage on its own writes nothing to any track's `state.md`.**
 There is no track underneath this command — the reference file's closing

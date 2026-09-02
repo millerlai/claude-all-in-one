@@ -38,6 +38,7 @@
 - Prefer the cai plugin agents when they match. Each one already carries its own
   tier, so name the agent and let its frontmatter decide the model — do not
   restate the model in prose. The track skill's stages dispatch to
-  `architect` (intake, discover) → `designer` (design) → `implementer` (build)
-  → `verifier` (verify) → `shipper` (ship); `explorer`, `test-runner`, and
-  `reviewer` are called in from other skills as needed.
+  `architect` (intake, discover) → `implementer` (build) → `verifier`
+  (verify) → `shipper` (ship); `design` runs in-session, because it has to
+  reach `AskUserQuestion` and no subagent has that tool. `explorer`,
+  `test-runner`, `reviewer`, and `designer` are called in as needed.

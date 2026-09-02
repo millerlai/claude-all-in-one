@@ -4,7 +4,7 @@
       "reference": "references/stage-intake.md",   "auto_invoke": false },
     { "id": "discover", "agent": "architect",
       "reference": "references/stage-discover.md", "auto_invoke": true },
-    { "id": "design",   "agent": "designer",
+    { "id": "design",   "agent": null,
       "reference": "references/stage-design.md",   "auto_invoke": false },
     { "id": "build",    "agent": "implementer",
       "reference": "references/stage-build.md",    "auto_invoke": false },
