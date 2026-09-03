@@ -1,15 +1,6 @@
 # Global working agreement
 
-Copy this file to `~/.codex/AGENTS.md`. It loads in every project. A project's
-own `AGENTS.md` stacks on top of it rather than replacing it, so anything
-specific to one repo belongs there, not here.
-
-**Edit this one line before use** — everything below resolves against it:
-
     CAI_ROOT = /Users/<you>/project/claude-all-in-one
-
-That is a checkout of `claude-all-in-one` on the `feat/codex-agents-md`
-branch. Nothing else needs installing.
 
 ## Tools
 
