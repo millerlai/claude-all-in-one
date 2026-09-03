@@ -276,6 +276,25 @@ for name in missing_imports[:5]:
 for name in extra_imports[:5]:
     print("     CLAUDE.md imports it but rules/ does not have it:", name)
 
+# AGENTS.md is the Codex counterpart of CLAUDE.md, and Codex does not follow
+# @-imports -- so it restates the rules instead of linking them, and is
+# authored rather than generated (a verbatim concatenation is what GPT-5.6's
+# own prompting guidance tells you not to ship). That buys a drift risk the
+# import check above does not have: a new rules/*.md file can land, CLAUDE.md
+# can import it, and AGENTS.md can stay silent about it with everything green.
+# Its "Where these rules come from" table is what this reads -- naming a rule
+# there is cheap, and it forces whoever adds a rule to decide where it lands.
+ROOT_AGENTS = "AGENTS.md"
+check(f"{ROOT_AGENTS} ships", os.path.isfile(ROOT_AGENTS))
+if os.path.isfile(ROOT_AGENTS):
+    agents_text = read_text(ROOT_AGENTS)
+    unmapped = sorted(f"{n}.md" for n in rule_names
+                      if f"`{n}.md`" not in agents_text)
+    check(f"{ROOT_AGENTS} accounts for every rules/*.md ({len(unmapped)} unmapped)",
+          not unmapped)
+    for name in unmapped[:5]:
+        print("     rules/ has it but AGENTS.md never names it:", name)
+
 TEMPLATE = f"{PLUGIN}/templates/CLAUDE.md.tpl"
 check("user CLAUDE.md template ships", os.path.isfile(TEMPLATE))
 
