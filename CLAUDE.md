@@ -17,6 +17,16 @@ their single source of truth so editing them here changes what users get.
 English, while the response language belongs to whoever is working — it is set
 per-user in `~/.claude/rules/` by `/cai:setup`.
 
+`AGENTS.md` is the Codex counterpart of this file. Codex has no documented
+`@`-import equivalent, so it restates the rules instead of linking them, and is
+authored rather than generated — GPT-5.6's own prompting guidance is against
+porting a prompt stack verbatim, so it deduplicates the rules, folds every
+approval gate into one section, and swaps `model-selection.md`'s tiers for
+reasoning effort, which is the only cost knob Codex has. Its closing table
+maps each section back to a rule file, and `scripts/validate.py` checks that
+every `rules/*.md` is still named there — so a new rule cannot land in
+`CLAUDE.md` alone.
+
 ## Environment
 - Windows, I usually work in Python.
 - Avoid PowerShell for text processing on files containing UTF-8/Chinese characters;
