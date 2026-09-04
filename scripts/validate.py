@@ -1272,10 +1272,34 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
 # exactly what pointed design at architect (can't Write) and ship at
 # explorer (can't run git) before designer/verifier/shipper existed.
 STAGE_TOOL_NEEDS = {
-    "design": ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
-    "verify": ("a test command", lambda tools: re.search(
-        r"pytest|go test|npm test|unittest", tools, re.IGNORECASE) is not None),
-    "ship": ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
+    "design": [
+        ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
+        # stage-design.md dispatches `explorer` for evidence and escalates to
+        # `architect`; designer.md's own body says to. Without `Agent` it
+        # cites what it read alone, which is the guess the stage exists to
+        # stop -- and nothing anywhere says the scout was never sent.
+        ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+    ],
+    "build": [
+        # stage-build.md's runner dispatches `explorer` to locate things,
+        # `test-runner` per unit, and one `implementer` per unit -- two at
+        # once on the parallel lane. Without `Agent` it writes every unit
+        # itself, sequentially, and the schedule it just built decides
+        # nothing that it then acts on.
+        ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+    ],
+    "verify": [
+        ("a test command", lambda tools: re.search(
+            r"pytest|go test|npm test|unittest", tools, re.IGNORECASE) is not None),
+        # The three lenses are three separate `reviewer` runs. Without `Agent`
+        # the stage's agent cannot dispatch them and reads all three itself --
+        # which is exactly the single pass the split exists to prevent, and it
+        # fails silently, because a stage that reviews badly still reports.
+        # A type list inside the parentheses is ignored in a subagent
+        # definition, so bare `Agent` is the only grant there is to check for.
+        ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+    ],
+    "ship": [("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None)],
 }
 
 # The track skill's stage table. Shape checks only -- the six stage prose
@@ -1348,13 +1372,32 @@ if os.path.isfile(STAGES_JSON):
         check(f"stage {row['id']}'s agent ({agent_name}) has a models.json assignment",
               rel_agent in assigned)
 
-        need = STAGE_TOOL_NEEDS.get(row["id"])
-        if need is None or not os.path.isfile(agent_path):
+        needs = STAGE_TOOL_NEEDS.get(row["id"])
+        if needs is None or not os.path.isfile(agent_path):
             continue
-        label, predicate = need
         tools_line = agent_tools_line(agent_path)
-        check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
-              tools_line is not None and predicate(tools_line))
+        for label, predicate in needs:
+            check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
+                  tools_line is not None and predicate(tools_line))
+
+# The platform filters `AskUserQuestion` out of every subagent whatever
+# `tools:` says, so a stage reference naming it is naming a tool its own
+# runner does not have. references/pending-questions.md is the way round it:
+# the stage hands the decision up, the main session asks. Assert the pointer
+# travels with the mention -- a file that keeps the instruction and loses the
+# protocol sends the runner back to answering the question itself, and it
+# does that silently, in an approved design document or a force-push.
+PENDING_Q = f"{PLUGIN}/skills/track/references/pending-questions.md"
+check(f"pending-questions reference ships ({PENDING_Q})", os.path.isfile(PENDING_Q))
+check(f"{PLUGIN}/skills/track/SKILL.md points the main session at "
+      "pending-questions.md",
+      "pending-questions.md" in read_text(f"{PLUGIN}/skills/track/SKILL.md"))
+for ref in sorted(glob.glob(f"{PLUGIN}/skills/track/references/stage-*.md")):
+    ref_text = read_text(ref)
+    if "AskUserQuestion" not in ref_text:
+        continue
+    check(f"{os.path.basename(ref)} names AskUserQuestion and points at "
+          "pending-questions.md", "pending-questions.md" in ref_text)
 
 # track/SKILL.md routes rather than implements, so it is read start to finish
 # every time someone reaches for it -- same reasoning as goal.md above. The

@@ -74,8 +74,8 @@ flowchart TB
 
     AR(["architect · think<br/>Read Grep Glob"])
     DE(["designer · think<br/>+ Write"])
-    IM(["implementer · build<br/>+ Edit, Bash"])
-    VE(["verifier · build<br/>tests + git reads"])
+    IM(["implementer · build<br/>+ Edit, Bash, Agent"])
+    VE(["verifier · build<br/>tests + git reads + Agent"])
     SH(["shipper · chore<br/>git + gh"])
 
     classDef stage fill:#e8eefc,stroke:#4a6fb5,color:#17335f

@@ -11,6 +11,14 @@ standing alone does not remove it. Closing the ticket joins this same gate
 rather than adding a third — see `references/ticket-mirror.md`'s ship
 section for that confirmation's own separate item.
 
+**Voicing that gate is the one thing not the same either way.** Dispatched
+by the track you are a subagent, and the platform gives no subagent an
+interactive tool. That confirmation, and every "stop and ask" below, then
+means: stop there, and end the report with the `## Pending questions`
+section `references/pending-questions.md` specifies — the main session puts
+it to the person. The gate does not move; only who speaks it does.
+Standing alone you are the main session — ask directly.
+
 ## The grounding rule
 
 Everything this stage writes — the commit message, the release note, the PR
