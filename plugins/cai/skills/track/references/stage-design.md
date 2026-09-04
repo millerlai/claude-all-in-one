@@ -4,6 +4,13 @@ This file is read two ways: by the subagent the track dispatches to run this
 stage, and by `/cai:design` when someone runs the stage standing alone, with
 no track underneath it. The procedure below is the same either way.
 
+**Asking is the one thing that is not.** Dispatched by the track you are a
+subagent, and the platform removes `AskUserQuestion` from every subagent
+whatever `tools:` says. Each `AskUserQuestion` below then means: finish
+what the answer does not block, and end the report with the
+`## Pending questions` section `references/pending-questions.md` specifies.
+Standing alone you are the main session — ask directly.
+
 The failure this stage exists to catch is a design that arrives already
 committed — plausible, detailed, and resting on an architecture nobody was
 asked about, or on a capability nobody checked was actually available.

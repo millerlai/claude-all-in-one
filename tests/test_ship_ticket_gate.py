@@ -4,8 +4,9 @@ and the confirmation for it can only ever originate from the main session.
 
 AC16 lives in test_ticket_transition.py; AC19 was Unit 4's. What is left
 here is text-level: `stage-ship.md`'s irreversible-operations list and "two
-gates" claim, `SKILL.md`'s own "## Human gates" section staying untouched,
-`agents/shipper.md` staying a zero-line diff with no interactive tool, and
+gates" claim, `SKILL.md`'s own "## Human gates" section staying untouched
+and gaining no ticket-closing step, `agents/shipper.md` carrying no
+interactive tool and handing the confirmation up rather than taking it, and
 `ticket-mirror.md`'s ship section naming the commit message and PR body.
 """
 import os
@@ -71,20 +72,35 @@ def test_skill_md_human_gates_section_is_byte_identical_to_head():
     assert after == before
 
 
-def test_skill_md_diff_against_head_is_empty():
-    # Unit 5's own file list says SKILL.md is not touched at all -- unlike
-    # unit 4, which added its one line and is already in HEAD.
-    numstat = _git("diff", "--numstat", "HEAD", "--",
-                    "plugins/cai/skills/track/SKILL.md")
-    assert numstat.strip() == ""
+def test_skill_md_gained_no_ticket_closing_step_of_its_own():
+    # Was "the whole file is byte-identical to HEAD". That form is the one
+    # test_track_skill_ticket_pointer.py already records as stopping to mean
+    # anything once the change is committed, and on an uncommitted branch it
+    # fails on any later unrelated edit to a routing file that other features
+    # legitimately add a pointer line to. AC17 is not "nobody ever touches
+    # SKILL.md"; it is that closing the ticket did not become a step here.
+    # The section test above holds the gate count, this holds the absence.
+    ticket_lines = [ln for ln in _text(SKILL_MD).splitlines() if "ticket" in ln.lower()]
+    assert len(ticket_lines) == 1
+    assert "ticket-mirror.md" in ticket_lines[0]
+    assert "clos" not in ticket_lines[0].lower()
 
 
 # --- AC18: shipper.md is a zero-line diff, and never gains an interactive --
 # --- tool -- the confirmation must stay the main session's alone -----------
 
-def test_shipper_md_diff_against_head_is_empty():
-    numstat = _git("diff", "--numstat", "HEAD", "--", "plugins/cai/agents/shipper.md")
-    assert numstat.strip() == ""
+def test_shipper_md_hands_the_confirmation_up_instead_of_taking_it():
+    # Was "byte-identical to HEAD", the same stale form as above. AC18's
+    # content is that the confirmation authority never moves into the
+    # subagent -- which a zero-line diff only ever guarded by accident. The
+    # tools-line test below holds the negative half (no interactive tool);
+    # this holds the positive one, added 2026-09-03 once it became clear the
+    # platform strips AskUserQuestion from subagents whatever `tools:` says,
+    # so "wait for confirmation" was an instruction shipper could not follow.
+    text = _flat(SHIPPER_MD)
+    assert "pending-questions.md" in text
+    assert "cannot ask" in text
+    assert "the gate does not move, only who voices it" in text
 
 
 def test_shipper_md_tools_line_has_no_interactive_tool():

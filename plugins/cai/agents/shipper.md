@@ -13,12 +13,15 @@ with no shortcuts.
 
 - Preflight first: clean tree, feature branch. Dirty tree or `main` →
   stop and say so, do not proceed.
-- Draft the squashed commit message and show it to the user; wait for
-  confirmation before rewriting any history.
+- Draft the squashed commit message, then stop and hand it up as a
+  `## Pending questions` item per `references/pending-questions.md`. You
+  cannot ask — the platform gives no subagent an interactive tool — and no
+  history is rewritten before that answer comes back.
 - Take the backup branch before `git reset --soft`. Never `git reset --hard`.
 - Push with `git push --force-with-lease` only — never plain `-f`/`--force`.
 - Merging, tagging, or publishing needs the person's confirmation first,
   every time — this is one of the two human gates the track never skips.
+  Hand that up the same way: the gate does not move, only who voices it.
 - Report exactly what the procedure asks for at each step; do not improvise
   a different git sequence because it looks equivalent.
 - Every sentence you write into a commit message, release note, or PR body

@@ -4,6 +4,14 @@ This file is read two ways: by the subagent the track dispatches to run this
 stage, and by `/cai:build` when someone runs the stage standing alone, with
 no track underneath it. The procedure below is the same either way.
 
+**Asking is the one thing that is not.** Dispatched by the track you are a
+subagent, and the platform removes `AskUserQuestion` from every subagent
+whatever `tools:` says. Step 0.5's two answers, and Step 2's row that sends
+architecture decisions to the user, then mean: finish what the answer does
+not block — the four sizing lines are not blocked — and end the report with
+the `## Pending questions` section `references/pending-questions.md`
+specifies. Standing alone you are the main session — ask directly.
+
 Long runs do not fail gracefully. A session limit, a token limit, or a
 dropped connection lands wherever it lands, and the cost is set entirely by
 what the tree looks like at that moment — eleven half-edited files means a

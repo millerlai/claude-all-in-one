@@ -91,15 +91,20 @@ def test_validate_reports_the_same_body_line_count_as_computed_here():
     assert reported <= ceiling
 
 
-def test_skill_md_body_is_121_lines():
-    """120 before this feature, plus exactly the one pointer line.
+def test_skill_md_body_is_122_lines():
+    """120 before ticket mirroring, plus one pointer line each for it and
+    for `references/pending-questions.md` (2026-09-03).
 
     This also carries what a `git diff --numstat HEAD` assertion used to:
-    that the feature added one line and no more. That form only worked
+    that a feature added one line and no more. That form only worked
     before the change was committed -- once it is in HEAD the diff is empty
     and the assertion cannot say anything. A line count is the same
-    guarantee stated in a way that survives being committed."""
-    assert _skill_body_lines() == 121
+    guarantee stated in a way that survives being committed.
+
+    122 is also the ceiling in scripts/validate.py, so this file now has no
+    headroom at all: the next feature that needs a pointer here raises the
+    ceiling deliberately, which is what that constant's comment asks for."""
+    assert _skill_body_lines() == 122
 
 
 # --- '## Human gates' still says what it has always said --------------------
@@ -124,15 +129,25 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_unchanged_at_5451():
+def test_always_on_budget_is_unchanged_at_5427():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
-    # frontmatter description, so it does not count either.
+    # frontmatter description, so it does not count either -- ticket
+    # mirroring's AC3 still holds, it added nothing here.
+    #
+    # 5451 -> 5427 on 2026-09-03, in two steps, and the direction is the
+    # point. `verifier`'s description was rewritten from "reads a diff
+    # through one lens" to what it actually does -- dispatch the three --
+    # for -15; `designer`'s dropped the claim that it "stops for
+    # AskUserQuestion", which the platform never let a subagent do, for -9.
+    # This stays an equality rather than a ceiling (validate.py already has
+    # the ceiling) so a description that quietly grows fails here; the
+    # number moves only with a note like this one saying why.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 5451
+    assert int(m.group(1)) == 5427
 
 
 # --- the added line itself carries the load-bearing instruction ------------
