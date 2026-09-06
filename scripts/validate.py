@@ -885,6 +885,7 @@ for i, (kind, fixture_text, expected, probe) in enumerate(PROBE_CASES):
 # as content is the day a blank template passes everything.
 sys.path.insert(0, f"{PLUGIN}/scripts")
 import design_probe  # noqa: E402
+import ledger  # noqa: E402
 
 for kind, want in (("hld", design_probe.HLD_HEADINGS),
                    ("detail", design_probe.DETAIL_HEADINGS),
@@ -1427,6 +1428,36 @@ if os.path.isfile(TRACK_SKILL):
                      if PASSED_MARKER in track_text else "")
     check(f"{TRACK_SKILL}'s passing-path bullet spells the status cell "
           f"({STATUS_DONE})", STATUS_DONE in passed_bullet)
+
+    # The usage block is the only place the ledger's own vocabulary is spelled
+    # out for whoever runs the command, and it disagreed with ledger.py for as
+    # long as `skipped` had existed -- while :112 told you to pass it (#58).
+    # Derive the expectation from OUTCOMES instead of restating it: a value
+    # added there later fails here until this line teaches it too.
+    outcome_line = next((ln for ln in track_text.splitlines()
+                         if ln.strip().startswith("--outcome ")), "")
+    missing = [o for o in ledger.OUTCOMES if o not in outcome_line]
+    check(f"{TRACK_SKILL}'s --outcome line lists every ledger outcome "
+          f"(missing: {', '.join(missing) or 'none'})", not missing)
+
+    # The table's shape lived only in this file's fixtures and in tests/, so
+    # the session told to create state.md was never told what it looks like
+    # (#57). Both halves are load-bearing: preflight.data_rows() drops the
+    # header and the rule by matching them, so a table missing either parses
+    # one row short and track_state calls the track corrupt.
+    for shape in ("| stage | status | artifact | note |", "|---|---|---|---|"):
+        check(f"{TRACK_SKILL} shows state.md's table shape ({shape})",
+              shape in track_text)
+
+    # An illegal status makes `status` exit 2 and print no `next:` line, so
+    # the resume step has nothing to jump to (#56). The exit-2 paragraph is
+    # where a session looks; if it stops saying so, that silence reads as
+    # "no work left" -- the same misreading #46 was about.
+    EXIT_MARKER = "Exit 2 from either"
+    exit_para = (track_text.split(EXIT_MARKER, 1)[1].split("\n\n", 1)[0]
+                 if EXIT_MARKER in track_text else "")
+    check(f"{TRACK_SKILL}'s exit-2 paragraph warns that no `next:` is printed",
+          "`next:`" in exit_para)
 
 # track_state.py resolves .claude/track/current -> state.md from files alone,
 # with no model call -- UC1's acceptance test ("a fresh session resumes from
