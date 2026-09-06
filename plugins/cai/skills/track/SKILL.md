@@ -39,7 +39,7 @@ under `done/` never count toward this cap — it only grows.
 
 Create `.claude/track/<feature>/state.md`, then `.claude/track/current`, then
 start the first stage below. The table: `| stage | status | artifact | note |`,
-a `|---|---|---|---|` rule, one row per `stages.json` stage, every cell empty.
+a `|---|---|---|---|` rule, one row naming each `stages.json` stage, rest empty.
 
 ## Running a stage
 
