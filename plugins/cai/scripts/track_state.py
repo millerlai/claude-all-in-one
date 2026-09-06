@@ -8,7 +8,7 @@ never writes state.md; overwriting a row is the track's job, this only reads.
 Usage:  track_state.py status  [--track-root DIR]
         track_state.py resolve [--track-root DIR]   (prints only the feature name)
 Exit:   0 an active track exists, 2 no active track (or a state.md that
-        disagrees with stages.json), 1 usage error.
+        disagrees with stages.json or the status vocabulary), 1 usage error.
 """
 import argparse
 import json
@@ -72,7 +72,20 @@ def table_row_count(state_path):
         return len(preflight.data_rows(fh.read()))
 
 
-def format_status(feature, track_dir, order):
+def bad_statuses(track_dir, order):
+    """(stage id, the offending value) for every row whose status is outside
+    ledger.STATUSES, in stages.json order. An empty list means the table is
+    written in the vocabulary state.md actually has."""
+    out = []
+    for sid in order:
+        row = preflight.state_row(track_dir, sid)
+        status = row[1] if row and len(row) > 1 else ""
+        if status not in ledger.STATUSES:
+            out.append((sid, status))
+    return out
+
+
+def format_status(feature, track_dir, order, show_next=True):
     rows = {sid: preflight.state_row(track_dir, sid) for sid in order}
     lines = ["current: %s" % feature]
     next_stage = None
@@ -96,7 +109,9 @@ def format_status(feature, track_dir, order):
         if next_stage is None and status not in ("done", "skipped"):
             next_stage = sid
     lines.append("")
-    lines.append("next: %s" % (next_stage or "none -- every stage is done or skipped"))
+    if show_next:
+        lines.append("next: %s"
+                     % (next_stage or "none -- every stage is done or skipped"))
     if skipped:
         lines.append("skipped:")
         for sid, note in skipped:
@@ -125,7 +140,14 @@ def status(track_root):
               % (actual, len(order)), file=sys.stderr)
         return 2
 
-    print(format_status(feature, track_dir, order))
+    bad = bad_statuses(track_dir, order)
+    print(format_status(feature, track_dir, order, show_next=not bad))
+    if bad:
+        legal = ", ".join(s or "(empty)" for s in ledger.STATUSES)
+        for sid, value in bad:
+            print("unknown status for %s: %s (expected one of %s)"
+                  % (sid, value, legal), file=sys.stderr)
+        return 2
     return 0
 
 

@@ -1417,6 +1417,17 @@ if os.path.isfile(TRACK_SKILL):
     check(f"{TRACK_SKILL} is within its {TRACK_SKILL_MAX}-line ceiling ({track_lines})",
           track_lines <= TRACK_SKILL_MAX)
 
+    # SKILL.md:8 and :33 already say `done` -- the reserved feature name and the
+    # archive directory -- so "the file contains `done`" passes today and guards
+    # nothing. Anchor on the passing-path bullet instead: keep only that bullet,
+    # and look for the cell spelled the way :113 already spells `skipped`.
+    PASSED_MARKER = "**It passed**"
+    STATUS_DONE = "`status` = `done`"
+    passed_bullet = (track_text.split(PASSED_MARKER, 1)[1].split("\n\n", 1)[0]
+                     if PASSED_MARKER in track_text else "")
+    check(f"{TRACK_SKILL}'s passing-path bullet spells the status cell "
+          f"({STATUS_DONE})", STATUS_DONE in passed_bullet)
+
 # track_state.py resolves .claude/track/current -> state.md from files alone,
 # with no model call -- UC1's acceptance test ("a fresh session resumes from
 # files alone") is this loop. Every fixture lives under one temp_repo() (git
