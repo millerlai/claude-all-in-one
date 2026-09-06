@@ -67,6 +67,17 @@ SYNC_ERROR_MAX = 200
 # state.md's "no artifact" cell, so `/cai:track skip` can be recorded as-is.
 NO_ARTIFACT = "—"
 
+# state.md's `status` column, the whole of it -- blank included, because a
+# row that has not started is a legal state and not a missing one
+# (docs/design/2026-08-27-cai-sdlc-restructure-detail.md:477). It sits here
+# rather than beside the table parser in preflight.py for the same reason
+# NO_ARTIFACT does: this file is the bottom of the import chain
+# (preflight.py:23-26), so every reader can have it without a new edge.
+# Not OUTCOMES above: that is the ledger's own vocabulary, and writing one
+# of its words into this column is exactly the bug this constant exists to
+# catch.
+STATUSES = ("", "in-progress", "done", "skipped")
+
 # Enough of a broken line to recognise it, not enough to bloat the report.
 RAW_KEEP = 200
 
