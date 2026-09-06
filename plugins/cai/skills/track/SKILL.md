@@ -24,9 +24,9 @@ them — run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py status` (or
 zero-token answer to "where did this track stop"; re-deriving that by hand
 risks disagreeing with it.
 
-`resolve --track-root .claude/track` exit 2 means no active track (or
-`current` names a directory that no longer exists) — report exactly what it
-printed and stop; do not guess a feature name.
+Exit 2 from either means stop and report exactly what was printed, guessing
+nothing: no active track, or a `state.md` that is missing, disagrees with
+`stages.json`, or holds an unknown `status`. None of these print a `next:`.
 
 ## `/cai:track <feature>`
 
@@ -37,9 +37,9 @@ count existing directories under `.claude/track/` (excluding `done/`); at
 5 already, refuse and say why instead of creating a sixth. Archived tracks
 under `done/` never count toward this cap — it only grows.
 
-Create `.claude/track/<feature>/state.md` with one row per `stages.json`
-stage, all empty, write `.claude/track/current`, then proceed to that
-track's first stage below.
+Create `.claude/track/<feature>/state.md`, then `.claude/track/current`, then
+start the first stage below. The table: `| stage | status | artifact | note |`,
+a `|---|---|---|---|` rule, one row naming each `stages.json` stage, rest empty.
 
 ## Running a stage
 
@@ -61,7 +61,7 @@ For the stage about to run:
    ```
    python ${CLAUDE_PLUGIN_ROOT}/scripts/ledger.py append
        --track-dir .claude/track/<feature> --stage <stage>
-       --outcome passed|failed|blocked|unavailable --gate auto|human
+       --outcome passed|failed|blocked|skipped|unavailable --gate auto|human
        [--artifact <path>] --note "<why, one line>"
    ```
 

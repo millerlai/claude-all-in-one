@@ -885,6 +885,7 @@ for i, (kind, fixture_text, expected, probe) in enumerate(PROBE_CASES):
 # as content is the day a blank template passes everything.
 sys.path.insert(0, f"{PLUGIN}/scripts")
 import design_probe  # noqa: E402
+import ledger  # noqa: E402
 
 for kind, want in (("hld", design_probe.HLD_HEADINGS),
                    ("detail", design_probe.DETAIL_HEADINGS),
@@ -1427,6 +1428,53 @@ if os.path.isfile(TRACK_SKILL):
                      if PASSED_MARKER in track_text else "")
     check(f"{TRACK_SKILL}'s passing-path bullet spells the status cell "
           f"({STATUS_DONE})", STATUS_DONE in passed_bullet)
+
+    # The usage block is the only place the ledger's own vocabulary is spelled
+    # out for whoever runs the command, and it disagreed with ledger.py for as
+    # long as `skipped` had existed -- while :112 told you to pass it (#58).
+    # Derive the expectation from OUTCOMES instead of restating it: a value
+    # added there later fails here until this line teaches it too.
+    # Split the alternation into tokens rather than asking whether each value
+    # appears somewhere in the line: `skip` would be "found" inside `skipped`,
+    # so a substring test would report a line as complete that never listed
+    # the new value at all -- the exact drift this check exists to catch.
+    outcome_line = next((ln for ln in track_text.splitlines()
+                         if ln.strip().startswith("--outcome ")), "")
+    outcome_parts = outcome_line.split()
+    listed = outcome_parts[1].split("|") if len(outcome_parts) > 1 else []
+    missing = [o for o in ledger.OUTCOMES if o not in listed]
+    check(f"{TRACK_SKILL}'s --outcome line lists every ledger outcome "
+          f"(missing: {', '.join(missing) or 'none'})", not missing)
+
+    # The table's shape lived only in this file's fixtures and in tests/, so
+    # the session told to create state.md was never told what it looks like
+    # (#57). Both halves are load-bearing: preflight.data_rows() drops the
+    # header and the rule by matching them, so a table missing either parses
+    # one row short and track_state calls the track corrupt.
+    # Anchored on the creating paragraph, not the whole file: the shape is
+    # only useful where the session is told to build the table, and a header
+    # quoted anywhere else would satisfy a file-wide search while that
+    # instruction had gone back to saying nothing.
+    CREATE_MARKER = "Create `.claude/track/<feature>/state.md`"
+    create_para = (track_text.split(CREATE_MARKER, 1)[1].split("\n\n", 1)[0]
+                   if CREATE_MARKER in track_text else "")
+    for shape in ("| stage | status | artifact | note |", "|---|---|---|---|"):
+        check(f"{TRACK_SKILL} shows state.md's table shape ({shape})",
+              shape in create_para)
+
+    # Every exit-2 path in track_state.status() returns before a `next:` is
+    # printed, so the resume step has nothing to jump to (#56); that silence
+    # reads as "no work left" -- the misreading #46 was about. The needle is
+    # the whole phrase, not just `next:`: a paragraph that merely mentions
+    # the field while no longer warning about it is what this must not pass.
+    # It still cannot tell a warning from its own negation, which is the
+    # standing limit of every anchored prose check here, the bullet above
+    # included.
+    EXIT_MARKER = "Exit 2 from either"
+    exit_para = (track_text.split(EXIT_MARKER, 1)[1].split("\n\n", 1)[0]
+                 if EXIT_MARKER in track_text else "")
+    check(f"{TRACK_SKILL}'s exit-2 paragraph warns that no `next:` is printed",
+          "print a `next:`" in exit_para)
 
 # track_state.py resolves .claude/track/current -> state.md from files alone,
 # with no model call -- UC1's acceptance test ("a fresh session resumes from
