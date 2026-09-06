@@ -18,9 +18,11 @@ imports this file -- a third edge back to either of them would close the
 cycle. usage_collector.py is safe to import because it is a leaf on that
 chain: only ledger.py imports it, and it imports nothing from this repo in
 turn, so no edge points back. stage_ids() and ArgParser below are still
-copied from track_state.py:31-33 and :133-138 rather than imported, for the
-same reason as always -- deliberate duplication, bought with a dependency
-cycle removed -- do not "fix" it.
+copied from track_state.py rather than imported, for the same reason as
+always -- deliberate duplication, bought with a dependency cycle removed --
+do not "fix" it. Both are named here rather than cited by line: the two line
+numbers this paragraph used to carry had each drifted out of date by the
+time anyone checked them (#59).
 
 Usage:  ledger.py append --track-dir DIR --stage S --outcome O
                         [--artifact P] [--gate auto|human] [--note TEXT]
