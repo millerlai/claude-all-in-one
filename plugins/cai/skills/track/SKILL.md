@@ -78,8 +78,8 @@ For the stage about to run:
    - **The work did not pass the stage's own gate** → `failed`, `--note`
      saying what failed.
    - **It passed** → `passed` **first**, and only once `ledger.py` exits 0,
-     overwrite that stage's row in `state.md` (status, artifact, note) —
-     never append a row; the row count must stay equal to `stages.json`'s.
+     overwrite that stage's `state.md` row: `status` = `done`, plus artifact
+     and note — never append a row; the row count must equal `stages.json`'s.
 
    `--gate human` belongs to the two human gates below and nowhere else. A
    non-zero exit stops the step: report it and leave `state.md` untouched.
