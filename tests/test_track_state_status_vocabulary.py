@@ -61,3 +61,22 @@ def test_the_message_names_the_stage_the_value_and_the_four_legal_ones(tmp_path)
     assert done.returncode == 2
     for expected in ("intake", "passed", "in-progress", "done", "skipped", "(empty)"):
         assert expected in done.stderr
+
+
+def test_two_illegal_rows_each_print_their_own_line_in_stage_order(tmp_path):
+    # Design's failure-modes table: "multiple bad rows -- each prints its own
+    # stderr line, in stages.json order, seen all at once." A regression that
+    # reports only the first bad row, or reorders them, must go red here.
+    rows = list(ROWS)
+    rows[0] = ("intake", "passed", "—", "")
+    rows[3] = ("build", "fooled", "—", "unit 3 of 5")
+    root, _ = make_track(tmp_path, rows)
+
+    done = run("status", "--track-root", root)
+    assert done.returncode == 2
+    legal = "(empty), in-progress, done, skipped"
+    intake_line = "unknown status for intake: passed (expected one of %s)" % legal
+    build_line = "unknown status for build: fooled (expected one of %s)" % legal
+    assert intake_line in done.stderr
+    assert build_line in done.stderr
+    assert done.stderr.index(intake_line) < done.stderr.index(build_line)
