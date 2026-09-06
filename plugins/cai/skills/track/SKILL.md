@@ -24,9 +24,9 @@ them — run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py status` (or
 zero-token answer to "where did this track stop"; re-deriving that by hand
 risks disagreeing with it.
 
-Exit 2 from either means stop and report what was printed, guessing nothing:
-no active track, `current` naming a directory now gone, or — only from
-`status` — a `status` cell outside its four values, so no `next:` is printed.
+Exit 2 from either means stop and report exactly what was printed, guessing
+nothing: no active track, or a `state.md` that is missing, disagrees with
+`stages.json`, or holds an unknown `status`. None of these print a `next:`.
 
 ## `/cai:track <feature>`
 
