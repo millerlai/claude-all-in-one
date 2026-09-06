@@ -57,3 +57,7 @@ note above says to reach for Edit/Write instead of redirecting into a file.
 Changing the guard means adding a case to `CASES` in `scripts/validate.py`.
 That file and `tests/` are the two places this repo keeps tests: `validate.py`
 checks the plugin's shape and the guard, `tests/` checks what the scripts do.
+
+Platform coverage: Linux is covered by CI on every PR, which runs both
+`validate.py` and `pytest`. Windows is covered only by the developer running
+both by hand, as described above. macOS has no coverage at all.
