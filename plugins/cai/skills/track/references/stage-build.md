@@ -83,12 +83,15 @@ exists — finding what this repo already uses to run tests is mechanical
 command that takes ten minutes or hangs gets skipped under time pressure,
 and then the checkpoints are decoration.
 
-These columns go in `implementation-notes.md`, never in the design document
-itself. `preflight.py`'s `artifact_unchanged` hashes the artifact the ledger
-recorded at sign-off, so editing that file makes every later
-`preflight.py build` fail with "changed since sign-off" — including the
-resumed run this table exists to serve. Say in the notes which document
-they belong to.
+This whole table lives in `.claude/track/<feature>/implementation-notes.md`,
+never in the design document itself. `preflight.py`'s `artifact_unchanged`
+hashes the artifact the ledger recorded at sign-off, so editing that file
+makes every later `preflight.py build` fail with "changed since sign-off" —
+including the resumed run this table exists to serve. That directory is
+git-ignored, so the notes never dirty the tree `ship` requires. Standing
+alone there is no ledger to compare against and nothing to trip, but keep
+the table out of the design document there too — the next run may be a
+tracked one. Say in the notes which design document the table belongs to.
 
 Order the units: riskiest one with no unmet dependency first. Check
 upstream blockers here too — a unit waiting on another team's endpoint is
@@ -232,7 +235,9 @@ from the table alone.
 Units all green is not done:
 
 1. **Fill in the traceability table** — every `UC`/`R` id and the `file:line`
-   that now satisfies it. A row you cannot point at is unimplemented.
+   that now satisfies it. A row you cannot point at is unimplemented. It goes
+   in `implementation-notes.md` and the report, never back into the design
+   document's own `### Traceability`, for the reason Step 1 gives.
 2. **Run `stage-verify.md`** over the whole branch, passing the design
    document as the requirement its conformance lens reviews against. Fix
    Blocker/Major per that stage's rules; leave Minor documented; its
