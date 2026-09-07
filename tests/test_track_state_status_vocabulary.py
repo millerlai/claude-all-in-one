@@ -41,6 +41,21 @@ def test_a_legal_table_still_exits_0_and_names_the_next_stage(tmp_path):
     assert "next: build" in done.stdout
 
 
+def test_a_misspelled_stage_id_exits_2_and_names_both_sides(tmp_path):
+    # #62: a misspelled id used to be invisible to every reader -- the row
+    # count still matched stages.json, so the stage it was meant to be
+    # stayed "not started" forever, silently.
+    rows = list(ROWS)
+    rows[2] = ("desgin", "skipped", "—", "not needed")
+    root, _ = make_track(tmp_path, rows)
+
+    done = run("status", "--track-root", root)
+    assert done.returncode == 2
+    assert "next:" not in done.stdout
+    assert ("state.md stage ids disagree with stages.json: "
+            "unexpected desgin; missing design") in done.stderr
+
+
 def test_an_illegal_status_exits_2_and_prints_no_next_line(tmp_path):
     rows = list(ROWS)
     rows[0] = ("intake", "passed", "—", "")
@@ -59,8 +74,9 @@ def test_the_message_names_the_stage_the_value_and_the_four_legal_ones(tmp_path)
 
     done = run("status", "--track-root", root)
     assert done.returncode == 2
-    for expected in ("intake", "passed", "in-progress", "done", "skipped", "(empty)"):
-        assert expected in done.stderr
+    legal = "(empty), in-progress, done, skipped"
+    assert ("unknown status for intake: passed (expected one of %s)" % legal
+            in done.stderr)
 
 
 def test_two_illegal_rows_each_print_their_own_line_in_stage_order(tmp_path):

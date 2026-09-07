@@ -63,13 +63,11 @@ def resolve(track_root):
     return feature, track_dir
 
 
-def table_row_count(state_path):
-    """How many stage rows state.md's table actually has. The definition of
-    "a row" lives in preflight.data_rows() and only there -- this count is
-    compared against stages.json, so a second opinion about what counts would
-    turn a healthy track into a reported mismatch."""
+def table_stage_ids(state_path):
+    """The stage id in each of state.md's table rows, in file order. The
+    definition of "a row" lives in preflight.data_rows() and only there."""
     with open(state_path, encoding="utf-8") as fh:
-        return len(preflight.data_rows(fh.read()))
+        return [cells[0] for cells in preflight.data_rows(fh.read())]
 
 
 def bad_statuses(track_dir, order):
@@ -134,10 +132,17 @@ def status(track_root):
         return 2
 
     order = stage_ids()
-    actual = table_row_count(state_path)
-    if actual != len(order):
+    actual = table_stage_ids(state_path)
+    if len(actual) != len(order):
         print("state.md has %d stage row(s), stages.json has %d"
-              % (actual, len(order)), file=sys.stderr)
+              % (len(actual), len(order)), file=sys.stderr)
+        return 2
+    unexpected = [sid for sid in actual if sid not in order]
+    missing = [sid for sid in order if sid not in actual]
+    if unexpected or missing:
+        print("state.md stage ids disagree with stages.json: unexpected %s; "
+              "missing %s" % (", ".join(unexpected) or "none",
+                              ", ".join(missing) or "none"), file=sys.stderr)
         return 2
 
     bad = bad_statuses(track_dir, order)
