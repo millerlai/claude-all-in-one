@@ -65,7 +65,7 @@ For the stage about to run:
        [--artifact <path>] --note "<why, one line>"
    ```
 
-   Only the passing path touches `state.md`; the rest append and stop.
+   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which sets that stage's own `status` to `in-progress` when a run stops before its units are finished.
 
    - **Preflight exited 2** → `blocked`. **Unless** its output holds
      `FAIL ledger_attempts` — that stage is already at its cap and another
@@ -122,5 +122,5 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 ## `/cai:track done`
 
 Move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and
-delete `.claude/track/current`. Refuse if any stage's row is still empty —
-report which ones.
+delete `.claude/track/current`. Refuse if any stage's row is empty or
+`in-progress` — report which are which.

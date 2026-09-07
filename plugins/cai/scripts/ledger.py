@@ -78,6 +78,11 @@ NO_ARTIFACT = "—"
 # Not OUTCOMES above: that is the ledger's own vocabulary, and writing one
 # of its words into this column is exactly the bug this constant exists to
 # catch.
+#
+# Each value's writer: `` (empty) is a row nobody has reached yet; `done`
+# and `skipped` are written by SKILL.md's "Running a stage" step 3, the
+# passing path and the skip path respectively; `in-progress` is written by
+# stage-build.md's Step 5.5, when a run stops before its units are finished.
 STATUSES = ("", "in-progress", "done", "skipped")
 
 # The two values that mean a stage is not coming back. preflight's discover

@@ -222,6 +222,11 @@ starting a unit you may not finish, and append to `state.md`:
 - Watch out for: <what the next session would otherwise rediscover>
 ```
 
+Before appending that block, overwrite this stage's own row in `state.md`:
+`status` = `in-progress`, `note` = `unit <N> of <total>` (the same fixture
+convention this repo already uses, e.g. `unit 3 of 5`) — the row this stage
+is running as, not the one it is about to start next.
+
 `In flight: none` is the goal. Anything else means the stopping point was
 wrong — a half-finished unit is the one thing a fresh session cannot recover
 from the table alone.
