@@ -83,11 +83,12 @@ exists — finding what this repo already uses to run tests is mechanical
 command that takes ten minutes or hangs gets skipped under time pressure,
 and then the checkpoints are decoration.
 
-Where the design document is read-only or lives outside this repo, add
-these columns to `implementation-notes.md` instead and say which you used.
-Otherwise add them to the document's own `## Work breakdown` table, leaving
-every existing column untouched — the design and the progress belong in one
-file.
+These columns go in `implementation-notes.md`, never in the design document
+itself. `preflight.py`'s `artifact_unchanged` hashes the artifact the ledger
+recorded at sign-off, so editing that file makes every later
+`preflight.py build` fail with "changed since sign-off" — including the
+resumed run this table exists to serve. Say in the notes which document
+they belong to.
 
 Order the units: riskiest one with no unmet dependency first. Check
 upstream blockers here too — a unit waiting on another team's endpoint is
