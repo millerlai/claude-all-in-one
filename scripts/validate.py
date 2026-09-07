@@ -1372,16 +1372,33 @@ if os.path.isfile(STAGES_JSON):
     # string only after re-confirming against those tests that the probe
     # still behaves this way -- a matching string is not a true claim.
     #
-    # Whitespace is folded first so a legitimate rewrap of either paragraph
-    # does not fail; only the words are pinned.
     build_ref = f"{PLUGIN}/skills/track/references/stage-build.md"
     if os.path.isfile(build_ref):
-        build_words = " ".join(read_text(build_ref).split())
-        for step, phrase in (
-                ("Step 1", "never in the design document itself"),
-                ("Step 6.1", "never back into the design document's own `### Traceability`")):
-            check(f"{build_ref}'s {step} keeps build out of the signed-off "
-                  f"design ({phrase})", phrase in build_words)
+        build_text = read_text(build_ref)
+
+        def build_step(heading):
+            """One step's own words, whitespace folded.
+
+            Sliced to the step rather than searched across the whole file:
+            the label below claims *this step* still carries the sentence, so
+            a sentence that drifted into some other step has to fail here
+            rather than pass. Folding the whitespace is what lets a
+            legitimate rewrap through while a change to the words does not.
+            An absent heading yields "", which fails the check -- a step that
+            went missing is not a step that still says this."""
+            start = build_text.find(heading)
+            if start < 0:
+                return ""
+            end = build_text.find("\n## ", start + 1)
+            return " ".join(build_text[start:end if end > 0 else None].split())
+
+        for label, heading, phrase in (
+                ("Step 1", "## Step 1",
+                 "never in the design document itself"),
+                ("Step 6.1", "## Step 6",
+                 "never back into the design document's own `### Traceability`")):
+            check(f"{build_ref}'s {label} keeps build out of the signed-off "
+                  f"design ({phrase})", phrase in build_step(heading))
 
     # The original mis-assignment picked a stage's agent by tier alone --
     # design pointed at architect (Read-only), ship at explorer (no git) --
