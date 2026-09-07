@@ -80,6 +80,12 @@ NO_ARTIFACT = "—"
 # catch.
 STATUSES = ("", "in-progress", "done", "skipped")
 
+# The two values that mean a stage is not coming back. preflight's discover
+# and ship gates read exactly these -- not STATUSES, whose first element is
+# the empty string, so membership of it would let a blank cell through and
+# be looser than the bool(status) it replaces (#61).
+COUNTS_AS_FINISHED = ("done", "skipped")
+
 # Enough of a broken line to recognise it, not enough to bloat the report.
 RAW_KEEP = 200
 
