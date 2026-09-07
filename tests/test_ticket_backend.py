@@ -6,6 +6,7 @@ the e2e check against issue #48 is run by the person who dispatched this,
 not by this suite).
 """
 import json
+import os
 import subprocess
 import sys
 
@@ -536,14 +537,26 @@ def test_every_call_passes_the_configured_timeout(tmp_path, monkeypatch):
     assert seen["timeout"] == tb.TIMEOUT_SECONDS
 
 
-# --- DD9: CAI_TICKET_CLI without an extension warns once --------------------
+# --- DD9: CAI_TICKET_CLI without an extension warns once, Windows only -----
+# (#69: an extension-less executable is normal on POSIX -- /usr/bin/python3
+# -- so the warning only fires there; nothing used to check it stayed silent.)
 
-def test_missing_extension_warns(tmp_path, monkeypatch, capsys):
+def test_missing_extension_warns_on_windows(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(os, "name", "nt")
     monkeypatch.setenv(tb.CLI_ENV, str(tmp_path / "gh"))  # no extension
     backend = tb.GitHubBackend()
     backend.whoami(str(tmp_path))
     out = capsys.readouterr().out
     assert "extension" in out.lower()
+
+
+def test_missing_extension_is_silent_off_windows(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.setenv(tb.CLI_ENV, str(tmp_path / "gh"))  # no extension
+    backend = tb.GitHubBackend()
+    backend.whoami(str(tmp_path))
+    out = capsys.readouterr().out
+    assert "extension" not in out.lower()
 
 
 # --- Blocker 2: a malformed CAI_TICKET_CLI override must not raise ---------

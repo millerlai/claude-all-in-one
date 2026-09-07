@@ -1,4 +1,9 @@
-"""Unit 4 / AC24: the one line `SKILL.md` gains to route ticket mirroring to
+"""Two topics share this file because both drive the same real
+`validate.py` run through `_run_validate()`, and paying for that run twice
+would be the exact cost D8 chose this file to avoid (docs/design/
+2026-09-06-pr60-followups-detail.md's D8).
+
+Unit 4 / AC24: the one line `SKILL.md` gains to route ticket mirroring to
 the main session (never a dispatched subagent), and the constraints around
 it.
 
@@ -12,6 +17,14 @@ its own printed numbers, or read `SKILL.md` directly with the same formula
 `validate.py` uses, quoted here only because there is nowhere else to get it
 from without importing a script that is not written to be imported (it runs
 its checks as a side effect of module load).
+
+Unit 6 / issue #64: the guards `validate.py` runs over `SKILL.md`'s prose
+are themselves unguarded -- deleting any one of them left `validate.py`
+exit 0. The meta-test at the end of this file asserts the guards run as a
+*group* (a short, stable fragment per guard, plus a count for the three
+table-shape guards that share one label shape), not each guard's exact
+string, so a reasonable label reword does not turn it red (AC19) while
+deleting a guard still does (AC18).
 """
 import os
 import re
@@ -160,3 +173,23 @@ def test_added_line_names_main_session_not_subagent_and_the_reference_path():
     assert "not a subagent" in line
     assert "${CLAUDE_PLUGIN_ROOT}/skills/track/references/ticket-mirror.md" in line
     assert "/cai:track skip" in line
+
+
+# --- the guards over SKILL.md's prose are themselves guarded (#64) ------
+
+# One short, stable fragment per guard in validate.py's TRACK_SKILL block.
+# Fragments rather than whole labels: a reasonable rewording of a label
+# must not turn this red, but deleting a guard must.
+GUARD_FRAGMENTS = ("passing-path bullet", "--outcome line",
+                   "exit-2 paragraph")
+SHAPE_FRAGMENT = "shows state.md's table shape"
+
+
+def test_every_prose_guard_in_the_track_skill_block_still_runs():
+    out = _run_validate().stdout
+    for fragment in GUARD_FRAGMENTS:
+        assert fragment in out, fragment
+    # The three table-shape guards share one label shape, so a fragment
+    # test alone still passes with one of them deleted. Count instead.
+    shapes = [l for l in out.splitlines() if SHAPE_FRAGMENT in l]
+    assert len(shapes) == 3

@@ -70,7 +70,9 @@ def _cli_prefix():
     override. Measured on Windows: CreateProcess only appends `.exe` to a bare
     name, so a `.cmd` stub given without its extension fails with
     `WinError 2` -- callers must pass the full path, and this warns once when
-    that looks like it was forgotten."""
+    that looks like it was forgotten. The warning is Windows-only: an
+    extension-less executable is normal on POSIX (`/usr/bin/python3`), so the
+    same check there would fire on every call rather than only a mistake."""
     override = os.environ.get(CLI_ENV)
     if not override:
         return ["gh"]
@@ -89,7 +91,7 @@ def _cli_prefix():
             argv = [override]
     else:
         argv = [override]
-    if "." not in os.path.basename(argv[0]):
+    if os.name == "nt" and "." not in os.path.basename(argv[0]):
         print("warning: %s's executable %r has no file extension -- on "
               "Windows this fails with WinError 2 unless it is one of the "
               "names CreateProcess resolves on its own" % (CLI_ENV, argv[0]))

@@ -312,8 +312,8 @@ def discover(track_dir, project_dir):
     if row is None:
         return [(False, "state_md (cannot read state.md or find the intake row)")]
     status = row[1] if len(row) > 1 else ""
-    ok = bool(status)
-    return [(ok, "intake_status (intake row's status is %s)" % (status if ok else "empty"))]
+    ok = status in ledger.COUNTS_AS_FINISHED
+    return [(ok, "intake_status (intake row's status is %s)" % (status or "empty"))]
 
 
 def build(track_dir, project_dir):
@@ -414,7 +414,8 @@ def ship(track_dir, project_dir):
     if row is None:
         return [(False, "state_md (cannot read state.md or find the verify row)")]
     status = row[1] if len(row) > 1 else ""
-    status_check = (bool(status), "verify_status (verify row's status is %s)" % (status or "empty"))
+    status_check = (status in ledger.COUNTS_AS_FINISHED,
+                     "verify_status (verify row's status is %s)" % (status or "empty"))
 
     if not is_git_repo(project_dir):
         clean_check = (False, "clean_tree (%s is not a git repository)" % project_dir)
