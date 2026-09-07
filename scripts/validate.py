@@ -1482,6 +1482,20 @@ if os.path.isfile(TRACK_SKILL):
 # is irrelevant to the script, but the helper is the repo's existing way to
 # get a throwaway directory that gets cleaned up below).
 TRACK_STATE = f"{PLUGIN}/scripts/track_state.py"
+
+# ledger.py's docstring names two symbols it deliberately copies from
+# track_state.py rather than importing, and names them instead of citing
+# lines because the lines had drifted twice (plugins/cai/scripts/ledger.py:20-25).
+# A rename leaves that paragraph pointing at nothing.
+# Anchored to the start of a line rather than a bare substring: the text
+# `def stage_ids` also occurs in any comment that mentions it, so a rename
+# that left one comment behind would keep a substring test green.
+track_state_text = read_text(TRACK_STATE)
+for symbol in ("def stage_ids", "class ArgParser"):
+    check(f"track_state.py still defines {symbol}, which "
+          f"{PLUGIN}/scripts/ledger.py's docstring names as copied from it",
+          re.search(rf"^{symbol}\b", track_state_text, re.M) is not None)
+
 TRACK_FIXTURE_ROOT = temp_repo("track-state-fixture")
 
 # Same six rows as the state.md example in the track spec: one stage done
