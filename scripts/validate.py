@@ -1358,6 +1358,48 @@ if os.path.isfile(STAGES_JSON):
         wrapper_lines = len(wrapper_text[wrapper_end:].splitlines())
         check(f"{wrapper} body is under 25 lines ({wrapper_lines})", wrapper_lines < 25)
 
+    # Step 1 and Step 6.1 both used to send the build stage into the design
+    # document -- Step 1 for the progress columns, Step 6.1 for the
+    # traceability table. `artifact_unchanged` hashes that document against
+    # the digest the ledger recorded at sign-off, so either edit makes every
+    # later `preflight.py build` exit 2, including the resumed run those
+    # instructions exist to serve.
+    #
+    # The behaviour half of that claim is already owned by tests
+    # (tests/test_preflight_build_gate.py, tests/test_preflight_ledger.py),
+    # so these two do the weaker job a prose guard should do once a test
+    # holds the truth: prove the instruction still says it. Update either
+    # string only after re-confirming against those tests that the probe
+    # still behaves this way -- a matching string is not a true claim.
+    #
+    build_ref = f"{PLUGIN}/skills/track/references/stage-build.md"
+    if os.path.isfile(build_ref):
+        build_text = read_text(build_ref)
+
+        def build_step(heading):
+            """One step's own words, whitespace folded.
+
+            Sliced to the step rather than searched across the whole file:
+            the label below claims *this step* still carries the sentence, so
+            a sentence that drifted into some other step has to fail here
+            rather than pass. Folding the whitespace is what lets a
+            legitimate rewrap through while a change to the words does not.
+            An absent heading yields "", which fails the check -- a step that
+            went missing is not a step that still says this."""
+            start = build_text.find(heading)
+            if start < 0:
+                return ""
+            end = build_text.find("\n## ", start + 1)
+            return " ".join(build_text[start:end if end > 0 else None].split())
+
+        for label, heading, phrase in (
+                ("Step 1", "## Step 1",
+                 "never in the design document itself"),
+                ("Step 6.1", "## Step 6",
+                 "never back into the design document's own `### Traceability`")):
+            check(f"{build_ref}'s {label} keeps build out of the signed-off "
+                  f"design ({phrase})", phrase in build_step(heading))
+
     # The original mis-assignment picked a stage's agent by tier alone --
     # design pointed at architect (Read-only), ship at explorer (no git) --
     # and both named agents that could not do the stage's job. Assert the

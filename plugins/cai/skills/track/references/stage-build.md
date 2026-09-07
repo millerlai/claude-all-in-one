@@ -83,11 +83,22 @@ exists — finding what this repo already uses to run tests is mechanical
 command that takes ten minutes or hangs gets skipped under time pressure,
 and then the checkpoints are decoration.
 
-Where the design document is read-only or lives outside this repo, add
-these columns to `implementation-notes.md` instead and say which you used.
-Otherwise add them to the document's own `## Work breakdown` table, leaving
-every existing column untouched — the design and the progress belong in one
-file.
+This whole table lives in `implementation-notes.md`, never in the design
+document itself. `preflight.py`'s `artifact_unchanged` hashes the artifact
+the ledger recorded at sign-off, so editing that file makes every later
+`preflight.py build` fail with "changed since sign-off" — including the
+resumed run this table exists to serve. Standing alone there is no ledger to
+compare against and nothing to trip, but keep the table out of the design
+document there too — the next run may be a tracked one. Say in the notes
+which design document the table belongs to.
+
+Under a track the notes go in `.claude/track/<feature>/`, beside the
+`state.md` a cold session resumes from. Check `.gitignore` covers
+`.claude/track/` first — `preflight.py`'s `track_ignored` reports when it
+does not and never blocks, so an unignored track leaves the notes in the
+working tree and `ship` fails later on `clean_tree` instead, naming the
+symptom rather than the cause. Standing alone, put them wherever this
+project already keeps working notes.
 
 Order the units: riskiest one with no unmet dependency first. Check
 upstream blockers here too — a unit waiting on another team's endpoint is
@@ -236,7 +247,9 @@ from the table alone.
 Units all green is not done:
 
 1. **Fill in the traceability table** — every `UC`/`R` id and the `file:line`
-   that now satisfies it. A row you cannot point at is unimplemented.
+   that now satisfies it. A row you cannot point at is unimplemented. It goes
+   in `implementation-notes.md` and the report, never back into the design
+   document's own `### Traceability`, for the reason Step 1 gives.
 2. **Run `stage-verify.md`** over the whole branch, passing the design
    document as the requirement its conformance lens reviews against. Fix
    Blocker/Major per that stage's rules; leave Minor documented; its
