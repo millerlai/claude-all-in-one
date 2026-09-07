@@ -1358,6 +1358,31 @@ if os.path.isfile(STAGES_JSON):
         wrapper_lines = len(wrapper_text[wrapper_end:].splitlines())
         check(f"{wrapper} body is under 25 lines ({wrapper_lines})", wrapper_lines < 25)
 
+    # Step 1 and Step 6.1 both used to send the build stage into the design
+    # document -- Step 1 for the progress columns, Step 6.1 for the
+    # traceability table. `artifact_unchanged` hashes that document against
+    # the digest the ledger recorded at sign-off, so either edit makes every
+    # later `preflight.py build` exit 2, including the resumed run those
+    # instructions exist to serve.
+    #
+    # The behaviour half of that claim is already owned by tests
+    # (tests/test_preflight_build_gate.py, tests/test_preflight_ledger.py),
+    # so these two do the weaker job a prose guard should do once a test
+    # holds the truth: prove the instruction still says it. Update either
+    # string only after re-confirming against those tests that the probe
+    # still behaves this way -- a matching string is not a true claim.
+    #
+    # Whitespace is folded first so a legitimate rewrap of either paragraph
+    # does not fail; only the words are pinned.
+    build_ref = f"{PLUGIN}/skills/track/references/stage-build.md"
+    if os.path.isfile(build_ref):
+        build_words = " ".join(read_text(build_ref).split())
+        for step, phrase in (
+                ("Step 1", "never in the design document itself"),
+                ("Step 6.1", "never back into the design document's own `### Traceability`")):
+            check(f"{build_ref}'s {step} keeps build out of the signed-off "
+                  f"design ({phrase})", phrase in build_words)
+
     # The original mis-assignment picked a stage's agent by tier alone --
     # design pointed at architect (Read-only), ship at explorer (no git) --
     # and both named agents that could not do the stage's job. Assert the
