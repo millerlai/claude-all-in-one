@@ -1429,7 +1429,8 @@ if os.path.isfile(TRACK_SKILL):
     # Convention this block follows (#65, #66): a claim about *code behaviour*
     # gets a behaviour test first, and the prose guard here only proves the
     # sentence describing it is still present (the exit-2 paragraph below is
-    # this kind -- tests/test_track_state_status_vocabulary.py:51 owns the
+    # this kind -- tests/test_track_state_status_vocabulary.py's
+    # test_an_illegal_status_exits_2_and_prints_no_next_line owns the
     # behaviour). A claim about *what the model writes* has no code to test --
     # only review can hold it -- so the guard pins the whole sentence instead
     # (the passing-path bullet below is this kind). Treat any edit to this
@@ -1516,7 +1517,8 @@ if os.path.isfile(TRACK_SKILL):
     check(f"{TRACK_SKILL}'s exit-2 paragraph is pinned word for word -- "
           "update this pinned string only after re-confirming the claim "
           "against track_state.py's exit-2 paths and "
-          "tests/test_track_state_status_vocabulary.py:51",
+          "tests/test_track_state_status_vocabulary.py's "
+          "test_an_illegal_status_exits_2_and_prints_no_next_line",
           flattened(exit_para) == EXIT_CLAUSE)
 
 # track_state.py resolves .claude/track/current -> state.md from files alone,

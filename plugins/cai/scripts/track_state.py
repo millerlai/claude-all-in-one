@@ -23,7 +23,7 @@ DEFAULT_TRACK_ROOT = os.path.join(".claude", "track")
 # it rather than writing that lookup a second time. (Its own inline loop is
 # the one piece of table parsing this script could not fold into a single
 # shared implementation -- preflight.py is out of scope for this change. See
-# table_row_count() below, and the report, for why.)
+# table_stage_ids() below, and the report, for why.)
 sys.path.insert(0, HERE)
 import preflight  # noqa: E402
 import ledger  # noqa: E402
