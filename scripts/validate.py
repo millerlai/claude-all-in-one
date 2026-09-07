@@ -1418,16 +1418,47 @@ if os.path.isfile(TRACK_SKILL):
     check(f"{TRACK_SKILL} is within its {TRACK_SKILL_MAX}-line ceiling ({track_lines})",
           track_lines <= TRACK_SKILL_MAX)
 
+    def flattened(text):
+        """One-line form of a Markdown paragraph: newlines and runs of spaces
+        folded to a single space. Pinning the flattened form is what lets a
+        legitimate rewrap through -- and SKILL.md's 122-line equality forces
+        rewraps -- while a reversed claim still fails, because a reversal
+        always changes a word (#65)."""
+        return " ".join(text.split())
+
+    # Convention this block follows (#65, #66): a claim about *code behaviour*
+    # gets a behaviour test first, and the prose guard here only proves the
+    # sentence describing it is still present (the exit-2 paragraph below is
+    # this kind -- tests/test_track_state_status_vocabulary.py's
+    # test_an_illegal_status_exits_2_and_prints_no_next_line owns the
+    # behaviour). A claim about *what the model writes* has no code to test --
+    # only review can hold it -- so the guard pins the whole sentence instead
+    # (the passing-path bullet below is this kind). Treat any edit to this
+    # block's prose as a behaviour change under review, not a formatting fix.
+
     # SKILL.md:8 and :33 already say `done` -- the reserved feature name and the
     # archive directory -- so "the file contains `done`" passes today and guards
-    # nothing. Anchor on the passing-path bullet instead: keep only that bullet,
-    # and look for the cell spelled the way :113 already spells `skipped`.
+    # nothing. Anchor on the passing-path bullet instead: keep only that bullet.
     PASSED_MARKER = "**It passed**"
-    STATUS_DONE = "`status` = `done`"
     passed_bullet = (track_text.split(PASSED_MARKER, 1)[1].split("\n\n", 1)[0]
                      if PASSED_MARKER in track_text else "")
-    check(f"{TRACK_SKILL}'s passing-path bullet spells the status cell "
-          f"({STATUS_DONE})", STATUS_DONE in passed_bullet)
+    # PASSED_CLAUSE must equal flattened(passed_bullet) on the U4-final tree.
+    # That is NOT the whole of SKILL.md:80-82: validate.py splits on
+    # PASSED_MARKER and keeps only what follows it, so the leading
+    # `   - **It passed**` is not part of the value; it starts at "-> `passed`".
+    # Derive it mechanically once U4 has landed -- print flattened(passed_bullet)
+    # and paste exactly what it printed. A value retyped from the line numbers
+    # makes this check FAIL on a correct tree.
+    PASSED_CLAUSE = ("→ `passed` **first**, and only once `ledger.py` "
+                      "exits 0, overwrite that stage's `state.md` row: "
+                      "`status` = `done`, plus artifact and note "
+                      "— never append a row; the row count must equal "
+                      "`stages.json`'s.")
+    check(f"{TRACK_SKILL}'s passing-path bullet is pinned word for word -- "
+          "this claim is about what the model writes into state.md, no test "
+          "can hold it and only review can; update this pinned string only "
+          "after re-confirming the claim itself",
+          flattened(passed_bullet) == PASSED_CLAUSE)
 
     # The usage block is the only place the ledger's own vocabulary is spelled
     # out for whoever runs the command, and it disagreed with ledger.py for as
@@ -1458,7 +1489,8 @@ if os.path.isfile(TRACK_SKILL):
     CREATE_MARKER = "Create `.claude/track/<feature>/state.md`"
     create_para = (track_text.split(CREATE_MARKER, 1)[1].split("\n\n", 1)[0]
                    if CREATE_MARKER in track_text else "")
-    for shape in ("| stage | status | artifact | note |", "|---|---|---|---|"):
+    for shape in ("| stage | status | artifact | note |", "|---|---|---|---|",
+                  "one row naming each `stages.json` stage, rest empty"):
         check(f"{TRACK_SKILL} shows state.md's table shape ({shape})",
               shape in create_para)
 
@@ -1473,8 +1505,21 @@ if os.path.isfile(TRACK_SKILL):
     EXIT_MARKER = "Exit 2 from either"
     exit_para = (track_text.split(EXIT_MARKER, 1)[1].split("\n\n", 1)[0]
                  if EXIT_MARKER in track_text else "")
-    check(f"{TRACK_SKILL}'s exit-2 paragraph warns that no `next:` is printed",
-          "print a `next:`" in exit_para)
+    # EXIT_CLAUSE must equal flattened(exit_para) on the U4-final tree. Same
+    # trap: validate.py splits on EXIT_MARKER, so the value does not contain
+    # "Exit 2 from either"; it starts at " means stop and report". Derive it
+    # by printing flattened(exit_para); never retype it by eye.
+    EXIT_CLAUSE = ("means stop and report exactly what was printed, "
+                   "guessing nothing: no active track, or a `state.md` "
+                   "that is missing, disagrees with `stages.json`, or "
+                   "holds an unknown `status`. None of these print a "
+                   "`next:`.")
+    check(f"{TRACK_SKILL}'s exit-2 paragraph is pinned word for word -- "
+          "update this pinned string only after re-confirming the claim "
+          "against track_state.py's exit-2 paths and "
+          "tests/test_track_state_status_vocabulary.py's "
+          "test_an_illegal_status_exits_2_and_prints_no_next_line",
+          flattened(exit_para) == EXIT_CLAUSE)
 
 # track_state.py resolves .claude/track/current -> state.md from files alone,
 # with no model call -- UC1's acceptance test ("a fresh session resumes from
@@ -1482,6 +1527,20 @@ if os.path.isfile(TRACK_SKILL):
 # is irrelevant to the script, but the helper is the repo's existing way to
 # get a throwaway directory that gets cleaned up below).
 TRACK_STATE = f"{PLUGIN}/scripts/track_state.py"
+
+# ledger.py's docstring names two symbols it deliberately copies from
+# track_state.py rather than importing, and names them instead of citing
+# lines because the lines had drifted twice (plugins/cai/scripts/ledger.py:20-25).
+# A rename leaves that paragraph pointing at nothing.
+# Anchored to the start of a line rather than a bare substring: the text
+# `def stage_ids` also occurs in any comment that mentions it, so a rename
+# that left one comment behind would keep a substring test green.
+track_state_text = read_text(TRACK_STATE)
+for symbol in ("def stage_ids", "class ArgParser"):
+    check(f"track_state.py still defines {symbol}, which "
+          f"{PLUGIN}/scripts/ledger.py's docstring names as copied from it",
+          re.search(rf"^{symbol}\b", track_state_text, re.M) is not None)
+
 TRACK_FIXTURE_ROOT = temp_repo("track-state-fixture")
 
 # Same six rows as the state.md example in the track spec: one stage done

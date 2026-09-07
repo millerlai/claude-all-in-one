@@ -170,7 +170,11 @@ def test_fit_honours_a_smaller_limit():
 # --- _fit's second step: artifact reduced to its basename (Major-4 guard) --
 
 def test_fit_step_two_reduces_artifact_to_basename_when_note_alone_is_not_enough():
-    long_artifact = "C:\\" + "\\".join(["deep-directory-segment"] * 10) + "\\artifact.txt"
+    # Built with the platform's own separator: `\` is not a separator on
+    # POSIX, so a hardcoded Windows path left os.path.basename() returning
+    # the whole string unshortened there, and step 2 shrank nothing (#69).
+    long_artifact = os.sep + os.sep.join(
+        ["deep-directory-segment"] * 10 + ["artifact.txt"])
     # A note short enough (<= len(TRUNCATED)) that step 1 always empties it
     # outright, regardless of how tight `limit` is -- so which step actually
     # shrank the record to fit is unambiguous.
