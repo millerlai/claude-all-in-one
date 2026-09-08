@@ -44,6 +44,33 @@ def agent_tools_line(path):
     return m.group(1) if m else None
 
 
+def _grants_python(tools):
+    r"""True when `tools` can run a python interpreter: bare `Bash`, or a
+    scoped grant naming py/python/python3. CLAUDE.md records that this repo
+    needs `py`/`python` on Windows and `python3`/`python` elsewhere, so all
+    three spellings count.
+
+    The trailing colon is load-bearing, not decoration. Without it,
+    `\bBash\((?:py|python|python3)\b` also matches
+    `Bash(python -m pytest:*)` -- the boundary is satisfied by the
+    space -- and verifier.md carries exactly that grant, so an agent that
+    can run pytest and nothing else would answer True for "can run
+    design_probe.py". Every scoped grant this plugin ships is
+    `<command>:*`, so requiring the colon costs nothing real.
+
+    Syntax only: this reads the `tools:` line, so it cannot know whether
+    any of those three names resolves to a binary on the machine the
+    stage runs on."""
+    return re.search(r"\bBash\b(?!\()|\bBash\((?:py|python|python3):",
+                     tools) is not None
+
+
+def _grants_mermaid(tools):
+    """True when `tools` can run the renderer stage-design.md names. Same
+    colon rule, and the same syntax-only limit, as above."""
+    return re.search(r"\bBash\b(?!\()|\bBash\(mmdc:", tools) is not None
+
+
 def frontmatter_keys(path):
     """Return the top-level keys of a markdown file's YAML frontmatter.
 
@@ -1273,40 +1300,76 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
 # exactly what pointed design at architect (can't Write) and ship at
 # explorer (can't run git) before designer/verifier/shipper existed.
 STAGE_TOOL_NEEDS = {
+    # intake and discover both run on `architect` (stages.json), which
+    # stays read-only: D6-1/2/3 rewrote the three imperatives out rather
+    # than grant it `Agent` or `Write`. `Agent` reaches `implementer`, so
+    # it is a `Write` grant wearing another name -- and it cannot be
+    # narrowed, because the type list in the parentheses is ignored in a
+    # subagent definition (verifier.md). Three separate files say this
+    # agent is read-only: architect.md, plan-review/SKILL.md,
+    # stage-design.md. RETIRED_IMPERATIVES below is what keeps the
+    # rewrite from quietly coming back.
+    "intake": [
+        ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
+        ("a search tool",
+         lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
+    ],
+    "discover": [
+        ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
+        ("a search tool",
+         lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
+    ],
     "design": [
         ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
-        # stage-design.md dispatches `explorer` for evidence and escalates to
-        # `architect`; designer.md's own body says to. Without `Agent` it
-        # cites what it read alone, which is the guess the stage exists to
-        # stop -- and nothing anywhere says the scout was never sent.
         ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+        # stage-design.md runs design_probe.py and mmdc; designer.md's own
+        # body says to render before handing off. Routing those through a
+        # dispatched runner instead would move a zero-token check onto a
+        # model turn -- the opposite of the reason the probe exists at all.
+        ("a python interpreter", _grants_python),
+        ("a mermaid renderer", _grants_mermaid),
     ],
     "build": [
-        # stage-build.md's runner dispatches `explorer` to locate things,
-        # `test-runner` per unit, and one `implementer` per unit -- two at
-        # once on the parallel lane. Without `Agent` it writes every unit
-        # itself, sequentially, and the schedule it just built decides
-        # nothing that it then acts on.
         ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+        # stage-build.md runs design_probe.py before reading the design.
+        # implementer.md already satisfies this; the entry was simply
+        # missing, and a stage with no entry reads exactly like a stage
+        # that passed.
+        ("a python interpreter", _grants_python),
     ],
     "verify": [
         ("a test command", lambda tools: re.search(
             r"pytest|go test|npm test|unittest", tools, re.IGNORECASE) is not None),
-        # The three lenses are three separate `reviewer` runs. Without `Agent`
-        # the stage's agent cannot dispatch them and reads all three itself --
-        # which is exactly the single pass the split exists to prevent, and it
-        # fails silently, because a stage that reviews badly still reports.
-        # A type list inside the parentheses is ignored in a subagent
-        # definition, so bare `Agent` is the only grant there is to check for.
         ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+        # stage-verify.md tells this stage to write the failing test first
+        # and then fix. So do verifier.md's own description, its body, and
+        # its finding format. Four statements say it fixes; only the tools
+        # line said it could not, so this corrects the tools line. Write
+        # opens the new test file, Edit changes the code under it -- both,
+        # not one.
+        ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
+        ("Edit", lambda tools: re.search(r"\bEdit\b", tools) is not None),
     ],
-    "ship": [("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None)],
+    "ship": [
+        ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
+        # stage-ship.md's release note now always goes to the PR
+        # description; `gh` is how it gets there. Granting `Write` instead
+        # would hand a general file writer to the agent that runs
+        # `git push --force-with-lease` and sits on one of the two human
+        # gates.
+        ("a gh command",
+         lambda tools: re.search(r"\bgh\b", tools) is not None),
+    ],
 }
 
 # The track skill's stage table. Shape checks only -- the six stage prose
 # files and their wrapper skills are later units and do not exist yet.
 STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
 STAGE_ORDER = ["intake", "discover", "design", "build", "verify", "ship"]
+missing_stages = sorted(set(STAGE_ORDER) - set(STAGE_TOOL_NEEDS))
+check("STAGE_TOOL_NEEDS covers every stage id (%s)"
+      % (", ".join(missing_stages) or "all six"),
+      set(STAGE_TOOL_NEEDS) == set(STAGE_ORDER))
 check(f"stages.json ships ({STAGES_JSON})", os.path.isfile(STAGES_JSON))
 if os.path.isfile(STAGES_JSON):
     stages_text = read_text(STAGES_JSON)
@@ -1423,6 +1486,27 @@ if os.path.isfile(STAGES_JSON):
             check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
                   tools_line is not None and predicate(tools_line))
 
+    CONTEXT_PEAK = f"{PLUGIN}/scripts/context_peak.py"
+    check(f"{CONTEXT_PEAK} ships", os.path.isfile(CONTEXT_PEAK))
+    if os.path.isfile(CONTEXT_PEAK):
+        peak_text = read_text(CONTEXT_PEAK)
+        # AC6-d forbids a second *transcript* parser, not a second file read:
+        # context_peak legitimately reads the track's ledger.jsonl, and it does
+        # that through ledger.records() rather than by hand. So this does not
+        # ban json.loads or open() -- an earlier draft did, and that made
+        # session_ids() impossible to write at all. It bans the two field names
+        # only a transcript has.
+        #
+        # This is a blunt instrument: the same strings appearing in a comment or
+        # docstring will trip it. When that happens the fix is to reword the
+        # comment, not to delete the check.
+        reuses_parser = ("usage_collector.usage_records(" in peak_text
+                          and "usage_collector.read_window(" in peak_text)
+        no_second_parser = ('"requestId"' not in peak_text
+                             and '"message"' not in peak_text)
+        check(f"{CONTEXT_PEAK} reuses usage_collector's transcript parser "
+              "instead of writing a second one", reuses_parser and no_second_parser)
+
 # The platform filters `AskUserQuestion` out of every subagent whatever
 # `tools:` says, so a stage reference naming it is naming a tool its own
 # runner does not have. references/pending-questions.md is the way round it:
@@ -1430,6 +1514,55 @@ if os.path.isfile(STAGES_JSON):
 # travels with the mention -- a file that keeps the instruction and loses the
 # protocol sends the runner back to answering the question itself, and it
 # does that silently, in an approved design document or a force-push.
+# The note cell has one declared owner: the main session (SKILL.md).
+# Every reference used to tell its own runner to write that cell, and four
+# of the six agents have no Write -- the instruction and the capability
+# disagreed, and nothing failed when they did. Three mentions survive, all
+# in stage-build.md: one in prose about .gitignore, two in Step 5.5, which
+# owns the in-flight `unit N of M` and is deliberately untouched. A file
+# absent from this dict is expected to mention it zero times -- the check
+# reads STATE_MD_MENTIONS.get(basename, 0), so silence here means 0, not
+# "unchecked".
+# Counted as occurrences of the string, not as lines containing it.
+# A count rather than "zero everywhere else" so that adding a fourth write
+# to Step 5.5 is also a decision someone has to make out loud.
+STATE_MD_MENTIONS = {"stage-build.md": 3}
+
+# One number, six files. Six copies of a ceiling drift the moment one is
+# edited, so validate.py holds the value and each file has to agree with
+# it. The date beside it is the sign-off, in the shape ledger.py established
+# for MAX_NOTE -- a number nobody can name the owner of is a number the
+# next reader changes without asking.
+REPORT_MAX = 4000
+
+# A gap D6 closed by granting the tool is pinned by STAGE_TOOL_NEEDS above:
+# take Write back off verifier.md and the check goes red, naming the stage
+# and the tool. A gap it closed by rewording the reference has nothing
+# holding it closed -- paste "Dispatch `explorer`" back into
+# stage-intake.md and every check still passes, with the reference once
+# more asking for a tool its runner does not have. That is the defect this
+# block exists to catch, so the four retired imperatives are named here,
+# per file.
+#
+# Each row carries the stage and the tool the imperative would again
+# demand, not just the phrase, because the FAIL message must name both.
+#
+# Keyed by file on purpose: stage-design.md keeps its own
+# "dispatch `explorer`" and must not be caught by this, because
+# designer.md does have `Agent` and has never claimed to be read-only.
+#
+# Blunt in one direction, and say so: this catches the sentence coming
+# back, not the instruction coming back. A synonym reintroducing the same
+# mismatch trips nothing here -- what narrows it is that the rewrite puts
+# the reason in the reference's own prose, so an editor reads it before
+# rewording the sentence.
+RETIRED_IMPERATIVES = {
+    "stage-intake.md": [("Dispatch `explorer`", "intake", "Agent")],
+    "stage-discover.md": [("Dispatch `explorer`", "discover", "Agent"),
+                          ("Write it to the session", "discover", "Write")],
+    "stage-ship.md": [("entry if one exists", "ship", "Write")],
+}
+
 PENDING_Q = f"{PLUGIN}/skills/track/references/pending-questions.md"
 check(f"pending-questions reference ships ({PENDING_Q})", os.path.isfile(PENDING_Q))
 check(f"{PLUGIN}/skills/track/SKILL.md points the main session at "
@@ -1437,6 +1570,53 @@ check(f"{PLUGIN}/skills/track/SKILL.md points the main session at "
       "pending-questions.md" in read_text(f"{PLUGIN}/skills/track/SKILL.md"))
 for ref in sorted(glob.glob(f"{PLUGIN}/skills/track/references/stage-*.md")):
     ref_text = read_text(ref)
+
+    # AC1: the note cell has one declared owner (the main session,
+    # SKILL.md). Every reference used to tell its own runner to write that
+    # cell, and four of the six agents have no Write -- the instruction and
+    # the capability disagreed, and nothing failed when they did. Three
+    # mentions survive, all in stage-build.md (Step 5.5, which owns the
+    # in-flight `unit N of M` and is deliberately untouched). A file absent
+    # from this dict is expected to mention it zero times.
+    mentions = ref_text.count("state.md")
+    expected_mentions = STATE_MD_MENTIONS.get(os.path.basename(ref), 0)
+    check(f"{os.path.basename(ref)} mentions state.md {expected_mentions} "
+          f"time(s) (found {mentions})", mentions == expected_mentions)
+
+    # AC3: exactly one `## Report` section (matched as a whole line, so
+    # stage-verify.md's pre-existing `## Step 3 -- Report` heading is not
+    # miscounted), and that section names the REPORT_MAX ceiling (word-
+    # bounded, so 4000 does not also match inside 40000) and a sign-off
+    # date.
+    report_headings = list(re.finditer(r"^## Report$", ref_text, re.MULTILINE))
+    check(f"{os.path.basename(ref)} has exactly one `## Report` section "
+          f"({len(report_headings)})", len(report_headings) == 1)
+    if report_headings:
+        section = ref_text[report_headings[0].start():]
+        has_ceiling = re.search(r"\b%d\b" % REPORT_MAX, section) is not None
+        has_date = re.search(r"\d{4}-\d{2}-\d{2}", section) is not None
+        check(f"{os.path.basename(ref)}'s `## Report` section names the "
+              f"{REPORT_MAX}-character ceiling and a sign-off date",
+              has_ceiling and has_date)
+
+    # AC4-c: a gap D6 closed by granting the tool is pinned by
+    # STAGE_TOOL_NEEDS above: take Write back off verifier.md and that check
+    # goes red, naming the stage and the tool. A gap it closed by rewording
+    # the reference has nothing holding it closed -- paste "Dispatch
+    # `explorer`" back into stage-intake.md and every other check still
+    # passes, with the reference once more asking for a tool its runner
+    # does not have. That is the defect this block exists to catch.
+    #
+    # Keyed by file on purpose: stage-design.md keeps its own
+    # "dispatch `explorer`" and must not be caught by this, because
+    # designer.md does have `Agent` and has never claimed to be read-only.
+    back = ["%s would again need %s: %r" % (stage, tool, phrase)
+            for phrase, stage, tool
+            in RETIRED_IMPERATIVES.get(os.path.basename(ref), [])
+            if phrase in ref_text]
+    check("%s does not re-add an imperative D6 retired (%s)"
+          % (os.path.basename(ref), "; ".join(back) or "none back"), not back)
+
     if "AskUserQuestion" not in ref_text:
         continue
     check(f"{os.path.basename(ref)} names AskUserQuestion and points at "

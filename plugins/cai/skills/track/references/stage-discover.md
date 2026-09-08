@@ -41,7 +41,8 @@ cannot stand in for this.
 
 ### A. Blindspot pass — unfamiliar code
 
-Dispatch `explorer` first (read-only) to map the area, then report:
+Map the area yourself first, with `Read`/`Grep`/`Glob` — this stage's agent is
+read-only and has no `Agent` (`architect.md:7`) — then report:
 
 - **Scope and stakes** — one line on what looked simple vs. what is actually
   there.
@@ -100,9 +101,12 @@ worth nothing.
 
 `workflow.md` already requires a prototype here; this is how to build one.
 
-- **One self-contained HTML file** with fake data. Write it to the session
-  scratchpad or a directory the user names — never into the app, never
-  committed.
+- **One self-contained HTML file** with fake data, in the session scratchpad
+  or a directory the user names — never into the app, never committed.
+  Standing alone you build it. Dispatched inside a track you do not: this
+  stage's agent is read-only (`architect.md:7`). Name the directions and what
+  is distinctive about each in your `## Report`, and say the file is still to
+  be built — whoever holds `Write` builds it from that.
 - **N deliberately incompatible directions** (4 is a good default) rendering
   the *same* data. If two of them could be described by the same sentence,
   one is wasted. Push the extremes: dense ops console vs. airy editorial vs.
@@ -141,7 +145,21 @@ The technique this stage is built from renders every artifact as HTML. Only
 move E genuinely needs to be seen to be judged; A–D read faster as markdown
 in the terminal, so keep them there.
 
-## Closing
+## Report
 
-Before handing off, write into `state.md`'s `note` cell for `discover`:
-which move ran, what it found, and any deviation from this procedure.
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- which move ran
+- what it found
+- any deviation from this procedure
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

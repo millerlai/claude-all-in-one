@@ -17,7 +17,7 @@ things that make this correct rather than merely plausible:
     module is not in a position to assert.
 
 It imports nothing from this repo, on purpose, matching ledger.py:15-19: it
-is a leaf, only ledger.py imports it.
+is a leaf. ledger.py, usage_report.py, and context_peak.py all import it.
 
 Bad-line tolerance and UTF-8 reading are copied from ledger.py:216-231
 (Claude Code may still be appending to the transcript this module is
@@ -90,7 +90,7 @@ def _subagents_dir(projects_root, cwd, session_id):
 def subagent_transcripts(projects_root, cwd, session_id, since):
     """Subagent transcript files new in the window, by file mtime -- a cheap
     pre-filter so a long-lived session does not reopen every subagent it
-    ever ran. `_read_window()` still filters each line by its own
+    ever ran. `read_window()` still filters each line by its own
     `timestamp` for the millisecond precision the window boundary needs
     (D4); this is only which files are worth opening at all.
 
@@ -101,7 +101,7 @@ def subagent_transcripts(projects_root, cwd, session_id, since):
     synced home directory can all leave a file's mtime after a line whose
     own `timestamp` is still inside the window, and excluding the file here
     would drop that line with no future window ever able to see it again.
-    `_read_window()`'s per-line `timestamp` check is what enforces `until`."""
+    `read_window()`'s per-line `timestamp` check is what enforces `until`."""
     directory = _subagents_dir(projects_root, cwd, session_id)
     try:
         names = sorted(os.listdir(directory))
@@ -181,12 +181,18 @@ def _resolve_ephemeral(usage):
     return 0, 0, None
 
 
-def _read_window(path, since_ms, until_ms, problems):
-    """Raw JSON-line strings from `path` whose top-level `timestamp` falls in
-    (since_ms, until_ms] -- window is left-open, right-closed (glossary:
-    window). OSError and unparseable lines are swallowed, per
-    ledger.py:216-231: reading tolerates a file Claude Code may still be
-    appending to, and notes why in `problems` rather than raising."""
+def read_window(path, since_ms, until_ms, problems):
+    """Raw JSON-line strings from `path` whose top-level `timestamp` falls
+    in (since_ms, until_ms] -- window is left-open, right-closed. Either
+    bound may be None, meaning unbounded on that side; context_peak.py
+    passes None for both, because a peak is over the whole session and not
+    over a window. Renamed from `_read_window` -- public because a second
+    module now calls it, which the usage-accounting design explicitly
+    allows (2026-08-30-track-usage-accounting-detail.md:419).
+
+    OSError and unparseable lines are swallowed, per ledger.py:216-231:
+    reading tolerates a file Claude Code may still be appending to, and
+    notes why in `problems` rather than raising."""
     try:
         with open(path, "rb") as fh:
             raw = fh.read()
@@ -213,20 +219,46 @@ def _read_window(path, since_ms, until_ms, problems):
             continue
         if since_ms is not None and ts_ms <= since_ms:
             continue
-        if ts_ms > until_ms:
+        if until_ms is not None and ts_ms > until_ms:
             continue
         out.append(text)
     return out
 
 
-def _aggregate_with_problems(line_iter, source, problems):
-    """Dedup by requestId, sum the five token keys per model. Every anomaly
-    (bad JSON, missing requestId, missing/malformed message.usage, an
-    unsplittable cache_creation) is skipped and named in `problems`, tagged
-    with `source` and a line number -- R1's "each one names which
-    column"."""
+def usage_records(line_iter, source, problems):
+    """Yield (number, request_id, model, usage, timestamp) for every
+    assistant line in `line_iter` whose requestId is new and whose
+    message.usage passes _valid_usage(). `usage` is the raw top-level
+    dict, not a projection: _aggregate_with_problems() wants the TTL split
+    out of it and context_peak.py wants the total, and neither may read
+    the transcript a second time to get its own.
+
+    `timestamp` is the line's own top-level `timestamp`, carried out
+    because read_window() consumed and discarded it and context_peak needs
+    it to say where a peak occurred. Re-parsing the line downstream to
+    recover it would be a second parse this function exists to prevent.
+
+    `number` is the position among the lines this generator was given --
+    an assistant-record ordinal, NOT a line number in the transcript file,
+    because read_window() already dropped the file's own numbering.
+
+    Order is load-bearing and must not be rearranged: requestId present ->
+    not already in `seen` -> _valid_usage() -> record the id -> yield. The
+    id is recorded only when the record is yielded, so a line with
+    malformed usage never poisons a later, correct line carrying the same
+    requestId.
+
+    Top-level fields only. A real message.usage also carries an
+    `iterations` list whose entries repeat the same token fields; nothing
+    in this repo reads it and nothing should start -- summing it counts
+    one request several times.
+
+    Blank entries and non-str items are skipped silently and are NOT
+    recorded in `problems`, matching what _aggregate_with_problems() does
+    today. Every other anomaly (bad JSON, missing requestId, missing or
+    malformed message.model / message.usage) is skipped and named in
+    `problems`, tagged with `source` and `number`."""
     seen = set()
-    totals = {}
     for number, text in enumerate(line_iter, 1):
         text = text.strip() if isinstance(text, str) else text
         if not text:
@@ -255,12 +287,46 @@ def _aggregate_with_problems(line_iter, source, problems):
                             "in %s line %d" % (source, number))
             continue
 
+        seen.add(request_id)
+        yield number, request_id, model, usage, row.get("timestamp")
+
+
+def cache_creation_total(usage):
+    """int: how many cache-write tokens one request created, whichever
+    schema the line carries -- the nested cache_creation buckets when they
+    resolve, else the flat cache_creation_input_tokens the old schema
+    used, else 0. Built on _resolve_ephemeral() so that understanding the
+    two shapes stays in one place.
+
+    Note that _valid_usage() does NOT validate cache_creation_input_tokens,
+    so nothing upstream guarantees that key exists -- which is why this
+    returns 0 rather than raising, and why callers must not index the key
+    directly.
+
+    A caller that must *price* the write needs the TTL split and calls
+    _resolve_ephemeral() directly, because the two TTLs bill at different
+    rates. A caller that only needs the *size* -- context_peak's
+    occupancy -- calls this, and must not lose the biggest writes to a
+    split that could not be made."""
+    h1, m5, problem = _resolve_ephemeral(usage)
+    if problem is None:
+        return h1 + m5
+    return int(usage.get("cache_creation_input_tokens") or 0)
+
+
+def _aggregate_with_problems(line_iter, source, problems):
+    """Dedup by requestId, sum the five token keys per model. Every anomaly
+    (bad JSON, missing requestId, missing/malformed message.usage, an
+    unsplittable cache_creation) is skipped and named in `problems`, tagged
+    with `source` and a line number -- R1's "each one names which
+    column"."""
+    totals = {}
+    for number, _request_id, model, usage, _timestamp in usage_records(
+            line_iter, source, problems):
         ephemeral_1h, ephemeral_5m, ephemeral_problem = _resolve_ephemeral(usage)
         if ephemeral_problem:
             problems.append("%s in %s line %d" % (ephemeral_problem, source, number))
             continue
-
-        seen.add(request_id)
         bucket = totals.setdefault(model, {key: 0 for key in TOKEN_KEYS})
         bucket["input_tokens"] += usage["input_tokens"]
         bucket["output_tokens"] += usage["output_tokens"]
@@ -296,13 +362,13 @@ def collect(session_id, cwd, since, until, projects_root=None):
                         % (session_id, root))
         orchestration = {}
     else:
-        lines = _read_window(path, since_ms, until_ms, problems)
+        lines = read_window(path, since_ms, until_ms, problems)
         orchestration = _aggregate_with_problems(lines, path, problems)
 
     sub_paths = subagent_transcripts(root, cwd, session_id, since)
     agent_lines = []
     for sub_path in sub_paths:
-        agent_lines.extend(_read_window(sub_path, since_ms, until_ms, problems))
+        agent_lines.extend(read_window(sub_path, since_ms, until_ms, problems))
     agents = _aggregate_with_problems(agent_lines, "subagents", problems)
 
     return orchestration, agents, problems

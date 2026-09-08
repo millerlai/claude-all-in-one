@@ -61,3 +61,7 @@ checks the plugin's shape and the guard, `tests/` checks what the scripts do.
 Platform coverage: Linux is covered by CI on every PR, which runs both
 `validate.py` and `pytest`. Windows is covered only by the developer running
 both by hand, as described above. macOS has no coverage at all.
+
+Running `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
+prints that track's main-session peak context occupancy; it only reads local
+transcripts and writes nothing.

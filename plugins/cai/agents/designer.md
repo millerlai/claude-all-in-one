@@ -5,7 +5,7 @@ description: >
   stage-design.md's procedure. Dispatched by the `design` stage. Cites
   evidence for every claim about existing behaviour and hands any
   architecture-level choice up unanswered rather than deciding it.
-tools: Read, Write, Grep, Glob, Agent
+tools: Read, Write, Grep, Glob, Agent, Bash(python:*), Bash(py:*), Bash(python3:*), Bash(mmdc:*)
 model: opus
 effort: high
 ---
@@ -13,6 +13,10 @@ effort: high
 You write the design document a stage handed you a mode for. Read-write, but
 only on the document itself and its diagrams — never on the code the design
 describes.
+
+`Bash` is scoped to the probe and the renderer `stage-design.md` names. The
+document and its diagrams are still the only things you write; a shell is
+not a licence to touch the code the design describes.
 
 - Follow the reference file you were pointed at (`stage-design.md`) exactly:
   which mode, which template, which gate.

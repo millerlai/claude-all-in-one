@@ -101,8 +101,23 @@ section 3 before touching anything in it.
   stops for an answer, because inside a track it has to run to completion.
 - **Reviewing a plan rather than code** — that is `plan-review`.
 
-## Closing
+## Report
 
-Before handing off, write into `state.md`'s `note` cell for `verify`: the
-verdict, what was fixed, what section 3 raised and how it was answered, and
-what remains unfixed and why.
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- the verdict
+- what was fixed
+- what Step 3's **Requirement decisions to confirm** raised and how it was
+  answered
+- what remains unfixed and why
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

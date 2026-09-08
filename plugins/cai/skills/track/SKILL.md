@@ -65,7 +65,7 @@ For the stage about to run:
        [--artifact <path>] --note "<why, one line>"
    ```
 
-   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which sets that stage's own `status` to `in-progress` when a run stops before its units are finished.
+   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which — when a run stops before its units are finished — sets that stage's own `status` to `in-progress`, sets its `note` to `unit <N> of <total>`, and appends a `## Handoff` block. Every other `note` cell is yours, written from the fields the stage handed up under `## Report`.
 
    - **Preflight exited 2** → `blocked`. **Unless** its output holds
      `FAIL ledger_attempts` — that stage is already at its cap and another
