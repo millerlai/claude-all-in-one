@@ -128,8 +128,11 @@ document this track produced, if one exists, rather than re-deriving it
 from the diff — but the *what* still comes from the diff under the
 grounding rule, since a design document describes a plan and this paragraph
 describes what shipped. Where the two disagree, the diff is right and the
-gap is worth a sentence. Put it wherever this project keeps release notes — a
-`CHANGELOG.md` entry if one exists, otherwise the PR description.
+gap is worth a sentence. Put it in the PR description — you have `gh`, and that is where it always
+lands. If this project also keeps a `CHANGELOG.md`, do not write it: hand
+the same paragraph up in your `## Report`, naming the file, and the main
+session writes the entry. Files this stage does not already own are not
+yours to write.
 
 ## Rollback
 
@@ -147,8 +150,21 @@ working tree, so only the branch pointer needs to move back. Never
   do nothing.
 - Nothing has changed since the last ship — there is no diff to note.
 
-## Closing
+## Report
 
-Before handing off, write into `state.md`'s `note` cell for `ship`: the
-final commit hash, whether the merge/tag/publish step ran or is still
-waiting on the person, and where the release note landed.
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- the final commit hash
+- whether the merge/tag/publish step ran or is still waiting on the person
+- where the release note landed
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

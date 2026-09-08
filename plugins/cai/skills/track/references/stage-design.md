@@ -244,8 +244,22 @@ reads exactly like one that was needed. Each of these belongs somewhere else:
   change is any *good* use the `verify` stage. Delta mode recovers what was
   decided, which is a third thing.
 
-## Closing
+## Report
 
-Before handing off, write into `state.md`'s `note` cell for `design`: which
-mode ran, where the document landed, what `plan-review` returned, and any
-deviation from this procedure.
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- which mode ran
+- where the document landed
+- what `plan-review` returned
+- any deviation from this procedure
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

@@ -16,8 +16,9 @@ This file used to import nothing from this repo; that changed when usage
 tracking landed. track_state.py already imports preflight, and preflight
 imports this file -- a third edge back to either of them would close the
 cycle. usage_collector.py is safe to import because it is a leaf on that
-chain: only ledger.py imports it, and it imports nothing from this repo in
-turn, so no edge points back. stage_ids() and ArgParser below are still
+chain: ledger.py, usage_report.py, and context_peak.py all import it, and it
+imports nothing from this repo in turn, so no edge points back. stage_ids()
+and ArgParser below are still
 copied from track_state.py rather than imported, for the same reason as
 always -- deliberate duplication, bought with a dependency cycle removed --
 do not "fix" it. Both are named here rather than cited by line: the two line

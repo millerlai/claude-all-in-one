@@ -258,8 +258,26 @@ Units all green is not done:
    table, every deviation, the review verdict, and what could not be
    verified automatically as numbered manual steps.
 
-## Closing
+## Report
 
-Before handing off, write into `state.md`'s `note` cell for `build`: what
-was built, which units ran in parallel, every deviation, and anything
-skipped.
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- what was built
+- which units ran in parallel
+- every deviation
+- anything skipped
+
+The in-flight `unit <N> of <total>` row is still written by Step 5.5
+above, not here -- this section is what you hand back once the whole
+schedule is done.
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

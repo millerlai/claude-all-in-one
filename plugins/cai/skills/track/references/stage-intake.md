@@ -11,10 +11,12 @@ check whether the acceptance criteria were actually met.
 
 ## Step 1 — Explore the context
 
-Before asking anything, look. Dispatch `explorer` (read-only) to map the
-area the request touches — related code, existing conventions, anything that
-already half-solves this. A question asked without having looked first
-spends the person's time on something you could have found yourself.
+Before asking anything, look. Map the area the request touches yourself, with
+`Read`/`Grep`/`Glob` — related code, existing conventions, anything that already
+half-solves this. Not a dispatched scout: this stage's agent is read-only and has
+no `Agent` (`architect.md:7`), and keeping it that way is the trade this makes. A
+question asked without having looked first spends the person's time on something
+you could have found yourself.
 
 ## Step 2 — Ask one question at a time
 
@@ -54,10 +56,24 @@ The next stage — `discover` when the solution space is still unclear, or
 `design` when it is not — only starts once the user has said yes to this
 one. Typing the request is not agreement to whatever was inferred from it.
 
-## Closing
+## Report
 
-Before handing off, write into `state.md`'s `note` cell for `intake`: the
-problem statement that was agreed, which questions were skipped and why, and
-any deviation from this procedure. A track resuming in a fresh session with
-no memory of this conversation reads that cell, not this file, to find out
-what happened.
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- the problem statement that was agreed
+- which questions were skipped and why
+- any deviation from this procedure
+
+A track resuming in a fresh session with no memory of this conversation
+reads that cell, not this file, to find out what happened.
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.
