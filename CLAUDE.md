@@ -24,7 +24,13 @@ per-user in `~/.claude/rules/` by `/cai:setup`.
 
 ## Before pushing
 Run `python scripts/validate.py` — it checks the manifests, every component's
-frontmatter, and that the bash guard still blocks what it should.
+frontmatter, and that the bash guard still blocks what it should, plus the
+repo's own prose against claims it makes about itself: whether the provenance
+ledger's citations still resolve, and whether other files restating a
+sentence from `plugins/cai/rules/` still say what the source says.
+
+Editing any rule sentence that `docs/rule-provenance.md` cites (a `Cited by:`
+target) must update that ledger entry in the same edit.
 
 Run `python -m pytest` too — the tests under `tests/`, which exercise what the
 scripts in `plugins/cai/scripts/` actually do. It needs `pytest` installed

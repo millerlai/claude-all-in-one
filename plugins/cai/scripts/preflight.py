@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -386,6 +387,26 @@ def find_base_ref(cwd):
     return None
 
 
+def change_size(cwd, *rev):
+    """How big a diff is: `(files, lines)`, or `None` when git could not say.
+
+    Never `(0, 0)` -- a caller reading "0 files, 0 lines" would misread
+    "couldn't tell" as "nothing changed", which is the opposite of what a
+    FAIL on `has_changes` already means."""
+    done = git(cwd, "diff", "--shortstat", *rev)
+    if done is None or done.returncode != 0:
+        return None
+    out = done.stdout
+    match = re.search(r"(\d+) files? changed", out)
+    if not match:
+        return None
+    files = int(match.group(1))
+    if files == 0:
+        return None
+    lines = sum(int(n) for n in re.findall(r"(\d+) (?:insertion|deletion)", out))
+    return files, lines
+
+
 def verify(track_dir, project_dir):
     if not is_git_repo(project_dir):
         return [(False, "has_changes (%s is not a git repository)" % project_dir)]
@@ -401,9 +422,13 @@ def verify(track_dir, project_dir):
 
     ok = dirty or diff
     if dirty:
-        detail = "uncommitted changes"
+        size = change_size(project_dir, "HEAD")
+        detail = ("uncommitted changes: %d files, %d lines" % size if size
+                   else "uncommitted changes")
     elif diff:
-        detail = "diff from %s" % base
+        size = change_size(project_dir, "%s...HEAD" % base)
+        detail = ("diff from %s: %d files, %d lines" % (base, size[0], size[1]) if size
+                   else "diff from %s" % base)
     else:
         detail = "nothing to review"
     return [(ok, "has_changes (%s)" % detail)]
