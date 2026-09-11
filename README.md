@@ -27,17 +27,20 @@ Four layers, plus one underneath all of them.
   when someone wants to run just that stage, track or no track. Exactly two
   stages stop for a human sign-off: after `design`, before any code exists,
   and before the irreversible operations inside `ship` — merging, tagging,
-  publishing.
+  publishing. Both arrive as a menu you pick from, never as a prompt asking
+  you to type `approved`.
 - **The tools.** Reachable any time, with no track running: `/cai:refactor`,
   `/cai:debug`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`.
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards under `refactoring-catalog/`, the
   smell-to-refactoring routing table, and the six stage procedures above.
 
-Underneath all of it: `preflight.py`, `track_state.py`, `design_probe.py`, and
-`validate.py` answer what a deterministic check can settle — is this stage
-allowed to start, where did the track stop, does this design document actually
-have the shape it claims — before anything reaches a model.
+Underneath all of it: `preflight.py`, `track_state.py`, `design_probe.py`,
+`options_lint.py`, and `validate.py` answer what a deterministic check can
+settle — is this stage allowed to start, where did the track stop, does this
+design document actually have the shape it claims, can a reader find "how
+reversible" in the options they are being asked to choose between — before
+anything reaches a model.
 
 ### The six stages, and who runs each one
 
@@ -59,11 +62,11 @@ flowchart TB
     S1["intake<br/>a problem statement you can check"] --> S2
     S2["discover<br/>what nobody knows yet"] --> S3
     S3["design<br/>high-level, detail, or delta"] --> HG1
-    HG1[/"human gate<br/>sign off, no code exists yet"/] --> S4
+    HG1[/"human gate · menu<br/>sign off, no code exists yet"/] --> S4
     S4["build<br/>the work breakdown, unit by unit"] --> S5
     S5["verify<br/>three lenses over the diff"] --> S6
     S6["ship<br/>one commit, plus a release note"] --> HG2
-    HG2[/"human gate<br/>before merge, tag, publish"/] --> DONE(["/cai:track done"])
+    HG2[/"human gate · menu<br/>before merge, tag, publish"/] --> DONE(["/cai:track done"])
 
     S1 -.-> AR
     S2 -.-> AR

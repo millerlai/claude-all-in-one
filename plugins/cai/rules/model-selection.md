@@ -8,10 +8,11 @@
   model at all, is the mistake to avoid.
   - **program** — a deterministic check settles it: does the file/heading/path exist,
     does the test command exit 0, is the branch protected. No judgement, no model.
-    `plugins/cai/scripts/design_probe.py`, `preflight.py`, `track_state.py`, and
-    `scripts/validate.py` are this layer — each answers in milliseconds a question
-    that would otherwise cost a model turn. `preflight.py` runs before every stage
-    precisely so a stage that can't start doesn't cost anything to refuse.
+    `plugins/cai/scripts/design_probe.py`, `preflight.py`, `track_state.py`,
+    `options_lint.py`, and `scripts/validate.py` are this layer — each answers in
+    milliseconds a question that would otherwise cost a model turn. `preflight.py`
+    runs before every stage precisely so a stage that can't start doesn't cost
+    anything to refuse.
   - **chore** — needs no judgement on any given run: file search, grep/glob
     exploration, renaming, formatting, simple summarization, boilerplate, running
     a known command and reporting what it printed.

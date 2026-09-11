@@ -86,6 +86,13 @@ while no code exists yet and changing your mind is cheap, and **before the
 irreversible parts of `ship`** — merging, tagging, publishing. Nowhere else
 waits for you.
 
+Both arrive as a menu you pick from, never a prompt asking you to type
+`approved`. The design one offers three: approve it, ask for changes (which
+sends `design` round again with what you said), or reject it. Ship's quotes
+the exact commands about to run, and offers to hand them back instead. Every
+menu also takes free text, so "yes but rename the flag" is a first-class
+answer rather than something you have to squeeze into one of the options.
+
 ### Skipping a stage
 
 Stages are skippable, never silently:

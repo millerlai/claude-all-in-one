@@ -11,6 +11,11 @@ standing alone does not remove it. Closing the ticket joins this same gate
 rather than adding a third — see `references/ticket-mirror.md`'s ship
 section for that confirmation's own separate item.
 
+**Every confirmation here is a menu**, quoting the exact commands about to
+run — never a sentence the person types a word back into.
+`references/approval-gates.md` holds the options and which of them are asked
+on their own turn.
+
 **Voicing that gate is the one thing not the same either way.** Dispatched
 by the track you are a subagent, and the platform gives no subagent an
 interactive tool. That confirmation, and every "stop and ask" below, then
@@ -97,7 +102,9 @@ change — not a replay of intermediate commits, and not fixup/WIP noise.
 Every bullet is a claim; the grounding rule above applies to each one.
 
 **Show the drafted message to the user and wait for confirmation** before
-Step 5. This is history-rewriting; never skip confirmation.
+Step 5 — the message in full, then a menu (`references/approval-gates.md`),
+asked on its own turn rather than folded into the gate above. This is
+history-rewriting; never skip confirmation.
 
 ## Step 5 — Backup, then squash
 

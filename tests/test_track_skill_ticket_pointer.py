@@ -104,9 +104,10 @@ def test_validate_reports_the_same_body_line_count_as_computed_here():
     assert reported <= ceiling
 
 
-def test_skill_md_body_is_122_lines():
+def test_skill_md_body_is_127_lines():
     """120 before ticket mirroring, plus one pointer line each for it and
-    for `references/pending-questions.md` (2026-09-03).
+    for `references/pending-questions.md` (2026-09-03), plus five for
+    `references/approval-gates.md` (#74).
 
     This also carries what a `git diff --numstat HEAD` assertion used to:
     that a feature added one line and no more. That form only worked
@@ -114,10 +115,13 @@ def test_skill_md_body_is_122_lines():
     and the assertion cannot say anything. A line count is the same
     guarantee stated in a way that survives being committed.
 
-    122 is also the ceiling in scripts/validate.py, so this file now has no
-    headroom at all: the next feature that needs a pointer here raises the
-    ceiling deliberately, which is what that constant's comment asks for."""
-    assert _skill_body_lines() == 122
+    The number moves only alongside `TRACK_SKILL_MAX` in scripts/validate.py,
+    and only with a note there saying what the lines bought -- which is what
+    that constant's comment asks for, and what the 122 -> 128 move recorded.
+    Deliberately one under the ceiling rather than on it: a test pinned to a
+    number that is also the ceiling turns every later edit into a two-file
+    negotiation before anyone has asked whether the line earns its place."""
+    assert _skill_body_lines() == 127
 
 
 # --- '## Human gates' still says what it has always said --------------------
@@ -138,6 +142,11 @@ def test_human_gates_still_names_exactly_two_and_no_more():
     # auto_invoke is explicitly not a third gate -- the sentence that says
     # so is the one a later edit is most likely to drop.
     assert "it is not a third human gate" in section
+    # #74 added how the two are voiced, which is the other thing a later edit
+    # drops: a gate asked as prose reads as asked, and the answer that comes
+    # back is whatever the person typed.
+    assert "approval-gates.md" in section
+    assert "AskUserQuestion" in section
 
 
 # --- the always-on budget never moved (AC3) --------------------------------

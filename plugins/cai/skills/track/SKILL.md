@@ -95,6 +95,11 @@ Exactly two stages stop for a person, never more:
 - **Before the irreversible operations in `ship`** — merging, tagging,
   publishing. Confirm with the person before running them.
 
+Both are asked as a menu — `AskUserQuestion`, labelled options, never a
+sentence the person has to type a word back into. You — the main session, not
+a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/approval-gates.md`
+for the options each one carries and where the answer lands.
+
 Every other stage, including ones marked `auto_invoke: false` in
 `stages.json`, still runs preflight and dispatch above; `auto_invoke` only
 says whether this skill may start the stage on its own or must wait to be

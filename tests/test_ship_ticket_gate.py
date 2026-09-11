@@ -4,15 +4,13 @@ and the confirmation for it can only ever originate from the main session.
 
 AC16 lives in test_ticket_transition.py; AC19 was Unit 4's. What is left
 here is text-level: `stage-ship.md`'s irreversible-operations list and "two
-gates" claim, `SKILL.md`'s own "## Human gates" section staying untouched
-and gaining no ticket-closing step, `agents/shipper.md` carrying no
+gates" claim, `SKILL.md`'s own "## Human gates" section still listing those
+two and gaining no ticket-closing step, `agents/shipper.md` carrying no
 interactive tool and handing the confirmation up rather than taking it, and
 `ticket-mirror.md`'s ship section naming the commit message and PR body.
 """
 import os
 import re
-import subprocess
-import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAGE_SHIP = os.path.join(
@@ -30,12 +28,6 @@ def _text(path):
 
 def _flat(path):
     return " ".join(_text(path).split())
-
-
-def _git(*args):
-    return subprocess.run(
-        ["git"] + list(args), cwd=REPO_ROOT,
-        capture_output=True, text=True, encoding="utf-8", check=True).stdout
 
 
 def _section(text, heading):
@@ -62,14 +54,24 @@ def test_stage_ship_still_says_two_human_gates_not_three():
     assert "rather than adding a third" in text
 
 
-# --- SKILL.md: unit 5 touches nothing here; this is the AC17 guard for -----
-# --- this unit specifically, on top of unit 4's own version of the test ----
+# --- SKILL.md: the AC17 guard for this unit specifically, on top of -------
+# --- unit 4's own version of the test -------------------------------------
 
-def test_skill_md_human_gates_section_is_byte_identical_to_head():
-    head_text = _git("show", "HEAD:plugins/cai/skills/track/SKILL.md")
-    before = _section(head_text, "## Human gates")
-    after = _section(_text(SKILL_MD), "## Human gates")
-    assert after == before
+def test_skill_md_human_gates_section_still_lists_those_two_and_no_ticket_step():
+    # Was "byte-identical to HEAD". That is the same stale form the test
+    # below already migrated away from, for the reason written out there: it
+    # says nothing once the change is committed, and before that it fails on
+    # any unrelated edit a later feature legitimately makes to this routing
+    # file -- which is what #74 did, adding how the two gates are voiced.
+    #
+    # AC17 is not "nobody ever touches this section"; it is that closing the
+    # ticket did not become a gate in it. So assert the list: exactly the two
+    # gates, and no ticket step among them.
+    section = _section(_text(SKILL_MD), "## Human gates")
+    assert "Exactly two stages stop for a person, never more" in section
+    assert "After `design`" in section
+    assert "Before the irreversible operations in `ship`" in section
+    assert "ticket" not in section.lower()
 
 
 def test_skill_md_gained_no_ticket_closing_step_of_its_own():

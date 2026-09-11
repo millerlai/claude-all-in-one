@@ -58,7 +58,9 @@ them can run alongside another, the verify command each will have to pass,
 and anything in the document you already know you will have to ask about.
 A long pass nobody sized is a long pass nobody agreed to.
 
-Then two answers, once for the whole run and not per unit:
+Then two answers, once for the whole run and not per unit. Two decisions, so
+two menus on two turns — `references/approval-gates.md` holds the shape, and
+neither is a sentence the person types a word back into:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
   procedure needs one commit per verified unit, and the parallel lane below
