@@ -197,8 +197,9 @@ Restart the session, then run:
 ```
 
 Setup copies the rule files into `~/.claude/rules/`, asks which language you
-want Claude to reply in, sets up your global `~/.claude/CLAUDE.md`, and verifies
-the bash guard actually fires. Restart once more so the new rules load.
+want Claude to reply in, sets up your global `~/.claude/CLAUDE.md`, verifies the
+bash guard actually fires, and offers to install the status line. Restart once
+more so the new rules load.
 
 Agents, commands, and the guard work in every project from then on. The rules
 apply to every project too, since they live at user scope.
@@ -285,6 +286,31 @@ your sections are now covered by a rules file and offers to slim the file down,
 because a rule kept in both places is sent to the model twice in every session
 and the two copies drift apart as soon as one is edited. `validate.py` enforces
 the same invariant on the shipped template.
+
+## The status line
+
+Optional, and offered by `/cai:setup` rather than shipped with the plugin —
+Claude Code reads only the `agent` and `subagentStatusLine` keys out of a
+plugin's settings, so a status line can only reach you through your own
+`~/.claude/settings.json`.
+
+```
+claude-all-in-one · main · Opus 5 [max] · ctx 92% · 5h 75% · 7d 60%
+```
+
+Project name in bright cyan, git branch, the model with its live `/effort`
+level, then three gauges that all read the same way — how much is **left**, not
+how much is spent. Green at 50% or more, amber down to 21%, red at 20% or below,
+so a colour means the same thing whichever number you look at. The two
+rate-limit gauges appear only for Claude.ai subscribers, and only after the
+session's first API response.
+
+Setup copies the script to `~/.claude/cai-statusline.py` and points
+`statusLine.command` at it. It never writes `~/.claude/statusline.py`, which
+belongs to Claude Code's own `/statusline` command. If you already have a status
+line configured, setup shows you what it is and asks before replacing it, and
+leaves a `settings.json.bak` either way. Re-running setup after a plugin update
+refreshes the copied script; it takes effect on save, with no restart.
 
 ## Also included
 
