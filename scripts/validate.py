@@ -539,6 +539,17 @@ if shipped_bullets and len(setup_bullets) == 2:
           all(b.replace("<language>", "English") == shipped_bullets[0]
               for b in setup_bullets))
 
+# A plugin cannot ship a `statusLine` -- Claude Code reads only `agent` and
+# `subagentStatusLine` out of a plugin's settings -- so step 6 delegates to a
+# script that writes the user's own settings.json. Two halves, each one rename
+# away from doing nothing: the step has to name the installer, and the
+# installer copies scripts/statusline.py by a path fixed at import time.
+for path in (f"{PLUGIN}/scripts/statusline.py",
+             f"{PLUGIN}/scripts/install_statusline.py"):
+    check(f"{path} ships with the plugin", os.path.isfile(path))
+check("setup.md delegates the settings.json write to install_statusline.py",
+      "install_statusline.py" in setup_text)
+
 GUARD = f"{PLUGIN}/scripts/bash_guard.py"
 DISPATCHER = f"{PLUGIN}/hooks/run-guard.cmd"
 

@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Finish installing cai — copy the shared rules into ~/.claude/rules/, set your preferred response language, and verify the bash guard actually fires. Run once after installing the plugin, and again after each /plugin update.
+description: Finish installing cai — copy the shared rules into ~/.claude/rules/, set your preferred response language, verify the bash guard actually fires, and optionally install the status line. Run once after installing the plugin, and again after each /plugin update.
 model: haiku
 disable-model-invocation: true
 ---
@@ -121,7 +121,49 @@ Tell the user plainly that destructive commands are NOT being blocked, and that
 they need Python 3 on PATH (`python3` on macOS/Linux, `python` or the `py`
 launcher on Windows).
 
-## Step 6 — Report
+## Step 6 — Offer the status line
+
+Optional, and installed only if the user asks for it. A plugin cannot ship a
+`statusLine` of its own — Claude Code honours only the `agent` and
+`subagentStatusLine` keys from a plugin's settings — so the only way to deliver
+one is to write the user's `~/.claude/settings.json`, which is why this step
+lives here rather than in the plugin manifest.
+
+Ask with the AskUserQuestion tool whether to install it. Say what they get: the
+project name, the git branch, the model with its current `/effort` level, and
+three remaining-capacity gauges — context window, 5-hour and 7-day limits —
+coloured green at 50% left or more, amber down to 21%, red at 20% or below.
+
+If they decline, move on without further comment.
+
+If they accept, look before writing:
+
+```
+python "<plugin-root>/scripts/install_statusline.py" --check
+```
+
+Use whichever interpreter name this machine has, the same way Step 5 does —
+`py -3` or `python` on Windows, `python3` on macOS/Linux. Then read the
+`statusLine:` line it prints:
+
+- **none configured** — install: run the same command without `--check`.
+- **installed by cai** — re-running refreshes the copied script, which is how a
+  plugin update reaches it. Run it again without `--check`.
+- **configured by someone else** — show the user the command it printed and ask
+  before replacing it. Only on a yes, swap `--check` for `--force`. The script
+  leaves a `settings.json.bak`, so their old setting is recoverable; the script
+  that setting pointed at is not this plugin's to restore.
+
+Do not edit `settings.json` yourself. That file holds their permissions, enabled
+plugins and marketplaces; the installer parses it, sets one key and writes it
+back atomically, which is exactly the part that goes wrong when a whole file is
+retyped around one new key.
+
+The status line appears as soon as the file is saved — unlike the rules, it
+needs no restart. If the installer's last line reports the verification FAILED,
+say so: a status line that cannot run shows up as an empty bar, not an error.
+
+## Step 7 — Report
 
 Report concisely:
 
@@ -130,4 +172,6 @@ Report concisely:
 - What happened to `~/.claude/CLAUDE.md` — created, slimmed, or left alone with
   duplication still present.
 - Whether the bash guard verification passed or failed.
+- Whether the status line was installed, declined, or refused because one was
+  already configured.
 - That a session restart is needed for newly copied rules to take effect.
