@@ -48,6 +48,17 @@ never from preference alone. This is the same option-weighing `stage-design.md`'
 High-level mode runs before an architecture choice, sized for a raw
 request rather than a full feasibility table.
 
+Lay each approach out in `option-explainer.md`'s six-field shape: a title line,
+then the six numbered, one field per item. Not a paragraph with them run
+together — every field is still there and none of them can be found (#73).
+`options_lint.py` checks that shape, and this stage does not run it: dispatched
+by the track this stage's runner is `architect`, which has neither `Write` nor
+a python interpreter (`architect.md:7`). The probe runs where the options reach
+the person — `references/pending-questions.md` step 0 for a dispatched run, the
+always-on self-check in `option-explainer.md` when this stage is the main
+session. Do not add the command here; add the capability first, in the open
+(`scripts/validate.py`'s `RETIRED_IMPERATIVES` fails the build if it appears).
+
 ## Step 4 — Wait for approval
 
 **Do not start implementing.** Hand back the problem statement, the
@@ -55,6 +66,10 @@ acceptance criteria it implies, and the recommended approach, then stop.
 The next stage — `discover` when the solution space is still unclear, or
 `design` when it is not — only starts once the user has said yes to this
 one. Typing the request is not agreement to whatever was inferred from it.
+
+That yes is a menu, not a word to type: the approaches from Step 3 become the
+options, `references/approval-gates.md` holds the shape, and the person who
+puts it is the main session (this stage's runner has no interactive tool).
 
 ## Report
 

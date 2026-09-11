@@ -33,7 +33,9 @@ already exists and nobody wrote down why it looks the way it does.
 Before either mode starts, four lines: the document path and the headings it
 will carry; how much of the target directory has to be read and how many
 documentation sources fetched; what is already unclear enough that you will
-have to ask; and what this will not decide. Then wait for a go.
+have to ask; and what this will not decide. Then wait for a go — asked as a
+menu, never as a sentence to type a word back into
+(`references/approval-gates.md`).
 
 Detail mode is the longer of the two and the one most worth sizing — it reads
 the whole target directory and renders every diagram. A pass that expensive
@@ -94,12 +96,15 @@ not ask for it is the same decision with the opposite sign.
 3. **Compare options, then ask.** At least two real options per
    architecture-level choice, each citing the `C<n>` ids it rests on, why
    it's possible here, what it costs, how it fails. Mark at most one
-   `(recommended)`, only if every capability it cites is `verified`. Put the
-   choice to the user with `AskUserQuestion` — one decision at a time,
-   biggest blast radius first. Escalate to `architect` (think tier,
-   read-only) only when a choice genuinely spans several subsystems or turns
-   on concurrency/consistency/migration ordering the evidence could not
-   settle.
+   `(recommended)`, only if every capability it cites is `verified`. Lay each
+   one out in `option-explainer.md`'s six-field shape — a title line, then the
+   six numbered, one per item — and check it before it goes anywhere:
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the options, as a file>`,
+   exit 0 or fix what it names (#73). Then put the choice to the user with
+   `AskUserQuestion` — one decision at a time, biggest blast radius first.
+   Escalate to `architect` (think tier, read-only) only when a choice
+   genuinely spans several subsystems or turns on
+   concurrency/consistency/migration ordering the evidence could not settle.
 4. **Write it.** Unless the user named a path:
    `docs/design/<YYYY-MM-DD>-<topic>-high-level.md`, date from `date +%F`,
    `<topic>` spelled out. Copy
@@ -117,6 +122,9 @@ not ask for it is the same decision with the opposite sign.
    `AskUserQuestion`. At most three rounds.
 6. **Stop.** Hand it over with `## Status` still `draft`. Only the user's
    approval changes it to `approved <YYYY-MM-DD>` — never set it yourself.
+   That approval is the track's first human gate, and it is asked as a menu
+   with three options: `references/approval-gates.md` holds them, and says
+   who writes the date once Approve comes back.
    Before handing over, check the draft carries no signature, schema, file
    path for code that doesn't exist, pinned version, or pseudocode — those
    belong in the detail design.
@@ -215,7 +223,8 @@ who could have corrected it.
 gate. The probe is free and answers only what has one answer — run it
 before spending any reading on `plan-review`'s findings. This is the design
 gate `track`'s human checkpoint sits on: nothing after this stage starts
-until a person signs off on the design artifact.
+until a person signs off on the design artifact, through the menu
+`references/approval-gates.md` describes.
 
 ## When to skip this stage entirely
 

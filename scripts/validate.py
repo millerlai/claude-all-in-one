@@ -259,6 +259,28 @@ OPTIONS_SKILL = f"{PLUGIN}/skills/options/SKILL.md"
 check(f"{OPTIONS_SKILL} disables model invocation",
       "disable-model-invocation: true" in read_text(OPTIONS_SKILL))
 
+# #73: the six fields were named in the rule and their layout was not, so a
+# reply that ran all six into one paragraph per option broke no line of it.
+# options_lint.py holds the half a rule cannot -- but a probe nobody is told to
+# run is a file, not a check, so both pointers are pinned. The rule carries the
+# self-check box, because it fires whether or not the skill was invoked; the
+# skill and the template carry the runnable path. What the probe *does* is held
+# by tests/test_options_lint.py, per the split CLAUDE.md draws between the two.
+OPTIONS_LINT = f"{PLUGIN}/scripts/options_lint.py"
+OPTION_RULE = f"{PLUGIN}/rules/option-explainer.md"
+OPTIONS_TEMPLATE = f"{PLUGIN}/skills/options/references/template.md"
+check(f"options_lint ships ({OPTIONS_LINT})", os.path.isfile(OPTIONS_LINT))
+for path in (OPTION_RULE, OPTIONS_SKILL, OPTIONS_TEMPLATE):
+    check(f"{path} points at options_lint.py", "options_lint.py" in read_text(path))
+
+# The literal the probe reads for "a pick was made", and the same one
+# stage-design.md and stage-intake.md already ask a design's options to carry.
+# Reword it out of the rule and every draft fails one_recommended with nothing
+# saying why -- the marker is a contract between three files and a script.
+for path in (OPTION_RULE, OPTIONS_TEMPLATE):
+    check(f"{path} names the `(recommended)` marker",
+          "(recommended)" in read_text(path))
+
 # /cai:setup copies these out to ~/.claude/rules/; an empty dir would
 # make setup a silent no-op.
 rules = sorted(glob.glob(f"{PLUGIN}/rules/*.md"))
@@ -270,7 +292,17 @@ check("rules ship with the plugin", bool(rules))
 # ceiling (its trailing comment carries the reasoning); this is what stops a
 # future edit drifting past it unnoticed the way it could before this check
 # existed. Same pattern as the goal.md line-ceiling check above.
-RULES_LINE_CEILING = 45
+#
+# Raised to 56 for #73. option-explainer.md sat exactly on 45, which is a
+# ceiling that has stopped measuring anything -- the next line to be added
+# fails regardless of whether it earns its place, and what it had to hold was
+# the one thing the rule was missing: the six fields were named and their
+# layout was not. Ten of the eleven went there (shape, the `(recommended)`
+# marker, the lint box); the eleventh is headroom, deliberately, so the number
+# is a budget again and not a tripwire. Same reasoning as TRACK_SKILL_MAX
+# below. Raising it further is a decision: every line here is read by every
+# session, forever.
+RULES_LINE_CEILING = 56
 for path in rules:
     n = len(read_text(path).splitlines())
     check(f"{path} is within its {RULES_LINE_CEILING}-line ceiling ({n})", n <= RULES_LINE_CEILING)
@@ -1567,8 +1599,17 @@ REPORT_MAX = 4000
 # mismatch trips nothing here -- what narrows it is that the rewrite puts
 # the reason in the reference's own prose, so an editor reads it before
 # rewording the sentence.
+#
+# The #73 row is the same shape arriving from the other direction: the lint
+# belongs wherever options are laid out, and intake is the one stage whose
+# runner can neither write the draft nor run a script (architect.md:7). Its
+# prose says so and points at where the probe does run, so this catches the
+# command being pasted in anyway -- matched as the command, not the filename,
+# because that prose names the file deliberately.
 RETIRED_IMPERATIVES = {
-    "stage-intake.md": [("Dispatch `explorer`", "intake", "Agent")],
+    "stage-intake.md": [("Dispatch `explorer`", "intake", "Agent"),
+                        ("scripts/options_lint.py", "intake",
+                         "Write and a python interpreter")],
     "stage-discover.md": [("Dispatch `explorer`", "discover", "Agent"),
                           ("Write it to the session", "discover", "Write")],
     "stage-ship.md": [("entry if one exists", "ship", "Write")],
@@ -1579,6 +1620,63 @@ check(f"pending-questions reference ships ({PENDING_Q})", os.path.isfile(PENDING
 check(f"{PLUGIN}/skills/track/SKILL.md points the main session at "
       "pending-questions.md",
       "pending-questions.md" in read_text(f"{PLUGIN}/skills/track/SKILL.md"))
+
+# #74: every stop for a person was written as prose -- "wait for a go",
+# "confirm with the person", "only the user's approval changes it" -- and
+# none of them said how to ask. Asked as prose, the person has to type a word
+# back, and the only word the prompt is shaped to receive is yes: nobody
+# disagrees by typing `approved`. approval-gates.md holds the menu; these are
+# the files that carry a stop and so must carry the pointer with it. Same
+# failure the pending-questions block above guards, one step earlier: a file
+# that keeps the instruction and loses the pointer goes back to prose, and it
+# does that silently, at a sign-off or a force-push.
+#
+# A dict rather than a bare list so the FAIL line says which stop lost it,
+# and so adding a seventh file is an edit someone makes on purpose.
+APPROVAL_GATES = f"{PLUGIN}/skills/track/references/approval-gates.md"
+GATE_POINTERS = {
+    "skills/track/SKILL.md": "the two human gates themselves",
+    "skills/track/references/stage-design.md": "the design sign-off, and the cost-sizing go",
+    "skills/track/references/stage-ship.md": "the irreversible operations, and the squash",
+    "skills/track/references/stage-intake.md": "the approval before anything is designed",
+    "skills/track/references/stage-build.md": "Step 0.5's two answers",
+    "skills/track/references/pending-questions.md": "a gate handed up by a subagent",
+    "skills/track/references/ticket-mirror.md": "ship's separate ticket item",
+}
+check(f"approval-gates reference ships ({APPROVAL_GATES})",
+      os.path.isfile(APPROVAL_GATES))
+for rel, stop in GATE_POINTERS.items():
+    check(f"{rel} points at approval-gates.md ({stop})",
+          "approval-gates.md" in read_text(f"{PLUGIN}/{rel}"))
+
+# The one thing the reference must not lose: a menu is only a menu because
+# the free-text entry is added for you. Written as an option, it eats one of
+# the four slots and stops being the exception it is for.
+if os.path.isfile(APPROVAL_GATES):
+    gates_text = read_text(APPROVAL_GATES)
+    check("approval-gates.md names AskUserQuestion as the tool",
+          "AskUserQuestion" in gates_text)
+    check("approval-gates.md says the free-text entry is never an option you "
+          "write", "never an option you write" in gates_text)
+    # It is read by the main session directly, for the same reason
+    # pending-questions.md and ticket-mirror.md are -- and that reason is the
+    # whole subject here, so losing it makes the file self-contradicting.
+    check("approval-gates.md says a subagent cannot voice its own gate",
+          "cannot voice its own gate" in gates_text)
+    # The one instruction here that is about code behaviour rather than
+    # wording, and the one whose cost is a track that cannot proceed:
+    # `ledger.py append --artifact` sha256s the document as it stands, so
+    # writing `approved <date>` after the row is recorded fingerprints a
+    # draft and then invalidates it. tests/test_preflight_build_gate.py owns
+    # the behaviour; this only holds the sentence that keeps the order.
+    check("approval-gates.md keeps the Approve ordering (Status written "
+          "before the ledger row)",
+          "**first**, then append the ledger row" in gates_text)
+    # A recommendation on a gate is the model grading its own work, which
+    # reverses epistemics.md's standing instruction -- so the carve-out has
+    # to stay visible as a carve-out, not drift into an unexplained deviation.
+    check("approval-gates.md names its `(recommended)` carve-out from "
+          "epistemics.md", "exception to `epistemics.md`" in gates_text)
 for ref in sorted(glob.glob(f"{PLUGIN}/skills/track/references/stage-*.md")):
     ref_text = read_text(ref)
 
@@ -1642,7 +1740,14 @@ for ref in sorted(glob.glob(f"{PLUGIN}/skills/track/references/stage-*.md")):
 # (2026-08-31), deliberately by two rather than one so the number is a budget
 # again and not a tripwire. Raising it further is a decision, not a formality:
 # every line here is read by every session that reaches for /cai:track.
-TRACK_SKILL_MAX = 122
+#
+# 122 -> 128 for #74, and the file had gone back to sitting exactly on it.
+# "Human gates" named the two stops and said nothing about how to voice them,
+# so both were being asked as prose the person had to type `approved` into.
+# Five of the six lines point the main session at approval-gates.md, the way
+# line 87 already points it at ticket-mirror.md; the sixth is headroom, on the
+# same reasoning as the 120 -> 122 move above.
+TRACK_SKILL_MAX = 128
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)

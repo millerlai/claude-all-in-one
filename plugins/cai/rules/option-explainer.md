@@ -6,8 +6,8 @@
   brevity still binds: drop options, not fields.
 
 # Before the list
-- Name 2-4 comparison dimensions first, then the options. Describe every
-  option on the same ones; "not applicable" needs a reason, not a blank.
+- Name 2-4 comparison dimensions first, as bullets, then the options. Describe
+  every option on the same ones; "not applicable" needs a reason, not a blank.
 - Gloss every term, abbreviation, package name and bare code (`A1`) on first
   use, in words that introduce no new term. A gloss needing its own is not one.
 - Too many terms to gloss inline? Write the background first, then list.
@@ -15,6 +15,10 @@
 - Missing a fact the choice turns on? Ask one question — one — and stop there.
 
 # Six fields per option, all filled
+Each option is a title line, then these six as a numbered list — one field per
+item, its label first. Never a paragraph with the six run together: every field
+is still there and none of them can be found.
+
 1. What it literally is — the thing itself, one sentence, no jargon.
 2. ELI5 — the same thing as one everyday-life analogy, in different words.
 3. What actually changes — which files appear or change, what is different to
@@ -26,8 +30,12 @@
 # Close with a pick
 - End with "if you would rather not weigh it, pick X, because ...", plus the
   condition that would make X the wrong pick. Never end on "it depends".
+- Mark X `(recommended)` in its title — that marker, not the closing
+  sentence, is the part a check and a menu can both read.
 
 # Self-check before sending — any no, do not send
+- [ ] The cai plugin's `scripts/options_lint.py` exits 0 on the draft. It sees
+      shape only; every box below is still yours.
 - [ ] Every option described on the same dimensions.
 - [ ] Every first-use term glossed, no gloss introducing a new term.
 - [ ] Every "what actually changes" observable, not an adjective.
@@ -41,5 +49,7 @@
   remaining fields. Drop a gloss before dropping the analogy.
 - A list already went out that nobody can act on: `/cai:options` rewrites it.
 
-<!-- 45 lines by validate.py's count; wc -l agrees only with the trailing
-newline. Six fields plus three ELI5 checks do not fit in 40. Cut a field. -->
+<!-- 55 lines by validate.py's count; wc -l agrees only with the trailing
+newline. Six fields plus three ELI5 checks do not fit in 40. Cut a field.
+45 -> 56 for #73: the fields were here and their layout was not, so a reply
+could run all six into one paragraph and break no line above. -->

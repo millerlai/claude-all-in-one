@@ -40,9 +40,15 @@ Read the one you need, not all three.
 4. **Fill all six fields for every option**, in `template.md`'s order:
    `What it literally is`, `ELI5`, `What actually changes`, `What it costs`,
    `How reversible`, `When it fits`. No blanks; "not applicable" carries its reason.
-5. **Pick one**, and state the condition that would make it the wrong pick.
-6. **Run the self-check** in the rules file — all seven boxes, including the
-   three ELI5 ones. A no is a rewrite of that field, not a caveat under it.
+   A title line, then the six as a numbered list, one field per item — never a
+   paragraph with them run together, which is the shape #73 reported.
+5. **Pick one**, mark it `(recommended)` in its title, and state the condition
+   that would make it the wrong pick.
+6. **Lint the draft, then run the self-check.** Write the draft to a file and
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the draft>`; exit 0
+   or fix what it names, then re-run. Then the rules file's own boxes — the
+   three ELI5 ones among them — which the probe cannot see. A no is a rewrite
+   of that field, not a caveat under it.
 
 ## The ELI5 field, specifically
 
@@ -77,3 +83,4 @@ nothing. Add, in this order:
 - No ending on "it depends", "both have their merits", "up to you".
 - No option kept for symmetry.
 - No ELI5 that repeats field 1 in other words.
+- No list sent on a non-zero `options_lint.py`.

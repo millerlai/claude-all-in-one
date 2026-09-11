@@ -62,6 +62,17 @@ def test_ledger_show_prints_utf8(tmp_path):
     assert "—" in text
 
 
+def test_options_lint_quotes_the_option_title_in_utf8(tmp_path):
+    """Every FAIL line names the option it is about, and the option was named
+    in whatever language the reply is written in."""
+    draft = tmp_path / "draft.md"
+    draft.write_text("%s\n1. 只有一欄\n" % REASON, encoding="utf-8")
+
+    done = run("options_lint.py", str(draft))
+    assert done.returncode == 2
+    assert REASON in done.stdout.decode("utf-8")
+
+
 def test_preflight_quotes_the_notes_in_utf8(tmp_path):
     _, track = make_track(tmp_path)
     for _ in range(5):

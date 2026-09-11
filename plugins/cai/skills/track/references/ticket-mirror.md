@@ -56,7 +56,8 @@ body — not copied verbatim from `ref`, since resolving it is the point.
 Ship's confirmation before the irreversible operations (`stage-ship.md`'s
 human gate) gains one more item, asked separately from the rest: whether to
 run `ticket.py project` once more recording ship's own row. A yes to
-squashing or publishing is not a yes to this — ask it on its own.
+squashing or publishing is not a yes to this — ask it on its own, as its own
+menu (`references/approval-gates.md`).
 
 ## Never copy stderr into --note
 

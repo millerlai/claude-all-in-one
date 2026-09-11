@@ -28,8 +28,8 @@ report with:
 ## Pending questions
 1. <the decision, one line>
    Background: <what the run found, cited file:line, not a summary>
-   Options: <2-4; the recommended one first and said to be; each with what
-            it costs and what choosing it forecloses>
+   Options: <2-4; the recommended one first and marked `(recommended)`; each
+            with what it costs and what choosing it forecloses>
    Blocks: <what in this stage cannot continue until this is answered>
 ```
 
@@ -38,6 +38,15 @@ and got nothing back", which is a different and much worse claim.
 
 ## What the main session does with it
 
+0. **Lay the options out before asking, and lint them.** `AskUserQuestion`'s
+   labels hold a few words each, so the reasoning goes in the message above
+   it, in `option-explainer.md`'s six-field shape — the stage handed up
+   evidence, and a menu that drops it asks the person to choose blind. Write
+   that message to a file and
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the draft>`; exit 0
+   or fix what it names (#73). This is the main session's step for the same
+   reason the asking is: four of the six stage agents can run neither a
+   script nor a `Write`.
 1. **Ask one decision per turn.** `AskUserQuestion`, biggest blast radius
    first, the rest queued. A turn carrying two questions carries none — the
    second gets answered against a guess about the first.
@@ -63,4 +72,6 @@ and got nothing back", which is a different and much worse claim.
   the stage could not answer itself; the stage then runs on. `ship`'s
   confirmation is the one that looks like a counter-example and is not: it
   is already one of the two, and it arrives through this file only because
-  the subagent holding it cannot voice it.
+  the subagent holding it cannot voice it. When what arrives *is* one of the
+  two, its options are not the stage's to invent — take them from
+  `references/approval-gates.md`, which also says where the answer lands.
