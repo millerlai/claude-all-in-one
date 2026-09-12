@@ -53,9 +53,13 @@ and working notes, scratch output and per-track state are not.
 ## Before pushing
 Run `python scripts/validate.py` — it checks the manifests, every component's
 frontmatter, and that the bash guard still blocks what it should, plus the
-repo's own prose against claims it makes about itself: whether the provenance
-ledger's citations still resolve, and whether other files restating a
-sentence from `plugins/cai/rules/` still say what the source says.
+repo's own prose against claims it makes about itself, by calling
+`plugins/cai/scripts/provenance.py` against `docs/rule-provenance.md`:
+whether every entry's citations still resolve, and whether any entry's
+`Restated in:`/`Shared value:` lines still hold. Pinning a second restated
+rule is two more ledger lines, not new code. The same script also runs
+unconditionally in `/cai:track`'s `verify` stage, since it ships under
+`plugins/cai/scripts/`.
 
 Editing any rule sentence that `docs/rule-provenance.md` cites (a `Cited by:`
 target) must update that ledger entry in the same edit.

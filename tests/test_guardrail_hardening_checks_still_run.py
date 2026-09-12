@@ -3,11 +3,16 @@
 still run at all. Deleting a `check()` call leaves `validate.py` exit 0 --
 nothing else in this repo would notice.
 
+The provenance ledger's checks now all funnel through one subprocess call
+to `provenance.py` (its `probes()` output is relayed line-by-line into
+`check()`), rather than several hand-written blocks in validate.py -- so
+there is no longer a UC1/UC2 split to pin separately; one test asserts all
+six probe labels still appear.
+
 Mirrors `tests/test_track_skill_ticket_pointer.py`'s
 `test_every_prose_guard_in_the_track_skill_block_still_runs`: one short,
 stable fragment per check (a reasonable label reword must not turn this
-red), plus a count for the three restatement checks that share one label
-shape. A single subprocess run of validate.py is cached and shared across
+red). A single subprocess run of validate.py is cached and shared across
 every test in this file -- the full run takes tens of seconds, and this
 file's tests would otherwise pay for it three times over.
 """
@@ -29,21 +34,24 @@ def _run_validate():
     return _VALIDATE_RESULT[0]
 
 
-# UC1: the provenance ledger's six checks.
-UC1_FRAGMENTS = (
-    "the provenance ledger is present",
-    "the provenance ledger has entries",
-    "carry all five fields",
-    "entry ids are unique",
-    "Cited by targets all resolve",
-    "does not @-import the provenance ledger",
+# The provenance ledger's six probe labels, relayed from provenance.py's
+# probes() into validate.py's check() calls. Only the bare label name, not
+# the parenthesised count -- that count changes as ledger data grows.
+PROVENANCE_PROBE_LABELS = (
+    "entry_fields_complete",
+    "entry_ids_unique",
+    "cited_by_resolves",
+    "rule_quote_in_cited_section",
+    "restated_quote_in_section",
+    "shared_value_in_every_quote",
 )
 
-# UC2: the derivation check plus the three restatement checks, which share
-# one label shape -- counted, not fragment-matched, for the same reason
-# stage-build.md's three table-shape guards are counted in the #64 test.
-UC2_DERIVED_FRAGMENT = "the parallel cap is derivable from model-selection.md"
-UC2_RESTATED_FRAGMENT = "still restates the parallel cap"
+# A check unrelated to provenance.py's job -- it reads CLAUDE.md's own text,
+# not the ledger's entries -- that used to live in the same deleted span by
+# line-range coincidence and is kept in validate.py on purpose (issue #78
+# build notes). Pinned separately so dropping it again would still be
+# caught by this file's own reason for existing.
+CLAUDE_MD_IMPORT_FRAGMENT = "does not @-import the provenance ledger"
 
 # UC4: the three pinned-clause checks over stage-verify.md's own sections.
 UC4_FRAGMENTS = (
@@ -52,18 +60,39 @@ UC4_FRAGMENTS = (
     "Report section still asks for parked proposals",
 )
 
+# Pins scripts/validate.py's own check on the provenance.py subprocess call's
+# exit code, not just its relayed PASS/FAIL lines -- a crash (exit 1, no
+# PASS/FAIL output at all) would otherwise relay zero checks and leave this
+# script exit 0, silently invisible.
+PROVENANCE_SUBPROCESS_HEALTH_FRAGMENT = "provenance.py subprocess did not crash"
 
-def test_uc1_ledger_checks_still_run():
+
+def test_provenance_probe_labels_still_run():
     out = _run_validate().stdout
-    for fragment in UC1_FRAGMENTS:
-        assert fragment in out, fragment
+    for label in PROVENANCE_PROBE_LABELS:
+        assert label in out, label
 
 
-def test_uc2_parallel_cap_checks_still_run():
+def test_provenance_probes_all_pass_on_the_real_ledger():
+    # docs/rule-provenance.md:51's fix (this feature's own reason for
+    # existing) has no regression coverage otherwise: the test above only
+    # asserts each probe label appears somewhere in stdout, regardless of
+    # PASS or FAIL, so a reintroduced drift would go unnoticed here.
     out = _run_validate().stdout
-    assert UC2_DERIVED_FRAGMENT in out
-    restated = [l for l in out.splitlines() if UC2_RESTATED_FRAGMENT in l]
-    assert len(restated) == 3, restated
+    for label in PROVENANCE_PROBE_LABELS:
+        lines = [l for l in out.splitlines()
+                 if l.startswith("PASS " + label) or l.startswith("FAIL " + label)]
+        assert lines, label
+        for line in lines:
+            assert line.startswith("PASS "), line
+
+
+def test_provenance_subprocess_health_check_still_runs():
+    assert PROVENANCE_SUBPROCESS_HEALTH_FRAGMENT in _run_validate().stdout
+
+
+def test_claude_md_does_not_import_the_ledger_check_still_runs():
+    assert CLAUDE_MD_IMPORT_FRAGMENT in _run_validate().stdout
 
 
 def test_uc4_stage_verify_pinned_clause_checks_still_run():

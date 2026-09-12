@@ -22,6 +22,10 @@ start of a new, fieldless entry and fails the ledger's own checks.
 - Failure: source unverifiable. `docs/design/2026-08-29-capability-gap-analysis.md:112` records that a repo-wide search for `429` (the rate-limit HTTP status the rule's own wording names) turns up only the rule sentence itself -- no commit, issue, or session record ties this cap to a specific incident in this repo's tracked history; the line has been present since the repo's first commit (415da10) with no earlier history to trace. Kept in the ledger anyway because UC2's derivation depends on an entry citing this heading, not because a source was found -- see the ledger's own scope note above.
 - Rule: Use at most 2-3 subagents in parallel; prefer sequential execution with worktrees for large multi-file tasks to avoid rate-limit failures.
 - Cited by: plugins/cai/rules/model-selection.md § Subagents
+- Restated in: plugins/cai/skills/track/references/stage-build.md § Step 4 — Two units at once | Two lanes, never three — model-selection.md caps parallel work at 2-3 and prefers sequential; two is the conservative end of that range.
+- Restated in: plugins/cai/skills/track/references/stage-verify.md § Step 1 — Dispatch the lenses | Three reviewer agents, in parallel, one message. Three and not more — model-selection.md caps parallel subagents at 2-3.
+- Restated in: plugins/cai/skills/refactor/references/procedure-scan.md § Steps | dispatch one refactoring-detector agent per group, in parallel, one message — not more: plugins/cai/rules/model-selection.md caps parallel subagents at 2-3.
+- Shared value: 2-3
 
 ## epistemics-one-decision-per-turn — ask one decision at a time
 
@@ -48,7 +52,7 @@ start of a new, fieldless entry and fails the ledger's own checks.
 
 - Date: 2026-08-29
 - Failure: commit df89a20 ("feat(cai): give options a fixed shape, so a reader can actually compare them (#42)"). A reply that lists "option A / B / C" is usually unreadable for a reason that is not missing information: each option was described on its own selling points, so every paragraph made sense on its own and none of them could be compared against the others.
-- Rule: Name 2-4 comparison dimensions first, then the options. Describe every option on the same ones; "not applicable" needs a reason, not a blank.
+- Rule: Name 2-4 comparison dimensions first, as bullets, then the options. Describe every option on the same ones; "not applicable" needs a reason, not a blank.
 - Cited by: plugins/cai/rules/option-explainer.md § Before the list
 
 ## option-explainer-gloss-bare-code — gloss bare option codes too

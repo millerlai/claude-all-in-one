@@ -4,7 +4,7 @@ description: >
   Runs the `verify` stage: dispatches three `reviewer` agents in parallel,
   one lens each, reconciles what they report, runs this repo's test command,
   and fixes only Blocker/Major, test-first.
-tools: Read, Grep, Glob, Agent, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(go test:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m unittest:*), Bash(uv run pytest:*), Bash(npm test:*), Bash(npm run:*), Write, Edit
+tools: Read, Grep, Glob, Agent, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(go test:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m unittest:*), Bash(python:*), Bash(uv run pytest:*), Bash(npm test:*), Bash(npm run:*), Write, Edit
 model: sonnet
 effort: high
 ---
