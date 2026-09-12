@@ -21,8 +21,8 @@ per-user in `~/.claude/rules/` by `/cai:setup`.
 
 `plugins/cai/` is the only thing that ships — `.claude-plugin/marketplace.json`
 names `./plugins/cai` as the plugin's source and nothing else. Everything
-outside it (`docs/`, `scripts/`, `tests/`, `.github/`, this file) maintains the
-repo and never reaches an installed copy. Decide which side a new file is on
+outside it (`docs/`, `scripts/`, `tests/`, `.github/`, `.claude/skills/`, this
+file) maintains the repo and never reaches an installed copy. Decide which side a new file is on
 before writing it, not after.
 
 **Theirs** is an agent, skill, rule, template, or a script some shipped
@@ -33,6 +33,13 @@ belong there however convenient the path is.
 
 **Ours** is validation, tests, CI, design records, and codegen we run by hand.
 It may assume this repo's layout, and it stays out of `plugins/cai/`.
+
+Maintainer-side skills belong to that side too: a procedure we run *on this
+repo* — `/gap-analysis`, which compares cai against an external practice and
+writes the result under `docs/design/` — lives in `.claude/skills/<name>/`,
+which Claude Code loads for this project only. It may name this repo's paths
+freely and is tracked in git. A skill users should receive goes under
+`plugins/cai/skills/` instead, and must not assume any of this.
 
 The same split governs what a shipped file may *say*, not just where it sits.
 `/cai:setup` copies `plugins/cai/rules/` into the user's `~/.claude/rules/`,
