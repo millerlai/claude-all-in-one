@@ -33,6 +33,14 @@ PowerShell tool, and this has to work on Windows.
 
 An empty diff, or one that is entirely generated files, stops here. Say so.
 
+## Step 0.5 — Provenance check
+
+Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py` once, unconditionally
+-- not gated on the diff being empty, unlike Step 0's early-stop. Exit 2 is a
+Blocker: report it and stop right there. Never edit the ledger's citations or
+a restated file to turn the red green -- a drift needs a person to re-confirm
+the claim first, not a string edit that proves nothing.
+
 ## Step 1 — Dispatch the lenses
 
 Three `reviewer` agents, in parallel, one message. Three and not more —

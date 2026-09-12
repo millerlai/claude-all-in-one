@@ -336,151 +336,23 @@ for name in extra_imports[:5]:
     print("     CLAUDE.md imports it but rules/ does not have it:", name)
 
 
-def provenance_entries(text):
-    """Parse the provenance ledger's full text into a list of entry dicts.
-    Shared by the UC1 block below and (later) UC2 -- this function never
-    calls check() itself; a malformed entry is represented as missing/None
-    rather than raising, so one bad entry can't stop every check after it
-    from running at all."""
-    segments = re.split(r"^## ", text, flags=re.MULTILINE)[1:]
-    entries = []
-    for segment in segments:
-        heading, _, body = segment.partition("\n")
-        heading = heading.strip()
-        # U+2014 em dash, one space each side -- not an ASCII hyphen, which
-        # the slugs themselves contain (e.g. subagent-parallel-cap).
-        id_, sep, _ = heading.partition(" — ")
-        entry_id = id_.strip() if sep else heading
-        fields = {}
-        for label in ("Date", "Failure", "Rule", "Cited by"):
-            m = re.search(rf"^- {re.escape(label)}: (.+)$", body, re.MULTILINE)
-            if m:
-                fields[label] = " ".join(m.group(1).split())
-        cited_path = cited_heading = None
-        if "Cited by" in fields and " § " in fields["Cited by"]:
-            cited_path, _, cited_heading = fields["Cited by"].partition(" § ")
-        entries.append({
-            "id": entry_id,
-            "fields": fields,
-            "cited_path": cited_path,
-            "cited_heading": cited_heading,
-        })
-    return entries
-
-
 LEDGER = "docs/rule-provenance.md"
-check("the provenance ledger is present (docs/rule-provenance.md)", os.path.isfile(LEDGER))
-# A missing file is already caught by the check above; entries is still
-# computed as empty rather than skipped, so the checks below print their own
-# FAIL instead of silently going green on a file that isn't there (D1).
-ledger_text = read_text(LEDGER) if os.path.isfile(LEDGER) else ""
-entries = provenance_entries(ledger_text)
-check(f"the provenance ledger has entries ({len(entries)})", bool(entries))
-
-incomplete = [e for e in entries
-              if not e["id"]
-              or not all(e["fields"].get(l, "").strip() for l in ("Date", "Failure", "Rule", "Cited by"))]
-incomplete_ids = [e["id"] or "(untitled)" for e in incomplete]
-check(f"the provenance ledger's entries carry all five fields "
-      f"({len(incomplete)} incomplete"
-      f"{': ' + ', '.join(incomplete_ids[:2]) if incomplete_ids else ''})",
-      not incomplete)
-
-seen = {}
-dup_order = []
-for e in entries:
-    if not e["id"]:
-        continue
-    seen[e["id"]] = seen.get(e["id"], 0) + 1
-    if seen[e["id"]] == 2:
-        dup_order.append(e["id"])
-check(f"the provenance ledger's entry ids are unique "
-      f"({len(dup_order)} duplicate"
-      f"{': ' + ', '.join(dup_order[:2]) if dup_order else ''})",
-      not dup_order)
-
-# Dash policy: D6 -- not applicable here, no dash normalisation needed for
-# citation resolution.
-#
-# An entry whose "Cited by:" value is non-empty but does not split on " § "
-# (found #78 review) used to fall through this loop untouched -- ledger_fields
-# only checks the field is non-empty, never that it parses, so a garbled
-# citation passed both checks silently. Count it as broken instead: a
-# citation this stage cannot even parse is not one that "still resolves".
-# Entries with a genuinely empty/missing Cited by field are left to
-# ledger_fields above -- flagging them here too would print the same defect
-# under two different labels for the same fix.
-broken = []
-for e in entries:
-    if e["cited_path"] is None or e["cited_heading"] is None:
-        if e["fields"].get("Cited by", "").strip():
-            broken.append(f'{e["id"]} (Cited by is not "<path> § <heading>")')
-        continue
-    if not os.path.isfile(e["cited_path"]):
-        broken.append(f'{e["id"]} (no such file)')
-        continue
-    headings = {line.lstrip("#").strip() for line in read_text(e["cited_path"]).splitlines()
-                if line.startswith("#")}
-    if e["cited_heading"] not in headings:
-        broken.append(f'{e["id"]} (has no heading)')
-check(f"the provenance ledger's Cited by targets all resolve "
-      f"({len(broken)} broken"
-      f"{': ' + ', '.join(broken[:2]) if broken else ''})",
-      not broken)
 
 ledger_import_lines = re.findall(r"^@.*rule-provenance.*$", read_text(ROOT_CLAUDE), re.MULTILINE)
 check(f"CLAUDE.md does not @-import the provenance ledger ({len(ledger_import_lines)} import line(s))",
       len(ledger_import_lines) == 0)
 
-# UC2: derive the parallel-subagent cap from model-selection.md itself
-# (never retype the number), then prove three other files still restate the
-# same value. Convention this block follows (#65, #66; see the longer
-# explanation at the SKILL.md block below): this is a claim about what a
-# model or person would write in prose, not something with a code path to
-# unit-test, so it only gets a whole-sentence prose guard held by review.
-PARALLEL_CAP_SRC = re.compile(r"at most (\d+)-(\d+) subagents in parallel")
-model_selection_text = read_text(f"{PLUGIN}/rules/model-selection.md")
-m = PARALLEL_CAP_SRC.search(model_selection_text)
-cap = "%s-%s" % m.groups() if m else None
-
-cap_entry = next((e for e in entries
-                   if e["cited_path"] == "plugins/cai/rules/model-selection.md"
-                   and e["cited_heading"] == "Subagents"), None)
-cap_id = cap_entry["id"] if cap_entry else None
-
-cap_label = cap if cap is not None else "none derived"
-id_label = cap_id if cap_id is not None else "no ledger entry cites model-selection.md § Subagents"
-check(f"the parallel cap is derivable from model-selection.md and backed by a ledger entry "
-      f"({cap_label}, {id_label})",
-      cap is not None and cap_id is not None)
-
-# Dash policy (D6): normalise only U+2013 (en dash) to an ASCII hyphen before
-# matching. The source, model-selection.md, already uses ASCII "2-3"; the
-# three restating files below use en dash "2–3" (C18). U+2014 (em dash) is
-# deliberately left untouched -- stage-verify.md's own section headings use
-# em dashes, and normalising them would widen this check's blast radius for
-# no reason unrelated to the parallel-cap claim.
-#
-# D8 trap: NEEDLE is only built when cap is not None, and the check condition
-# below is `cap is not None and NEEDLE.search(...)`, never NEEDLE.search(...)
-# alone. If a failed derivation were represented as cap = "" instead of None,
-# re.escape("") would collapse the pattern to `caps parallel [\w ]*at \b`,
-# and "at " followed by "2" satisfies that word boundary in all three files
-# below -- so all three would go green even though the source claim (the
-# "at most ... subagents in parallel" sentence) had been rewritten away.
-NEEDLE = re.compile(r"caps parallel [\w ]*at " + re.escape(cap) + r"\b") if cap else None
-
-RESTATING_FILES = [
-    f"{PLUGIN}/skills/track/references/stage-verify.md",
-    f"{PLUGIN}/skills/track/references/stage-build.md",
-    f"{PLUGIN}/skills/refactor/references/procedure-scan.md",
-]
-for restating_path in RESTATING_FILES:
-    normalised = " ".join(read_text(restating_path).split()).replace("–", "-")
-    check(f"{restating_path} still restates the parallel cap ({cap_label}) -- if this is red, "
-          f"re-confirm the claim itself against the provenance ledger entry {id_label} "
-          f"before editing either string; a number edited to match proves nothing",
-          cap is not None and NEEDLE.search(normalised) is not None)
+provenance_done = subprocess.run(
+    [sys.executable, f"{PLUGIN}/scripts/provenance.py", "--ledger", LEDGER],
+    capture_output=True, text=True, encoding="utf-8")
+# A crash (exit 1, e.g. an uncaught exception) prints no PASS/FAIL lines, so
+# the loop below silently relays nothing and this script would stay exit 0 --
+# check the subprocess's own health first, or a broken provenance.py goes
+# unnoticed by the one thing meant to catch it.
+check("provenance.py subprocess did not crash", provenance_done.returncode in (0, 2))
+for line in provenance_done.stdout.splitlines():
+    if line.startswith("PASS ") or line.startswith("FAIL "):
+        check(line[5:], line.startswith("PASS "))
 
 
 TEMPLATE = f"{PLUGIN}/templates/CLAUDE.md.tpl"
@@ -768,7 +640,8 @@ for path in bom_files[:5]:
 # under ~/.claude/plugins/cache/, so the command silently stops working for
 # every real user -- the failure this repo is least able to notice.
 for path in sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md")
-                   + glob.glob(f"{CATALOG}/*/SKILL.md")):
+                   + glob.glob(f"{CATALOG}/*/SKILL.md")
+                   + glob.glob(f"{PLUGIN}/skills/*/references/*.md")):
     check(f"{path} runs scripts via <plugin-root>",
           f"{PLUGIN}/scripts/" not in read_text(path))
 
@@ -1540,6 +1413,11 @@ STAGE_TOOL_NEEDS = {
         # not one.
         ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
         ("Edit", lambda tools: re.search(r"\bEdit\b", tools) is not None),
+        # stage-verify.md's Step 0.5 runs provenance.py directly, same
+        # reasoning as "build"'s own comment about design_probe.py --
+        # routing a zero-token check through a dispatched agent would move
+        # it onto a model turn for no reason.
+        ("a python interpreter", _grants_python),
     ],
     "ship": [
         ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
