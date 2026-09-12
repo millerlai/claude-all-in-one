@@ -57,6 +57,11 @@ worth another subagent run.
 - Merge findings that name the same `file:line` and the same cause. Two
   lenses reaching the same defect independently is evidence, not noise.
 - Drop anything with no failure scenario, whichever lens produced it.
+- Every surviving `Blocker`/`Major` must name what requirement it's based
+  on — the original request's own words, a plan/issue paragraph, or an
+  existing standing obligation (naming which file, which heading). A
+  finding that can name none of those is not a defect this stage may fix —
+  reject it or park it as a proposal instead of sending it into Fixing.
 - Rank `Blocker` → `Major` → `Minor`. Blocker means the change is wrong,
   not that there are many findings.
 - **Verify before reporting.** For each surviving Blocker and Major, open
@@ -86,7 +91,9 @@ with no test run you watched is a fix you cannot prove, whatever it looks
 like on the screen.
 
 Leave `Minor` documented and unfixed unless asked. Wait for answers on
-section 3 before touching anything in it.
+section 3 before touching anything in it. Fix nothing Step 2 could not
+trace to a requirement — a parked proposal stays parked until the user
+answers, and must not be swept in together with ordinary `Minor` findings.
 
 ## When not to use this
 
@@ -113,6 +120,8 @@ of the ledger's `--note`; you write no track file at all.
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered
 - what remains unfixed and why
+- what got parked as a proposal, and which requirement it would need to
+  stop being parked
 
 Evidence goes in the artifact this stage already produces, never pasted
 in here. 4000 characters is the ceiling for this section: the largest
