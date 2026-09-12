@@ -17,6 +17,34 @@ their single source of truth so editing them here changes what users get.
 English, while the response language belongs to whoever is working — it is set
 per-user in `~/.claude/rules/` by `/cai:setup`.
 
+## Who a file is for
+
+`plugins/cai/` is the only thing that ships — `.claude-plugin/marketplace.json`
+names `./plugins/cai` as the plugin's source and nothing else. Everything
+outside it (`docs/`, `scripts/`, `tests/`, `.github/`, this file) maintains the
+repo and never reaches an installed copy. Decide which side a new file is on
+before writing it, not after.
+
+**Theirs** is an agent, skill, rule, template, or a script some shipped
+component actually invokes. It runs on a machine we will never see, against a
+repo we know nothing about, and `/plugin update` overwrites it — so it may not
+assume this repo's layout, and a maintainer tool nothing invokes does not
+belong there however convenient the path is.
+
+**Ours** is validation, tests, CI, design records, and codegen we run by hand.
+It may assume this repo's layout, and it stays out of `plugins/cai/`.
+
+The same split governs what a shipped file may *say*, not just where it sits.
+`/cai:setup` copies `plugins/cai/rules/` into the user's `~/.claude/rules/`,
+where it loads every session — so a sentence there spends every user's tokens
+on every turn and must be about their work. A path into this repo's own
+tooling, or an instruction only a maintainer could act on, is a defect there
+even though nothing fails.
+
+Not everything belongs in git. `docs/` and `.claude/track/` are ignored on
+purpose; a document worth keeping is added deliberately with `git add -f`,
+and working notes, scratch output and per-track state are not.
+
 ## Environment
 - Windows, I usually work in Python.
 - Avoid PowerShell for text processing on files containing UTF-8/Chinese characters;
