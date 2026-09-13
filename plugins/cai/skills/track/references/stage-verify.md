@@ -1,4 +1,4 @@
-# stage-verify — three lenses over one diff, and no claim without evidence
+# stage-verify — four lenses over one diff, and no claim without evidence
 
 This file is read two ways: by the subagent the track dispatches to run this
 stage, and by `/cai:verify` when someone runs the stage standing alone, with
@@ -43,19 +43,27 @@ the claim first, not a string edit that proves nothing.
 
 ## Step 1 — Dispatch the lenses
 
-Three `reviewer` agents, in parallel, one message. Three and not more —
-`model-selection.md` caps parallel subagents at 2–3.
+Four agents, in parallel, one message: three `reviewer` agents, one lens
+each, plus the `security-reviewer` agent for the fourth. Four and not more —
+`model-selection.md` caps parallel subagents at 2–4.
 
 | Lens | What it hunts |
 |---|---|
 | **correctness** | Off-by-one and boundary errors, state leaking between instances or requests, a `match`/`switch` that silently falls through, a flag set and never cleared, an error swallowed, ordering assumed but not guaranteed |
 | **conformance** | What the change does that nothing asked for, and what it was asked for and skipped. Compare against the plan, spec, issue, or the request in this conversation |
 | **coverage** | For each behaviour change: is there a test that would **fail if this change were reverted**? Name the tests that are missing, not the coverage percentage |
+| **security** | The four hunt items in `finding-severity.md`, and no fifth: an external call routed through a shell, who controls what reaches the argument vector, raw error/output/argument text reaching a print or a kept record, and a command shape the repo's own refusal list does not cover |
 
 Give each agent the base ref, the file list, and the requirement it is
 reviewing against — the plan, issue, or the user's own words. The
 conformance lens is useless without that last one; if no requirement exists
-in written form, say so and review the other two.
+in written form, say so and review the other three.
+
+The three severity words Step 2 ranks by, and the security lens's four hunt
+items, are defined in one place:
+`${CLAUDE_PLUGIN_ROOT}/skills/track/references/finding-severity.md`. Read it
+before classifying anything, and give `security-reviewer` its four items as the
+lens it is reviewing against.
 
 ## Step 2 — Reconcile
 
@@ -70,8 +78,9 @@ worth another subagent run.
   existing standing obligation (naming which file, which heading). A
   finding that can name none of those is not a defect this stage may fix —
   reject it or park it as a proposal instead of sending it into Fixing.
-- Rank `Blocker` → `Major` → `Minor`. Blocker means the change is wrong,
-  not that there are many findings.
+- Rank `Blocker` → `Major` → `Minor`. What the three mean is defined in one
+  place, and ranking here applies those definitions rather than restating
+  them: `${CLAUDE_PLUGIN_ROOT}/skills/track/references/finding-severity.md`.
 - **Verify before reporting.** For each surviving Blocker and Major, open
   the file and confirm the line still says what the finding claims — the
   same evidence rule this stage opens with, applied to the reviewers'

@@ -64,7 +64,7 @@ flowchart TB
     S3["design<br/>high-level, detail, or delta"] --> HG1
     HG1[/"human gate · menu<br/>sign off, no code exists yet"/] --> S4
     S4["build<br/>the work breakdown, unit by unit"] --> S5
-    S5["verify<br/>three lenses over the diff"] --> S6
+    S5["verify<br/>four lenses over the diff"] --> S6
     S6["ship<br/>one commit, plus a release note"] --> HG2
     HG2[/"human gate · menu<br/>before merge, tag, publish"/] --> DONE(["/cai:track done"])
 
@@ -115,7 +115,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:discover` | Surface what you don't know before writing code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Also fires on its own when the codebase is unfamiliar or the result will be judged by look and feel. |
 | `/cai:design` | Write a design document for review: high-level (architecture options, stops before implementation detail), detail (an approved high-level design turned into something a team can build from), or delta (recovers the decisions already made in a built branch). User-invoked only. |
 | `/cai:build` | Build a detail design's work breakdown unit by unit, test-first, verifying and committing each one before the next starts — or cut your own checkpointed units with no design doc. User-invoked only. |
-| `/cai:verify` | Dispatch three read-only reviewers (correctness, conformance, coverage) over a branch diff in parallel, reconcile their findings, then fix Blockers and Majors with a failing test before and a passing one after. |
+| `/cai:verify` | Dispatch four read-only reviewers (correctness, conformance, coverage, security) over a branch diff in parallel, reconcile their findings, then fix Blockers and Majors with a failing test before and a passing one after. |
 | `/cai:ship` | Squash a branch into one conventional commit, write a release note, and stop before merging, tagging, or publishing until a person confirms. User-invoked only. |
 
 ### The other tools

@@ -239,7 +239,19 @@ check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not l
 # above), and shortening the longest descriptions -- which trades against
 # those same descriptions still needing to be long enough to trigger, so it
 # is not done here.
-ALWAYS_ON_CEILING = 5468
+#
+# Raised to 5697 for pb04. The fourth verify lens is a tenth agent, and its
+# description is 187 characters measured, not estimated. Two existing
+# descriptions had to move with it: verify/SKILL.md's went 446 -> 455 and
+# verifier.md's 189 -> 222, because both said "three" about something that is
+# now four and the cheapest true rewording is longer, not shorter. 187 + 9 +
+# 33 = 229, and 5468 + 229 = 5697 -- the 41 characters of headroom measured on
+# 2026-09-13 are carried over unchanged rather than widened, so this stays a
+# budget and not a tripwire. Q3 (user, 2026-09-13) chose raising this over
+# shortening the six longest descriptions; the comment above says why that
+# trade is not free. Raising it further is a decision: every character here is
+# read by every session, forever.
+ALWAYS_ON_CEILING = 5697
 always_on_paths = (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
                    + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
                    + sorted(glob.glob(f"{CATALOG}/*/SKILL.md")))
@@ -537,8 +549,11 @@ check(f"the safety protocol appears in exactly one file under {REFACTORING} "
 # parallelise. `refactoring-detector` did not: procedure-scan dispatches one
 # per module group, in parallel, and merging it away silently turned a
 # whole-project scan sequential. Caller count was the wrong test on its own.
+# Ten, not nine, as of pb04: `security-reviewer` is verify's fourth lens,
+# dispatched alongside the three `reviewer` agents, one per module the way
+# `refactoring-detector` already was above.
 AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-check(f"agents/ holds exactly 9 files ({len(AGENTS)})", len(AGENTS) == 9)
+check(f"agents/ holds exactly 10 files ({len(AGENTS)})", len(AGENTS) == 10)
 
 hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
 print("PASS hooks.json is valid JSON")

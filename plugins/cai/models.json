@@ -47,6 +47,7 @@
 
     "agents/implementer.md": "build",
     "agents/reviewer.md": "build",
+    "agents/security-reviewer.md": "build",
     "agents/refactoring-detector.md": "build",
     "agents/verifier.md": "build",
     "skills/refactor/SKILL.md": "build",

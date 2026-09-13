@@ -20,7 +20,7 @@ like they fit, the more specific one is right.
 | Know where a track stopped | `/cai:track status` | Reads files, calls no model |
 | Fix something broken | `/cai:debug` | Root cause before any fix |
 | Clean up code that already works | `/cai:refactor` | Behaviour unchanged, by the catalog |
-| Ask whether a branch is mergeable | `/cai:verify` | Three review lenses over the diff |
+| Ask whether a branch is mergeable | `/cai:verify` | Four review lenses over the diff |
 | Find out what you're missing | `/cai:discover` | Surfaces unknowns before code |
 | Check your own grasp of a diff | `/cai:quiz` | Asks *you* questions |
 | Review a plan or spec | `/cai:plan-review` | Traces design back to requirements |
@@ -75,9 +75,9 @@ The six stages, in order:
    delta recovers decisions from a branch already built.
 4. **`build`** — works the design's own work breakdown, one unit at a time,
    test-first. Nothing starts until the unit before it is green and committed.
-5. **`verify`** — three read-only reviewers over the diff: correctness,
-   conformance to what was asked, and whether a test would fail if the change
-   were reverted.
+5. **`verify`** — four read-only reviewers over the diff: correctness,
+   conformance to what was asked, whether a test would fail if the change were
+   reverted, and the four security hunt items.
 6. **`ship`** — squashes the branch into one conventional commit and writes a
    release note.
 

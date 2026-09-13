@@ -159,7 +159,8 @@ The rule: **surface the decision, don't take it.**
   expertise is as much a silent decision as unrequested scope.
 - An orphan → recover its implied requirement and ask. Do not delete it for
   them.
-- Pure taste → `Minor`, or leave it out.
+- Pure taste → `Minor`, or leave it out. The three severities are defined in
+  `${CLAUDE_PLUGIN_ROOT}/skills/track/references/finding-severity.md`.
 
 The test before you write any recommendation: *can I name the requirement or the
 failure scenario behind this?* If not, it belongs in section 4 as a question, in

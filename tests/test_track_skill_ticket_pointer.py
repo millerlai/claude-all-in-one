@@ -151,7 +151,7 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_unchanged_at_5427():
+def test_always_on_budget_is_unchanged_at_5656():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
@@ -166,10 +166,21 @@ def test_always_on_budget_is_unchanged_at_5427():
     # This stays an equality rather than a ceiling (validate.py already has
     # the ceiling) so a description that quietly grows fails here; the
     # number moves only with a note like this one saying why.
+    #
+    # 5427 -> 5656 on 2026-09-13, in three parts, and all three are measured
+    # rather than estimated. A tenth agent arrived -- the verify stage's
+    # fourth lens -- for +187. `verify`'s skill description went 446 -> 455
+    # (+9) and `verifier`'s 189 -> 222 (+33): both said "three" about
+    # something that is now four, and the fourth is not a `reviewer`, so the
+    # honest rewording is longer. validate.py's ceiling moved 5468 -> 5697 in
+    # the same commit, keeping the 41 characters of headroom that existed
+    # before. This stays an equality rather than a ceiling for the reason the
+    # note above gives. The note above is left as written: it records the
+    # 2026-09-03 state, where dispatching three was the truth.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 5427
+    assert int(m.group(1)) == 5656
 
 
 # --- the added line itself carries the load-bearing instruction ------------

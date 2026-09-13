@@ -93,8 +93,9 @@ path plus the specific files/behaviors it names — not just "see the plan."
 Once it returns, follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/stage-verify.md`, passing the design doc as
 the requirement for its `conformance` lens.
 
-Fix Blocker/Major findings per stage-verify.md's own "Fixing" section: failing
-test first, then the fix, then show it passing. If findings remain, run one
+Fix Blocker/Major findings per stage-verify.md's own "Fixing" section, judging
+the three severities by `${CLAUDE_PLUGIN_ROOT}/skills/track/references/finding-severity.md`:
+failing test first, then the fix, then show it passing. If findings remain, run one
 more implementer → verify round at most; if still open after that, stop
 and report rather than looping further. Leave Minor findings documented and
 unfixed unless asked. This lane's behavior is unchanged from before this

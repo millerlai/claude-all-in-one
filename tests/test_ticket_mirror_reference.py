@@ -58,7 +58,7 @@ def test_states_fallback_to_existing_stage_verify_behaviour():
     text = _flat()
     assert "stage-verify.md:47-50" in text
     assert "no written requirement" in text
-    assert "review the other two lenses" in text
+    assert "review the other three lenses" in text
 
 
 # --- the rest of the design's stage-by-stage list --------------------------
