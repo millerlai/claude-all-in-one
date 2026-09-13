@@ -34,7 +34,7 @@ flagged as needing `procedure-safety-net.md` first.
   up to 2–3 groups by module/directory boundary and dispatch one
   `refactoring-detector` agent per group, in parallel, one message — not
   more: `plugins/cai/rules/model-selection.md` caps parallel subagents at
-  2–3. Give each agent its group's scope plus the churn signal and
+  2–4. Give each agent its group's scope plus the churn signal and
   safety-net note from steps 2–3. If the scope has more groups than that,
   say so and note which groups were sampled and which were deferred rather
   than dispatching more agents.

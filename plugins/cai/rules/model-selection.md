@@ -1,5 +1,5 @@
 # Subagents
-- Use at most 2-3 subagents in parallel; prefer sequential execution with worktrees
+- Use at most 2-4 subagents in parallel; prefer sequential execution with worktrees
   for large multi-file tasks to avoid rate-limit failures.
 
 # Layers, cheapest first

@@ -168,7 +168,7 @@ Only when all three hold, otherwise sequential, silently:
    reading both sets; the map wins over `Alongside` when they disagree.
 3. Commit permission was given in Step 0.5.
 
-Two lanes, never three — `model-selection.md` caps parallel work at 2–3 and
+Two lanes, never three — `model-selection.md` caps parallel work at 2–4 and
 prefers sequential; two is the conservative end of that range.
 
 ```bash

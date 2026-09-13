@@ -21,5 +21,8 @@ You review one lens of one diff. Read-only. You will be told which lens.
   clean".
 - Report nothing at all rather than pad. An empty lens is a useful result.
 
+Rank by `finding-severity.md`'s three definitions -- it is the only place they
+are written down.
+
 Output: findings ordered `Blocker` → `Major` → `Minor`, then a one-line note of
 what you did not cover.
