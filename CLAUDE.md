@@ -41,7 +41,17 @@ which Claude Code loads for this project only. It may name this repo's paths
 freely and is tracked in git. A skill users should receive goes under
 `plugins/cai/skills/` instead, and must not assume any of this.
 
-The same split governs what a shipped file may *say*, not just where it sits.
+**Shipped but not theirs** is a third thing: a file that reaches every
+installed copy and yet no shipped component ever invokes, because the tool
+that reads it refuses to look anywhere but under `plugins/cai/`. The eval
+suite is today's only one — `claude plugin eval` rejects an eval directory
+outside the plugin root, so the cases ship whether or not anyone runs them.
+This is not an escape hatch: it covers only what an external tool's own path
+rule forces into the shipping package, and it may no more assume this repo's
+layout than Theirs may. Anything that could just as well live under
+`scripts/` or `tests/` is Ours and stays out.
+
+The Theirs/Ours split governs what a shipped file may *say*, not just where it sits.
 `/cai:setup` copies `plugins/cai/rules/` into the user's `~/.claude/rules/`,
 where it loads every session — so a sentence there spends every user's tokens
 on every turn and must be about their work. A path into this repo's own
