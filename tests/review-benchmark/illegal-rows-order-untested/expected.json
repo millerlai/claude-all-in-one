@@ -1,0 +1,16 @@
+{
+  "base_sha": "0921f9a",
+  "base_ref": "origin/backup/track-status-vocabulary-da1beb9",
+  "expected": [
+    {
+      "lens": "coverage",
+      "file": "tests/test_track_state_status_vocabulary.py",
+      "line_start": 55,
+      "line_end": 63,
+      "severity": "Major",
+      "cause": "The three existing tests each dirty only one row, so the design's stated behavior -- two simultaneously illegal rows each print their own line, in stages.json order -- has no test guarding it"
+    }
+  ],
+  "expected_absent": [],
+  "notes": "track-status-vocabulary verify row's coverage Major, fixed by adding test_two_illegal_rows_each_print_their_own_line_in_stage_order. line_start is the def line of the last of the three existing tests (test_the_message_names_the_stage_the_value_and_the_four_legal_ones), counted directly on the base version rather than guessed from the stored diff's hunk header."
+}
