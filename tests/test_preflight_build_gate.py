@@ -51,7 +51,9 @@ def run(track, project):
 
 def test_a_high_level_design_with_no_work_breakdown_can_be_built(tmp_path):
     write_doc(tmp_path, "d-high-level.md", HLD)
-    done = run(make_track(tmp_path, "d-high-level.md"), str(tmp_path))
+    track = make_track(tmp_path, "d-high-level.md")
+    ledger.append(track, "design", "passed", gate="human")
+    done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
     assert "PASS work_breakdown" in done.stdout
@@ -60,7 +62,9 @@ def test_a_high_level_design_with_no_work_breakdown_can_be_built(tmp_path):
 
 def test_a_delta_design_with_no_work_breakdown_can_be_built(tmp_path):
     write_doc(tmp_path, "d-delta.md", HLD)
-    done = run(make_track(tmp_path, "d-delta.md"), str(tmp_path))
+    track = make_track(tmp_path, "d-delta.md")
+    ledger.append(track, "design", "passed", gate="human")
+    done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
     assert "PASS work_breakdown" in done.stdout
@@ -70,7 +74,9 @@ def test_a_delta_design_with_no_work_breakdown_can_be_built(tmp_path):
 
 def test_a_detail_design_still_has_to_carry_one(tmp_path):
     write_doc(tmp_path, "d-detail.md", HLD)
-    done = run(make_track(tmp_path, "d-detail.md"), str(tmp_path))
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", gate="human")
+    done = run(track, str(tmp_path))
 
     assert done.returncode == 2
     assert "FAIL work_breakdown" in done.stdout
@@ -79,7 +85,9 @@ def test_a_detail_design_still_has_to_carry_one(tmp_path):
 
 def test_a_detail_design_that_carries_one_passes(tmp_path):
     write_doc(tmp_path, "d-detail.md", DETAIL)
-    done = run(make_track(tmp_path, "d-detail.md"), str(tmp_path))
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", gate="human")
+    done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
     assert "PASS work_breakdown (d-detail.md)" in done.stdout
@@ -135,3 +143,46 @@ def test_preflight_and_design_probe_agree_on_who_needs_a_schedule(tmp_path):
         done = run(make_track(tmp_path, "d" + suffix), str(tmp_path))
         blocked = "FAIL work_breakdown" in done.stdout
         assert blocked == (kind in needs), (kind, done.stdout)
+
+
+# --- design_signed_off: build refuses to start without a human's Approve ---
+
+def test_no_design_record_at_all_blocks_build(tmp_path):
+    write_doc(tmp_path, "d-high-level.md", HLD)
+    done = run(make_track(tmp_path, "d-high-level.md"), str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+
+
+def test_a_passed_auto_record_does_not_count_as_sign_off(tmp_path):
+    doc = write_doc(tmp_path, "d-high-level.md", HLD)
+    track = make_track(tmp_path, "d-high-level.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="auto")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+
+
+def test_a_failed_human_record_does_not_count_as_sign_off(tmp_path):
+    doc = write_doc(tmp_path, "d-high-level.md", HLD)
+    track = make_track(tmp_path, "d-high-level.md")
+    ledger.append(track, "design", "failed", artifact=doc, gate="human")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+
+
+def test_a_passed_human_record_signs_off_the_design(tmp_path):
+    doc = write_doc(tmp_path, "d-high-level.md", HLD)
+    track = make_track(tmp_path, "d-high-level.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout

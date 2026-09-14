@@ -36,7 +36,10 @@ separately from the thing they look attached to.
 
 Say the document's path, then ask. Nothing in `build` starts until this is
 answered, and `preflight.py build` fingerprints whatever was signed off, so
-the answer is load-bearing rather than ceremonial.
+the answer is load-bearing rather than ceremonial. `preflight.py build` also
+refuses to start at all unless the ledger holds a `passed` record with
+`gate: human` for `design` — so skipping this menu is caught by the gate
+itself, not only by the fingerprint catching an edit to the document after.
 
 | Option | What it does |
 |---|---|

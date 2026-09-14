@@ -203,6 +203,10 @@ def test_a_design_changed_after_sign_off_stops_build(tmp_path):
 def test_build_without_a_recorded_sign_off_is_not_second_guessed(tmp_path):
     # R4 again: no ledger means no fingerprint to compare, which is a track
     # that predates this feature -- not a track whose design was tampered with.
+    # The passed/human record below carries no artifact, so it satisfies
+    # design_signed_off (added later, gated on stage/outcome/gate only)
+    # without giving artifact_unchanged a fingerprint to compare against --
+    # the "no signed-off design recorded" path this test is about stays live.
     project = tmp_path / "project"
     (project / "docs" / "design").mkdir(parents=True)
     doc = project / "docs" / "design" / "thing-detail.md"
@@ -211,6 +215,7 @@ def test_build_without_a_recorded_sign_off_is_not_second_guessed(tmp_path):
     rows = list(ROWS)
     rows[2] = ("design", "done", "docs/design/thing-detail.md", "")
     track = make_track(tmp_path, rows)
+    ledger.append(track, "design", "passed", gate="human")
 
     done = run("build", track, str(project))
     assert done.returncode == 0
