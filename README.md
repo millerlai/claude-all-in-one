@@ -147,9 +147,10 @@ a work breakdown goes unit by unit, everything else to a single implementer,
 both converging on the same test-and-report step. It still ships and still
 works, but `/cai:track` is meant to replace it, and `goal`'s own routing
 already overlaps what the `design` → `build` → `verify` stages now do more
-explicitly. It stays only until someone has actually run a track end to end —
-that hasn't happened yet — at which point it retires. If you're starting
-fresh, reach for `/cai:track` instead.
+explicitly. It was to stay only until someone had run a track end to end;
+that has happened many times over (eleven finished tracks by 2026-09-14),
+so its retirement is now its own change, not a condition still waiting. If
+you're starting fresh, reach for `/cai:track` instead.
 
 ### Subagents
 
@@ -175,6 +176,43 @@ stage or by one of the tools above.
 |---|---|
 | **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes, `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. It also blocks `git checkout -- <paths>` and `git restore` **when the working tree is dirty**, which is the shape of a verification step eating the fix it was meant to check; on a clean tree those discard nothing and go straight through. Hands the command back with the fix rather than just a refusal. |
 | **Shared rules** | Eight instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, write docs, and lay out options. Installed to user scope by `/cai:setup`. |
+
+## What it deliberately leaves out
+
+Three things the large-company AI-SDLC write-ups all have, and this plugin
+does not. Each is a trade-off with a cost, not a gap waiting to be filled,
+and each names the condition under which it would change.
+
+**The artifact chain stays on your machine.** A track's `state.md`, its
+attempt ledger and its implementation notes live under `.claude/track/` and
+are not version-controlled: the ledger is append-only, so a tracked copy
+would conflict on every merge, and a stage pointer is not a deliverable.
+What links a track to the outside is a ticket number — `ticket.py` projects
+each stage's row onto the linked issue, one way. Design documents are the
+exception: the ones worth keeping go into `docs/design/` and travel with the
+PR. The cost is that a design document cannot be reviewed on a PR before it
+is built against, and one machine's ledger cannot be compared with
+another's. It would change if a second person needed to sign off a design
+on the PR rather than in the session.
+
+**No fleet of background agents opening pull requests.** A track is one
+lane through six stages: the main session runs it, dispatches one subagent
+per stage, and stops at two human gates. There is no issue-to-PR path where
+agents pick work up unattended. It would change if a stage ever needed to
+fan out past five subagents with merge logic between them, if the flow grew
+a real "on failure, go back to build" loop, or if the stage order were found
+being skipped in use — the three conditions recorded when this was first
+declined.
+
+**No review or eval job on pull requests.** The four review lenses run in
+the `verify` stage, on the machine driving the track, on a subscription; the
+eval suite runs from an optional local command. Neither is wired to CI. A
+PR-triggered job would bill every PR against an API key and needs a runner
+credential nobody has set up, and the eval suite (three cases, eleven
+graders) is too thin to carry a red/green gate. Measured: one four-lens
+review is about US$3.25 of equivalent API spend, one eval run about US$0.24.
+It would change when the eval suite can gate — enough cases that a red means
+something — or when a contributor's PR needs a review nobody local will run.
 
 ## Prerequisites
 

@@ -195,8 +195,8 @@ so asking where you are is free.
 - **No locking.** Two sessions driving the same track means the last write
   wins, silently. This is built on one person moving it.
 - **`/cai:goal` still exists and is on its way out.** It predates the track and
-  does a narrower version of the same job. It stays until a track has actually
-  been run end to end.
+  does a narrower version of the same job. The condition it was waiting on —
+  a track run end to end — has long been met; retiring it is its own change.
 - **Changing the rules needs two restarts.** `plugins/cai/rules/` is the
   source, but sessions read `~/.claude/rules/`. Editing the first does nothing
   until `/cai:setup` copies it out and the session restarts.
