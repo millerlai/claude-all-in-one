@@ -130,7 +130,12 @@ def frontmatter_value(path, key):
     if end == -1:
         return None
     m = re.search(rf"^{re.escape(key)}:[ \t]*(.+)$", text[3:end], re.MULTILINE)
-    return m.group(1).strip() if m else None
+    if not m:
+        return None
+    value = m.group(1).strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    return value
 
 
 mp = json.load(open(".claude-plugin/marketplace.json"))

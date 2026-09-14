@@ -93,6 +93,38 @@ def test_grader_type_breach_is_caught():
             fh.write(original)
 
 
+def test_grader_type_quoted_value_still_passes():
+    """`frontmatter_value()` must strip quotes the same way its sibling
+    `frontmatter_description()` already does (scripts/validate.py:113-114):
+    `type: "regex"` is a plainly valid, semantically identical YAML scalar to
+    `type: regex`, and the same file's own `pattern:` fields are already
+    quoted (e.g. design-gate-is-a-menu/graders/label-changes-requested.md's
+    `pattern: "Changes requested"`), so a contributor quoting `type:` too is
+    a realistic edit, not a synthetic one. Without stripping, a legitimate
+    grader would FAIL UC1's check.
+    """
+    with open(GRADER_UNDER_TEST, "rb") as fh:
+        original = fh.read()
+    assert b"type: regex" in original, "expected the real grader's real type"
+    mutated = original.replace(b"type: regex", b'type: "regex"', 1)
+    try:
+        with open(GRADER_UNDER_TEST, "wb") as fh:
+            fh.write(mutated)
+        result = subprocess.run(
+            [sys.executable, VALIDATE], cwd=REPO_ROOT,
+            capture_output=True, text=True, encoding="utf-8")
+        rel = os.path.relpath(GRADER_UNDER_TEST, REPO_ROOT).replace(os.sep, "/")
+        grader_lines = [
+            l for l in result.stdout.splitlines()
+            if rel in l.replace(os.sep, "/")
+            and "frontmatter has an allowed type" in l]
+        assert grader_lines, result.stdout
+        assert all(l.startswith("PASS") for l in grader_lines), grader_lines
+    finally:
+        with open(GRADER_UNDER_TEST, "wb") as fh:
+            fh.write(original)
+
+
 def test_secrets_breach_is_caught():
     """A fake ghp_ token dropped anywhere under plugins/cai/evals/ must flip
     the ghp_ aggregate check to FAIL and name the offending file, the same
