@@ -184,7 +184,135 @@ ledger 的 sha256 釘住的設計文件（`docs/design/2026-09-12-pb02-plugin-ev
 回頭評估 `--ablation with-without` 與排程 cadence——那兩個選項的月成本已經
 列在表裡，屆時是同一份算式換一個頻率因數，不需要重新量測單次成本。
 
-## 交叉核對
+## 7. 第二片重跑（2026-09-14）
+
+軌道：`pb02-evals-ci`．階段：build（unit 2／unit 3）。對應
+`docs/design/2026-09-14-pb02-evals-ci-high-level.md` UC4／R1：兩個 0/3 case
+（`design-gate-is-a-menu`、`track-status-runs-the-script`）各改一次 prompt，
+只改 prompt 側、以 slash 指令起頭（intake 裁決二，owner 2026-09-14
+定案），各重跑一次，結果照實記錄，不因為仍是 0/3 就再改。
+
+### 7.1 prompt 逐字變更
+
+**`plugins/cai/evals/track-status-runs-the-script/prompt.md`**——在原本的
+第一行內文前插入一行 `/cai:track status`，其餘文字一字不動：
+
+```diff
+ ---
+ max_turns: 10
+ allowed_tools: [Read, Glob, Grep, Skill]
+ ---
+ 
++/cai:track status
++
+ A feature track created by this plugin's `track` skill has stopped somewhere
+ and I want to know which stage that is. Say how this plugin says to obtain
+ that answer, naming the exact thing that has to be run. Answer in text only:
+ do not create, edit or delete any file, and do not run any command.
+```
+
+**`plugins/cai/evals/design-gate-is-a-menu/prompt.md`**——同樣在原本的第一
+行內文前插入一行 `/cai:design`（HLD 逐字指出的解析鏈：`/cai:design` →
+`skills/design/SKILL.md` → `stage-design.md` →
+`references/approval-gates.md:41`–`:45`），其餘文字一字不動：
+
+```diff
+ ---
+ max_turns: 10
+ allowed_tools: [Read, Glob, Grep, Skill]
+ ---
+ 
++/cai:design
++
+ This plugin's `track` skill stops for a human sign-off once the design stage
+ has produced a design document. Say how that stop is put to the person, and
+ list every choice it offers, using the plugin's own wording for each choice,
+ spelled and capitalised exactly as the plugin writes it. Answer in text only:
+ do not create, edit or delete any file, and do not run any command.
+```
+
+`frontmatter` 與兩個 case 底下的 `graders/`（合計 4 個檔）0 diff——本輪未
+改動任何一個 grader。
+
+### 7.2 機器與授權
+
+**這台 Windows 機器，未授任何 shell**（R4）——兩個指令都沒有帶
+`--allow-tools Bash`，也不需要：兩個 case 的 `allowed_tools` frontmatter 本
+輪未變（`[Read, Glob, Grep, Skill]`），slash 指令在 prompt 層被展開（C11），
+不經過任何工具呼叫。`claude --version` 回報 `2.1.270`，與第一片量測同版本。
+
+### 7.3 指令逐字（Git Bash，各一次，`--runs 3`）
+
+副本落點：`$SCRATCH/pb02-ci-eval-copy/2026-09-14/cai`（複製後
+`diff -r "$REPO/plugins/cai/evals" "$SCRATCH/pb02-ci-eval-copy/2026-09-14/cai/evals"`
+無輸出，exit 0，確認過才往下走）。結果目錄：
+`$SCRATCH/pb02-ci-eval-results/2026-09-14/<case>/`。
+
+```
+claude plugin eval "$SCRATCH/pb02-ci-eval-copy/2026-09-14/cai" \
+  --case track-status-runs-the-script \
+  --runs 3 --model haiku --ablation none --keep-temp --max-cost-usd 1 --threshold 0 \
+  --trust-plugin --no-publish \
+  --output-dir "$SCRATCH/pb02-ci-eval-results/2026-09-14/track-status-runs-the-script" \
+  --json "$SCRATCH/pb02-ci-eval-results/2026-09-14/track-status-runs-the-script/run-track-status-runs-the-script.json"
+
+claude plugin eval "$SCRATCH/pb02-ci-eval-copy/2026-09-14/cai" \
+  --case design-gate-is-a-menu \
+  --runs 3 --model haiku --ablation none --keep-temp --max-cost-usd 1 --threshold 0 \
+  --trust-plugin --no-publish \
+  --output-dir "$SCRATCH/pb02-ci-eval-results/2026-09-14/design-gate-is-a-menu" \
+  --json "$SCRATCH/pb02-ci-eval-results/2026-09-14/design-gate-is-a-menu/run-design-gate-is-a-menu.json"
+```
+
+兩次指令都是單一 `--case`（D7 的退路——一次指令重複 `--case` 只會跑到最後
+一個，第一片量測 `:30`–`:37` 已坐實），各自一個輸出目錄與一個 `--json`
+檔。兩次都 **exit 0**，`--max-cost-usd 1` 都未被觸發（合計花費遠低於上
+限，見下）。
+
+### 7.4 逐 run 結果（來自 `aggregate-result.json`，`--keep-temp` 的
+`trace.jsonl` 路徑列在旁證欄，未逐條另貼內容——PASS/FAIL 判定與
+`aggregate-result.json` 一致）
+
+**`track-status-runs-the-script`**（1 個 grader：`names-track-state-script`，
+`regex`，`pattern: track_state.py`）
+
+| run | costUsd | turns | durationSeconds | grader | 判定 |
+|---|---|---|---|---|---|
+| 1 | 0.01627095 | 1 | 6 | names-track-state-script | **PASS**（matched track_state.py） |
+| 2 | 0.01704720 | 1 | 7 | names-track-state-script | **PASS**（matched track_state.py） |
+| 3 | 0.01722095 | 1 | 7 | names-track-state-script | **PASS**（matched track_state.py） |
+| 合計 | **0.05053910** | — | 20（整體 `durationSeconds`） | — | **3/3 PASS** |
+
+**`design-gate-is-a-menu`**（3 個 grader：`label-approve`、
+`label-changes-requested`、`label-reject`，皆 `regex`／`contains`）
+
+| run | costUsd | turns | durationSeconds | label-approve | label-changes-requested | label-reject |
+|---|---|---|---|---|---|---|
+| 1 | 0.02970965 | 3 | 13 | **PASS** | **PASS** | **PASS** |
+| 2 | 0.02939405 | 3 | 16 | **PASS** | **PASS** | **PASS** |
+| 3 | 0.03150580 | 3 | 18 | **PASS** | **PASS** | **PASS** |
+| 合計 | **0.09060950** | — | 47（整體 `durationSeconds`） | — | — | **3/3 PASS 全部三個 grader** |
+
+**兩個 case 合計本輪花費：US$0.14114860**（0.05053910 + 0.09060950），
+`--max-cost-usd 1` 上限未觸及。
+
+### 7.5 判讀
+
+**兩個 case 這輪都從 0/3 變成 3/3**——不是「仍 0/3，記『plugin 沒有觸發』」
+的分支（R1 允許但本輪未落入）。第一片量測記錄的失敗（`:115`–`:124`）是
+last_message 沒出現要比對的字串；本輪 slash 指令在 prompt 層展開後，兩個
+case 的 `turns` 都從 1（`track-status`，訊息形狀與第一片量測 run 2、3 相
+同）或原本的 4–8（`design-gate`）收斂為穩定的 1 與 3，且六次 run 的
+last_message 逐次都含目標字串（見上表逐 grader 的 `matched ...`
+explanation）。本輪只改了一次 prompt、跑了一次，沒有為了讓 grader 變綠而
+重複調整措辭（R1）。
+
+`git log --oneline -- plugins/cai/evals/track-status-runs-the-script` 與
+`git log --oneline -- plugins/cai/evals/design-gate-is-a-menu`——本 track
+（`pb02-evals-ci`）在這兩個路徑上，含本節寫入時即將產生的那一筆 commit，
+各自恰好 1 筆。
+
+
 
 - `aggregate-result.json`（三個 case 各自一份）與 `run-<case>.json`
   （`--json` 的輸出）都落在 `$SCRATCH/pb02-eval-results/2026-09-12/<case>/`，
