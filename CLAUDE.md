@@ -88,6 +88,17 @@ sits at the repo root rather than under `plugins/cai/` so that neither it nor
 pytest ever reaches an installed copy: `.claude-plugin/marketplace.json:11`
 ships `./plugins/cai` and nothing else.
 
+An optional local run: `claude plugin eval plugins/cai --ablation none
+--max-cost-usd 1 --threshold 0 --trust-plugin --no-publish --model haiku
+--output-dir <path outside this repo>`, worth doing when a change touches
+`plugins/cai/{skills,agents,hooks,rules,evals}/`. `--output-dir` has to point
+outside the repo — the default lands under `plugins/cai/evals/results/`,
+inside the tree the marketplace ships to every install. One run costs about
+US$0.24 on a subscription (`docs/design/2026-09-12-pb02-plugin-evals-measurement.md:103`).
+This is deliberately not wired into CI — the suite is too thin (3 cases, 11
+graders) to carry a red/green gate yet; see issue #86 for the reopen
+condition.
+
 You should rarely need to run it by hand: `.claude/settings.json` registers a
 `PostToolUse` hook that runs it whenever the **Edit or Write tool** touches
 `plugins/cai/` or `.claude-plugin/`, and reports the failures. The matcher is
