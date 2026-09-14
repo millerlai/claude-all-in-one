@@ -115,6 +115,29 @@ def frontmatter_description(path):
     return first
 
 
+def frontmatter_value(path, key):
+    """The raw string value of a single top-level frontmatter key, or None
+    when there is no frontmatter or no such key.
+
+    Same trick as frontmatter_keys() -- not a real YAML parser, just a regex
+    against the block between the `---` fences -- because this repo stays
+    dependency-free so CI runs on a bare Python.
+    """
+    text = read_text(path)
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    if end == -1:
+        return None
+    m = re.search(rf"^{re.escape(key)}:[ \t]*(.+)$", text[3:end], re.MULTILINE)
+    if not m:
+        return None
+    value = m.group(1).strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    return value
+
+
 mp = json.load(open(".claude-plugin/marketplace.json"))
 check("marketplace has name/owner/plugins", all(k in mp for k in ("name", "owner", "plugins")))
 
@@ -2131,5 +2154,45 @@ def rmtree(path):
 for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR, PREFLIGHT_PROJECT,
              TRACK_FIXTURE_ROOT):
     rmtree(path)
+
+# plugins/cai/evals/ is CLAUDE.md's third category: "shipped but not theirs"
+# -- it reaches every installed copy (the marketplace ships everything under
+# plugins/cai/) but no shipped component ever invokes it, since `claude
+# plugin eval` refuses an eval directory outside the plugin root. That is
+# also why it gets its own self-contained, independently-globbing section
+# here rather than folding into the component-frontmatter loop above: that
+# loop checks components Claude Code itself reads at runtime, and evals is
+# not one of those.
+ALLOWED_GRADER_TYPES = {"regex", "tool_used", "file_exists", "tool_order"}
+
+# A missing `type:` key must FAIL the same way a wrong one does: `claude
+# plugin eval init --bare` defaults a new grader's type to `llm`, which is
+# not in the allowed set, so leaving the key out is not a safe default.
+for path in sorted(glob.glob(f"{PLUGIN}/evals/*/graders/*.md")):
+    grader_type = frontmatter_value(path, "type")
+    check(f"{path} frontmatter has an allowed type (found: {grader_type!r})",
+          grader_type in ALLOWED_GRADER_TYPES)
+
+# A leaked token or a hardcoded home-directory path under evals/ ships to
+# every user who installs the plugin -- these three checks model the BOM
+# aggregate above (:636-650): accumulate offenders, one check() line per
+# pattern, then name each offending path.
+evals_files = [p for p in glob.glob(f"{PLUGIN}/evals/**", recursive=True)
+               if os.path.isfile(p)]
+
+SECRET_PATTERNS = (
+    ("sk-ant-", ("sk-ant-",)),
+    ("ghp_", ("ghp_",)),
+    ("home-directory path", ("C:\\Users\\", "/home/", "/Users/")),
+)
+for label, needles in SECRET_PATTERNS:
+    hits = []
+    for path in sorted(evals_files):
+        text = read_text(path)
+        if any(needle in text for needle in needles):
+            hits.append(path)
+    check(f"no evals file contains a {label} ({len(hits)} found)", not hits)
+    for path in hits[:5]:
+        print(f"     {label}:", path)
 
 sys.exit(FAIL)

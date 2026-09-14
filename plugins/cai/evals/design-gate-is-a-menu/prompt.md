@@ -3,6 +3,8 @@ max_turns: 10
 allowed_tools: [Read, Glob, Grep, Skill]
 ---
 
+/cai:design
+
 This plugin's `track` skill stops for a human sign-off once the design stage
 has produced a design document. Say how that stop is put to the person, and
 list every choice it offers, using the plugin's own wording for each choice,
