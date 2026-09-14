@@ -1,0 +1,7 @@
+{
+  "base_sha": "5c0d4ec",
+  "base_ref": "origin/backup/ticket-integration-5c0d4ec",
+  "expected": [],
+  "expected_absent": ["security"],
+  "notes": "pb04-security-lens AC11 negative: this diff's cp950 decode guard (encoding=\"utf-8\", errors=\"replace\") is a defensive fix, not a finding; security should report nothing on this diff."
+}

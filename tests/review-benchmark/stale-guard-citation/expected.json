@@ -1,0 +1,24 @@
+{
+  "base_sha": "31c83cd",
+  "base_ref": "origin/backup/pr60-followups-fa7ff17",
+  "expected": [
+    {
+      "lens": "conformance",
+      "file": "scripts/validate.py",
+      "line_start": 1432,
+      "line_end": 1519,
+      "severity": "Major",
+      "cause": "The EXIT_CLAUSE pinned-string check's comment and label cite tests/test_track_state_status_vocabulary.py by line number, and this diff's own new test pushed that line away"
+    },
+    {
+      "lens": "conformance",
+      "file": "plugins/cai/scripts/track_state.py",
+      "line_start": 25,
+      "line_end": 26,
+      "severity": "Major",
+      "cause": "The comment still says See table_row_count() below, but this diff renamed that function to table_stage_ids()"
+    }
+  ],
+  "expected_absent": [],
+  "notes": "pr60-followups verify row's Major 1 (conformance, both validate.py sites) and Major 2 (same class, but caught by the verifier's own diff re-check -- none of the three dispatched lenses reported it)."
+}

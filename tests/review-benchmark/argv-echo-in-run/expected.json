@@ -1,0 +1,16 @@
+{
+  "base_sha": "18c9bd3",
+  "base_ref": "origin/backup/ticket-integration-5c0d4ec",
+  "expected": [
+    {
+      "lens": "security",
+      "file": "plugins/cai/scripts/ticket_backend.py",
+      "line_start": 97,
+      "line_end": 100,
+      "severity": "Major",
+      "cause": "run()'s two print() sites echo the full argv verbatim, H3"
+    }
+  ],
+  "expected_absent": [],
+  "notes": "pb04-security-lens AC10: the ticket backend seam's run() prints the whole argument vector at both of its print() call sites, in the commit that added the file."
+}

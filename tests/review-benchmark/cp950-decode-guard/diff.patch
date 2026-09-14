@@ -1,0 +1,186 @@
+commit 5c0d4ec9ab9c96974c58b73a3e9fa87bc385b2dc
+Author: Miller Lai <miller.lai@gmail.com>
+Date:   Mon Aug 31 06:07:23 2026 -0400
+
+    fix(cai): decode gh's output as UTF-8, and summarise what gets logged
+    
+    Two bugs the end-to-end run found against a real issue. Both were present
+    while all 186 unit tests were green, because the fakes those tests drive
+    only ever emit ASCII and only ever check the helper, not the call.
+    
+    **Decoding.** run() copied preflight.py's `subprocess.run(text=True)` shape,
+    which decodes using the console locale. That is fine for git, whose output is
+    essentially ASCII; gh echoes back comment bodies, issue titles and this
+    project's own state.md notes. The first projection succeeded and the second
+    died reading back the Chinese comment the first one had just written --
+    UnicodeDecodeError, raised inside subprocess's own reader thread, where the
+    function's `except` clause cannot see it. It never propagated; it just left
+    stdout as None, so json.loads(None) was the first visible symptom, three
+    frames away from the cause. encoding="utf-8" is now explicit, and every JSON
+    parse goes through a guard that returns a category instead of raising, so an
+    undecodable byte can no longer make a Backend method raise.
+    
+    **Logging.** The design asks for `backend <argv summary> -> <category>`, and
+    the summary part is load-bearing: the body handed to `-f body=...` is a whole
+    six-row table, so logging argv verbatim printed the entire mirrored comment on
+    every projection. Arguments are now flattened and clipped.
+    
+    The second fix was itself wrong on the first attempt, in a way worth recording:
+    only one of run()'s two print sites was changed, and the tests written for it
+    exercised the summary helper rather than run(), so they passed while the line a
+    projection actually prints was unchanged. The test added here drives run() and
+    asserts on its real output; reverting either print site now fails it.
+    
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+diff --git a/plugins/cai/scripts/ticket_backend.py b/plugins/cai/scripts/ticket_backend.py
+index 973207d..19b8f23 100644
+--- a/plugins/cai/scripts/ticket_backend.py
++++ b/plugins/cai/scripts/ticket_backend.py
+@@ -82,25 +82,84 @@ def _cli_prefix():
+     return argv
+ 
+ 
++ARG_SUMMARY_MAX = 40
++
++
++def _argv_summary(argv):
++    """One short line naming the call, never the payload it carries.
++
++    The design asks for `backend argv 摘要 -> 分類詞`, and the summary part
++    is load-bearing rather than cosmetic: the comment body handed to
++    `-f body=...` is a whole rendered six-row table, so printing argv
++    verbatim turns every projection into a screenful and puts whatever the
++    table holds on screen. Newlines collapse too -- a multi-line entry
++    would break the one-line-per-call contract on its own."""
++    parts = []
++    for arg in argv:
++        flat = " ".join(str(arg).split())
++        parts.append(flat if len(flat) <= ARG_SUMMARY_MAX
++                     else flat[:ARG_SUMMARY_MAX] + "...")
++    return " ".join(parts)
++
++
+ def run(args, cwd=None):
+     """Runs the ticket CLI with `args` appended to its configured prefix.
+     Returns (CompletedProcess | None, category). Never raises: the two
+     exceptions a hung or absent CLI can produce are caught right here and
+     turned into "unreachable", matching preflight.py:212-220's shape for
+-    calling an external process without going through a shell."""
++    calling an external process without going through a shell.
++
++    encoding="utf-8" is explicit rather than `text=True`'s console-locale
++    default: unlike git (preflight.py's own caller), gh's output is never
++    just ASCII -- it echoes back comment bodies, issue titles, and this
++    project's own state.md notes, and `gh` itself always emits UTF-8
++    regardless of the console's locale. Left to the default, a cp950
++    console decoding a Chinese comment raised UnicodeDecodeError inside
++    subprocess's own background reader thread (measured against issue #48,
++    2026-08-31) -- a thread whose uncaught exception this function's
++    `except` clause cannot see, since it never propagates to the caller;
++    it left `done.stdout` silently `None` instead. errors="replace" turns
++    any byte sequence that still is not valid UTF-8 into mangled-but-
++    decodable text rather than raising, so this call itself can never be
++    the reason a Backend method raises."""
+     argv = _cli_prefix() + list(args)
+     try:
+         done = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
++                              encoding="utf-8", errors="replace",
+                               timeout=TIMEOUT_SECONDS)
+     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+         category = classify(exc, -1, "")
+-        print("backend %s -> %s" % (" ".join(argv), category))
++        print("backend %s -> %s" % (_argv_summary(argv), category))
+         return None, category
+     category = classify(None, done.returncode, done.stderr)
+-    print("backend %s -> %s" % (" ".join(argv), category))
++    print("backend %s -> %s" % (_argv_summary(argv), category))
+     return done, category
+ 
+ 
++def _text(value):
++    """`value` if it is already a string, else "" -- the guard every call
++    site needs against `done.stdout`/`done.stderr` coming back None, which
++    subprocess.run() can still do even though it did not raise (a reader
++    thread's own decode failure is swallowed by Python's default thread
++    excepthook rather than surfacing here; see run()'s docstring)."""
++    return value if isinstance(value, str) else ""
++
++
++def _load_json_object(text):
++    """Parses `text` as a JSON object. Returns None on anything that is not
++    parseable JSON, or parses to something other than a dict -- never
++    raises. This is the one place a Backend method's "must not raise"
++    requirement would otherwise have a hole: json.loads() raises on
++    non-str input and on malformed text alike."""
++    if not isinstance(text, str):
++        return None
++    try:
++        data = json.loads(text)
++    except ValueError:
++        return None
++    return data if isinstance(data, dict) else None
++
++
+ def _numeric_comment_id(url):
+     """The digits after `#issuecomment-` in a comment's `url` field -- the id
+     the REST PATCH endpoint accepts. Not the same value `--json comments`
+@@ -141,7 +200,10 @@ class GitHubBackend(Backend):
+         done, category = run(["api", "user", "--jq", ".login"], cwd=project_dir)
+         if category != "ok":
+             return None, category
+-        return done.stdout.strip(), "ok"
++        login = _text(done.stdout).strip()
++        if not login:
++            return None, "unclassified"
++        return login, "ok"
+ 
+     def read(self, project_dir, ref):
+         done, category = run(
+@@ -149,9 +211,8 @@ class GitHubBackend(Backend):
+             cwd=project_dir)
+         if category != "ok":
+             return None, category
+-        try:
+-            data = json.loads(done.stdout)
+-        except ValueError:
++        data = _load_json_object(done.stdout)
++        if data is None:
+             return None, "unclassified"
+         value = {"number": str(data.get("number", "")),
+                  "title": data.get("title", ""),
+@@ -168,10 +229,12 @@ class GitHubBackend(Backend):
+             ["issue", "view", str(ref), "--json", "comments"], cwd=project_dir)
+         if list_category != "ok":
+             return None, list_category
+-        try:
+-            comments = json.loads(listed.stdout).get("comments") or []
+-        except ValueError:
++        listed_data = _load_json_object(listed.stdout)
++        if listed_data is None:
+             return None, "unclassified"
++        comments = listed_data.get("comments")
++        if not isinstance(comments, list):
++            comments = []
+ 
+         # Marker find-back: body contains the marker AND author is the
+         # passed-in (cached) login. No up-front identity check -- that is
+@@ -199,7 +262,8 @@ class GitHubBackend(Backend):
+                     cwd=project_dir)
+             finally:
+                 os.unlink(tmp_path)
+-            url = write_done.stdout.strip() if write_done is not None else None
++            url = (_text(write_done.stdout).strip() or None
++                   if write_done is not None else None)
+ 
+         if write_category == "ok":
+             return url, "ok"
+@@ -213,7 +277,7 @@ class GitHubBackend(Backend):
+         # DD10's extra whoami only decides which *message* to print, not the
+         # category: an identity change gets told apart from a plain
+         # permissions problem on the same account, but both are "forbidden".
+-        stderr = write_done.stderr if write_done is not None else ""
++        stderr = _text(write_done.stderr) if write_done is not None else ""
+         if _is_forbidden(stderr):
+             current_login, whoami_category = self.whoami(project_dir)
+             if whoami_category == "ok" and current_login != login:

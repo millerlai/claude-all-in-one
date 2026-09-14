@@ -1,0 +1,37 @@
+diff --git a/plugins/cai/scripts/track_state.py b/plugins/cai/scripts/track_state.py
+index c646613..5331245 100644
+--- a/plugins/cai/scripts/track_state.py
++++ b/plugins/cai/scripts/track_state.py
+@@ -23,7 +23,7 @@ DEFAULT_TRACK_ROOT = os.path.join(".claude", "track")
+ # it rather than writing that lookup a second time. (Its own inline loop is
+ # the one piece of table parsing this script could not fold into a single
+ # shared implementation -- preflight.py is out of scope for this change. See
+-# table_stage_ids() below, and the report, for why.)
++# table_row_count() below, and the report, for why.)
+ sys.path.insert(0, HERE)
+ import preflight  # noqa: E402
+ import ledger  # noqa: E402
+diff --git a/scripts/validate.py b/scripts/validate.py
+index 72005d2..ce09329 100644
+--- a/scripts/validate.py
++++ b/scripts/validate.py
+@@ -1429,8 +1429,7 @@ if os.path.isfile(TRACK_SKILL):
+     # Convention this block follows (#65, #66): a claim about *code behaviour*
+     # gets a behaviour test first, and the prose guard here only proves the
+     # sentence describing it is still present (the exit-2 paragraph below is
+-    # this kind -- tests/test_track_state_status_vocabulary.py's
+-    # test_an_illegal_status_exits_2_and_prints_no_next_line owns the
++    # this kind -- tests/test_track_state_status_vocabulary.py:51 owns the
+     # behaviour). A claim about *what the model writes* has no code to test --
+     # only review can hold it -- so the guard pins the whole sentence instead
+     # (the passing-path bullet below is this kind). Treat any edit to this
+@@ -1517,8 +1516,7 @@ if os.path.isfile(TRACK_SKILL):
+     check(f"{TRACK_SKILL}'s exit-2 paragraph is pinned word for word -- "
+           "update this pinned string only after re-confirming the claim "
+           "against track_state.py's exit-2 paths and "
+-          "tests/test_track_state_status_vocabulary.py's "
+-          "test_an_illegal_status_exits_2_and_prints_no_next_line",
++          "tests/test_track_state_status_vocabulary.py:51",
+           flattened(exit_para) == EXIT_CLAUSE)
+ 
+ # track_state.py resolves .claude/track/current -> state.md from files alone,

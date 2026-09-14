@@ -1,0 +1,16 @@
+{
+  "base_sha": "ed5cae3",
+  "base_ref": "origin/backup/feat-pb02-evals-ci-20260914-ship",
+  "expected": [
+    {
+      "lens": "correctness",
+      "file": "scripts/validate.py",
+      "line_start": 118,
+      "line_end": 133,
+      "severity": "Major",
+      "cause": "frontmatter_value() doesn't strip quotes, so a grader written as type: \"regex\" is misjudged as an invalid type and FAILs"
+    }
+  ],
+  "expected_absent": [],
+  "notes": "Found by the verify stage's correctness lens on this diff, fixed by a later commit that strips quotes when reading a grader's type: value."
+}
