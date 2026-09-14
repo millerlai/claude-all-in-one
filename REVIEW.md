@@ -15,14 +15,21 @@ tree, written into a shipped file, claims every user has that path.
 
 ## Where the four hunt items land in this repo
 
-| # | Hunt item | This repo today | Example to point at |
-|---|---|---|---|
-| H1 | shell execution | zero: every `subprocess.run` under `plugins/cai/scripts/` passes an argv list | plugins/cai/scripts/ticket_backend.py:143 |
-| H2 | what reaches the argument vector | `CAI_TICKET_CLI` can supply the whole executable path, or a whole JSON argv array | plugins/cai/scripts/ticket_backend.py:141, built by `_cli_prefix()` at :68-98 |
-| H3 | secrets and payloads in what is kept | `classify()` folds raw stderr to one word because a 401 message carries a credential-bearing URL; `_argv_summary()` truncates each arg to 40 | plugins/cai/scripts/ticket_backend.py:46-50 and :104-118 |
-| H4 | guard bypass | the refusal table is `CASES`, run row by row against the guard | scripts/validate.py:716-810, run at :821-823; the `^`-anchor bypass is recorded at :760-766 |
+In `.claude/cai-review.md`, and only there. That is the path the security
+lens reads (finding-severity.md's "When the repo under review keeps its own
+review policy"); a copy here was the one it never saw, and its line numbers
+had already drifted by the time anyone checked (2026-09-14).
+
+## Review on pull requests
+
+Deliberately not wired. The four lenses run in the `verify` stage on the
+machine driving a track, on a subscription; a PR-triggered job would bill
+every PR against an API key and needs a runner credential nobody has set
+up. Measured 2026-09-13: one four-lens verify is about US$3.25 of
+equivalent API spend, so roughly US$39 a month at this repo's merge rate --
+the number a future issue would weigh, not this file.
 
 ## No fifth item
 
 Four is the list. Adding a fifth is a requirement decision, not a review
-preference -- take it to a track, not to this table.
+preference -- take it to a track, not to that table.
