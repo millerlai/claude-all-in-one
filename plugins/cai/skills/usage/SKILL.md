@@ -14,6 +14,13 @@ from what the script prints.
 - Cross-project usage over the last N days: `range --days <N>`, where N is
   whatever number of days the user said. If they did not say a number, ask
   instead of guessing one.
+- One track's own process metrics: `metrics --track-dir <the track's
+  directory>` -- prints, per stage, `first_pass` (did the first attempt
+  pass), `cycle` (h:mm:ss from the stage's first record to its last pass),
+  `rework` (how many attempts it took), and `human_signed` (share of those
+  attempts a human gate actually signed off).
+- The same four numbers across projects: `metrics --days <N>`, aggregated
+  per stage over every track that touched it in that window.
 - If the command exits non-zero, relay stderr verbatim and stop -- do not
   explain or guess at the cause.
 
