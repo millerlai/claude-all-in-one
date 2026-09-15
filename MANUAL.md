@@ -112,8 +112,10 @@ writes the next row itself.
 /cai:track done
 ```
 
-Moves the track to `.claude/track/done/<feature>/` and clears `current`.
-Refused while any stage row is still empty, and it names which.
+First prints what the track left open — the `Left open:` items from each
+stage's note. Then moves the track to `.claude/track/done/<feature>/` and
+clears `current`. Refused while any stage row is still empty, and it names
+which.
 
 ## Running one stage alone
 

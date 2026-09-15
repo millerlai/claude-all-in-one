@@ -137,6 +137,7 @@ of the ledger's `--note`; you write no track file at all.
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered
 - what remains unfixed and why
+- what is left open -- every Minor left unfixed and every parked proposal, one item each
 - what got parked as a proposal, and which requirement it would need to
   stop being parked
 

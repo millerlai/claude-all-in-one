@@ -167,6 +167,7 @@ of the ledger's `--note`; you write no track file at all.
 - the final commit hash
 - whether the merge/tag/publish step ran or is still waiting on the person
 - where the release note landed
+- what is left open -- anything still waiting on the person after merge, one item each
 
 Evidence goes in the artifact this stage already produces, never pasted
 in here. 4000 characters is the ceiling for this section: the largest
