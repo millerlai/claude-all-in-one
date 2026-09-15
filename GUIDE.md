@@ -49,8 +49,10 @@ flowchart TD
 | `rules/`, `CLAUDE.md` | Conventions — how to work, always true | Loaded every session | Tokens in every session, forever |
 | `skills/` | Procedures, whoever is meant to start them | Frontmatter decides: default is model-or-user, `disable-model-invocation: true` restricts it to the user typing `/name`, `user-invocable: false` restricts it to the model | Loaded only when matched or invoked |
 | `commands/` (legacy) | Same as `skills/`, flat-file form predating the frontmatter switches | The user typing `/name` | Nothing until invoked |
+| `skills/*/references/` | A procedure's steps, kept out of the skill body | A skill or a dispatched agent reading the file | Nothing until read — and no invocation gate to trip over |
 | `agents/` | A delegated job with its own context and model tier | Dispatched, or `@agent-name` | A whole subagent run |
 | `hooks/` | Constraints that must not depend on being remembered | Mechanically, on every matching tool call | Runs on every matching call |
+| `scripts/` | The half of a rule or step that has exactly one right answer | A hook, a skill, a stage, or a rule's self-check running it | No tokens; milliseconds |
 
 ## Who may invoke it?
 
@@ -92,6 +94,43 @@ The same test applies in reverse: anything in a hook that is really a matter of
 taste will block work that should have been allowed, and gets disabled — taking
 the genuine constraints with it.
 
+### Split off the half that has one answer
+
+Most guidance is not all one kind. A rule usually carries a part that needs
+judgement and a part that does not, and the second part can be a script that
+answers in milliseconds, costs no tokens, and fails the same way twice. Keep
+the judgement in prose; move the rest.
+
+- `rules/option-explainer.md` says which six fields every option carries.
+  Whether an ELI5 really is an analogy has no single answer, so that stays in
+  the rule's self-check. Whether the six fields are a numbered list a reader
+  can scan, or one 90-word paragraph, does — `scripts/options_lint.py` checks
+  exactly that shape and nothing more.
+- "Do not start `build` without that sign-off" is a sentence in the track
+  skill, and on its own that is the model remembering. `preflight.py`'s `design_signed_off`
+  now refuses `build` unless the ledger holds a person's Approve, and
+  `artifact_unchanged` refuses it if the document changed after — the promote
+  path from the diagnostic above, taken.
+- Design documents promise absolutes — every capability carries evidence,
+  every glossary term points at a line that exists. `scripts/design_probe.py`
+  is the mechanism for the ones with one answer.
+
+Ask before any model is called: does a deterministic check already settle
+this? That is the cheapest layer in `rules/model-selection.md`, and it is the
+one to make bigger first.
+
+### When one rule lives in two places
+
+A hard rule often gets restated where it is applied — the parallel-subagent
+cap in `rules/model-selection.md` shows up again in the `build` and `verify`
+stage procedures and in the refactoring scan. Each copy is a place for the
+number to drift. In this repo such a rule gets an entry in
+`docs/rule-provenance.md`: the failure that produced it, where it is cited,
+every `Restated in:` location, and the `Shared value:` they must all agree on.
+`validate.py` runs `provenance.py` against that ledger, so a copy that
+drifts fails the build instead of quietly winning. Pinning one more
+restatement is a ledger line, not new code.
+
 ## Known gaps in this repo
 
 - `rules/workflow.md` says never commit or push unless asked, and nothing
@@ -131,3 +170,16 @@ the genuine constraints with it.
   gate. That is the same shape the stage procedures use, and for the same
   reason — **if something has to be driven by the model, it cannot be a skill
   the model is forbidden to invoke.** Check that before reaching for the flag.
+- Fixed, and the same failure from another side: stage procedures told
+  whoever ran them to ask the user — `stage-design.md`'s decision rule,
+  `stage-build.md`'s commit-per-unit question, `stage-ship.md`'s confirmation.
+  Dispatched by the track, that runner is a subagent, and the platform removes
+  `AskUserQuestion` from every subagent whatever its `tools:` field says. The
+  instruction named a tool the runner did not have, so it answered the
+  question itself instead.
+
+  The fix moved the asking, not the question: a dispatched stage finishes
+  what the answer doesn't block, hands the decision up under `## Pending
+  questions`, and the main session — which does have the tool — asks
+  (`skills/track/references/pending-questions.md`). Before writing "ask the
+  user" into a procedure, check who will actually be running it.

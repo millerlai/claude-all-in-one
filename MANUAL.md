@@ -24,11 +24,16 @@ like they fit, the more specific one is right.
 | Find out what you're missing | `/cai:discover` | Surfaces unknowns before code |
 | Check your own grasp of a diff | `/cai:quiz` | Asks *you* questions |
 | Review a plan or spec | `/cai:plan-review` | Traces design back to requirements |
+| Choose between options you can't compare | `/cai:options` | Six fields per option, then a pick |
+| See what a track, or a month, cost | `/cai:usage` | Relays what `usage_report.py` computed |
 | Run a git or gh operation | `/cai:git` | Runs on the chore tier, not your session's |
+| Run a mechanical one-off | `/cai:chore` | Chore tier; hands back anything needing judgement |
 | Apply one named refactoring | `/cai:extract-method` | One of 72, tab-completable |
 
-`debug`, `refactor`, `verify` and `discover` also start on their own when what
-you say matches them, so you rarely type those.
+`debug`, `refactor`, `verify`, `discover`, `plan-review`, `git` and `chore`
+also start on their own when what you say matches them, so you rarely type
+those. `quiz`, `options`, `usage`, `setup`, the 72 named refactorings, and the
+four stages that write things (below) only ever start when typed.
 
 ## Walking a track
 
@@ -39,8 +44,13 @@ you say matches them, so you rarely type those.
 That creates `.claude/track/billing-export/state.md` with one row per stage,
 writes `.claude/track/current`, and begins at `intake`.
 
+Do one thing once per repo: add `.claude/track/` to `.gitignore`. A track's
+files are working state, and `ship` refuses a dirty working tree — so a repo
+that tracks them trips over its own bookkeeping at the last stage. `intake`'s
+preflight says so when they aren't ignored, without blocking.
+
 Each stage runs the same shape. A free check first, then the paid work, then
-the row gets written:
+the outcome is recorded — every attempt, not only the ones that worked:
 
 ```mermaid
 ---
@@ -49,13 +59,13 @@ config:
     defaultRenderer: "elk"
 ---
 flowchart LR
-    S(["stage begins"]) --> P["preflight.py <stage><br/>costs nothing"]
-    P -->|"exit 2"| B["stops and names<br/>what is missing"]
+    S(["stage begins"]) --> P["preflight.py for this stage<br/>costs nothing"]
+    P -->|"exit 2"| B["stops and names what is missing<br/>ledger: blocked"]
     P -->|"exit 0"| D["dispatched to the agent<br/>stages.json names"]
     D --> G{"the stage's own gate"}
-    G -->|"fails"| F["fix, bounded"]
+    G -->|"fails"| F["ledger: failed<br/>fix, bounded"]
     F --> P
-    G -->|"passes"| W["that row of state.md<br/>is overwritten"]
+    G -->|"passes"| W["ledger: passed, then that<br/>row of state.md is overwritten"]
     W --> N(["next stage"])
 
     classDef stop fill:#f8d7da,stroke:#dc3545,color:#721c24
@@ -70,14 +80,16 @@ The six stages, in order:
    you could actually check. Asks one question at a time and waits.
 2. **`discover`** — surfaces what nobody knows yet. Says what the move costs
    before running it.
-3. **`design`** — writes a design document. High-level weighs architecture
-   options; detail turns an approved one into something a team can build from;
-   delta recovers decisions from a branch already built.
+3. **`design`** — writes a design document under `docs/design/`. High-level
+   weighs architecture options; detail turns an approved one into something a
+   team can build from; delta recovers decisions from a branch already built.
 4. **`build`** — works the design's own work breakdown, one unit at a time,
    test-first. Nothing starts until the unit before it is green and committed.
 5. **`verify`** — four read-only reviewers over the diff: correctness,
    conformance to what was asked, whether a test would fail if the change were
-   reverted, and the four security hunt items.
+   reverted, and security — shell execution, what reaches an argument vector,
+   secrets in what is kept, guard bypass. Then fixes Blockers and Majors only,
+   with a failing test first.
 6. **`ship`** — squashes the branch into one conventional commit and writes a
    release note.
 
@@ -88,10 +100,31 @@ waits for you.
 
 Both arrive as a menu you pick from, never a prompt asking you to type
 `approved`. The design one offers three: approve it, ask for changes (which
-sends `design` round again with what you said), or reject it. Ship's quotes
-the exact commands about to run, and offers to hand them back instead. Every
-menu also takes free text, so "yes but rename the flag" is a first-class
-answer rather than something you have to squeeze into one of the options.
+sends `design` round again with what you said, at most three rounds), or
+reject it. Ship's quotes the exact commands about to run, and offers to hand
+them back instead; the squash before it, and — with ticket mirroring on — one
+last ticket update and whether to close the issue, are each asked on their
+own turn, because a yes to publishing is not a yes to any of them. Every menu also takes free text, so "yes
+but rename the flag" is a first-class answer rather than something you have
+to squeeze into one of the options.
+
+### The design sign-off is checked, not trusted
+
+Picking Approve writes `approved <date>` into the document's `## Status`, then
+records your sign-off in the ledger together with the document's SHA-256.
+`build`'s preflight reads that record, so two things stop it: no sign-off from
+a person on the ledger at all, and a design document that has changed since
+you signed it. An edit made after approval is not the design you approved —
+revert it, or take the changed document back through the design gate.
+
+### When a stage has a question for you
+
+A stage the track dispatches runs as a subagent, and Claude Code gives
+subagents no way to ask you anything. So a stage that reaches a decision only
+you can make finishes everything the answer doesn't block, ends its report
+with `## Pending questions`, and the main session asks you — one menu per
+turn, the one that constrains the rest first. Run the stage standing alone
+and it asks you directly.
 
 ### Skipping a stage
 
@@ -103,8 +136,11 @@ Stages are skippable, never silently:
 
 `--reason` is required and the command is refused without it, because
 `/cai:track status` reads those reasons back months later when nobody
-remembers. There is deliberately no `advance` subcommand — a gate that passes
-writes the next row itself.
+remembers. A skip also clears that stage's retry count. There is deliberately
+no `advance` subcommand — a gate that passes writes the next row itself.
+
+Skipping `design` leaves `build` nothing to build from, so `build`'s preflight
+refuses and says to skip `build` too, or fill the design row in.
 
 ### Closing it
 
@@ -113,9 +149,10 @@ writes the next row itself.
 ```
 
 First prints what the track left open — the `Left open:` items from each
-stage's note. Then moves the track to `.claude/track/done/<feature>/` and
-clears `current`. Refused while any stage row is still empty, and it names
-which.
+stage's note, as a list you can paste straight into `/cai:intake` to start the
+next track. Then moves the track to `.claude/track/done/<feature>/` and clears
+`current`. Refused while any stage row is still empty or `in-progress`, and it
+names which.
 
 ## Running one stage alone
 
@@ -124,8 +161,8 @@ Every stage is also a command: `/cai:intake`, `/cai:discover`, `/cai:design`,
 file, so the procedure is identical.
 
 One difference matters: **running a stage this way writes nothing to any
-track.** There is no track underneath it, so nothing advances and
-`/cai:track status` will not know it happened.
+track.** There is no track underneath it, so nothing advances, no ledger
+records the attempt, and `/cai:track status` will not know it happened.
 
 Four of the six do not start on their own — `intake`, `design`, `build` and
 `ship` all write things, and a description that happens to match your sentence
@@ -139,19 +176,28 @@ names one of these:
 
 | Names | Meaning | Do this |
 |---|---|---|
-| `not_main_branch` | You're on `main`, or git could not be asked at all | Branch first. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
+| `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | Branch first. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
 | `active_tracks` | Five tracks are already open | `/cai:track done` on one. Archived tracks never count |
 | `reserved_name` | You named a feature `current` or `done` | Pick another; both already mean something under `.claude/track/` |
-| `state_md` | No `state.md`, or no row for this stage | Open the track with `/cai:track <name>` first |
-| `intake_status` | `discover` asked to run before `intake` finished | Finish intake, or skip it with a reason |
-| `artifact_named` | The design row names no document | Run `design`, or record the document you're reusing |
+| `state_md` | No `state.md`, or no row for the stage this one reads | Open the track with `/cai:track <name>` first |
+| `intake_status` | `discover` asked to run before `intake` was `done` or `skipped` | Finish intake, or skip it with a reason |
+| `artifact_named` | `build` asked to run, and the design row names no document | Run `design`, or record the document you're reusing. If you skipped `design`, skip `build` too |
 | `artifact_kind` | Filename ends in none of `-high-level.md`, `-detail.md`, `-delta.md` | Rename it. The suffix is how the kind is known — there is no separate field |
 | `artifact_exists` | The document `state.md` names isn't on disk | Fix the path, or re-run the stage that should have written it |
-| `design_probe` | The design document fails its own structural check | Read the probe's lines; each names one missing heading, citation or number |
-| `work_breakdown` | The design has no `## Work breakdown` | `build` consumes that table as its schedule |
+| a `design_probe.py` line | The design document fails its own structural check | Read the probe's lines; each names one missing heading, citation or number |
+| `design_signed_off` | `build` asked to run, and the ledger holds no Approve from a person for `design` | Go through the design gate and pick Approve. Changes requested and Reject don't count |
+| `artifact_unchanged` | The design document changed, or vanished, since it was signed off | Revert the edit, or take the document back through sign-off. `build`'s unit table lives in `implementation-notes.md` for exactly this reason |
+| `work_breakdown` | A *detail* design has no `## Work breakdown` | `build` consumes that table as its schedule. High-level and delta designs need none — `build` cuts the units itself |
 | `has_changes` | Nothing to review — clean tree, no diff from base | Commit something first |
 | `verify_status` | `ship` asked to run before `verify` finished | Run verify, or skip it with a reason you'd be willing to read back |
-| `clean_tree` | Uncommitted changes at ship time | Commit or stash. Ship rewrites history and won't do it over a dirty tree |
+| `clean_tree` | Uncommitted changes at ship time | Commit or stash. Ship rewrites history and won't do it over a dirty tree. If the dirty files are the track's own, ignore `.claude/track/` |
+| `ledger_attempts` | Any stage: five failed or blocked attempts since it last passed or was skipped | The message lists every attempt's note and the three ways out: `/cai:track skip <stage> --reason "<why>"`, `CAI_TRACK_MAX_ATTEMPTS` set higher (or `0` for no cap), or deleting the track's `ledger.jsonl` |
+
+Two more lines always print as `PASS` and are still worth reading:
+`track_ignored` at `intake` says when git is *not* ignoring the track's files,
+and `ledger_intact` on every stage counts ledger lines that could not be
+parsed. Neither ever blocks. A dispatch the provider refused — a rate limit,
+an overload — is recorded as `unavailable` and never counts toward the cap.
 
 This layer exists because refusing costs nothing and asking a model costs
 something. A stage that can't start should find that out before anyone pays
@@ -160,32 +206,109 @@ for it.
 You can run the same check by hand:
 
 ```bash
-python plugins/cai/scripts/preflight.py <stage> --track-dir .claude/track/<feature>
+python <plugin-root>/scripts/preflight.py <stage> --track-dir .claude/track/<feature>
 ```
+
+`<plugin-root>` is the installed copy, under
+`~/.claude/plugins/cache/claude-all-in-one/cai/<version>/` — or
+`plugins/cai/` in a checkout of this repo. Every script command below uses it
+the same way.
 
 ## State, and what survives a new session
 
 ```
 .claude/track/
-  current                  one line — which track /cai:track resumes
+  current                    one line — which track /cai:track resumes
   billing-export/
-    state.md               one row per stage, overwritten in place
+    state.md                 one row per stage, overwritten in place
+    ledger.jsonl             every attempt, appended, never edited
+    implementation-notes.md  build's unit table and deviations, once build writes one
+    ticket.json              the linked issue, only with ticket mirroring on
   done/
-    csv-import/state.md    archived; never counts toward the cap
+    csv-import/              archived; never counts toward the cap
+
+~/.claude/cai/usage.jsonl    every ledger record from every project, for /cai:usage
 ```
 
 `state.md` holds one row per stage — status, the artifact it produced, and a
-note. **Where a track sits on disk is its status**: active ones are
-directories under `.claude/track/`, finished ones live under `done/`. No field
-duplicates that, because two sources of truth drift apart.
+note. The status column takes exactly four values: empty (not reached yet),
+`in-progress` (a `build` that stopped between units), `done`, and `skipped`;
+anything else makes `/cai:track status` stop and say so rather than guess.
+**Where a track sits on disk is its status**: active ones are directories
+under `.claude/track/`, finished ones live under `done/`. No field duplicates
+that, because two sources of truth drift apart.
+
+`ledger.jsonl` is the part `state.md` cannot be: a stage run twice leaves one
+row but two records. Each carries the outcome, whether a person or the
+pipeline let it through, the artifact's SHA-256, and the tokens spent since
+the record before. `python <plugin-root>/scripts/ledger.py show --track-dir
+.claude/track/<feature>` prints it.
 
 None of it is version-controlled, and that is deliberate — a stage pointer is
-not a deliverable, and your `git status` stays clean. The cost is real: clone
-the repo elsewhere and the track does not come with you. Design documents and
-review reports do, because those go in `docs/` and into the PR.
+not a deliverable, the ledger is append-only and would conflict on every
+merge, and your `git status` stays clean. The cost is real: clone the repo
+elsewhere and the track does not come with you. Design documents do, because
+`design` writes them to `docs/design/` and the ones worth keeping travel with
+the PR.
 
 `/cai:track status` answers all of this by reading files. It calls no model,
 so asking where you are is free.
+
+## Seeing what it cost
+
+```
+/cai:usage track     this track's tokens and equivalent spend, per model
+/cai:usage 30        every project, over the last 30 days
+```
+
+Ask for metrics instead, for one track or over a number of days, and it prints
+four numbers per stage: `first_pass` (did the first attempt pass), `cycle`
+(from the stage's first record to its last pass), `rework` (how many attempts
+it took), and `human_signed` (the share of attempts a person signed off).
+
+Every figure comes from `usage_report.py`, not from the model. Two things to
+read it by: every dollar is *equivalent API spend* — what the same tokens
+would cost on pay-per-token pricing, not what a subscription billed — and
+anything from before central tracking was first turned on shows as "no data",
+not as zero.
+
+## Mirroring a track into a GitHub issue
+
+Off unless the project says otherwise. To turn it on, add
+`.claude/cai.json`:
+
+```json
+{ "ticket": { "enabled": true, "backend": "github" } }
+```
+
+Then point the track at an issue in the same repository, once:
+
+```bash
+python <plugin-root>/scripts/ticket.py point --track-dir .claude/track/<feature> --ref 123
+```
+
+From then on:
+
+- `intake` reads the issue as its starting request.
+- Every passing stage row, and every skip, updates one comment on the issue
+  with the six stage rows. Local artifact paths are left out — nobody reading
+  the issue could open them.
+- `verify`, on a track whose `intake` was skipped, reviews conformance against
+  the issue's body.
+- `ship` looks the issue up again before quoting its number in the commit and
+  the PR, and asks on its own turn whether to update the comment one last time.
+- Once `ship`'s merge, tag and publish commands have actually run, it asks —
+  again on its own turn — whether to close the issue. Only "Close" closes it;
+  if you had the commands handed back instead, it doesn't ask and the issue
+  stays open. A close that fails says the issue is still open and is not
+  retried.
+
+`ticket.py show --track-dir .claude/track/<feature>` prints the pointer, the
+GitHub login it cached, and how the last update went, without calling GitHub;
+`--dry-run` adds the comment it would write. Each update ends in one word —
+`ok`, `auth-failed`, `unreachable` and so on — recorded in `ticket.json`; a
+failed one never fails a stage or counts toward the retry cap. After `gh auth
+switch`, run `point` again so the cached login is re-read.
 
 ## Limits worth knowing
 
@@ -194,8 +317,12 @@ so asking where you are is free.
   start.
 - **One track is *current*.** Others stay open; `/cai:track <name>` switches to
   one. Bare `/cai:track` always means the current one.
-- **No locking.** Two sessions driving the same track means the last write
-  wins, silently. This is built on one person moving it.
+- **Five attempts per stage**, counted since it last passed or was skipped.
+  `CAI_TRACK_MAX_ATTEMPTS` changes the number; `0` removes the cap.
+- **No locking.** Two sessions driving the same track means the last write to
+  `state.md` wins, silently. This is built on one person moving it.
+- **Ticket mirroring speaks GitHub only**, to an issue in the repository's own
+  remote — not one in another repository.
 - **`/cai:goal` still exists and is on its way out.** It predates the track and
   does a narrower version of the same job. The condition it was waiting on —
   a track run end to end — has long been met; retiring it is its own change.
@@ -205,14 +332,15 @@ so asking where you are is free.
 
 ## Updating
 
-```bash
-/plugin update
+```
+/plugin marketplace update claude-all-in-one
+/plugin update cai
 # restart the session
 /cai:setup          # only if rules/ changed
 # restart again — rules are read at startup
 ```
 
-The installed copy lives under `~/.claude/plugins/cache/` and tracks the
-marketplace's default branch on GitHub, not your local checkout. Editing this
-repo does not change what your session runs until the change is merged and
-pulled.
+The installed copy lives under `~/.claude/plugins/cache/`, keyed by version,
+and tracks the marketplace's default branch on GitHub, not your local
+checkout. Editing this repo does not change what your session runs until the
+change is merged, the version is bumped, and the marketplace is refreshed.
