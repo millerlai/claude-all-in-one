@@ -83,14 +83,18 @@ this question; the commands are.
 | Run them | They run, in the order quoted. |
 | Stop — hand me the commands | Nothing runs. Report them for the person to run themselves. |
 
-Two more confirmations sit beside this one and are asked on their own turns,
-because a yes to publishing is not a yes to either:
+Three more confirmations sit beside this one and are asked on their own
+turns, because a yes to publishing is not a yes to any of them:
 
 - **The squash**, `stage-ship.md` Step 4 — show the drafted commit message
   and ask before rewriting history.
-- **The ticket**, `references/ticket-mirror.md`'s ship section — whether to
-  run `ticket.py project` once more for ship's own row, only when mirroring
-  is on.
+- **The ticket comment**, `references/ticket-mirror.md`'s ship section —
+  whether to run `ticket.py project` once more for ship's own row, only when
+  mirroring is on.
+- **Closing the ticket**, the same section — only when mirroring is on, and
+  only after "Run them" above has run. Offer "Close #<number>" and "Leave it
+  open", no `(recommended)`: this is part of the gate. Only the first runs
+  `ticket.py transition --confirmed-by-user`; the second runs nothing.
 
 ## The other stops, which are not gates
 

@@ -42,7 +42,7 @@ overwritten. `project()` itself decides whether there is a pointer to
 project to, and prints why not when there is none; nothing here needs to
 check that first.
 
-## ship: resolve before quoting, and one more confirmation item
+## ship: resolve before quoting, and two more confirmation items
 
 Before ship quotes a ticket number anywhere — the commit message, the
 release note, the confirmation prompt — resolve it with `ticket.py read
@@ -54,10 +54,27 @@ number to appear exactly once in the commit message and exactly once in the PR
 body — not copied verbatim from `ref`, since resolving it is the point.
 
 Ship's confirmation before the irreversible operations (`stage-ship.md`'s
-human gate) gains one more item, asked separately from the rest: whether to
-run `ticket.py project` once more recording ship's own row. A yes to
-squashing or publishing is not a yes to this — ask it on its own, as its own
-menu (`references/approval-gates.md`).
+human gate) gains two more items, each asked separately from the rest and
+from each other. A yes to squashing or publishing is not a yes to either —
+ask each on its own, as its own menu (`references/approval-gates.md`):
+
+1. **The comment** — whether to run `ticket.py project` once more recording
+   ship's own row.
+2. **Closing the ticket** — asked only once the gate's commands have run.
+   When the person picked "Stop — hand me the commands", nothing was merged
+   or published, so do not ask: tell the person the ticket stays open.
+   Otherwise name the resolved number and ask. On a yes, run
+   `ticket.py transition --track-dir ... --project-dir ... --confirmed-by-user`,
+   once. On anything else, run nothing.
+
+`--confirmed-by-user` marks that the call came from this answer, and this
+answer is the only thing that ever passes it — `approval-gates.md`'s Gate 2
+names the same item, and no other stage, subagent, or skill closes a ticket.
+`transition` refuses without the flag. It does not
+itself prove anyone agreed — the menu above is what does, which is why only
+a yes to that menu may add it. When `transition` prints that the ticket is
+still open, relay that line to the person: nothing retries it, and it is the
+only place they hear about it.
 
 ## Never copy stderr into --note
 
