@@ -81,12 +81,27 @@ unconditionally in `/cai:track`'s `verify` stage, since it ships under
 Editing any rule sentence that `docs/rule-provenance.md` cites (a `Cited by:`
 target) must update that ledger entry in the same edit.
 
+A healthy run's last few lines look like this (checks vary; the shape is what
+matters — every line `PASS`, no `FAIL`, exit code 0):
+
+```
+PASS plugins/cai/evals\options-six-fields\graders\reads-options-references.md frontmatter has an allowed type (found: 'tool_used')
+PASS plugins/cai/evals\track-status-runs-the-script\graders\names-track-state-script.md frontmatter has an allowed type (found: 'regex')
+PASS no evals file contains a sk-ant- (0 found)
+PASS no evals file contains a ghp_ (0 found)
+PASS no evals file contains a home-directory path (0 found)
+```
+
 Run `python -m pytest` too — the tests under `tests/`, which exercise what the
 scripts in `plugins/cai/scripts/` actually do. It needs `pytest` installed
 (`pip install pytest`), this repo's only development-time dependency. `tests/`
 sits at the repo root rather than under `plugins/cai/` so that neither it nor
 pytest ever reaches an installed copy: `.claude-plugin/marketplace.json:11`
-ships `./plugins/cai` and nothing else.
+ships `./plugins/cai` and nothing else. A healthy run ends with a line like:
+
+```
+======================= 399 passed in 217.95s (0:03:37) =======================
+```
 
 An optional local run: `claude plugin eval plugins/cai --ablation none
 --max-cost-usd 1 --threshold 0 --trust-plugin --no-publish --model haiku
@@ -131,3 +146,9 @@ both by hand, as described above. macOS has no coverage at all.
 Running `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
 prints that track's main-session peak context occupancy; it only reads local
 transcripts and writes nothing.
+
+## Mistakes Claude repeats here
+
+<!-- Empty on purpose. Add an entry only once Claude makes the same mistake
+     in this repo a second time. A mistake that would happen in any repo
+     belongs in ~/.claude/rules/ instead. -->

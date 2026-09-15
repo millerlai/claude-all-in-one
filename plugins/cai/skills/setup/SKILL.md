@@ -87,7 +87,47 @@ Then ask whether to slim their file down to what the rules don't cover —
 usually the preamble plus `## Environment`. Show the proposed result and only
 write it if they agree. If they decline, leave the file untouched and move on.
 
-## Step 5 — Verify the bash guard fires
+## Step 5 — Bootstrap or review the current project's CLAUDE.md
+
+`<plugin-root>/templates/CLAUDE-project.md.tpl` seeds a **project-scope**
+CLAUDE.md — the repo's own verification command, architecture, and
+conventions, as opposed to Step 4's file, which is about the user rather than
+any one repo.
+
+The target is the repo's top level, not the current working directory: run
+`git rev-parse --show-toplevel` from cwd. Claude Code loads a CLAUDE.md from
+every parent directory of cwd, so a file dropped anywhere below the top would
+just be one of several rather than the one every session in this repo sees.
+
+**Not in a git work tree** — the command fails. Skip this step; just print
+`<plugin-root>/templates/CLAUDE-project.md.tpl` so the user can copy it in
+themselves.
+
+Otherwise, a project CLAUDE.md exists if either `<top>/CLAUDE.md` or
+`<top>/.claude/CLAUDE.md` is present — Claude Code loads both.
+
+**Neither exists** — ask once, with the AskUserQuestion tool, whether to add
+one. Only on yes, copy the template verbatim to `<top>/CLAUDE.md`. Setup fills
+in none of the placeholders; that is the repo's own work.
+
+**One or both exist** — never overwrite either file, and never remove a
+sentence from either. Read whichever exist (both, if both do), then report:
+
+- For each of the template's four sections, which existing heading or lines
+  already serve that purpose — judge by content, not by heading name — and
+  which sections have no counterpart at all.
+- Which sentences already appear in a file under `~/.claude/rules/`,
+  naming the file for each. Report these; do not propose removing them — the
+  project file is checked in and shared with teammates, and a teammate
+  without cai installed has no `~/.claude/rules/` to fall back on.
+
+Then offer, and only offer, to **append** the sections with no counterpart —
+each as the template's heading plus its guidance comment, nothing filled in.
+Show the result before writing. Write only on yes, to whichever file exists;
+if both exist, to `<top>/CLAUDE.md`. If they decline, leave both files
+untouched.
+
+## Step 6 — Verify the bash guard fires
 
 The guard is a PreToolUse hook, so a silent failure means the user is unprotected
 without knowing it. Verify it end-to-end rather than assuming.
@@ -121,7 +161,7 @@ Tell the user plainly that destructive commands are NOT being blocked, and that
 they need Python 3 on PATH (`python3` on macOS/Linux, `python` or the `py`
 launcher on Windows).
 
-## Step 6 — Offer the status line
+## Step 7 — Offer the status line
 
 Optional, and installed only if the user asks for it. A plugin cannot ship a
 `statusLine` of its own — Claude Code honours only the `agent` and
@@ -142,7 +182,7 @@ If they accept, look before writing:
 python "<plugin-root>/scripts/install_statusline.py" --check
 ```
 
-Use whichever interpreter name this machine has, the same way Step 5 does —
+Use whichever interpreter name this machine has, the same way Step 6 does —
 `py -3` or `python` on Windows, `python3` on macOS/Linux. Then read the
 `statusLine:` line it prints:
 
@@ -163,7 +203,7 @@ The status line appears as soon as the file is saved — unlike the rules, it
 needs no restart. If the installer's last line reports the verification FAILED,
 say so: a status line that cannot run shows up as an empty bar, not an error.
 
-## Step 7 — Report
+## Step 8 — Report
 
 Report concisely:
 
@@ -171,6 +211,8 @@ Report concisely:
 - The response language that was set.
 - What happened to `~/.claude/CLAUDE.md` — created, slimmed, or left alone with
   duplication still present.
+- What happened to the project CLAUDE.md — created, appended, left untouched, or
+  skipped because the current directory is not in a git repo.
 - Whether the bash guard verification passed or failed.
 - Whether the status line was installed, declined, or refused because one was
   already configured.

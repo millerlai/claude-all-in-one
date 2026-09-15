@@ -238,9 +238,10 @@ Restart the session, then run:
 ```
 
 Setup copies the rule files into `~/.claude/rules/`, asks which language you
-want Claude to reply in, sets up your global `~/.claude/CLAUDE.md`, verifies the
-bash guard actually fires, and offers to install the status line. Restart once
-more so the new rules load.
+want Claude to reply in, sets up your global `~/.claude/CLAUDE.md`, offers a
+project CLAUDE.md for the current repo, verifies the bash guard actually
+fires, and offers to install the status line. Restart once more so the new
+rules load.
 
 Agents, commands, and the guard work in every project from then on. The rules
 apply to every project too, since they live at user scope.
@@ -327,6 +328,31 @@ your sections are now covered by a rules file and offers to slim the file down,
 because a rule kept in both places is sent to the model twice in every session
 and the two copies drift apart as soon as one is edited. `validate.py` enforces
 the same invariant on the shipped template.
+
+## Your project CLAUDE.md
+
+`~/.claude/CLAUDE.md` above is user scope — your machine and your personal
+habits, and it applies to every repo you touch. A project's own CLAUDE.md is
+the other scope: the one command that proves a change is done in *this* repo,
+its architecture, and conventions specific to it. It is checked in and shared
+with every teammate, including ones who never installed cai.
+
+Setup checks the repo you ran it from (`git rev-parse --show-toplevel`, not
+just the current directory — Claude Code loads a CLAUDE.md from every parent
+of your cwd, so the file that matters is the one at the repo's top level).
+
+If neither `<repo>/CLAUDE.md` nor `<repo>/.claude/CLAUDE.md` exists, setup
+offers to add one from `plugins/cai/templates/CLAUDE-project.md.tpl`, asks
+once, and copies it verbatim on yes — it fills in nothing.
+
+If one already exists, setup never overwrites it and never removes a
+sentence. It reports which of the template's sections already have a
+counterpart, which don't, and which sentences already live in a file under
+`~/.claude/rules/` — then offers to **append** only the missing sections,
+showing the result before writing.
+
+Outside a git repository, setup skips this step and just prints the template
+path so you can copy it in yourself.
 
 ## The status line
 

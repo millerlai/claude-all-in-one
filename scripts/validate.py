@@ -410,6 +410,35 @@ if os.path.isfile(TEMPLATE) and rules:
         print("     also in rules/:", line[:90])
 
 
+PROJECT_TEMPLATE = f"{PLUGIN}/templates/CLAUDE-project.md.tpl"
+check("project CLAUDE.md template ships", os.path.isfile(PROJECT_TEMPLATE))
+
+def rule_sentences(path):
+    """Every sentence of five words or more in a rules file's bullets, wrapped
+    lines joined. A bullet ends at a blank line or a heading."""
+    out = set()
+    for item in re.split(r"^\s*- ", read_text(path), flags=re.MULTILINE)[1:]:
+        item = re.split(r"\n\s*\n|\n#", item)[0]
+        for sentence in re.split(r"(?<=[.!?])\s+", " ".join(item.split())):
+            if len(sentence.split()) >= 5:
+                out.add(sentence)
+    return out
+
+
+# Same drift risk as the user template above, but this one seeds a project's
+# own CLAUDE.md, and keeps its guidance as prose inside HTML comments with no
+# bullet lines -- so comparing bullets() would see nothing and never fail.
+# Compare rule sentences against the template's whitespace-flattened text
+# instead, which a rewrap cannot slip past.
+if os.path.isfile(PROJECT_TEMPLATE) and rules:
+    flat = " ".join(read_text(PROJECT_TEMPLATE).split())
+    clashes = sorted(s for s in set().union(*(rule_sentences(p) for p in rules))
+                     if s in flat)
+    check(f"project template does not restate rules ({len(clashes)} duplicated)", not clashes)
+    for line in clashes[:5]:
+        print("     also in rules/:", line[:90])
+
+
 REFACTORING = f"{PLUGIN}/skills/refactor"
 
 
