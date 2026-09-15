@@ -5,8 +5,9 @@ A new session has no memory of the conversation that started a track, so
 resuming it must answer from files alone -- this script is that answer. It
 never writes state.md; overwriting a row is the track's job, this only reads.
 
-Usage:  track_state.py status  [--track-root DIR]
-        track_state.py resolve [--track-root DIR]   (prints only the feature name)
+Usage:  track_state.py status    [--track-root DIR]
+        track_state.py resolve   [--track-root DIR]   (prints only the feature name)
+        track_state.py left-open [--track-root DIR]   (prints what state.md marks "Left open:")
 Exit:   0 an active track exists, 2 no active track (or a state.md that
         disagrees with stages.json or the status vocabulary), 1 usage error.
 """
@@ -68,6 +69,27 @@ def table_stage_ids(state_path):
     definition of "a row" lives in preflight.data_rows() and only there."""
     with open(state_path, encoding="utf-8") as fh:
         return [cells[0] for cells in preflight.data_rows(fh.read())]
+
+
+def left_open_items(state_text):
+    """(stage, item) for every 'Left open:' entry across state.md's rows, in
+    table order. The marker is fixed text in the note cell (state.md's 4th
+    column); everything from its first occurrence to the end of the cell is
+    split on '; ', trimmed, and empties dropped."""
+    MARKER = "Left open:"
+    out = []
+    for cells in preflight.data_rows(state_text):
+        stage = cells[0]
+        note = cells[3] if len(cells) > 3 else ""
+        idx = note.find(MARKER)
+        if idx == -1:
+            continue
+        rest = note[idx + len(MARKER):]
+        for item in rest.split("; "):
+            item = item.strip()
+            if item:
+                out.append((stage, item))
+    return out
 
 
 def bad_statuses(track_dir, order):
@@ -165,6 +187,28 @@ def resolve_cmd(track_root):
     return 0
 
 
+def left_open(track_root):
+    feature, info = resolve(track_root)
+    if feature is None:
+        print(info, file=sys.stderr)
+        return 2
+    track_dir = info
+    state_path = os.path.join(track_dir, "state.md")
+    if not os.path.isfile(state_path):
+        print("no state.md in %s" % track_dir, file=sys.stderr)
+        return 2
+    with open(state_path, encoding="utf-8") as fh:
+        items = left_open_items(fh.read())
+    if not items:
+        print('Left open by %s: no "Left open:" marker in %s -- read it if '
+              'this track predates the marker' % (feature, state_path))
+        return 0
+    print("Left open by %s:" % feature)
+    for stage, item in items:
+        print("- [%s] %s" % (stage, item))
+    return 0
+
+
 class ArgParser(argparse.ArgumentParser):
     # argparse's own error() exits 2, which this script reserves for "no
     # active track". A usage mistake is a different failure and gets 1.
@@ -185,12 +229,14 @@ def main():
     sys.stderr.reconfigure(encoding="utf-8")
 
     ap = ArgParser(description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["status", "resolve"])
+    ap.add_argument("command", choices=["status", "resolve", "left-open"])
     ap.add_argument("--track-root", default=DEFAULT_TRACK_ROOT)
     args = ap.parse_args()
 
     if args.command == "status":
         return status(args.track_root)
+    if args.command == "left-open":
+        return left_open(args.track_root)
     return resolve_cmd(args.track_root)
 
 

@@ -179,7 +179,7 @@ stage or by one of the tools above.
 
 ## What it deliberately leaves out
 
-Three things the large-company AI-SDLC write-ups all have, and this plugin
+Four things the large-company AI-SDLC write-ups all have, and this plugin
 does not. Each is a trade-off with a cost, not a gap waiting to be filled,
 and each names the condition under which it would change.
 
@@ -213,6 +213,16 @@ graders) is too thin to carry a red/green gate. Measured: one four-lens
 review is about US$3.25 of equivalent API spend, one eval run about US$0.24.
 It would change when the eval suite can gate — enough cases that a red means
 something — or when a contributor's PR needs a review nobody local will run.
+
+**No maintain-stage automation.** The large-company write-ups' Stage 6 comes
+with automatic triggers when a control band is breached, scheduled scans, an
+agent sitting on-call — all of it assuming a running service with a signal to
+watch and an on-call rotation to page. This plugin has neither. What it keeps
+instead: `/cai:track done` runs `track_state.py left-open` and prints the
+track's `Left open` items in a form that pastes straight into `/cai:intake`
+to start the next track — it opens no issue and schedules nothing on its
+own. It would change if cai ever ran against a live service with a signal
+worth watching.
 
 ## Prerequisites
 

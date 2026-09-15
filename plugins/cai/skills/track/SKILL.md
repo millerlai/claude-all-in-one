@@ -9,7 +9,7 @@ argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done]"
 /cai:track               resume whatever .claude/track/current names
 /cai:track status        list tracks, where this one stopped, next step, what was skipped
 /cai:track skip <stage> --reason "<why>"   record the reason, then advance
-/cai:track done          move into done/, clear `current`
+/cai:track done          print what was left open, then move into done/, clear `current`
 ```
 
 There is no `advance` subcommand. A gate that passes writes the next row
@@ -65,7 +65,7 @@ For the stage about to run:
        [--artifact <path>] --note "<why, one line>"
    ```
 
-   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which — when a run stops before its units are finished — sets that stage's own `status` to `in-progress`, sets its `note` to `unit <N> of <total>`, and appends a `## Handoff` block. Every other `note` cell is yours, written from the fields the stage handed up under `## Report`.
+   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which — when a run stops before its units are finished — sets that stage's own `status` to `in-progress`, sets its `note` to `unit <N> of <total>`, and appends a `## Handoff` block. Every other `note` cell is yours, written from the fields the stage handed up under `## Report`. Anything the stage's Report lists as left open goes last in that note, after a literal `Left open:`, items separated by `; `.
 
    - **Preflight exited 2** → `blocked`. **Unless** its output holds
      `FAIL ledger_attempts` — that stage is already at its cap and another
@@ -126,6 +126,6 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 
 ## `/cai:track done`
 
-Move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and
-delete `.claude/track/current`. Refuse if any stage's row is empty or
-`in-progress` — report which are which.
+First run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and relay its output verbatim — skipped when the refusal below fires.
+Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
+or `in-progress` — report which are which.
