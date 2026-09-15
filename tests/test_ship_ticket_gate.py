@@ -6,15 +6,20 @@ AC16 lives in test_ticket_transition.py; AC19 was Unit 4's. What is left
 here is text-level: `stage-ship.md`'s irreversible-operations list and "two
 gates" claim, `SKILL.md`'s own "## Human gates" section still listing those
 two and gaining no ticket-closing step, `agents/shipper.md` carrying no
-interactive tool and handing the confirmation up rather than taking it, and
-`ticket-mirror.md`'s ship section naming the commit message and PR body.
+interactive tool and handing the confirmation up rather than taking it,
+`ticket-mirror.md`'s ship section naming the commit message and PR body, and
+that same section -- with approval-gates.md's Gate 2 -- actually running
+`ticket.py transition --confirmed-by-user`, the one place that flag is passed.
 """
 import os
 import re
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "cai")
 STAGE_SHIP = os.path.join(
     REPO_ROOT, "plugins", "cai", "skills", "track", "references", "stage-ship.md")
+APPROVAL_GATES = os.path.join(
+    REPO_ROOT, "plugins", "cai", "skills", "track", "references", "approval-gates.md")
 SKILL_MD = os.path.join(REPO_ROOT, "plugins", "cai", "skills", "track", "SKILL.md")
 SHIPPER_MD = os.path.join(REPO_ROOT, "plugins", "cai", "agents", "shipper.md")
 TICKET_MIRROR = os.path.join(
@@ -134,3 +139,45 @@ def test_ticket_mirror_ship_section_names_commit_message_and_pr_body_once_each()
     assert "commit message" in text
     assert "PR body" in text
     assert "once" in text
+
+
+# --- AC16's other half: the close is actually reachable from the ship ------
+# --- confirmation, and from nowhere else ------------------------------------
+#
+# test_ticket_transition.py proves `ticket.py transition` refuses without the
+# flag and calls the backend once with it. Nothing proved any shipped prose
+# ever ran it: stage-ship.md listed "closing the linked ticket" and pointed at
+# ticket-mirror.md, whose ship section named only `ticket.py project` -- so the
+# close existed as a script no stage could reach, from #49 until this test.
+
+def test_ticket_mirror_ship_section_runs_transition_with_the_flag():
+    section = " ".join(_section(_text(TICKET_MIRROR), "## ship").split())
+    assert "ticket.py transition" in section
+    assert "--confirmed-by-user" in section
+
+
+def test_approval_gates_gate_2_names_closing_the_ticket():
+    section = " ".join(_section(_text(APPROVAL_GATES), "## Gate 2").split())
+    assert "ticket.py transition" in section
+
+
+def test_confirmed_by_user_is_passed_from_the_ship_confirmation_alone():
+    # DD8: exactly one place an irreversible ticket close can originate from.
+    # The flag may be named where that confirmation lives and in the script
+    # that reads it -- no stage reference, agent or skill may pass it too.
+    allowed = {TICKET_MIRROR, APPROVAL_GATES,
+               os.path.join(PLUGIN, "scripts", "ticket.py")}
+    carriers = set()
+    for root, _dirs, files in os.walk(PLUGIN):
+        for name in files:
+            if not name.endswith((".md", ".py", ".json")):
+                continue
+            path = os.path.join(root, name)
+            if "--confirmed-by-user" in _text(path):
+                carriers.add(path)
+    assert carriers <= allowed, sorted(carriers - allowed)
+    assert TICKET_MIRROR in carriers
+
+
+def test_shipper_md_never_closes_the_ticket_itself():
+    assert "transition" not in _text(SHIPPER_MD)
