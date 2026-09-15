@@ -1171,6 +1171,21 @@ with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "no-breakdown-detail
           "w", encoding="utf-8") as fh:
     fh.write(NO_BREAKDOWN)
 
+# build also requires a human sign-off on the ledger (design_signed_off) --
+# recorded once here, so it covers every build case below; none of them are
+# about this check, so appending it up front keeps each case testing only
+# what its own name says.
+#
+# ledger.append() also copies every record to the cross-project central
+# ledger, and this script runs by hand, in CI and from the PostToolUse hook --
+# none of them under tests/conftest.py's isolation. Point that copy at a
+# throwaway file and drop the session id, or each run adds a fake record to
+# the history /cai:usage reads (tests/test_validate_keeps_central_ledger_clean.py).
+os.environ["CAI_USAGE_LEDGER"] = os.path.join(
+    tempfile.mkdtemp(prefix="cai-validate-central-"), "usage.jsonl")
+os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+ledger.append(PREFLIGHT_TRACK, "design", "passed", gate="human")
+
 write_preflight_state("docs/design/billing-detail.md")
 done = run_preflight("build")
 check("preflight build [work breakdown present] -> 0", done.returncode == 0)
@@ -1179,6 +1194,18 @@ write_preflight_state("docs/design/no-breakdown-detail.md")
 done = run_preflight("build")
 check("preflight build [no work breakdown] -> 2", done.returncode == 2)
 check("preflight build names work_breakdown", "FAIL work_breakdown" in done.stdout)
+
+PREFLIGHT_NO_SIGNOFF_TRACK = tempfile.mkdtemp(prefix="cai-preflight-no-signoff-")
+with open(os.path.join(PREFLIGHT_NO_SIGNOFF_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+    fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+             "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+             "|---|---|---|---|\n| intake | done | — | |\n"
+             "| discover | done | — | |\n"
+             "| design | done | docs/design/billing-detail.md | |\n"
+             "| build | | | |\n| verify | | | |\n| ship | | | |\n")
+done = run_preflight("build", track_dir=PREFLIGHT_NO_SIGNOFF_TRACK)
+check("preflight build [no design sign-off] -> 2", done.returncode == 2)
+check("preflight build names design_signed_off", "FAIL design_signed_off" in done.stdout)
 
 # `/cai:track skip design` is supported, and it lands on this check for the
 # rest of the track's life. Blocking is right -- there is no design to build

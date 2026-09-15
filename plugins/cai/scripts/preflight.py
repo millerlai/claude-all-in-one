@@ -210,6 +210,27 @@ def artifact_unchanged(track_dir, project_dir):
     return True, "artifact_unchanged (%s)" % artifact
 
 
+def design_signed_off(track_dir):
+    """A person picked Approve, not just the pipeline moving state.md along.
+
+    Only a `passed` record with `gate: human` counts -- a `failed` or
+    `blocked` human record is Changes requested or Reject, the two ways
+    Gate 1 says no, and an `auto` record is not a human at all. Reading
+    every record with ledger.records() rather than last_passed() means a
+    later failed re-run does not erase an earlier approval that still
+    stands."""
+    for record in ledger.records(track_dir, "design"):
+        if record.get("malformed"):
+            continue
+        if record.get("outcome") == "passed" and record.get("gate") == "human":
+            return True, "design_signed_off (recorded)"
+    return False, (
+        "design_signed_off (no passed+human design record on the ledger -- a "
+        "person must pick Approve at the design gate, approval-gates.md Gate "
+        "1, which appends one with `--gate human`; a failed or blocked human "
+        "record -- Changes requested, Reject -- does not count)")
+
+
 def git(cwd, *args):
     """Same shape as bash_guard.py's own git() helper -- duplicated rather
     than imported, since bash_guard is out of scope for this change and the
@@ -318,15 +339,17 @@ def discover(track_dir, project_dir):
 
 
 def build(track_dir, project_dir):
-    # Computed first so it survives the early returns below: it answers from
-    # the ledger, so it is just as valid when state.md is the thing that is
-    # broken -- and "the design changed after sign-off" is worth saying even
-    # then.
+    # Computed first so they survive the early returns below: both answer from
+    # the ledger, so they are just as valid when state.md is the thing that is
+    # broken -- and "the design changed after sign-off" (or was never signed
+    # off at all) is worth saying even then.
     unchanged = artifact_unchanged(track_dir, project_dir)
+    signed_off = design_signed_off(track_dir)
 
     row = state_row(track_dir, "design")
     if row is None:
-        return [unchanged, (False, "state_md (cannot read state.md or find the design row)")]
+        return [unchanged, signed_off,
+                (False, "state_md (cannot read state.md or find the design row)")]
 
     artifact = row[2] if len(row) > 2 else ""
     if not artifact or artifact == "—":
@@ -339,16 +362,17 @@ def build(track_dir, project_dir):
         skipped = (row[1] if len(row) > 1 else "") == "skipped"
         why = (" -- design was skipped, so there is no design to build from; "
                "skip build too, or fill the design row in" if skipped else "")
-        return [unchanged, (False, "artifact_named (design row names no artifact%s)" % why)]
+        return [unchanged, signed_off,
+                (False, "artifact_named (design row names no artifact%s)" % why)]
 
     doc = resolve(artifact, project_dir, track_dir)
     if doc is None:
-        return [unchanged, (False, "artifact_exists (%s not found)" % artifact)]
+        return [unchanged, signed_off, (False, "artifact_exists (%s not found)" % artifact)]
 
     with open(doc, encoding="utf-8") as fh:
         has_breakdown = "## Work breakdown" in fh.read()
     if has_breakdown:
-        return [unchanged, (True, "work_breakdown (%s)" % artifact)]
+        return [unchanged, signed_off, (True, "work_breakdown (%s)" % artifact)]
 
     # Only a detail design promises a schedule: `## Work breakdown` is in
     # design_probe.py's DETAIL_HEADINGS and in no other kind's list, and
@@ -366,9 +390,9 @@ def build(track_dir, project_dir):
     kind = next((k for suffix, k in SUFFIX_KIND.items()
                  if artifact.endswith(suffix)), None)
     if kind == "detail":
-        return [unchanged, (False, "work_breakdown (%s is a detail design and "
+        return [unchanged, signed_off, (False, "work_breakdown (%s is a detail design and "
                                    "has no ## Work breakdown heading)" % artifact)]
-    return [unchanged, (True, "work_breakdown (%s carries none -- stage-build.md "
+    return [unchanged, signed_off, (True, "work_breakdown (%s carries none -- stage-build.md "
                               "cuts the units instead)" % artifact)]
 
 
