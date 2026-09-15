@@ -28,19 +28,26 @@ Four layers, plus one underneath all of them.
   stages stop for a human sign-off: after `design`, before any code exists,
   and before the irreversible operations inside `ship` — merging, tagging,
   publishing. Both arrive as a menu you pick from, never as a prompt asking
-  you to type `approved`.
+  you to type `approved`, and the first one is enforced rather than
+  remembered: `build` refuses to start until the ledger records a person
+  picking Approve, and again if the design document changed since.
 - **The tools.** Reachable any time, with no track running: `/cai:refactor`,
-  `/cai:debug`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`.
+  `/cai:debug`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`,
+  `/cai:options`, `/cai:usage`.
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards under `refactoring-catalog/`, the
-  smell-to-refactoring routing table, and the six stage procedures above.
+  smell-to-refactoring routing table, the six stage procedures above, and a
+  template for each kind of design document — high-level, detail, delta.
 
 Underneath all of it: `preflight.py`, `track_state.py`, `design_probe.py`,
 `options_lint.py`, and `validate.py` answer what a deterministic check can
 settle — is this stage allowed to start, where did the track stop, does this
 design document actually have the shape it claims, can a reader find "how
 reversible" in the options they are being asked to choose between — before
-anything reaches a model.
+anything reaches a model. `ledger.py` keeps the record those checks read:
+every attempt at every stage, appended and never edited, so a new session can
+say how many times a stage has been tried, why it failed last time, and who
+let it through.
 
 ### The six stages, and who runs each one
 
@@ -110,7 +117,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 
 | Command | What it does |
 |---|---|
-| `/cai:track <feature>` | Create or resume a track. Refuses `current` and `done` as names; refuses a sixth active track (`done/` tracks don't count). |
+| `/cai:track <feature>` | Create or resume a track. Refuses `current` and `done` as names; refuses a sixth active track (`done/` tracks don't count). Also `status`, `skip <stage> --reason "<why>"`, and `done`. |
 | `/cai:intake` | Turn a request into an acceptance-testable problem statement before any code exists: explore context, ask one question at a time, propose 2-3 approaches, wait for approval. User-invoked only. |
 | `/cai:discover` | Surface what you don't know before writing code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Also fires on its own when the codebase is unfamiliar or the result will be judged by look and feel. |
 | `/cai:design` | Write a design document for review: high-level (architecture options, stops before implementation detail), detail (an approved high-level design turned into something a team can build from), or delta (recovers the decisions already made in a built branch). User-invoked only. |
@@ -129,6 +136,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:quiz` | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |
 | `/cai:plan-review` | Reads an implementation plan, design doc, or spec the way a senior architect would: traces every design element back to a requirement, then eight lenses — over-engineering, boundaries, data and state, failure modes, testability, delivery, sequencing, and precision. Ships a skeleton for each kind of design document. Runs on Claude's own plans too, before they reach you. |
 | `/cai:options` | Lays out two or more ways forward so a person can actually choose between them: shared comparison dimensions, six fields per option including an everyday-life ELI5 analogy, a recommendation, and the condition that voids it. Use before a list of options goes out, or after one already did and the reader could not act on it. |
+| `/cai:usage` | Token usage and equivalent API spend for one track, or across every project over the last N days — plus per-stage process metrics: whether the first attempt passed, cycle time, rework, and how often a person actually signed off. Every number comes from `usage_report.py`; the model restates none of them. On the `chore` tier. |
 
 ### The 72 named refactorings
 
@@ -164,7 +172,8 @@ stage or by one of the tools above.
 | `test-runner` | `chore` | Runs the repo's own automated checks. |
 | `shipper` | `chore` | The `ship` stage. |
 | `implementer` | `build` | The `build` stage, `/cai:build`, `/cai:goal`. |
-| `reviewer` | `build` | The `verify` stage, `/cai:verify`, one lens of a diff at a time. |
+| `reviewer` | `build` | The `verify` stage, `/cai:verify` — three at once, one lens each: correctness, conformance, coverage. |
+| `security-reviewer` | `build` | The `verify` stage's fourth lens: shell execution, what reaches an argument vector, secrets in what is kept, guard bypass — those four and no fifth. |
 | `refactoring-detector` | `build` | Parallel smell analysis across module groups during a refactoring scan. |
 | `verifier` | `build` | The `verify` stage. |
 | `architect` | `think` | The `intake` and `discover` stages. |
@@ -176,6 +185,28 @@ stage or by one of the tools above.
 |---|---|
 | **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes, `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. It also blocks `git checkout -- <paths>` and `git restore` **when the working tree is dirty**, which is the shape of a verification step eating the fix it was meant to check; on a clean tree those discard nothing and go straight through. Hands the command back with the fix rather than just a refusal. |
 | **Shared rules** | Eight instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, write docs, and lay out options. Installed to user scope by `/cai:setup`. |
+| **Attempt ledger** | Every stage attempt a track makes — `passed`, `failed`, `blocked`, `skipped`, or `unavailable` when the provider refused to serve it — is appended to `.claude/track/<feature>/ledger.jsonl` with its gate (`auto` or `human`), the SHA-256 of the artifact it named, and the tokens the session spent since the last record. A copy carrying the project and track name goes to `~/.claude/cai/usage.jsonl`, which is what `/cai:usage` reads across projects. Five failed or blocked attempts since a stage last passed or was skipped cap it, and the refusal prints the three ways out; `unavailable` never counts. |
+
+### Ticket mirroring — opt-in, per project
+
+A track can mirror its progress into one GitHub issue. Nothing happens unless
+the project turns it on in `.claude/cai.json`:
+
+```json
+{ "ticket": { "enabled": true, "backend": "github" } }
+```
+
+Then point a track at an issue with `ticket.py point --track-dir
+.claude/track/<feature> --ref <issue number>` — the full command, and how to
+check what it last did, are in [`MANUAL.md`](MANUAL.md). From there `intake`
+reads the issue as its starting request, every passing stage row and every
+skip updates one comment on the issue — the six stage rows, not the local
+artifact paths — and `ship` asks separately, each on its own turn, whether to
+project its own row and, once its commands have run, whether to close the
+issue. It
+uses the `gh` CLI against the repo's own remote. A projection that fails is
+recorded in the track's `ticket.json` and never fails a stage or counts toward
+the retry cap.
 
 ## What it deliberately leaves out
 
@@ -231,6 +262,8 @@ worth watching.
 - Python 3 on `PATH` — `python3` on macOS/Linux, `python` or the `py` launcher
   on Windows. The bash guard needs it; `/cai:setup` tells you if it's
   missing.
+- Optional: the GitHub CLI (`gh`), authenticated — for the pull request
+  `ship` opens and for ticket mirroring.
 
 ## Install
 
@@ -317,12 +350,13 @@ asks before overwriting them.
 | File | What it governs |
 |---|---|
 | `communication.md` | Response language, conciseness, leading with the answer. |
-| `epistemics.md` | Check before answering, cite sources, never fabricate, re-read as a skeptic before delivering. |
+| `epistemics.md` | Check before answering, cite sources, never fabricate, re-read as a skeptic before delivering. When to stop and ask, and how: one decision per turn, through the question tool, recommended option first. Verify against the original request before claiming done. |
 | `coding.md` | Pure functions, comment the why, read the reference's source when matching an existing implementation, minimum code, surgical changes only. |
 | `workflow.md` | Branch before touching code, plan non-trivial changes and order them by what you're likeliest to change, prototype taste-driven work, log deviations from the plan, run tests before claiming done, never commit unless asked. |
-| `model-selection.md` | Which subagent and model tier to use for which kind of task. |
+| `model-selection.md` | Settle what a deterministic check can before paying for a model, then which subagent and model tier to use for the rest. |
 | `memory.md` | Record stable facts only; don't persist implementation details that go stale. |
 | `documentation.md` | Markdown, Mermaid for structure, validate diagrams before shipping. |
+| `option-explainer.md` | How to lay out two or more ways forward: shared dimensions, six fields per option including an everyday-life analogy, and a pick with the condition that voids it. |
 
 `communication.md` ships defaulting to English; `/cai:setup` rewrites
 that line to whatever language you pick.
@@ -391,7 +425,8 @@ refreshes the copied script; it takes effect on save, with no restart.
 
 ## Also included
 
-- `templates/multi-repo.settings.json` — drop into a repo's `.claude/settings.json`
+- `templates/multi-repo.settings.json`, at this repo's root rather than in the
+  installed plugin — drop into a repo's `.claude/settings.json`
   to grant Claude access to a sibling repo via `additionalDirectories`, and
   optionally load that repo's own `CLAUDE.md`/rules too.
 - Optional: [mermaid-cli](https://github.com/mermaid-js/mermaid-cli)
@@ -413,23 +448,68 @@ Add the marketplace from a local checkout, then install to test your changes:
 
 Everything users receive lives under `plugins/cai/` — the plugin cache
 copies only that directory, so anything outside it never reaches an installer.
+Decide which side a new file is on before writing it: [`CLAUDE.md`](CLAUDE.md)'s
+"Who a file is for" draws the line between what ships and what only maintains
+this repo (`docs/`, `scripts/`, `tests/`, `.github/`, `.claude/skills/`). The
+plugin cache is keyed by version, so a pull request that changes anything under
+`plugins/cai/` also bumps `version` in `plugins/cai/.claude-plugin/plugin.json`
+— without it, `/plugin update` keeps serving the old copy.
 
 Adding guidance rather than code? [GUIDE.md](GUIDE.md) covers which component
 should hold it — a convention, a procedure, or a constraint — and why putting it
 in the wrong one makes it quietly stop working. It applies just as well to your
 own `~/.claude/` setup.
 
-Before pushing, run:
+Before pushing, run both:
 
 ```bash
 python scripts/validate.py
+python -m pytest
 ```
 
-It checks the manifests, that every agent/command/skill has the frontmatter
-Claude Code needs to load it, that hook commands point at files that exist,
-that the guard still blocks what it should, and — because every `description`
-the model can match on is sent to it in every session — that the combined
-size of every agent's and skill's `description` (skipping the 72 refactoring
-cards, which carry `disable-model-invocation: true` and so never reach the
-model unbidden) hasn't grown past what it measured last. It's a ratchet, not
-a target: it can only shrink or hold, never quietly drift back up.
+`validate.py` checks the manifests, that every agent and skill has the
+frontmatter Claude Code needs to load it, that hook commands point at files
+that exist, that the guard still blocks what it should, that every rule file
+and the `track` and `goal` skills stay within their line ceilings, that every
+`.cmd` file is pure ASCII and no text file starts with a UTF-8 BOM, that the
+eval graders are well-formed and carry no secrets, and — through
+`plugins/cai/scripts/provenance.py` — that
+every entry in `docs/rule-provenance.md` still cites text that exists and that
+every place restating a rule still agrees with it. Because every `description`
+the model can match on is sent to it in every session, it also checks that the
+combined size of every agent's and skill's `description` (skipping the 72
+refactoring cards, which carry `disable-model-invocation: true` and so never
+reach the model unbidden) hasn't grown past what it measured last. It's a
+ratchet, not a target: it can only shrink or hold, never quietly drift back up.
+
+`pytest` runs `tests/`, which exercises what the scripts under
+`plugins/cai/scripts/` actually do; it is this repo's only development-time
+dependency (`pip install pytest`). CI runs both on every pull request, on
+Linux. Windows is covered only by running them by hand; macOS not at all.
+
+You rarely need to run `validate.py` yourself while editing:
+`.claude/settings.json` registers a `PostToolUse` hook that runs it whenever the
+Edit or Write tool touches `plugins/cai/` or `.claude-plugin/`, and reports
+what failed. A file rewritten through the shell does not trigger it.
+
+When a change touches `plugins/cai/{skills,agents,hooks,rules,evals}/`, an
+optional local eval run is worth doing — about US$0.24 a run. Point
+`--output-dir` outside the repo, or the results land inside the tree that
+ships:
+
+```
+claude plugin eval plugins/cai --ablation none --max-cost-usd 1 --threshold 0 \
+  --trust-plugin --no-publish --model haiku --output-dir <path outside this repo>
+```
+
+Maintainer tools, which no shipped component runs:
+
+- `scripts/activation.py` — which skills and agents were installed, and on how
+  many days each one actually ran.
+- `tests/review-benchmark/` with `scripts/review_benchmark_score.py` — labelled
+  diffs that measure what the four `verify` lenses catch; the paid half is
+  `scripts/review-benchmark-procedure.md`.
+- `/gap-analysis` (`.claude/skills/gap-analysis/`) — compares cai against an
+  external practice and writes the result under `docs/design/`.
+- `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
+  — a track's peak main-session context occupancy, read from local transcripts.
