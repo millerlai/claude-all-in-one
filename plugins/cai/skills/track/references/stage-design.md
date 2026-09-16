@@ -17,31 +17,46 @@ asked about, or on a capability nobody checked was actually available.
 
 ## Pick a mode, and say which
 
-- **High-level** — a new system, or an architecture-level choice on an
-  existing one. Weighs options and stops before implementation detail.
-- **Detail** — turns an approved high-level design into a document an
-  engineering team can build from without coming back to ask what you meant.
+- **Stance** — the trade this system makes: what it optimises for, what it
+  gives up, and the invariants nothing later may violate. One page, read in
+  full by a person.
+- **Decisions** — the queue of choices that trade implies, each one routed by
+  the three tests below so that only what needs a person reaches one.
+- **Detail** — turns an approved stance and its answered decisions into a
+  document that can be built from without coming back to ask what you meant.
 - **Delta** — the branch is already built. Recovers the decisions from the
   diff and the commits instead of deciding anything.
 
-Most work entering this stage from `intake`/`discover` wants High-level
-first, then Detail once the user approves it. Delta only applies when code
-already exists and nobody wrote down why it looks the way it does.
+Work entering from `intake`/`discover` runs Stance, then Decisions once the
+person approves the stance, then Detail. Delta only applies when code already
+exists and nobody wrote down why it looks the way it does.
+
+**Why these are three documents and not one.** A document that has to be read
+before a decision and a document that has to be complete enough to build from
+pull in opposite directions: the first fails by being long, the second by
+being short. One file serving both ends up too long to read and still not
+enough to build from — which is what the old single high-level design became,
+and why it stopped being reviewed in full.
+
+**High-level** is that old shape, still accepted (`--kind hld`) so documents
+already signed off stay passable. Do not write a new one.
 
 ## Say what it will cost, then wait
 
-Before either mode starts, four lines: the document path and the headings it
+Before any mode starts, four lines: the document path and the headings it
 will carry; how much of the target directory has to be read and how many
 documentation sources fetched; what is already unclear enough that you will
 have to ask; and what this will not decide. Then wait for a go — asked as a
 menu, never as a sentence to type a word back into
 (`references/approval-gates.md`).
 
-Detail mode is the longer of the two and the one most worth sizing — it reads
-the whole target directory and renders every diagram. A pass that expensive
-should not begin on an assumption that it was wanted.
+Detail mode is the longest and the one most worth sizing — it reads the whole
+target directory and renders every diagram. A pass that expensive should not
+begin on an assumption that it was wanted. Stance mode is the cheapest, and
+sizing it is still worth the one line: it ends at a human gate, so starting it
+unbidden spends the person's attention, not just tokens.
 
-## The two rules High-level and Detail both obey
+## The two rules every deciding mode obeys
 
 **The evidence rule.** Every sentence about how something currently
 behaves — this codebase, a library, a platform API — carries its source: a
@@ -64,25 +79,198 @@ name implies, what a similar project usually does, "standard practice".
 Catching yourself writing *typically*, *generally*, *should be able to*, or
 *presumably* means you are writing `UNVERIFIED` in a longer form.
 
-**The decision rule.** Four situations stop you and send you to
-`AskUserQuestion`, with real options and what each costs here:
+**The decision rule.** Never resolve a choice silently in either direction.
+Writing your preference in is a decision the person never made; leaving
+something out because they did not ask for it is the same decision with the
+opposite sign.
 
-- an architecture-level choice — component boundaries, source of truth, sync
-  or async, where state lives, which way a dependency points;
-- a requirement not clear enough to design against;
-- evidence that does not settle it, and two or more approaches both survive;
-- anything touching credentials, personal data, or who is allowed to do
-  what. These are architecture-level whether or not they look it: asking
-  costs a question, choosing wrong costs an incident.
-
-Never resolve one silently in either direction. Writing your preference in
-is a decision the user never made; leaving something out because they did
-not ask for it is the same decision with the opposite sign.
+That does **not** mean every choice goes to `AskUserQuestion`. Asking about
+all of them spends, on the seventeen that did not need it, the attention the
+three that did were going to get. Which choices reach a person is decided by
+the three tests below; every other choice is still recorded, in the tier it
+landed in, never nowhere.
 
 **One decision at a time, biggest blast radius first** — the same ordering
 `stage-discover.md`'s interview move uses.
 
-## Mode: High-level
+## The three tests
+
+Run them in order on every choice. The first two are gates — a choice that
+trips one leaves this queue. Only the third routes.
+
+**1. The conflict test.** Does this option violate an invariant in the stance?
+
+Violating one the system set for itself sends the whole thing back to Stance
+mode: the trade is being changed, and that is not a decision to make one
+implementation detail at a time. Violating a cross-project one is not a
+re-open at all — that road is closed, find another.
+
+Either way the option is **deleted, not weighed**, and lands in the decisions
+document's `## Ruled out` with the invariant it hit. It does not become an
+option a person is shown. Mixing deleted options into a tier fills the tier
+with things nobody may pick.
+
+**2. The origin test.** Is this option's failure condition a technical fact,
+or an assumption about how people behave?
+
+- *"the library's double-click event carries no timestamp"* — technical. Keep
+  it, go to test 3.
+- *"the operator stops looking at the screen after pressing"* — behavioural.
+  This is not a design decision. It is a requirement nobody settled, wearing a
+  design decision's clothes.
+
+Behavioural ones go to `## Requirement gaps` with one of two exits: a **veto
+condition** — the requirement rewritten so it can delete options ("the chart
+must stay visible while a verdict is in flight"), which usually removes half
+the options and sometimes the whole decision; or a **verification path** —
+who can settle the assumption and how. An assumption with neither is a guess,
+and a guess may not be used as grounds.
+
+When *every* option in one choice fails this test, send the whole choice
+back rather than splitting it — those options are betting on opposite
+behaviours, so what is missing is the requirement, not the design. A choice
+mixing both kinds splits into two: the behavioural half goes back, the
+technical half goes to test 3.
+
+**3. The cost test.** What does it cost to undo this if it is wrong?
+
+| | Low | High |
+|---|---|---|
+| Blast radius | one component | more than one |
+| Found out when | next test run | after release, after data accumulates, when a user reports it |
+| Undo cost | just change it | migrate data, change a published contract, make users relearn |
+
+Anything unanswerable counts as **high** — in a new domain "when would we
+find out" is often unknown, and guessing low is how an unbounded risk gets
+filed as routine. Credentials, personal data, and who is allowed to do what
+are high on the third row by default: asking costs a question, choosing wrong
+costs an incident.
+
+**All three low** → the builder decides. One row in `## Tier 3`, searchable,
+never shown for review.
+**Any one high** → a person sees it, in one of two tiers below.
+
+## The two tiers, and cutting the entries right
+
+**Before tiering, check the choice is one choice.** The commonest miscut is a
+cost column that raises a question and then does not answer it ("which of
+these two is the source of truth needs saying"). That is a second decision
+hiding inside the first: **a cost column that poses a question with no answer
+is an entry of its own — split it out.** Unsplit, the host may be the only
+survivor of its options (Tier 2, scanned) while the passenger is three-rows-
+high (Tier 1, answered), and the pair gets waved through together. On a solo
+project there is no second reviewer to catch that.
+
+- **Tier 1 — answered.** High cost, *and* the options differ in substance.
+  Ask one at a time. At most `TIER1_MAX` (5).
+- **Tier 2 — scanned.** High cost, *but* the evidence leaves one live option.
+  Three lines each, shown all at once; the person answers nothing unless they
+  want to overturn something. At most `TIER2_MAX` (10).
+
+**The bar for Tier 2 is a citation, not a preference.** If the grounds are not
+a `file:line` or a documentation URL, the entry does not qualify: get the
+evidence, or move it to Tier 1 and let a person decide. `design_probe.py`
+enforces this, because nothing reviews what is scanned.
+
+**Order Tier 1 by dependency**, not by size: whichever answer changes the
+*options available* to other entries goes first. After each answer, re-run the
+cost test on what is left — entries routinely drop to Tier 2 or Tier 3 once an
+earlier one lands. If nothing drops, these decisions do not constrain each
+other, which is worth saying out loud.
+
+**Over budget is not a formatting problem.** It says the design has not
+converged — a stance that was never settled, so every entry re-argues it, or
+boundaries that split one decision into five. Stop and re-cut rather than
+asking the person to read more. The two ceilings are starting values: the way
+to calibrate them is to ask, once, whether the last round was actually read in
+full, and lower them when the answer is no.
+
+## Mode: Stance
+
+1. **Read before you write.** Whatever the trade touches — the existing code,
+   the platform, the library — settle it under the evidence rule first. A
+   stance written from what you remember is a guess a person is being asked to
+   sign.
+2. **Write the trade, all four parts.** Unless the person named a path:
+   `docs/design/<YYYY-MM-DD>-<topic>-stance.md`, date from `date +%F`. Copy
+   `${CLAUDE_PLUGIN_ROOT}/templates/design-stance.md.tpl`, fill it in, delete
+   the HTML-comment guidance as you answer it. Do not add or rename headings.
+   - `## Optimises for` is one or two sentences. Optimising for everything
+     rules out nothing, and a stance that rules out nothing deletes no options
+     later — which is the entire job it has.
+   - `## Sacrifices` is the heading that decides whether this survives the
+     next person. Without it they will "fix" the slowness, the missing view,
+     the extra click, not knowing it was bought.
+   - `## Invariants` splits two ways. **This system's** come from the trade.
+     **Cross-project** ones are true of every project here and unchanged by
+     this request — the person's own rules file, the platform's limits, what
+     the test environment can actually observe. Reference those, never restate
+     them. An empty list switches the conflict test off.
+   - `## Rejected stances` needs at least one. "There was no alternative" is
+     what gets written when nobody looked.
+3. **The trade is the person's, not yours.** Which way it goes — what gets
+   optimised and what gets given up — is the largest decision in the whole
+   design. Put it to them with `AskUserQuestion` rather than writing your
+   preference in and asking them to approve it.
+4. **One diagram, and render it.** `## Overview` carries the shape the stance
+   implies — main flow, or before/after when this changes something that
+   exists. Not the component graph; that belongs to the build spec. Per
+   `documentation.md`: elk renderer, quoted labels, `classDef` colouring for
+   what changes. Validate by rendering:
+   `mmdc -i <the document> -o <scratchpad>/check.md`. A sentence under it says
+   what to look at — a diagram with no reading is decoration.
+5. **Check, then review.**
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind stance <the document>`
+   until it exits 0. It enforces the one-page ceiling; over it, cut, do not
+   reword. Then `plan-review` against the document.
+6. **Stop.** `## Status` stays `draft`. Only the person's approval changes it
+   to `approved <YYYY-MM-DD>`, through the menu in
+   `references/approval-gates.md`. Decisions mode reads that line and refuses
+   to start on a draft.
+
+## Mode: Decisions
+
+0. **The gate.** Open the stance document and check, in the file: `## Status`
+   reads `approved` with a date, `## Invariants` is non-empty,
+   `## Use cases / Issues` numbers its entries. Any failing, stop and say
+   which. Weighing options against a trade nobody agreed to is how a stance
+   gets replaced one implementation detail at a time.
+1. **Feasibility, before any option.** Every capability this design needs,
+   settled under the evidence rule in a table: `C1`, `C2`, …, Capability,
+   Verdict (`verified`/`UNVERIFIED`/`infeasible`), Evidence. The ids are
+   load-bearing — the probe fails a capability no entry cites, and a Tier 2
+   entry resting on one that is not `verified`.
+2. **List every choice, then run the three tests on each**, in order. Write to
+   `docs/design/<YYYY-MM-DD>-<topic>-decisions.md`, same `<topic>` as the
+   stance. Copy `${CLAUDE_PLUGIN_ROOT}/templates/design-decisions.md.tpl`,
+   same heading discipline.
+   - conflict test → `## Ruled out`, with the invariant it hit;
+   - origin test → `## Requirement gaps`, with a veto condition or a
+     verification path;
+   - cost test → `## Tier 1`, `## Tier 2`, or `## Tier 3`.
+3. **Draw every Tier 1 entry.** One small Mermaid diagram per entry, showing
+   the options side by side — this is the one place a person is asked to hold
+   two designs in their head at once, and two pictures do that faster than two
+   columns of prose. Same rules and same rendering check as Stance mode.
+4. **`Found out when` is never blank.** It is what lets a person read fast: an
+   entry a test catches tomorrow is scanned, one that surfaces after a
+   migration is not. Unknown counts as late, not as low.
+5. **Check, then ask.**
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind decisions <the document>`
+   until it exits 0 — budgets, citations and diagrams are all mechanical, so
+   fix them before spending any reading on review. Then `plan-review`, then
+   put Tier 1 to the person with `AskUserQuestion`, **one at a time, in
+   dependency order**, re-running the cost test on what remains after each
+   answer.
+6. **Report the gap count.** The probe prints `requirement_gaps (N this
+   round)`. Three or more for three rounds running means the requirements
+   stage is what needs fixing, not this document — say so rather than
+   absorbing it again.
+
+## Mode: High-level (legacy)
+
+Kept so that designs already signed off in this shape stay passable. New work
+runs Stance then Decisions instead. The procedure below is unchanged.
 
 1. **Feasibility, before the document.** List every capability the design
    needs and settle each under the evidence rule in a table: `C1`, `C2`, …,
@@ -131,16 +319,21 @@ not ask for it is the same decision with the opposite sign.
 
 ## Mode: Detail
 
-0. **The gate.** Open the named high-level design and check, in the file:
-   `## Status` reads `approved` with a date; `## Open questions` is empty or
-   every entry carries its answer; `## Use cases / Issues` numbers its
-   entries. Any failing, stop and say which.
+0. **The gate.** Open the documents this elaborates and check, in the files:
+   the stance's `## Status` reads `approved` with a date and its
+   `## Use cases / Issues` numbers its entries; the decisions document's
+   `## Tier 1` entries each carry a `Decided:` line. Any failing, stop and say
+   which. (A legacy high-level design instead: `## Status` approved,
+   `## Open questions` empty or every entry answered, use cases numbered.)
+
+   An unanswered Tier 1 entry is an architecture question this document would
+   otherwise settle by accident, one implementation detail at a time.
 1. **Ground it in the real directory.** Read the target project directory;
    every claim about existing code resolves to a real `file:line` you have
    opened. Write to `docs/design/<YYYY-MM-DD>-<topic>-detail.md`, same
-   `<topic>` as the high-level design. Copy
+   `<topic>` as the stance. Copy
    `${CLAUDE_PLUGIN_ROOT}/templates/design-detail.md.tpl`, fill it in, same
-   heading discipline as High-level.
+   heading discipline as the modes above.
 2. **Four tables before any prose:** the `## Reference` block (path + status
    line the probe follows), the traceability table (every `UC`/`R` id vs.
    what satisfies it here), the glossary (every load-bearing term, its
@@ -149,7 +342,12 @@ not ask for it is the same decision with the opposite sign.
    an unknown one comes from the user under the decision rule).
 3. **Four diagrams**, Mermaid: architecture, component, flow, and one
    sequence per use case (past six, name which were skipped and why).
-   Validate by rendering.
+   Validate by rendering. **Each one carries a sentence under it** naming what
+   to look at — the boundary that moved, the arrow that reversed, the box that
+   is new; a diagram with no reading is decoration, because the author already
+   knows what is interesting in it and the reader does not. A diagram that
+   explains one component goes in that component's block in step 4, not here:
+   this section holds the four that describe the whole.
 4. **The implementation spec.** Per component: Responsibility (one
    sentence), Interface (real signature), Data (shape in/out, types),
    Errors, Concurrency, Observability, Where it lives, What it reuses
@@ -226,6 +424,26 @@ gate `track`'s human checkpoint sits on: nothing after this stage starts
 until a person signs off on the design artifact, through the menu
 `references/approval-gates.md` describes.
 
+Each mode has its own `--kind`: `stance`, `decisions`, `detail`, `delta`, and
+`hld` for the legacy shape. What the person signs is the stance and the
+answered Tier 1 entries — not the build spec, which is written for whoever
+builds and is not reviewed line by line. That is why the first two have
+ceilings and the third does not: **what a person signs has to stay small
+enough to sign again** after it changes.
+
+**Which path goes in the track's `design` row:** the decisions document. It
+is the last one signed, and its `## Reference` names the stance, so a reader
+who starts there reaches both. `preflight.py` reads that cell, picks the kind
+off the `-decisions.md` suffix, and runs the matching probe.
+
+**A known gap in that arrangement.** The ledger fingerprints one file, so
+editing the *stance* after sign-off does not trip `artifact_unchanged` the way
+editing the decisions document does. The probe still catches the case that
+matters — the stance's `## Status` going back to `draft` — but a reworded
+invariant under an unchanged status is not caught. Until the ledger can carry
+more than one artifact, treat a stance edit after sign-off as re-opening the
+gate, and say so rather than relying on a check that will not fire.
+
 ## When to skip this stage entirely
 
 A design document that nobody needed is the most expensive kind, because it
@@ -242,10 +460,11 @@ reads exactly like one that was needed. Each of these belongs somewhere else:
 - **The requirements themselves are the unknown.** Run `discover` first, then
   come back — this stage traces a design against requirements, and it has
   nothing to trace against yet.
-- **Detail mode only:** the high-level design is still `draft`, or its open
-  questions are unanswered. An open architecture question is a decision the
-  detail document would otherwise make by accident, one implementation detail
-  at a time.
+- **Decisions mode only:** the stance is still `draft`. Weighing options
+  against a trade nobody agreed to replaces the stance one option at a time.
+- **Detail mode only:** a Tier 1 entry is still unanswered. An open
+  architecture question is a decision the build spec would otherwise make by
+  accident, one implementation detail at a time.
 - **Detail mode only:** the design is agreed and what you want is the code.
   That is the `build` stage.
 - **Delta mode only:** the branch is a few lines — read the diff. To check

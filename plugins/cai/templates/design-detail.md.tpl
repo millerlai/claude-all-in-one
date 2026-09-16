@@ -18,12 +18,18 @@
 ## Reference
 
 <!--
-  The high-level design this elaborates, and the status line it was gated on.
-  The path is load-bearing: the probe follows it, reads that document, and
-  checks that every use case in it is reached below.
+  The document this elaborates, and the status line it was gated on. The path
+  is load-bearing: the probe follows it, reads that document, and checks that
+  every use case in it is reached below.
+
+  For a design that ran stance and decisions modes, name the stance document
+  (it owns the UC/R ids) and the decisions document beside it. A legacy
+  high-level design works too -- the probe reads `## Use cases / Issues` from
+  whichever it is pointed at.
 -->
 
-High Level Design doc: docs/design/<YYYY-MM-DD>-<topic>-high-level.md
+Stance doc: docs/design/<YYYY-MM-DD>-<topic>-stance.md
+Decisions doc: docs/design/<YYYY-MM-DD>-<topic>-decisions.md
 Status: approved <YYYY-MM-DD>
 
 ### Traceability
@@ -99,6 +105,15 @@ Status: approved <YYYY-MM-DD>
 
   Past six use cases, draw sequences only where the call order is not already
   obvious from the flow diagram, and say which you skipped and why.
+
+  **Every diagram carries a sentence under it** saying what to look at -- the
+  boundary that moved, the arrow that reversed, the box that is new. A diagram
+  with no reading is decoration: the author already knows what is interesting
+  in it and the reader does not.
+
+  A diagram belongs next to the text it explains, not in a gallery. This
+  section holds the four that describe the whole; anything that explains one
+  component goes in that component's own block below.
 -->
 
 ### Architecture
@@ -127,6 +142,11 @@ Status: approved <YYYY-MM-DD>
     What it reuses — the existing function or module, at file:line
 
   Prose describing an interface is not an interface.
+
+  Add a small Mermaid diagram inside a component's block whenever its own
+  shape is what needs explaining -- a state machine, a retry path, who holds
+  what while a call is in flight. Same rules as `## Diagrams`, same sentence
+  underneath. Do not draw one for a component whose interface already says it.
 -->
 
 ### <component>
