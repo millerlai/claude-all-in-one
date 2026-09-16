@@ -137,7 +137,7 @@ Fowler 目錄中的每一種重構也各自是一個 slash command——`/cai:ex
 { "ticket": { "enabled": true, "backend": "github" } }
 ```
 
-接著用 `ticket.py point --track-dir .claude/track/<feature> --ref <issue number>` 把軌道指向某個 issue——完整指令、以及一份「從一個 issue 連結到 PR 合併」的端到端範例，寫在 [`MANUAL.md`](MANUAL.md)。之後 `intake` 會把該 issue 當作起始需求讀入，**並且判定路線**：它會試著寫一個「現在會失敗、而按照既有承諾本來應該會過」的測試，結果決定 design 階段走 `diagnosis` 還是 `stance`。issue 自己的措辭不作數——「加一個 retry」讀起來像新功能，卻經常是症狀。每一列通過的階段與每一次跳過，都會更新 issue 上的同一則留言——內容是六個階段列，不含本機的 artifact 路徑；`ship` 會各用一個獨立回合分別詢問：是否要把它自己那一列也投影上去，以及在它的指令實際執行完之後，是否要關閉該 issue。它透過 `gh` CLI 操作 repo 自己 remote 上的 issue。投影失敗會記錄在該軌道的 `ticket.json`，永遠不會讓階段失敗，也不計入重試上限。
+接著直接從那則 issue 開一條軌道——`/cai:track https://github.com/<owner>/<repo>/issues/123`。參數只要含 `://` 或全是數字，就會被當成 ticket 而不是目錄名：先讀那則 issue、從標題提一個名字給你確認，並在第一個階段開始之前寫好 pointer。想自己取名時，兩步式的 `ticket.py point --track-dir … --ref …` 仍然可用。兩種寫法、以及一份「從一個 issue 連結到 PR 合併」的端到端範例，都寫在 [`MANUAL.md`](MANUAL.md)。之後 `intake` 會把該 issue 當作起始需求讀入，**並且判定路線**：它會試著寫一個「現在會失敗、而按照既有承諾本來應該會過」的測試，結果決定 design 階段走 `diagnosis` 還是 `stance`。issue 自己的措辭不作數——「加一個 retry」讀起來像新功能，卻經常是症狀。每一列通過的階段與每一次跳過，都會更新 issue 上的同一則留言——內容是六個階段列，不含本機的 artifact 路徑；`ship` 會各用一個獨立回合分別詢問：是否要把它自己那一列也投影上去，以及在它的指令實際執行完之後，是否要關閉該 issue。它透過 `gh` CLI 操作 repo 自己 remote 上的 issue。投影失敗會記錄在該軌道的 `ticket.json`，永遠不會讓階段失敗，也不計入重試上限。
 
 ## 刻意不做的事
 

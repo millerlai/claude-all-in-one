@@ -87,10 +87,16 @@ def test_skill_md_gained_no_ticket_closing_step_of_its_own():
     # legitimately add a pointer line to. AC17 is not "nobody ever touches
     # SKILL.md"; it is that closing the ticket did not become a step here.
     # The section test above holds the gate count, this holds the absence.
+    #
+    # 2026-09-16: a second line now names the reference -- the one routing a
+    # ticket-shaped `/cai:track` argument -- so the count stopped being a
+    # usable proxy, exactly as the paragraph above anticipated. What AC17
+    # asserts is the *absence* of a closing step, so assert that directly
+    # rather than through a number that any legitimate pointer line breaks.
     ticket_lines = [ln for ln in _text(SKILL_MD).splitlines() if "ticket" in ln.lower()]
-    assert len(ticket_lines) == 1
-    assert "ticket-mirror.md" in ticket_lines[0]
-    assert "clos" not in ticket_lines[0].lower()
+    assert ticket_lines, "SKILL.md should still point at the ticket reference"
+    assert all("ticket-mirror.md" in ln for ln in ticket_lines)
+    assert not any("clos" in ln.lower() for ln in ticket_lines)
 
 
 # --- AC18: shipper.md is a zero-line diff, and never gains an interactive --

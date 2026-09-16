@@ -30,7 +30,8 @@ nothing: no active track, or a `state.md` that is missing, disagrees with
 
 ## `/cai:track <feature>`
 
-Reject `current` and `done` as feature names. If `.claude/track/<feature>/`
+Reject `current` and `done` as names; an argument with `://` or only digits is
+a ticket, not a name — `references/ticket-mirror.md`. If `.claude/track/<feature>/`
 already exists, this is a resume: skip straight to the next unfinished
 stage `track_state.py status` names. Otherwise this is a new track — first
 count existing directories under `.claude/track/` (excluding `done/`); at

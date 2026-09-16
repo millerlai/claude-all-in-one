@@ -99,3 +99,42 @@ def test_states_stderr_must_never_go_into_note():
     text = _flat()
     assert "--note" in text
     assert "stderr" in text
+
+
+# --- Starting a track from a ticket ----------------------------------------
+#
+# `SKILL.md` is at its line ceiling, so the procedure lives here and SKILL.md
+# carries one pointer to it. These tests pin both halves of that split: the
+# section has to exist here, and it has to say the things the split moved out
+# of SKILL.md.
+
+
+def test_has_a_starting_from_a_ticket_section():
+    assert "## Starting from a ticket" in _text()
+
+
+def test_states_the_ref_is_not_a_directory_name():
+    text = _flat()
+    assert "://" in text
+    assert "not a directory name" in text
+
+
+def test_names_read_with_ref_and_no_track_dir():
+    """The capability this procedure rests on: seeing a ticket without first
+    committing a track to it."""
+    text = _flat()
+    assert "read --ref" in text
+    assert "no `--track-dir`" in text
+
+
+def test_asks_before_naming_the_directory():
+    text = _flat()
+    assert "AskUserQuestion" in text
+
+
+def test_warns_that_pointing_late_is_silent():
+    """The failure that has no error message: a track pointed after intake
+    ran is indistinguishable from one that never had a ticket."""
+    text = _flat()
+    assert "before the" in text and "first stage runs" in text
+    assert "quietly unlinked" in text

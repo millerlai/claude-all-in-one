@@ -291,19 +291,35 @@ def show(track_dir, dry_run):
             print(body)
 
 
-def read(track_dir, project_dir):
+def read(track_dir, project_dir, ref=None):
     """Prints this track's ticket -- number, title, then body, each on its
     own line -- for a caller that needs the ticket's own words rather than
     the mirrored comment (see references/ticket-mirror.md: intake and, when
     intake was skipped, verify's conformance lens both read this way). One
     line on any failure -- disabled, no pointer, unknown backend, or the
     backend call itself -- matching every other subcommand's shape, and
-    never raising."""
+    never raising.
+
+    `ref` reads a ticket that no track points at yet, and is why `--track-dir`
+    is optional for this one subcommand. `/cai:track <issue ref>` needs the
+    title *before* it can name the directory the pointer would live in, and
+    without this the only way to see a ticket's words was to commit a track to
+    it first -- binding "look at this" to "start work on this", which are not
+    the same decision. The backend then comes from the project's config, since
+    there is no pointer to carry one."""
     cfg = read_config(project_dir)
     if cfg["problem"]:
         print(cfg["problem"])
     if not cfg["enabled"]:
         return None  # AC1: not one character printed when never turned on
+
+    if ref is not None:
+        backend = ticket_backend.get(cfg["backend"])
+        if backend is None:
+            print("unknown ticket backend %r in %s"
+                  % (cfg["backend"], CONFIG_REL))
+            return None
+        return _print_ticket(backend, project_dir, ref)
 
     pointer = read_pointer(track_dir)
     if pointer is None:
@@ -323,7 +339,13 @@ def read(track_dir, project_dir):
               "--track-dir %s --ref <n>` to fix it" % (track_dir, track_dir))
         return None
 
-    value, category = backend.read(project_dir, pointer.get("ref"))
+    return _print_ticket(backend, project_dir, pointer.get("ref"))
+
+
+def _print_ticket(backend, project_dir, ref):
+    """The half of `read` that is the same whether the ref came from a
+    pointer or from `--ref`."""
+    value, category = backend.read(project_dir, ref)
     if category != "ok":
         print("read: %s" % category)
         return category
@@ -418,13 +440,20 @@ def main():
     ap = ArgParser(description=__doc__.splitlines()[0])
     ap.add_argument("command",
                      choices=["project", "point", "show", "read", "transition"])
-    ap.add_argument("--track-dir", required=True)
+    # Not required by the parser: `read --ref` deliberately works without a
+    # track, so the requirement moves to the subcommands that genuinely need
+    # one. Each of those still exits 1 without it, which is the behaviour
+    # tests/test_ticket_project.py pins.
+    ap.add_argument("--track-dir")
     ap.add_argument("--project-dir", default=".")
     ap.add_argument("--ref")
     ap.add_argument("--backend")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--confirmed-by-user", action="store_true")
     args = ap.parse_args()
+
+    if args.command != "read" and not args.track_dir:
+        ap.error("%s needs --track-dir" % args.command)
 
     if args.command == "point":
         if not args.ref:
@@ -433,7 +462,9 @@ def main():
     elif args.command == "show":
         show(args.track_dir, args.dry_run)
     elif args.command == "read":
-        read(args.track_dir, args.project_dir)
+        if not args.track_dir and not args.ref:
+            ap.error("read needs --track-dir or --ref")
+        read(args.track_dir, args.project_dir, args.ref)
     elif args.command == "transition":
         transition(args.track_dir, args.project_dir, args.confirmed_by_user)
     else:
