@@ -12,8 +12,8 @@ more ways forward. **After** — one already went out and the reader could not
 act on it; rewrite that message, never restate it.
 
 The always-on half of this lives in `rules/option-explainer.md` and applies
-whether or not this skill was invoked. This file is what does not fit in 45
-lines: the skeleton, the dimension library, and a worked example.
+whether or not this skill was invoked. This file is what does not fit in that
+file's line ceiling: the skeleton, the dimension library, and worked examples.
 
 If `$ARGUMENTS` is empty and the previous message holds no option list, say so
 and stop. Do not invent a set of options to expand.
@@ -83,4 +83,6 @@ nothing. Add, in this order:
 - No ending on "it depends", "both have their merits", "up to you".
 - No option kept for symmetry.
 - No ELI5 that repeats field 1 in other words.
+- No format difference described in prose when a sample of each would show it
+  — see `template.md`'s samples section for what the pair has to hold.
 - No list sent on a non-zero `options_lint.py`.

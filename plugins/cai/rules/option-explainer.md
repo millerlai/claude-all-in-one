@@ -13,6 +13,9 @@
 - Too many terms to gloss inline? Write the background first, then list.
 - Two options barely differ, or one is plainly worse: say so and cut to 1-2.
 - Missing a fact the choice turns on? Ask one question — one — and stop there.
+- Options differing in something the reader will see — an output or data
+  format, a file's contents, a message's wording — get a real sample of each,
+  same input, elided where identical. Prose about a format is not a sample.
 
 # Six fields per option, all filled
 Each option is a title line, then these six as a numbered list — one field per
@@ -39,6 +42,7 @@ is still there and none of them can be found.
 - [ ] Every option described on the same dimensions.
 - [ ] Every first-use term glossed, no gloss introducing a new term.
 - [ ] Every "what actually changes" observable, not an adjective.
+- [ ] A visible-output difference is shown as a sample, not described.
 - [ ] A pick, and the condition that voids it.
 - [ ] ELI5 carries no proper noun, abbreviation or package name.
 - [ ] ELI5 contains one everyday-life analogy.
@@ -49,7 +53,7 @@ is still there and none of them can be found.
   remaining fields. Drop a gloss before dropping the analogy.
 - A list already went out that nobody can act on: `/cai:options` rewrites it.
 
-<!-- 55 lines by validate.py's count; wc -l agrees only with the trailing
-newline. Six fields plus three ELI5 checks do not fit in 40. Cut a field.
-45 -> 56 for #73: the fields were here and their layout was not, so a reply
-could run all six into one paragraph and break no line above. -->
+<!-- 59 lines by validate.py's count; wc -l agrees only with the trailing
+newline. 40 -> 45: six fields plus three ELI5 checks do not fit. 45 -> 56 for
+#73: the fields were here and their layout was not. 56 -> 59: a format
+difference described in prose cannot be compared against another. -->

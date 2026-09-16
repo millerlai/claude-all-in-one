@@ -228,7 +228,7 @@ marketplace 是 clone 到本機的，所以要先更新它——否則更新時�
 | `model-selection.md` | 付錢給模型之前，先用確定性檢查解決能解決的部分；剩下的再決定用哪個 subagent 與模型等級。 |
 | `memory.md` | 只記錄穩定的事實；不要保存會過時的實作細節。 |
 | `documentation.md` | Markdown、用 Mermaid 呈現結構、交付前驗證圖表。 |
-| `option-explainer.md` | 如何呈現兩種以上的做法：共同維度、每個選項六個欄位（含一個日常生活比喻），以及一個推薦和讓它失效的條件。 |
+| `option-explainer.md` | 如何呈現兩種以上的做法：共同維度、每個選項六個欄位（含一個日常生活比喻）、差異是你看得見的東西時附上各自的實際樣本，以及一個推薦和讓它失效的條件。 |
 
 `communication.md` 出貨時預設為英文；`/cai:setup` 會把那一行改寫成你選的語言。
 

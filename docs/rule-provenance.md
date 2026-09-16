@@ -62,6 +62,13 @@ start of a new, fieldless entry and fails the ledger's own checks.
 - Rule: Gloss every term, abbreviation, package name and bare code (`A1`) on first use, in words that introduce no new term. A gloss needing its own is not one.
 - Cited by: plugins/cai/rules/option-explainer.md § Before the list
 
+## option-explainer-show-a-sample — show the format, do not describe it
+
+- Date: 2026-09-16
+- Failure: reported by the user against a live option list, and landing in the same change as this entry -- no commit predates it. Two options differed only in what a generated block of text would look like, and the list was laid out correctly: shared dimensions, all six fields, one marked pick. It was still unjudgeable, because prose cannot carry a format -- which line moved, what the field was called afterwards, whether the number went up. The same user rewrote it with two short samples of the real output and the choice was settled at a glance.
+- Rule: Options differing in something the reader will see — an output or data format, a file's contents, a message's wording — get a real sample of each, same input, elided where identical. Prose about a format is not a sample.
+- Cited by: plugins/cai/rules/option-explainer.md § Before the list
+
 ## stage-build-no-design-edit — the schedule table never lives in the design document
 
 - Date: 2026-09-07
