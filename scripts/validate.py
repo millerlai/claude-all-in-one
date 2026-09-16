@@ -1920,7 +1920,16 @@ if os.path.isfile(VERIFY_REF):
 # Five of the six lines point the main session at approval-gates.md, the way
 # line 87 already points it at ticket-mirror.md; the sixth is headroom, on the
 # same reasoning as the 120 -> 122 move above.
-TRACK_SKILL_MAX = 128
+#
+# 128 -> 130 for the ticket-shaped argument, and the file had gone back to
+# sitting exactly on the ceiling again. `/cai:track <issue url>` is the
+# natural thing to type when a ticket is what you have, and it produced a
+# directory named after a URL -- which on Windows cannot exist at all. One
+# line says such an argument is a ticket rather than a name and sends the
+# reader to ticket-mirror.md; the second is headroom, on the same reasoning as
+# both moves above. The procedure deliberately did not come here: it is twenty
+# lines, and this file routes rather than implements.
+TRACK_SKILL_MAX = 130
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)

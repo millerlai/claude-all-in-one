@@ -11,6 +11,8 @@ real `gh`.
 import json
 import os
 
+import pytest
+
 import ticket
 import ticket_backend as tb
 
@@ -199,3 +201,94 @@ def test_read_command_via_main_exits_0_on_success(tmp_path, monkeypatch):
          "--project-dir", str(project_dir)])
     rc = ticket.main()
     assert rc == 0
+
+
+# --- read --ref: a ticket nothing points at yet ----------------------------
+#
+# `/cai:track <issue ref>` needs the ticket's title before it can name the
+# directory a pointer would live in. Without this, the only way to see what a
+# ticket says was to commit a track to it first -- binding "look at this" to
+# "start work on this", which are not the same decision.
+
+def test_read_with_ref_needs_no_pointer_and_no_track(tmp_path, monkeypatch, capsys):
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    backend = FakeReadBackend(value={"number": "91", "title": "gates by hook",
+                                     "body": "the body"})
+    register(monkeypatch, backend)
+
+    # No track directory is created, and no pointer is written anywhere.
+    rc = ticket.read(None, str(project_dir), ref="91")
+    out = capsys.readouterr().out
+    assert rc == "ok"
+    assert backend.read_calls == ["91"]
+    assert "number: 91" in out
+    assert "title: gates by hook" in out
+
+
+def test_read_with_ref_takes_the_backend_from_the_project_config(
+        tmp_path, monkeypatch, capsys):
+    """There is no pointer to carry a backend name, so the project's own
+    config is the only thing left to read it from."""
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir, backend="fake-read")
+    backend = FakeReadBackend(value={"number": "7", "title": "t", "body": "b"})
+    register(monkeypatch, backend)
+
+    assert ticket.read(None, str(project_dir), ref="7") == "ok"
+    assert backend.read_calls == ["7"]
+
+
+def test_read_with_ref_reports_an_unknown_backend_in_one_line(
+        tmp_path, monkeypatch, capsys):
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir, backend="no-such-backend")
+
+    rc = ticket.read(None, str(project_dir), ref="7")
+    out = capsys.readouterr().out
+    assert rc is None
+    assert out.count("\n") == 1
+    assert "no-such-backend" in out
+
+
+def test_read_with_ref_stays_silent_when_mirroring_is_off(
+        tmp_path, monkeypatch, capsys):
+    """AC1 holds on this path too: a project that never turned the feature on
+    prints nothing, so `/cai:track <url>` can tell "off" from "unreachable"."""
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()  # no .claude/cai.json at all
+    backend = FakeReadBackend(value={"number": "1", "title": "t", "body": "b"})
+    register(monkeypatch, backend)
+
+    assert ticket.read(None, str(project_dir), ref="1") is None
+    assert capsys.readouterr().out == ""
+    assert backend.read_calls == []
+
+
+def test_read_via_main_with_ref_and_no_track_dir_exits_0(tmp_path, monkeypatch):
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    backend = FakeReadBackend(value={"number": "91", "title": "t", "body": "b"})
+    register(monkeypatch, backend)
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["ticket.py", "read", "--ref", "91", "--project-dir", str(project_dir)])
+    assert ticket.main() == 0
+
+
+def test_read_via_main_with_neither_track_dir_nor_ref_exits_1(monkeypatch):
+    monkeypatch.setattr("sys.argv", ["ticket.py", "read"])
+    with pytest.raises(SystemExit) as exc:
+        ticket.main()
+    assert exc.value.code == 1
+
+
+def test_the_other_subcommands_still_require_a_track_dir(monkeypatch):
+    """Making --track-dir optional for `read` must not make it optional for
+    the four subcommands that cannot work without one."""
+    for command in ("project", "point", "show", "transition"):
+        monkeypatch.setattr("sys.argv", ["ticket.py", command])
+        with pytest.raises(SystemExit) as exc:
+            ticket.main()
+        assert exc.value.code == 1, command

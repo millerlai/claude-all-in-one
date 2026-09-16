@@ -197,9 +197,14 @@ the project turns it on in `.claude/cai.json`:
 { "ticket": { "enabled": true, "backend": "github" } }
 ```
 
-Then point a track at an issue with `ticket.py point --track-dir
-.claude/track/<feature> --ref <issue number>` — the full command, and a worked
-example from an issue link to a merged PR, are in [`MANUAL.md`](MANUAL.md).
+Then start a track from the issue itself — `/cai:track
+https://github.com/<owner>/<repo>/issues/123`. An argument containing `://`,
+or made only of digits, is read as a ticket rather than used as a directory
+name: the issue is read first, a name is proposed from its title for you to
+confirm, and the pointer is written before the first stage runs. The two-step
+form (`ticket.py point --track-dir … --ref …`) still works when you want to
+choose the name yourself; both, and a worked example from an issue link to a
+merged PR, are in [`MANUAL.md`](MANUAL.md).
 From there `intake` reads the issue as its starting request **and routes it**:
 it tries to write a test that fails now and would pass if an existing promise
 held, and what comes out decides whether the design stage runs `diagnosis` or

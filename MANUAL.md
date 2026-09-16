@@ -287,7 +287,13 @@ Off unless the project says otherwise. To turn it on, add
 { "ticket": { "enabled": true, "backend": "github" } }
 ```
 
-Then point the track at an issue in the same repository, once:
+Then start the track from the issue, which points it for you:
+
+```bash
+/cai:track https://github.com/<owner>/<repo>/issues/123
+```
+
+Or point an existing track at one, in the same repository:
 
 ```bash
 python <plugin-root>/scripts/ticket.py point --track-dir .claude/track/<feature> --ref 123
@@ -299,13 +305,32 @@ You paste a link and say what you want:
 
 > `https://github.com/acme/api/issues/241` — take this one
 
-**1. The track gets created and pointed at the issue.** Two commands, and the
-second one takes the *number*, not the URL:
+**1. Hand the track the issue.** One command — paste the URL where the name
+would go:
+
+```bash
+/cai:track https://github.com/acme/api/issues/241
+```
+
+`/cai:track` recognises a ticket-shaped argument — one containing `://`, or
+made only of digits — and does **not** use it as a directory name (a URL
+cannot be one on Windows at all). It reads the issue first, without creating
+anything, proposes a name from the title, asks you to confirm or replace it,
+and only then creates the track and points it.
+
+The two-step form still works, and is what to use when you want the name to
+be something the title would not give you:
 
 ```bash
 /cai:track retry-on-timeout
 python <plugin-root>/scripts/ticket.py point --track-dir .claude/track/retry-on-timeout --ref 241
 ```
+
+`--ref` takes the number or the whole URL either way: it is handed to `gh`
+unchanged, and `gh` accepts both. To read a ticket without starting anything
+at all — deciding whether to pick it up is not the same as picking it up —
+`ticket.py read --ref <number or URL> --project-dir .` needs no track and
+creates none.
 
 Point it right after creating the track. Nothing reminds you: a track with no
 pointer runs to the end perfectly happily, just without ever reading the issue

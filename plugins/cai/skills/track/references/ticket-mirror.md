@@ -12,6 +12,38 @@ Nothing here does anything unless `.claude/cai.json`'s `ticket.enabled` is
 true — `ticket.py` checks that itself and prints nothing when it is off
 (AC1). The steps below describe what happens on top of that, once it is on.
 
+## Starting from a ticket
+
+`SKILL.md`'s `/cai:track <feature>` sends you here when its argument contains
+`://` or is only digits. That is a ticket reference, and a ticket reference is
+not a directory name — a URL cannot be one on Windows at all. So do not create
+`.claude/track/<that>/`.
+
+1. **Read it without committing to anything.**
+   `ticket.py read --ref <the argument> --project-dir <project root>` — note
+   there is no `--track-dir`, because there is no track yet. That is the case
+   this subcommand takes a `--ref` for: seeing what a ticket says and starting
+   work on it are two decisions, and only the second one needs a directory.
+2. **Propose a name from the title.** Lower case, hyphenated, three or four
+   words. No ticket number in it — the pointer already carries that, and a
+   name that repeats it goes stale the moment the track is re-pointed.
+3. **Ask, with `AskUserQuestion`.** The proposed name, plus the free-text slot
+   the tool adds anyway. This directory name appears in every
+   `/cai:track status` from here on, so it is the person's to pick, and asking
+   costs exactly one menu.
+4. **Create the track under the confirmed name, then point it, before the
+   first stage runs.**
+   `ticket.py point --track-dir .claude/track/<name> --ref <the argument>`.
+
+   The order matters and nothing enforces it: pointing after `intake` has
+   already run means intake never read the ticket, and no later stage says so
+   — the track simply runs to the end quietly unlinked, which reads exactly
+   like a track that never had a ticket.
+
+Mirroring off for this project means step 1 prints nothing at all (AC1). Say
+so and ask for a name, rather than inventing one from a URL you could not
+open.
+
 ## Before dispatch: read once
 
 **intake** reads the ticket once, before step 2's dispatch: `ticket.py read

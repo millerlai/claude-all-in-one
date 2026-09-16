@@ -104,7 +104,7 @@ def test_validate_reports_the_same_body_line_count_as_computed_here():
     assert reported <= ceiling
 
 
-def test_skill_md_body_is_127_lines():
+def test_skill_md_body_is_128_lines():
     """120 before ticket mirroring, plus one pointer line each for it and
     for `references/pending-questions.md` (2026-09-03), plus five for
     `references/approval-gates.md` (#74).
@@ -118,10 +118,18 @@ def test_skill_md_body_is_127_lines():
     The number moves only alongside `TRACK_SKILL_MAX` in scripts/validate.py,
     and only with a note there saying what the lines bought -- which is what
     that constant's comment asks for, and what the 122 -> 128 move recorded.
-    Deliberately one under the ceiling rather than on it: a test pinned to a
+    Deliberately under the ceiling rather than on it: a test pinned to a
     number that is also the ceiling turns every later edit into a two-file
-    negotiation before anyone has asked whether the line earns its place."""
-    assert _skill_body_lines() == 127
+    negotiation before anyone has asked whether the line earns its place.
+
+    127 -> 128 on 2026-09-16, one line, for the ticket-shaped argument:
+    `/cai:track <issue url>` used to become a directory named after a URL.
+    That line says the argument is a ticket and points at
+    `ticket-mirror.md`, where its four-step procedure lives -- the procedure
+    stayed out of SKILL.md precisely so this stayed one line. TRACK_SKILL_MAX
+    moved 128 -> 130 in the same change, so the gap is two again rather than
+    zero."""
+    assert _skill_body_lines() == 128
 
 
 # --- '## Human gates' still says what it has always said --------------------
@@ -206,7 +214,12 @@ def test_always_on_budget_is_unchanged_at_5674():
 # --- the added line itself carries the load-bearing instruction ------------
 
 def test_added_line_names_main_session_not_subagent_and_the_reference_path():
-    lines = [l for l in _read_skill_md().splitlines() if "ticket-mirror.md" in l]
+    # Two lines now name the reference: this one, and the shorter pointer for
+    # a ticket-shaped `/cai:track` argument (2026-09-16). The filter picks
+    # this one by what it is for, rather than by being the only one -- the
+    # count was never the property under test, the content is.
+    lines = [l for l in _read_skill_md().splitlines()
+             if "ticket-mirror.md" in l and "main session" in l]
     assert len(lines) == 1
     line = lines[0]
     assert "main session" in line
@@ -233,3 +246,16 @@ def test_every_prose_guard_in_the_track_skill_block_still_runs():
     # test alone still passes with one of them deleted. Count instead.
     shapes = [l for l in out.splitlines() if SHAPE_FRAGMENT in l]
     assert len(shapes) == 3
+
+
+# --- The ticket-shaped argument -------------------------------------------
+
+
+def test_skill_md_routes_a_ticket_shaped_argument_to_the_reference():
+    """`/cai:track <url>` must not become a directory name. SKILL.md is at its
+    line ceiling, so it carries the test and the pointer, never the procedure
+    -- which is what keeps this one line rather than twenty."""
+    text = _read_skill_md()
+    assert "://" in text
+    assert "only digits" in text
+    assert "ticket-mirror.md" in text
