@@ -34,6 +34,20 @@ separately from the thing they look attached to.
 
 ## Gate 1 — the design sign-off, after `design` and before any code
 
+**What is being signed.** The `design` stage writes more than one document
+(`stage-design.md`), and they are not all signed here. What a person signs is
+the **stance** and the **answered Tier 1 decisions** — the two that were
+written to be read in full. The build spec is not signed: it is written for
+whoever builds, nobody reviews it line by line, and pretending otherwise is
+how a signature comes to mean "I gave up reading". Name the stance and
+decisions documents in the menu's message; name the build spec as the thing
+this authorises, not as the thing being read.
+
+That split is also what keeps re-signing possible. A change to a signed
+document invalidates the signature, so what gets signed has to stay small
+enough to sign again — which is why those two carry ceilings the probe
+enforces and the build spec does not.
+
 Say the document's path, then ask. Nothing in `build` starts until this is
 answered, and `preflight.py build` fingerprints whatever was signed off, so
 the answer is load-bearing rather than ceremonial. `preflight.py build` also
@@ -106,6 +120,16 @@ is only the shape — a menu, never a sentence to type a word back into:
   approach, before anything is designed.
 - `stage-design.md`'s cost-sizing — the four lines, before a pass that reads
   a whole directory.
+- `stage-design.md`'s stance approval, at the end of Stance mode. Decisions
+  mode refuses to start on a `draft`, so this is a real stop — but it is
+  inside the `design` stage, not after it, which is why it is here and not a
+  third gate. Same three options as Gate 1, and the same writer: the date
+  goes into `## Status` when a person picks Approve, never when the stage
+  decides its own work is done.
+- `stage-design.md`'s Tier 1 entries, in Decisions mode — one menu per entry,
+  in dependency order, re-running the cost test on what remains after each
+  answer. These are ordinary choices between ways forward, so unlike the two
+  gates they **do** carry a `(recommended)` when the evidence supports one.
 - `stage-build.md` Step 0.5 — commit per unit, and the parallel lane. Two
   decisions, so two turns.
 

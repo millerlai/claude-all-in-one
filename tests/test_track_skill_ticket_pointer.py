@@ -151,7 +151,7 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_unchanged_at_5656():
+def test_always_on_budget_is_unchanged_at_5663():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
@@ -177,10 +177,21 @@ def test_always_on_budget_is_unchanged_at_5656():
     # before. This stays an equality rather than a ceiling for the reason the
     # note above gives. The note above is left as written: it records the
     # 2026-09-03 state, where dispatching three was the truth.
+    #
+    # 5656 -> 5663 on 2026-09-16, one description, measured. `designer.md`'s
+    # went 275 -> 282: the design stage gained two modes, so "high-level,
+    # detail, or delta" became "stance, decisions, detail, or delta" --
+    # naming four things costs seven characters more than naming three.
+    # `design/SKILL.md`'s own description grew 336 -> 435 in the same change
+    # and is deliberately *not* in this number: it carries
+    # `disable-model-invocation: true`, which validate.py's always_on_total
+    # excludes, because a skill the model cannot invoke costs nothing until
+    # someone types its name. ALWAYS_ON_CEILING stays 5697; the headroom
+    # measured on 2026-09-13 goes 41 -> 34 rather than the ceiling moving.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 5656
+    assert int(m.group(1)) == 5663
 
 
 # --- the added line itself carries the load-bearing instruction ------------

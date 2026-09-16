@@ -41,13 +41,13 @@ Tier names resolve in `plugins/cai/models.json`; this file never names a model.
 ## Step 2 — When the doc isn't reviewable yet
 
 `plan-review`'s Step 0 gate failed: no stated requirement, or no acceptance
-criteria. Ask with `AskUserQuestion`, two options — produce a high-level
-design now, or stop and fill the gap yourself. Say plainly, before the user
-answers, that choosing the first option ends this run either way:
-`/cai:design` in high-level mode hands back `## Status: draft`,
-and only the user can turn that into `approved`.
+criteria. Ask with `AskUserQuestion`, two options — write the stance now, or
+stop and fill the gap yourself. Say plainly, before the user answers, that
+choosing the first option ends this run either way: `/cai:design` in stance
+mode hands back `## Status: draft`, and only the user can turn that into
+`approved`.
 
-Agree → invoke `/cai:design` in high-level mode with the user's own
+Agree → invoke `/cai:design` in stance mode with the user's own
 requirement text, then stop. Decline → stop and say which of the two —
 requirement or acceptance criteria — was missing. Non-interactive (`-p`)
 mode, where the question can't be answered → the same fallback as decline.

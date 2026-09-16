@@ -184,8 +184,46 @@ Which skeleton applies depends on what the document is *for* — being decided o
 or being implemented from. Reviewing a high-level design against the detail
 skeleton produces findings that are all true and all premature.
 
-**High-level design** — what a human signs off before any implementation detail
-is settled:
+**Stance** — the trade the system makes, read in full by a person in one
+sitting:
+
+```md
+## Status              draft, or approved + the date the person approved it
+## Optimises for       what this exists to make better, stated so it can be judged
+## Sacrifices          what is knowingly given up — the heading people skip
+## Invariants          what nothing later may violate; this system's, and cross-project
+## Rejected stances    the other trades available, and why each lost
+## Use cases / Issues  what problem, for whom — numbered, so Step 1 traces
+## Overview            one diagram of the shape this trade implies
+## Out of scope        what this deliberately does not do
+```
+
+A component graph, an interface, or a schema appearing here is a finding: this
+document is the one that has to be read in full, and length is the way it stops
+being read. So is an empty `## Invariants` — the conflict test downstream
+checks every option against that list, so an empty one is a gate switched off,
+not a short section.
+
+**Decisions** — the queue of choices the stance implies, already routed:
+
+```md
+## Reference           the stance document: path, its Status, its date
+## Feasibility         each capability, its C<n> id, verdict, and evidence
+## Ruled out           options an invariant deleted, and which invariant
+## Requirement gaps    behavioural assumptions, each with a veto condition or a path
+## Tier 1              high cost, options differ — a person answers, at most 5
+## Tier 2              high cost, evidence leaves one option — scanned, at most 10
+## Tier 3              low cost on all three counts — recorded, not reviewed
+```
+
+Findings specific to this one: an entry in Tier 2 whose grounds are not a
+`file:line` or a URL (nothing reviews what is scanned, so a preference arrives
+unopposed); a cost column that raises a question and never answers it (that is
+a second decision hiding inside the first); and a `Found out when` left blank
+(unknown is late, not low).
+
+**High-level design (legacy)** — the older single document, kept so designs
+already signed off stay reviewable:
 
 ```md
 ## Status                   draft, or approved + the date the user approved it
@@ -258,6 +296,7 @@ and nothing you find by reading closes a hole it has already named.
   — that is a code review.
 - The requirements themselves are the unknown. That is the `discover` stage (`/cai:discover`);
   come back here once there is something to trace against.
-- There is no document yet and one is needed. `/cai:design` writes
-  both, high-level mode first and detail mode second; both
-  gather the evidence before writing, and both end by running this skill.
+- There is no document yet and one is needed. `/cai:design` writes them in
+  order — stance, then decisions, then detail; each gathers the evidence
+  before writing, and each ends by running this skill against its own
+  skeleton above.

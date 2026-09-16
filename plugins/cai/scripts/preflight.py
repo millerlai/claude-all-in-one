@@ -33,7 +33,9 @@ MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
 
 # The three suffixes the /cai:design-*-doc commands already write. state.md
 # carries no separate field for this -- the filename is the convention.
-SUFFIX_KIND = {"-high-level.md": "hld", "-detail.md": "detail", "-delta.md": "delta"}
+SUFFIX_KIND = {"-stance.md": "stance", "-decisions.md": "decisions",
+               "-high-level.md": "hld", "-detail.md": "detail",
+               "-delta.md": "delta"}
 
 
 def resolve(rel, *bases):
@@ -111,8 +113,8 @@ def design(track_dir, project_dir):
             kind = k
             break
     if kind is None:
-        return [(False, "artifact_kind (%s matches none of -high-level.md, "
-                         "-detail.md, -delta.md)" % artifact)]
+        return [(False, "artifact_kind (%s matches none of %s)"
+                 % (artifact, ", ".join(sorted(SUFFIX_KIND))))]
 
     # Citations inside the document are project-root relative (design_probe's
     # own roots convention), so look there first and fall back to the track
