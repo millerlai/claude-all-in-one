@@ -337,7 +337,17 @@ check("rules ship with the plugin", bool(rules))
 # is a budget again and not a tripwire. Same reasoning as TRACK_SKILL_MAX
 # below. Raising it further is a decision: every line here is read by every
 # session, forever.
-RULES_LINE_CEILING = 56
+#
+# Raised to 59, and this time the headroom is deliberately not restored. The
+# four lines are the sample rule and its self-check box: an option list whose
+# options differ in what the reader will see was being written as prose about
+# the difference, which no reader can compare against anything. The user who
+# reported it chose these four lines over a one-line version that named the
+# trigger and left "same input, elided where identical" in the skill -- and a
+# skill nobody can auto-invoke (`disable-model-invocation: true`) is not where
+# the half that makes two samples comparable belongs. Sitting exactly on the
+# ceiling is the point: the next line costs another decision, by a person.
+RULES_LINE_CEILING = 59
 for path in rules:
     n = len(read_text(path).splitlines())
     check(f"{path} is within its {RULES_LINE_CEILING}-line ceiling ({n})", n <= RULES_LINE_CEILING)

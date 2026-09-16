@@ -366,7 +366,7 @@ asks before overwriting them.
 | `model-selection.md` | Settle what a deterministic check can before paying for a model, then which subagent and model tier to use for the rest. |
 | `memory.md` | Record stable facts only; don't persist implementation details that go stale. |
 | `documentation.md` | Markdown, Mermaid for structure, validate diagrams before shipping. |
-| `option-explainer.md` | How to lay out two or more ways forward: shared dimensions, six fields per option including an everyday-life analogy, and a pick with the condition that voids it. |
+| `option-explainer.md` | How to lay out two or more ways forward: shared dimensions, six fields per option including an everyday-life analogy, a real sample of each when the options differ in something you will see, and a pick with the condition that voids it. |
 
 `communication.md` ships defaulting to English; `/cai:setup` rewrites
 that line to whatever language you pick.

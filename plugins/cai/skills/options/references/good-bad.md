@@ -119,3 +119,53 @@ a title line, then the six as a numbered list, one field per item.
 | No proper noun, abbreviation, or package name | pass — safe, slip, ledger | pass — whiteboard, kitchen |
 | One everyday-life analogy present | pass — the safe and the slips | pass — the shared whiteboard |
 | Worded differently from the definition | pass — the definition says "recorded change", the analogy says who took the dollar | pass — the definition says "shared box", the analogy says wipe and rewrite |
+
+## Second question: the options differ in what the reader will see
+
+A command prints a two-line status block. One field currently shows the
+wall-clock time of the last run; the proposal is to show how long ago it was.
+Everything above still applies — six fields, a pick, the same dimensions. What
+this question adds is that describing the difference is no longer enough.
+
+### Bad — the difference described
+
+> **Option A**: keep the absolute clock time, which is unambiguous across time
+> zones and pastes into a bug report unchanged.
+> **Option B**: show elapsed time, which answers "is this stuck?" without the
+> reader doing arithmetic against the current time.
+
+Both sentences are true, and neither shows the line. Does the field get wider
+or narrower? Does anything else on the line move with it? Is `2h` meant, or
+`2h 14m`? Every one of those is decided by this choice and none of them is on
+the page.
+
+### Good — the difference shown, same input on both sides
+
+> **Option A — absolute (recommended)**
+>
+> ```
+> queue: pending=12 running=3 failed=1
+> last_run=2026-09-16T10:04:12Z  next_run=2026-09-16T10:19:12Z
+> ```
+>
+> **Option B — elapsed**
+>
+> ```
+> (line 1 identical to A)
+> last_run=14m ago  next_run=in 1m
+> ```
+>
+> — then the six fields for each option, and the pick.
+
+Two lines of output settle what four sentences could not: the second line is
+28 characters narrower, `next_run` changed shape along with the field nobody
+proposed changing, and B has dropped the date — which costs nothing until the
+run is from yesterday, and then costs the whole line.
+
+### What the good version does
+
+1. The same input on both sides — one queue, one moment, read twice
+2. The identical line elided, so what is left on the page is the difference
+3. Real values, not `[timestamp]` — a placeholder shows a shape, not a choice
+4. Samples before the six fields, so field 3 describes something already seen.
+   The sample does not replace that field; it is what makes it checkable

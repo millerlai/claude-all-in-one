@@ -23,6 +23,39 @@ its reason, never left blank.
 | [dimension 2] | | |
 | [dimension 3] | | |
 
+## Samples — when the options differ in something the reader will see
+
+An output format, a file's contents, a message's wording, a column that
+changes. The table above *describes* that difference, and a described format
+is the one thing a reader cannot check against anything. Show each option's
+real output instead, here, before the six fields:
+
+````
+Option A — [name]
+
+```
+[the actual output, on one real input]
+```
+
+Option B — [name]
+
+```
+[the same input, run the other way. Write "(lines 1-4 identical to A)"
+instead of repeating the part that does not differ]
+```
+````
+
+Two things make the pair readable, and both are easy to lose:
+
+- **The same input on both sides.** Two samples from two different inputs are
+  the format version of describing two options on different dimensions — each
+  one makes sense alone and neither can be read against the other.
+- **The identical part elided.** What survives on the page is then the
+  difference itself, which is the only thing being chosen between.
+
+If the options do not differ in anything the reader will ever see, skip this
+section — do not manufacture a sample to fill it.
+
 ## Option A — [name] (recommended)
 
 1. **What it literally is**: [literally what it does. One sentence, no jargon.]
