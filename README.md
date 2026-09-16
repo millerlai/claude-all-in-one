@@ -37,7 +37,8 @@ Four layers, plus one underneath all of them.
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards under `refactoring-catalog/`, the
   smell-to-refactoring routing table, the six stage procedures above, and a
-  template for each kind of design document — high-level, detail, delta.
+  template for each kind of design document — diagnosis, stance, decisions,
+  detail, delta.
 
 Underneath all of it: `preflight.py`, `track_state.py`, `design_probe.py`,
 `options_lint.py`, and `validate.py` answer what a deterministic check can
@@ -68,7 +69,7 @@ flowchart TB
 
     S1["intake<br/>a problem statement you can check"] --> S2
     S2["discover<br/>what nobody knows yet"] --> S3
-    S3["design<br/>high-level, detail, or delta"] --> HG1
+    S3["design<br/>diagnosis or stance, then<br/>decisions, then detail"] --> HG1
     HG1[/"human gate · menu<br/>sign off, no code exists yet"/] --> S4
     S4["build<br/>the work breakdown, unit by unit"] --> S5
     S5["verify<br/>four lenses over the diff"] --> S6
@@ -120,7 +121,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:track <feature>` | Create or resume a track. Refuses `current` and `done` as names; refuses a sixth active track (`done/` tracks don't count). Also `status`, `skip <stage> --reason "<why>"`, and `done`. |
 | `/cai:intake` | Turn a request into an acceptance-testable problem statement before any code exists: explore context, ask one question at a time, propose 2-3 approaches, wait for approval. User-invoked only. |
 | `/cai:discover` | Surface what you don't know before writing code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Also fires on its own when the codebase is unfamiliar or the result will be judged by look and feel. |
-| `/cai:design` | Write a design document for review: high-level (architecture options, stops before implementation detail), detail (an approved high-level design turned into something a team can build from), or delta (recovers the decisions already made in a built branch). User-invoked only. |
+| `/cai:design` | Write a design document for review. Two entrances, picked by one test — can you write a test that fails now and would pass if an existing promise held? Yes: **diagnosis** (root cause and fix, one page). No, because nothing ever promised it: **stance** (what this optimises for and what it gives up, one page). Then **decisions** (the choices that follow, routed so only what needs a person reaches one), **detail** (what gets built from), or **delta** (recovers the decisions already made in a built branch). User-invoked only. |
 | `/cai:build` | Build a detail design's work breakdown unit by unit, test-first, verifying and committing each one before the next starts — or cut your own checkpointed units with no design doc. User-invoked only. |
 | `/cai:verify` | Dispatch four read-only reviewers (correctness, conformance, coverage, security) over a branch diff in parallel, reconcile their findings, then fix Blockers and Majors with a failing test before and a passing one after. |
 | `/cai:ship` | Squash a branch into one conventional commit, write a release note, and stop before merging, tagging, or publishing until a person confirms. User-invoked only. |
@@ -197,9 +198,13 @@ the project turns it on in `.claude/cai.json`:
 ```
 
 Then point a track at an issue with `ticket.py point --track-dir
-.claude/track/<feature> --ref <issue number>` — the full command, and how to
-check what it last did, are in [`MANUAL.md`](MANUAL.md). From there `intake`
-reads the issue as its starting request, every passing stage row and every
+.claude/track/<feature> --ref <issue number>` — the full command, and a worked
+example from an issue link to a merged PR, are in [`MANUAL.md`](MANUAL.md).
+From there `intake` reads the issue as its starting request **and routes it**:
+it tries to write a test that fails now and would pass if an existing promise
+held, and what comes out decides whether the design stage runs `diagnosis` or
+`stance`. The issue's own wording does not decide that — "add a retry" reads
+like a feature and is often a symptom. Then every passing stage row and every
 skip updates one comment on the issue — the six stage rows, not the local
 artifact paths — and `ship` asks separately, each on its own turn, whether to
 project its own row and, once its commands have run, whether to close the

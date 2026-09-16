@@ -1,8 +1,8 @@
 ---
 name: designer
 description: >
-  Writes a design document — stance, decisions, detail, or delta — following
-  stage-design.md's procedure. Dispatched by the `design` stage. Cites
+  Writes a design document — diagnosis, stance, decisions, detail, or delta —
+  following stage-design.md's procedure. Dispatched by the `design` stage. Cites
   evidence for every claim about existing behaviour and hands any
   architecture-level choice up unanswered rather than deciding it.
 tools: Read, Write, Grep, Glob, Agent, Bash(python:*), Bash(py:*), Bash(python3:*), Bash(mmdc:*)

@@ -17,6 +17,8 @@ asked about, or on a capability nobody checked was actually available.
 
 ## Pick a mode, and say which
 
+- **Diagnosis** — something is broken. Names the root cause and the fix, one
+  page. Entry condition below; it is not "someone called it a bug".
 - **Stance** — the trade this system makes: what it optimises for, what it
   gives up, and the invariants nothing later may violate. One page, read in
   full by a person.
@@ -27,9 +29,26 @@ asked about, or on a capability nobody checked was actually available.
 - **Delta** — the branch is already built. Recovers the decisions from the
   diff and the commits instead of deciding anything.
 
-Work entering from `intake`/`discover` runs Stance, then Decisions once the
-person approves the stance, then Detail. Delta only applies when code already
-exists and nobody wrote down why it looks the way it does.
+**Diagnosis and Stance are the two entrances, and one test picks between
+them** — the same one `stage-intake.md` runs to route the work:
+
+> Can you write a test that fails now and would pass if an existing promise
+> held?
+
+A promise is an existing test, the documentation, a spec, or an invariant.
+Never anyone's expectation: an expectation nobody wrote down is a
+requirement, and requirements are Stance's problem.
+
+- **Yes** → something is broken. Diagnosis.
+- **No, because nothing ever promised it** → it was never there. Stance.
+
+Do not route on the words the request arrived in. "Add a retry" sounds like a
+feature and its root cause is often a misconfigured pool, where the retry
+treats the symptom — and the ticket's wording never says so.
+
+After either entrance, the rest is shared: Decisions where choices survive,
+then Detail. Delta only applies when code already exists and nobody wrote
+down why it looks the way it does.
 
 **Why these are three documents and not one.** A document that has to be read
 before a decision and a document that has to be complete enough to build from
@@ -184,6 +203,70 @@ boundaries that split one decision into five. Stop and re-cut rather than
 asking the person to read more. The two ceilings are starting values: the way
 to calibrate them is to ask, once, whether the last round was actually read in
 full, and lower them when the answer is no.
+
+## Mode: Diagnosis
+
+0. **Write the failing test first.** Not after the cause is found — first. It
+   is this mode's entry condition, and writing it is what checks the routing
+   rather than trusting it. Name which promise it tests against: an existing
+   test, the documentation, a spec, an invariant.
+
+   **Cannot write one, because nothing ever promised this?** Stop. This is
+   Stance mode's work, and continuing here would produce a root cause for a
+   behaviour that was never guaranteed. Say so and hand the routing back.
+
+1. **Find the cause, not the line.** Run `/cai:debug`'s steps 1–4 —
+   reproduce on purpose, read the trace and what changed recently, instrument
+   the boundary on a multi-component system, one hypothesis and one small
+   test at a time. That file owns the procedure; this mode owns the document
+   it produces, and does not restate it.
+
+   The rule that matters here is its first one: **no fix before the root
+   cause is found and stated.** This mode is where "stated" gets a reader.
+
+2. **Write it.** Unless the person named a path:
+   `docs/design/<YYYY-MM-DD>-<topic>-diagnosis.md`, date from `date +%F`.
+   Copy `${CLAUDE_PLUGIN_ROOT}/templates/design-diagnosis.md.tpl`, fill it
+   in, delete the HTML-comment guidance as you answer it. Do not add or
+   rename headings.
+
+   `## Root cause` answers one question beyond naming the cause: **what would
+   still be true if you fixed the line the stack trace points at?** "The same
+   thing could happen again through another path" means you have a symptom
+   and the cause is further up. `## Blast radius` is what turns one fix into
+   the right fix — the second caller found there is the ticket that would
+   otherwise come back in three weeks.
+
+3. **One diagram, and render it.** `## Picture` draws the path and marks
+   where it goes wrong. That is what a reader checks the cause against, and
+   it is faster than the same claim in prose. Same rules and same `mmdc`
+   check as the other modes, and a sentence under it saying what to look at.
+
+4. **Escalate rather than decide.** If the fix needs an architecture-level
+   choice, or two approaches both survive the evidence, or the cause lands on
+   an invariant — stop and hand it up to Stance mode. `/cai:debug`'s "after
+   three fixes fail, question the design" is the same escalation seen from
+   the other side.
+
+   **That escalation is one-way and gets recorded.** Diagnosis → Stance is
+   common (a small bug turns out to be a design problem); the reverse
+   essentially never happens. How often a track escalates is the most direct
+   reading available of how vague this system's design intent is.
+
+5. **Check, then review.**
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind diagnosis <the document>`
+   until it exits 0, then `plan-review` against it.
+
+6. **Stop.** `## Status` stays `draft`. What the person signs here is **the
+   root cause**, not the fix: a wrong cause makes every fix downstream of it
+   wrong, and that is the one judgement a person makes better than the
+   evidence alone. Same menu as the other entrance
+   (`references/approval-gates.md`).
+
+   After sign-off the work goes straight to Detail when the fix touches more
+   than a couple of files, or to `build` when it does not — Decisions has
+   nothing to route, because a diagnosis with real options escalated at
+   step 4 instead.
 
 ## Mode: Stance
 
@@ -424,10 +507,11 @@ gate `track`'s human checkpoint sits on: nothing after this stage starts
 until a person signs off on the design artifact, through the menu
 `references/approval-gates.md` describes.
 
-Each mode has its own `--kind`: `stance`, `decisions`, `detail`, `delta`, and
-`hld` for the legacy shape. What the person signs is the stance and the
-answered Tier 1 entries — not the build spec, which is written for whoever
-builds and is not reviewed line by line. That is why the first two have
+Each mode has its own `--kind`: `diagnosis`, `stance`, `decisions`, `detail`,
+`delta`, and `hld` for the legacy shape. What the person signs is whichever
+entrance ran — a root cause, or a stance and its answered Tier 1 entries —
+never the build spec, which is written for whoever builds and is not reviewed
+line by line. That is why the first two have
 ceilings and the third does not: **what a person signs has to stay small
 enough to sign again** after it changes.
 
@@ -455,8 +539,11 @@ reads exactly like one that was needed. Each of these belongs somewhere else:
 - **The decisions are already made and you want them written down.** That is
   dictation, not design — write the document, but skip the option-weighing
   this stage exists for rather than staging a choice nobody is making.
-- **Nothing is being designed; something is broken.** That is `/cai:debug`:
-  reproduce it, find the root cause, fix that.
+- **Something is broken and the fix is obvious once seen** — a typo, an
+  off-by-one, a line anyone would point at. Run `/cai:debug` and fix it.
+  Diagnosis mode is for a broken thing whose *cause* is worth a person's
+  confirmation; a document proving what everyone can already see is the same
+  ceremony this list exists to prevent.
 - **The requirements themselves are the unknown.** Run `discover` first, then
   come back — this stage traces a design against requirements, and it has
   nothing to trace against yet.

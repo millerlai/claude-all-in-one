@@ -116,8 +116,9 @@ turns, because a yes to publishing is not a yes to any of them:
 stops already exist in their own stage references; what they take from here
 is only the shape — a menu, never a sentence to type a word back into:
 
-- `stage-intake.md` Step 4 — the problem statement and the recommended
-  approach, before anything is designed.
+- `stage-intake.md` Step 5 — the problem statement, the route Step 2 derived
+  (broken, or never there) with its evidence, and the recommended approach,
+  before anything is designed.
 - `stage-design.md`'s cost-sizing — the four lines, before a pass that reads
   a whole directory.
 - `stage-design.md`'s stance approval, at the end of Stance mode. Decisions

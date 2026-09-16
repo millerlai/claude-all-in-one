@@ -1045,7 +1045,8 @@ sys.path.insert(0, f"{PLUGIN}/scripts")
 import design_probe  # noqa: E402
 import ledger  # noqa: E402
 
-for kind, want in (("stance", design_probe.STANCE_HEADINGS),
+for kind, want in (("diagnosis", design_probe.DIAGNOSIS_HEADINGS),
+                   ("stance", design_probe.STANCE_HEADINGS),
                    ("decisions", design_probe.DECISIONS_HEADINGS),
                    ("hld", design_probe.HLD_HEADINGS),
                    ("detail", design_probe.DETAIL_HEADINGS),
@@ -2137,7 +2138,8 @@ if os.path.isfile(PLAN_REVIEW):
     listed = [[re.split(r"\s{2,}", line[3:].strip(), maxsplit=1)[0]
                for line in b.splitlines() if line.startswith("## ")]
               for b in blocks]
-    for kind, want in (("stance", design_probe.STANCE_HEADINGS),
+    for kind, want in (("diagnosis", design_probe.DIAGNOSIS_HEADINGS),
+                       ("stance", design_probe.STANCE_HEADINGS),
                        ("decisions", design_probe.DECISIONS_HEADINGS),
                        ("hld", design_probe.HLD_HEADINGS),
                        ("detail", design_probe.DETAIL_HEADINGS)):

@@ -13,7 +13,7 @@
 - **軌道（track）。** `/cai:track <feature>` 帶著一個 feature 走完六個 SDLC 階段，狀態存在 `.claude/track/<feature>/state.md`，所以一個完全不記得這段對話的新 session 也能接手繼續。`/cai:track status` 告訴你停在哪裡；`/cai:track skip <stage> --reason "<why>"` 會記下跳過某階段的理由，而不是默默略過。
 - **六個階段（stage）。** `intake`、`discover`、`design`、`build`、`verify`、`ship`。每個階段的程序都是 `skills/track/references/stage-*.md` 底下的一份參考檔，有兩種讀法：由軌道派出的 subagent 讀，或由該階段自己的精簡 skill（`/cai:intake`、`/cai:discover`、`/cai:design`、`/cai:build`、`/cai:verify`、`/cai:ship`）在有人只想單獨跑這個階段時讀——有沒有軌道都可以。恰好有兩處會停下來等人簽核：`design` 之後、任何程式碼存在之前；以及 `ship` 內部那些不可逆操作（merge、打 tag、發佈）之前。兩者都以選單呈現讓你點選，絕不會要你打出 `approved` 這個字。而且第一個關卡是被強制執行、而非靠記憶：ledger 沒有記錄到「有人選了 Approve」之前，`build` 拒絕啟動；簽核之後設計文件若被改過，它也會再次拒絕。
 - **工具。** 不需要跑軌道、隨時可用：`/cai:refactor`、`/cai:debug`、`/cai:git`、`/cai:chore`、`/cai:quiz`、`/cai:plan-review`、`/cai:options`、`/cai:usage`。
-- **知識。** 在被讀取之前完全不花成本的參考檔：`refactoring-catalog/` 底下 72 張具名重構卡、smell 到重構手法的對照表、上述六份階段程序，以及三種設計文件（high-level、detail、delta）各一份範本。
+- **知識。** 在被讀取之前完全不花成本的參考檔：`refactoring-catalog/` 底下 72 張具名重構卡、smell 到重構手法的對照表、上述六份階段程序，以及五種設計文件（diagnosis、stance、decisions、detail、delta）各一份範本。
 
 墊在最底下的是：`preflight.py`、`track_state.py`、`design_probe.py`、`options_lint.py` 與 `validate.py`，在任何東西送進模型之前，先回答那些確定性檢查就能判定的問題——這個階段可以開始嗎？軌道停在哪裡？這份設計文件真的具備它宣稱的結構嗎？讀者在一份選項清單裡找得到「可逆性多高」嗎？`ledger.py` 則保存這些檢查所讀的紀錄：每個階段的每一次嘗試，只附加、永不修改，讓新 session 能說出某個階段已經試了幾次、上次為什麼失敗、是誰放行的。
 
@@ -32,7 +32,7 @@ flowchart TB
 
     S1["intake<br/>一份可以驗收的問題陳述"] --> S2
     S2["discover<br/>還沒有人知道的事"] --> S3
-    S3["design<br/>high-level、detail 或 delta"] --> HG1
+    S3["design<br/>diagnosis 或 stance，<br/>接 decisions，再接 detail"] --> HG1
     HG1[/"人工關卡 · 選單<br/>簽核，此時尚無程式碼"/] --> S4
     S4["build<br/>依工作分解逐單元實作"] --> S5
     S5["verify<br/>四個視角審查 diff"] --> S6
@@ -78,7 +78,7 @@ flowchart TB
 | `/cai:track <feature>` | 建立或接續一條軌道。拒絕以 `current` 與 `done` 作為名稱；拒絕開第六條進行中的軌道（`done/` 底下的不算）。另有 `status`、`skip <stage> --reason "<why>"` 與 `done`。 |
 | `/cai:intake` | 在任何程式碼存在之前，把需求轉成可驗收的問題陳述：探索脈絡、一次只問一個問題、提出 2-3 種做法、等待核可。僅限使用者手動呼叫。 |
 | `/cai:discover` | 在寫程式之前找出你不知道的事——盲點掃描、詞彙階梯、訪談、選項空間或 mock，哪個未知數會影響最多工作就用哪個。當程式碼區域不熟悉、或成果要憑外觀與手感評斷時，也會自動觸發。 |
-| `/cai:design` | 撰寫供審查的設計文件：high-level（比較架構選項，停在實作細節之前）、detail（把已核可的 high-level 設計轉成團隊可以據以實作的文件），或 delta（從已實作的分支回推既成的決策）。僅限使用者手動呼叫。 |
+| `/cai:design` | 撰寫供審查的設計文件。兩個入口，由一個測試決定走哪邊——「寫得出一個現在會失敗、而按照既有承諾本來應該會過的測試嗎？」寫得出：**diagnosis**（東西壞了，一頁寫根因與修法）。寫不出、因為從來沒承諾過：**stance**（為了什麼而犧牲什麼，一頁）。接著是 **decisions**（隨之而來的選擇，只有真正需要你的才會送到面前）、**detail**（據以實作的文件），或 **delta**（從已實作的分支回推既成的決策）。僅限使用者手動呼叫。 |
 | `/cai:build` | 依 detail 設計的工作分解逐單元實作，測試先行，每個單元驗證並 commit 之後才開始下一個——沒有設計文件時，也可以自行切出帶檢查點的單元。僅限使用者手動呼叫。 |
 | `/cai:verify` | 平行派出四個唯讀審查者（correctness、conformance、coverage、security）檢視分支 diff，整合它們的發現，再以「先寫會失敗的測試、修完變通過」的方式修正 Blocker 與 Major。 |
 | `/cai:ship` | 把分支 squash 成一個 conventional commit、撰寫 release note，並在 merge、打 tag 或發佈之前停下，直到有人確認。僅限使用者手動呼叫。 |
@@ -137,7 +137,7 @@ Fowler 目錄中的每一種重構也各自是一個 slash command——`/cai:ex
 { "ticket": { "enabled": true, "backend": "github" } }
 ```
 
-接著用 `ticket.py point --track-dir .claude/track/<feature> --ref <issue number>` 把軌道指向某個 issue——完整指令、以及如何查看它上一次做了什麼，寫在 [`MANUAL.md`](MANUAL.md)。之後 `intake` 會把該 issue 當作起始需求讀入；每一列通過的階段與每一次跳過，都會更新 issue 上的同一則留言——內容是六個階段列，不含本機的 artifact 路徑；`ship` 會各用一個獨立回合分別詢問：是否要把它自己那一列也投影上去，以及在它的指令實際執行完之後，是否要關閉該 issue。它透過 `gh` CLI 操作 repo 自己 remote 上的 issue。投影失敗會記錄在該軌道的 `ticket.json`，永遠不會讓階段失敗，也不計入重試上限。
+接著用 `ticket.py point --track-dir .claude/track/<feature> --ref <issue number>` 把軌道指向某個 issue——完整指令、以及一份「從一個 issue 連結到 PR 合併」的端到端範例，寫在 [`MANUAL.md`](MANUAL.md)。之後 `intake` 會把該 issue 當作起始需求讀入，**並且判定路線**：它會試著寫一個「現在會失敗、而按照既有承諾本來應該會過」的測試，結果決定 design 階段走 `diagnosis` 還是 `stance`。issue 自己的措辭不作數——「加一個 retry」讀起來像新功能，卻經常是症狀。每一列通過的階段與每一次跳過，都會更新 issue 上的同一則留言——內容是六個階段列，不含本機的 artifact 路徑；`ship` 會各用一個獨立回合分別詢問：是否要把它自己那一列也投影上去，以及在它的指令實際執行完之後，是否要關閉該 issue。它透過 `gh` CLI 操作 repo 自己 remote 上的 issue。投影失敗會記錄在該軌道的 `ticket.json`，永遠不會讓階段失敗，也不計入重試上限。
 
 ## 刻意不做的事
 

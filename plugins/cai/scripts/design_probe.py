@@ -43,6 +43,10 @@ STATUS = re.compile(r"^(draft|approved\s+\d{4}-\d{2}-\d{2})", re.I | re.M)
 # `draft` whatever the prose around it is -- these are the strings a machine
 # reads back, and the templates say so where the author will see it.
 FOUND_OUT = re.compile(r"found out when", re.I)
+# A test's path, which unlike a citation need not carry a line number -- a
+# failing test is named by where it lives, `tests/test_x.py::test_y`, and
+# demanding `:12` would only teach the author to invent one.
+TEST_PATH = re.compile(r"[\w./\\-]+\.\w+")
 BULLET = ("- ", "* ", "|")
 
 HLD_HEADINGS = ["Status", "Use cases / Issues", "Feasibility",
@@ -70,6 +74,14 @@ STANCE_HEADINGS = ["Status", "Optimises for", "Sacrifices", "Invariants",
 # know that reads the tiers wondering where an option went.
 DECISIONS_HEADINGS = ["Reference", "Feasibility", "Ruled out",
                       "Requirement gaps", "Tier 1", "Tier 2", "Tier 3"]
+# The stance's counterpart for something broken rather than missing. `Failing
+# test` sits second because it is this mode's entry condition, not a section
+# written afterwards: without a test that fails now and would pass if an
+# existing promise held, nothing was promised, so nothing is broken, and the
+# work belongs in stance mode.
+DIAGNOSIS_HEADINGS = ["Status", "Symptom", "Failing test", "Root cause",
+                      "Blast radius", "Fix", "Invariants preserved",
+                      "Picture", "Out of scope"]
 
 # Two headings are legitimately short or legitimately empty, and a length rule
 # over them makes a correct document unpassable. `## Status` says exactly
@@ -99,13 +111,19 @@ TIER2_MAX = 10
 # the rest readable, so charging the budget for one would push authors to drop
 # the cheapest thing that helps.
 STANCE_MAX_LINES = 80
+# A diagnosis gets more room than a stance and for a stated reason: it carries
+# reproduction steps and the evidence behind the cause, neither of which a
+# stance has. It is still a ceiling -- what is signed here is one root cause,
+# and a root cause that needs three pages is usually two causes.
+DIAGNOSIS_MAX_LINES = 100
 
 # The templates are the shape the design commands write to, so they are the
 # source of truth for the lists above. validate.py asserts the two agree.
 TEMPLATES = {"hld": "design-high-level.md.tpl", "detail": "design-detail.md.tpl",
              "delta": "design-delta.md.tpl",
              "stance": "design-stance.md.tpl",
-             "decisions": "design-decisions.md.tpl"}
+             "decisions": "design-decisions.md.tpl",
+             "diagnosis": "design-diagnosis.md.tpl"}
 
 
 def sections(text):
@@ -335,6 +353,38 @@ def stance_probes(secs, text, roots):
         "within_one_page (%d line(s), ceiling %d)" % (n, STANCE_MAX_LINES)
 
 
+def diagnosis_probes(secs, text, roots):
+    yield probe_headings(secs, DIAGNOSIS_HEADINGS)
+
+    ok = bool(STATUS.search(COMMENT.sub("", secs.get("Status", ""))))
+    yield ok, "status_is_well_formed (%s)" % (
+        "draft or approved <date>" if ok else
+        "must read `draft` or `approved YYYY-MM-DD`")
+
+    # This mode's entry condition, checked rather than assumed. Without a test
+    # that fails now, "it is broken" is a claim about an expectation, and an
+    # expectation nobody wrote down is a requirement -- which makes this stance
+    # mode's problem, not this one's.
+    test = TEST_PATH.search(COMMENT.sub("", secs.get("Failing test", "")))
+    yield bool(test), "failing_test_named (%s)" % (
+        test.group(0) if test else
+        "no test path -- without one nothing was promised, so nothing is broken")
+
+    # A cause with no evidence behind it is the guess this whole mode exists to
+    # prevent, and it is worse than a blank because it ends the search.
+    cause = COMMENT.sub("", secs.get("Root cause", ""))
+    ok = bool(CITE.search(cause)) or "unverified" in cause.lower()
+    yield ok, "root_cause_cited (%s)" % (
+        "cited" if ok else "no file:line or URL, and not marked UNVERIFIED")
+
+    count = len(FENCE.findall(text))
+    yield count >= 1, "diagram_present (%d mermaid block(s), need 1)" % count
+
+    n = len(prose_lines(text))
+    yield n <= DIAGNOSIS_MAX_LINES, \
+        "within_one_page (%d line(s), ceiling %d)" % (n, DIAGNOSIS_MAX_LINES)
+
+
 def decisions_probes(secs, text, roots):
     yield probe_headings(secs, DECISIONS_HEADINGS)
 
@@ -527,7 +577,8 @@ def delta_probes(secs, text, roots):
 
 
 PROBES = {"stance": stance_probes, "decisions": decisions_probes,
-          "hld": hld_probes, "detail": detail_probes, "delta": delta_probes}
+          "diagnosis": diagnosis_probes, "hld": hld_probes,
+          "detail": detail_probes, "delta": delta_probes}
 
 
 def main():

@@ -80,9 +80,15 @@ The six stages, in order:
    you could actually check. Asks one question at a time and waits.
 2. **`discover`** — surfaces what nobody knows yet. Says what the move costs
    before running it.
-3. **`design`** — writes a design document under `docs/design/`. High-level
-   weighs architecture options; detail turns an approved one into something a
-   team can build from; delta recovers decisions from a branch already built.
+3. **`design`** — writes a design document under `docs/design/`. Two
+   entrances, and `intake` already picked between them with one test: can you
+   write a test that fails now and would pass if an existing promise held?
+   **diagnosis** when yes (something is broken: root cause and fix, one page),
+   **stance** when no because nothing ever promised it (what this optimises
+   for, what it gives up, the invariants). Then **decisions** — the choices
+   that follow, with only the ones that need you reaching you — and **detail**,
+   the document the build works from. **delta** recovers decisions from a
+   branch already built.
 4. **`build`** — works the design's own work breakdown, one unit at a time,
    test-first. Nothing starts until the unit before it is green and committed.
 5. **`verify`** — four read-only reviewers over the diff: correctness,
@@ -182,12 +188,12 @@ names one of these:
 | `state_md` | No `state.md`, or no row for the stage this one reads | Open the track with `/cai:track <name>` first |
 | `intake_status` | `discover` asked to run before `intake` was `done` or `skipped` | Finish intake, or skip it with a reason |
 | `artifact_named` | `build` asked to run, and the design row names no document | Run `design`, or record the document you're reusing. If you skipped `design`, skip `build` too |
-| `artifact_kind` | Filename ends in none of `-high-level.md`, `-detail.md`, `-delta.md` | Rename it. The suffix is how the kind is known — there is no separate field |
+| `artifact_kind` | Filename ends in none of `-diagnosis.md`, `-stance.md`, `-decisions.md`, `-high-level.md`, `-detail.md`, `-delta.md` | Rename it. The suffix is how the kind is known — there is no separate field |
 | `artifact_exists` | The document `state.md` names isn't on disk | Fix the path, or re-run the stage that should have written it |
 | a `design_probe.py` line | The design document fails its own structural check | Read the probe's lines; each names one missing heading, citation or number |
 | `design_signed_off` | `build` asked to run, and the ledger holds no Approve from a person for `design` | Go through the design gate and pick Approve. Changes requested and Reject don't count |
 | `artifact_unchanged` | The design document changed, or vanished, since it was signed off | Revert the edit, or take the document back through sign-off. `build`'s unit table lives in `implementation-notes.md` for exactly this reason |
-| `work_breakdown` | A *detail* design has no `## Work breakdown` | `build` consumes that table as its schedule. High-level and delta designs need none — `build` cuts the units itself |
+| `work_breakdown` | A *detail* design has no `## Work breakdown` | `build` consumes that table as its schedule. The other kinds need none — `build` cuts the units itself |
 | `has_changes` | Nothing to review — clean tree, no diff from base | Commit something first |
 | `verify_status` | `ship` asked to run before `verify` finished | Run verify, or skip it with a reason you'd be willing to read back |
 | `clean_tree` | Uncommitted changes at ship time | Commit or stash. Ship rewrites history and won't do it over a dirty tree. If the dirty files are the track's own, ignore `.claude/track/` |
@@ -287,9 +293,64 @@ Then point the track at an issue in the same repository, once:
 python <plugin-root>/scripts/ticket.py point --track-dir .claude/track/<feature> --ref 123
 ```
 
-From then on:
+### Worked example: from an issue link to a merged PR
 
-- `intake` reads the issue as its starting request.
+You paste a link and say what you want:
+
+> `https://github.com/acme/api/issues/241` — take this one
+
+**1. The track gets created and pointed at the issue.** Two commands, and the
+second one takes the *number*, not the URL:
+
+```bash
+/cai:track retry-on-timeout
+python <plugin-root>/scripts/ticket.py point --track-dir .claude/track/retry-on-timeout --ref 241
+```
+
+Point it right after creating the track. Nothing reminds you: a track with no
+pointer runs to the end perfectly happily, just without ever reading the issue
+or reporting back to it.
+
+**2. `intake` reads the issue and routes it.** The routing is the part worth
+watching, because the issue's title does not decide it. Issue #241 says *"add
+a retry when the upstream times out"*, which reads like a feature. `intake`
+asks the one question that settles it:
+
+> Can I write a test that fails now and would pass if an existing promise
+> held?
+
+- **It writes one** — `tests/test_pool.py::test_returns_connection_on_timeout`
+  fails today, and `docs/api.md` has promised since March that a timed-out
+  connection goes back to the pool. So #241 is **broken**, the retry would have
+  been treating a symptom, and the design stage runs **diagnosis**.
+- **It cannot** — nothing anywhere promised retry behaviour. Then #241 is
+  **never there**, and the design stage runs **stance**.
+
+Either way you get the problem statement, the route *with its evidence*, and
+2–3 approaches, as a menu.
+
+**3. The design stage takes that entrance.** Diagnosis writes one page —
+symptom, the failing test, root cause with `file:line`, blast radius, the fix,
+and a diagram with the fault marked — and stops. **What you sign is the root
+cause**, not the fix: a wrong cause makes every fix under it wrong. Stance
+instead writes the trade, and then `decisions` puts at most five choices to
+you one at a time.
+
+**4. `build`, `verify`, `ship`.** The fix goes in test-first, four reviewers
+read the diff, and `ship` looks #241 up again so the number lands in the
+commit message and the PR body exactly once.
+
+**5. The issue gets closed — if you say so.** After the merge and tag commands
+have actually run, `ship` asks on its own turn. "Close #241" closes it;
+anything else leaves it open.
+
+Throughout, one comment on #241 is rewritten after every stage, carrying the
+six stage rows. Local paths are left out of it.
+
+### What each stage does with the issue
+
+- `intake` reads the issue as its starting request, and derives the route
+  (broken, or never there) from evidence rather than from its wording.
 - Every passing stage row, and every skip, updates one comment on the issue
   with the six stage rows. Local artifact paths are left out — nobody reading
   the issue could open them.
