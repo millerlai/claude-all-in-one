@@ -18,7 +18,49 @@ no `Agent` (`architect.md:7`), and keeping it that way is the trade this makes. 
 question asked without having looked first spends the person's time on something
 you could have found yourself.
 
-## Step 2 — Ask one question at a time
+## Step 2 — Route it: broken, or never there
+
+A request does not say which it is, and its wording is not evidence. "Add a
+retry" sounds like a feature; its root cause is often a misconfigured pool,
+where the retry treats the symptom. A ticket's title is written by whoever
+noticed the problem, not by whoever knows its cause.
+
+So route on evidence, with one test:
+
+> **Can you write a test that fails now and would pass if an existing promise
+> held?**
+
+A promise is an existing test, the documentation, a spec, or an invariant in
+a stance document. **Never anyone's expectation** — an expectation nobody
+wrote down is a requirement, and that answers the question the other way.
+
+- **Yes** → it is broken. The design stage runs **diagnosis** mode, and that
+  failing test is its entry condition, already written.
+- **No, because nothing ever promised it** → it was never there. The design
+  stage runs **stance** mode.
+
+The best part of this test is that running it is not overhead: whichever way
+it comes out, that test had to be written. Routing is the first piece of the
+work, not a ceremony in front of it.
+
+**Both at once is normal.** "Login is slow" can be an N+1 query (broken) and
+a caching layer nobody ever built (never there) in the same ticket. Split
+it: the half you can write a failing test for goes one way, the half you
+cannot goes the other. Forced down one road, the second half silently looks
+finished when the first is.
+
+**Report the route with its evidence**, not as a label: the test you wrote or
+the reason you could not, and which promise it tests against. Three
+counter-checks, none of which needs judgement:
+
+- Called a bug, but no failing test can be written → it is not a bug.
+- Called a feature, but an existing test or the documentation already
+  promises the opposite → it is a bug.
+- Either way, if the cause later lands on an invariant, diagnosis escalates
+  to stance (`stage-design.md`). That escalation is one-way and gets
+  recorded.
+
+## Step 3 — Ask one question at a time
 
 Whatever is still ambiguous after exploring goes to the user, following the
 interview move (`stage-discover.md`, move C):
@@ -35,7 +77,7 @@ interview move (`stage-discover.md`, move C):
 Skip this step when the request already reads unambiguous — interviewing
 someone who already answered is noise.
 
-## Step 3 — Propose 2–3 approaches
+## Step 4 — Propose 2–3 approaches
 
 Once the request is unambiguous, propose 2–3 approaches. Each one carries:
 
@@ -44,9 +86,9 @@ Once the request is unambiguous, propose 2–3 approaches. Each one carries:
 - how it fails — the situation where this would be the wrong choice.
 
 Mark at most one **(recommended)**, and say why from the trade-offs above —
-never from preference alone. This is the same option-weighing `stage-design.md`'s
-High-level mode runs before an architecture choice, sized for a raw
-request rather than a full feasibility table.
+never from preference alone. This is the same option-weighing
+`stage-design.md`'s Decisions mode runs before an architecture choice, sized
+for a raw request rather than a full feasibility table.
 
 Lay each approach out in `option-explainer.md`'s six-field shape: a title line,
 then the six numbered, one field per item. Not a paragraph with them run
@@ -59,7 +101,7 @@ always-on self-check in `option-explainer.md` when this stage is the main
 session. Do not add the command here; add the capability first, in the open
 (`scripts/validate.py`'s `RETIRED_IMPERATIVES` fails the build if it appears).
 
-## Step 4 — Wait for approval
+## Step 5 — Wait for approval
 
 **Do not start implementing.** Hand back the problem statement, the
 acceptance criteria it implies, and the recommended approach, then stop.
@@ -67,9 +109,14 @@ The next stage — `discover` when the solution space is still unclear, or
 `design` when it is not — only starts once the user has said yes to this
 one. Typing the request is not agreement to whatever was inferred from it.
 
-That yes is a menu, not a word to type: the approaches from Step 3 become the
+That yes is a menu, not a word to type: the approaches from Step 4 become the
 options, `references/approval-gates.md` holds the shape, and the person who
 puts it is the main session (this stage's runner has no interactive tool).
+
+**Hand the route up with it**, in the same breath as the problem statement:
+which entrance the design stage will take, and the evidence Step 2 produced
+for it. A route inferred later, from the shape of the request, is the guess
+Step 2 exists to replace.
 
 ## Report
 

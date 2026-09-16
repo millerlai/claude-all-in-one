@@ -151,7 +151,7 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_unchanged_at_5663():
+def test_always_on_budget_is_unchanged_at_5674():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
@@ -188,10 +188,19 @@ def test_always_on_budget_is_unchanged_at_5663():
     # excludes, because a skill the model cannot invoke costs nothing until
     # someone types its name. ALWAYS_ON_CEILING stays 5697; the headroom
     # measured on 2026-09-13 goes 41 -> 34 rather than the ceiling moving.
+    #
+    # 5663 -> 5674 on 2026-09-16, one description again, measured.
+    # `designer.md`'s went 282 -> 293: the design stage gained a second
+    # entrance, so its mode list grew "diagnosis, ". `design/SKILL.md`'s went
+    # 435 -> 491 in the same change and is excluded for the same reason as
+    # above. ALWAYS_ON_CEILING stays 5697; headroom 34 -> 23. That number is
+    # now small enough to be worth saying out loud: the next description that
+    # grows is likely to need the ceiling raised, and raising it is a
+    # decision, because every character here is read by every session.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 5663
+    assert int(m.group(1)) == 5674
 
 
 # --- the added line itself carries the load-bearing instruction ------------

@@ -184,6 +184,27 @@ Which skeleton applies depends on what the document is *for* — being decided o
 or being implemented from. Reviewing a high-level design against the detail
 skeleton produces findings that are all true and all premature.
 
+**Diagnosis** — something is broken; what a person signs is the root cause:
+
+```md
+## Status                draft, or approved + the date the person approved it
+## Symptom               what is observed, and the steps that produce it every time
+## Failing test          the test that fails now, and which promise it tests against
+## Root cause            why it happens, with file:line for every claim
+## Blast radius          who else this same cause reaches
+## Fix                   what changes, and why that is the cause not the symptom
+## Invariants preserved  what this must not break, and how anyone would know
+## Picture               one diagram of the path, with the fault marked
+## Out of scope          what this deliberately does not fix
+```
+
+Findings specific to this one: a root cause that would leave "the same thing
+could happen through another path" true (that is a symptom, and the cause is
+further up); a `## Failing test` naming no test (without one nothing was
+promised, so this is stance mode's work); and a `## Fix` that weighs two
+approaches (a diagnosis with real options is a design wearing a diagnosis's
+clothes — it should have escalated).
+
 **Stance** — the trade the system makes, read in full by a person in one
 sitting:
 

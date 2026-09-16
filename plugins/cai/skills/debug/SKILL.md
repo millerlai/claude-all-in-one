@@ -68,6 +68,24 @@ Question the design instead of trying a fourth patch: say what's failing
 and why the failures look structural (`AskUserQuestion`, or escalate to
 `architect` if the fix now spans components).
 
+## Inside a track
+
+Run standing alone, this skill ends at a working fix. Inside a track, the
+design stage's **diagnosis mode** (`stage-design.md`) is where steps 1–4's
+findings get written down and signed: what a person approves there is the
+**root cause**, because a wrong cause makes every fix downstream of it wrong.
+
+Two seams, both already described above from this side:
+
+- **The entry condition is Step 5's failing test, written first.** A test that
+  fails now and would pass if an existing promise held — an existing test, the
+  documentation, a spec, an invariant, never anyone's expectation. Cannot
+  write one because nothing ever promised it? Then nothing is broken: that is
+  a requirement, and the track's stance mode owns it.
+- **"After three fixes fail" is an escalation, not an ending.** Handing the
+  design question up is exactly diagnosis mode escalating to stance mode. It
+  goes one way only, and the track records it.
+
 ## When not to use this
 
 - The code already does what it should, and the request is to make it

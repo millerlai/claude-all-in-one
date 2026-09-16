@@ -33,9 +33,9 @@ MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
 
 # The three suffixes the /cai:design-*-doc commands already write. state.md
 # carries no separate field for this -- the filename is the convention.
-SUFFIX_KIND = {"-stance.md": "stance", "-decisions.md": "decisions",
-               "-high-level.md": "hld", "-detail.md": "detail",
-               "-delta.md": "delta"}
+SUFFIX_KIND = {"-diagnosis.md": "diagnosis", "-stance.md": "stance",
+               "-decisions.md": "decisions", "-high-level.md": "hld",
+               "-detail.md": "detail", "-delta.md": "delta"}
 
 
 def resolve(rel, *bases):
