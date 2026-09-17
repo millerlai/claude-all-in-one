@@ -209,21 +209,35 @@ for path in skills:
           f"({len(dead_paths)}{': ' + ', '.join(dead_paths[:2]) if dead_paths else ''})",
           not dead_paths)
 
-# R1: the design's target is 14 skills -- it is 16 today for two separate
-# reasons. `goal` stays until someone has actually run a track end to end,
-# which has not happened yet (Unit 8 decision, 2026-08-27); once it retires
-# this list drops to 15. `options` is an addition rather than a leftover: the
-# always-on rule it backs (rules/option-explainer.md) has to fit in 45 lines,
-# and the skeleton, dimension library and worked example do not
-# (docs/design/2026-08-29-option-explainer-with-eli5-high-level.md,
-# Decision 2). It carries `disable-model-invocation: true`, so it costs the
-# always-on budget below nothing.
-SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git", "goal",
-               "intake", "options", "plan-review", "quiz", "refactor", "setup",
-               "ship", "track", "usage", "verify"]
+# R1: the design's target is 14 skills; it is len(SKILL_NAMES) today, for the
+# three reasons below. (This sentence carried a hard-coded 16 while the list
+# already held 17 -- a count written in prose beside the list it counts goes
+# stale in silence, so it names the list instead.)
+#
+# `goal` stays until someone has actually run a track end to end, which has not
+# happened yet (Unit 8 decision, 2026-08-27); once it retires this drops by one.
+#
+# `options` is an addition rather than a leftover: the always-on rule it backs
+# (rules/option-explainer.md) has to fit in 45 lines, and the skeleton,
+# dimension library and worked example do not
+# (docs/design/2026-08-29-option-explainer-with-eli5-high-level.md, Decision 2).
+# It carries `disable-model-invocation: true`, so it costs the always-on budget
+# below nothing.
+#
+# `git-sweep` is an addition of the same kind: what it decides is deterministic
+# and lives in scripts/branch_sweep.py, so the skill is a thin relay over a
+# script rather than a procedure a model reasons through, and a person invokes
+# it by name. It carries the same flag for the same reason -- the budget below
+# reads 5674 of 5697 both before and after it was added, because the flag is
+# what excludes it from that sum. Its description is 142 characters against 23
+# of headroom, so always-on it would not have fitted at all: the choice was the
+# flag or a ceiling raise, and a ceiling raise is a decision, not a chore.
+SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git",
+               "git-sweep", "goal", "intake", "options", "plan-review", "quiz",
+               "refactor", "setup", "ship", "track", "usage", "verify"]
 skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
-check(f"skills/ holds exactly the 17 names {SKILL_NAMES} ({skill_dirs})",
-      skill_dirs == SKILL_NAMES)
+check(f"skills/ holds exactly the {len(SKILL_NAMES)} names {SKILL_NAMES} "
+      f"({skill_dirs})", skill_dirs == SKILL_NAMES)
 
 # The 72 generated refactoring aliases moved out of the main line into their
 # own directory (see .claude-plugin/plugin.json's additive "skills" key), so
