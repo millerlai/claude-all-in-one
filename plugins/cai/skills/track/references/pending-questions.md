@@ -42,7 +42,10 @@ and got nothing back", which is a different and much worse claim.
    labels hold a few words each, so the reasoning goes in the message above
    it, in `option-explainer.md`'s six-field shape — the stage handed up
    evidence, and a menu that drops it asks the person to choose blind. Write
-   that message to a file and
+   that message to a file — when the round is about a decisions document's
+   `## Tier 1` entry, that file is `<track-dir>/options-<id>.md`, `<id>` being
+   the entry's own id (e.g. `options-D1.md`), since that is the path
+   `preflight.py build`'s `options_drafts` check looks for — and
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the draft>`; exit 0
    or fix what it names (#73). This is the main session's step for the same
    reason the asking is: four of the six stage agents can run neither a

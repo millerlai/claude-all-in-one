@@ -27,6 +27,8 @@ DESIGN_PROBE = os.path.join(HERE, "design_probe.py")
 # track_state -> preflight -> ledger chain from closing into a cycle.
 sys.path.insert(0, HERE)
 import ledger  # noqa: E402
+import design_probe  # noqa: E402
+import options_lint  # noqa: E402
 
 DEFAULT_MAX_ATTEMPTS = 5
 MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
@@ -340,6 +342,71 @@ def discover(track_dir, project_dir):
     return [(ok, "intake_status (intake row's status is %s)" % (status or "empty"))]
 
 
+def _tier1_id(title, position):
+    """The Tier 1 entry's id: the `### ` heading's first whitespace-separated
+    token, kept only where it is a legal filename character on every
+    platform this repo runs on. A title that opens with something like
+    `：` or `?` filters down to nothing, and falls back to the entry's
+    1-based position instead -- so the path this check reports is always
+    one that can actually be created. See the detail design's `##
+    Failure modes` note on why an unsanitised id would reopen the
+    artifact_unchanged trap `build()` already works around above."""
+    first = title.split()[0] if title.split() else ""
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]", "", first)
+    return cleaned or str(position)
+
+
+def options_drafts(text, artifact, track_dir):
+    """UC2/R2: whether every `## Tier 1` entry in a decisions document has a
+    six-field options draft on disk that passes options_lint's probes.
+
+    Pure function of its three arguments -- it does not open `text` itself,
+    reusing what `build()` already read. Whether to check at all is answered
+    by two facts on disk, not by judgement: `artifact`'s suffix, and how
+    many `### ` entries `## Tier 1` carries."""
+    if not artifact.endswith("-decisions.md"):
+        return [(True, "options_drafts (artifact is not a decisions document)")]
+
+    tier1 = design_probe.entries(design_probe.sections(text).get("Tier 1", ""))
+    if not tier1:
+        return [(True, "options_drafts (## Tier 1 is empty -- nothing was owed)")]
+
+    failed = []
+    checked = 0
+    seen = {}
+    for position, (title, _body) in enumerate(tier1, start=1):
+        id_ = _tier1_id(title, position)
+        if id_ in seen:
+            # Two distinct decisions must not be satisfiable by one shared
+            # file: the veto condition in `## Requirement gaps` #1 is N
+            # entries need N drafts, and silently rechecking the same path
+            # twice would report "N draft(s) checked" for only one.
+            failed.append((False, (
+                "options_drafts (Tier 1 entries %d and %d both sanitise to "
+                "options-%s.md -- give one of them a distinct id)"
+                % (seen[id_], position, id_))))
+            continue
+        seen[id_] = position
+        path = os.path.join(track_dir, "options-%s.md" % id_)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                draft = fh.read()
+        except (OSError, UnicodeDecodeError) as exc:
+            failed.append((False, (
+                "options_drafts (missing options-%s.md -- pending-questions.md's "
+                "Step 0 says to write the draft there before this stage can pass; "
+                "write it to %s -- %s)" % (id_, path, exc))))
+            continue
+        checked += 1
+        for ok, label in options_lint.probes(draft):
+            if not ok:
+                failed.append((False, "options[%s] %s" % (id_, label)))
+
+    if failed:
+        return failed
+    return [(True, "options_drafts (%d draft(s) checked)" % checked)]
+
+
 def build(track_dir, project_dir):
     # Computed first so they survive the early returns below: both answer from
     # the ledger, so they are just as valid when state.md is the thing that is
@@ -372,9 +439,11 @@ def build(track_dir, project_dir):
         return [unchanged, signed_off, (False, "artifact_exists (%s not found)" % artifact)]
 
     with open(doc, encoding="utf-8") as fh:
-        has_breakdown = "## Work breakdown" in fh.read()
+        text = fh.read()
+    has_breakdown = "## Work breakdown" in text
     if has_breakdown:
-        return [unchanged, signed_off, (True, "work_breakdown (%s)" % artifact)]
+        return [unchanged, signed_off, (True, "work_breakdown (%s)" % artifact),
+                *options_drafts(text, artifact, track_dir)]
 
     # Only a detail design promises a schedule: `## Work breakdown` is in
     # design_probe.py's DETAIL_HEADINGS and in no other kind's list, and
@@ -393,9 +462,11 @@ def build(track_dir, project_dir):
                  if artifact.endswith(suffix)), None)
     if kind == "detail":
         return [unchanged, signed_off, (False, "work_breakdown (%s is a detail design and "
-                                   "has no ## Work breakdown heading)" % artifact)]
+                                   "has no ## Work breakdown heading)" % artifact),
+                *options_drafts(text, artifact, track_dir)]
     return [unchanged, signed_off, (True, "work_breakdown (%s carries none -- stage-build.md "
-                              "cuts the units instead)" % artifact)]
+                              "cuts the units instead)" % artifact),
+            *options_drafts(text, artifact, track_dir)]
 
 
 def find_base_ref(cwd):
