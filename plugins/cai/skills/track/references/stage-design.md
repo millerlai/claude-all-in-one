@@ -369,7 +369,9 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    it's possible here, what it costs, how it fails. Mark at most one
    `(recommended)`, only if every capability it cites is `verified`. Lay each
    one out in `option-explainer.md`'s six-field shape — a title line, then the
-   six numbered, one per item — and check it before it goes anywhere:
+   six numbered, one per item — write it to `<track-dir>/options-<id>.md`
+   (`<id>` from the choice being decided, e.g. `options-D1.md`) and check it
+   before it goes anywhere:
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the options, as a file>`,
    exit 0 or fix what it names (#73). Then put the choice to the user with
    `AskUserQuestion` — one decision at a time, biggest blast radius first.
