@@ -19,11 +19,22 @@ per-user in `~/.claude/rules/` by `/cai:setup`.
 
 ## Who a file is for
 
-`plugins/cai/` is the only thing that ships — `.claude-plugin/marketplace.json`
-names `./plugins/cai` as the plugin's source and nothing else. Everything
-outside it (`docs/`, `scripts/`, `tests/`, `.github/`, `.claude/skills/`, this
-file) maintains the repo and never reaches an installed copy. Decide which side a new file is on
-before writing it, not after.
+Two trees ship: `plugins/cai/` to Claude Code (`.claude-plugin/marketplace.json`
+names `./plugins/cai`), and `plugins/cai-codex/` to Codex
+(`.agents/plugins/marketplace.json` names `./plugins/cai-codex`). Everything
+else (`docs/`, `scripts/`, `tests/`, `.github/`, `.claude/skills/`, this file)
+maintains the repo and never reaches an installed copy. Decide which side a
+new file is on before writing it, not after.
+
+`plugins/cai-codex/` is generated from `plugins/cai/` by `scripts/gen-codex.py`
+and must not be hand-edited except its five hand-written files:
+`scripts/launcher.py`, `scripts/install_codex.py`, `skills/setup/SKILL.md`,
+`skills/setup/agents/openai.yaml`, and `README.md`. After changing
+`plugins/cai/`, regenerate it (`python scripts/gen-codex.py`); once a
+cai-codex version is on `main`, an output change also needs
+`python scripts/gen-codex.py --release <greater version>`, or `validate.py`
+reports DRIFT/UNRELEASED. `scripts/gen-codex.py` and its `scripts/codex-*.json`
+data are Ours.
 
 **Theirs** is an agent, skill, rule, template, or a script some shipped
 component actually invokes. It runs on a machine we will never see, against a

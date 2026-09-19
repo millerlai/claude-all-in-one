@@ -1,0 +1,141 @@
+# stage-intake — turn a request into an acceptance-testable problem statement
+
+This file is read two ways: by the subagent the track dispatches to run this
+stage, and by `$intake` when someone runs the stage standing alone, with
+no track underneath it. The procedure below is the same either way.
+
+The failure this stage exists to catch is starting to build before anyone
+agreed on what "done" means. A request arrives as a sentence; this stage
+turns it into a problem statement precise enough that a later stage can
+check whether the acceptance criteria were actually met.
+
+## Step 1 — Explore the context
+
+Before asking anything, look. Map the area the request touches yourself, with
+`Read`/`Grep`/`Glob` — related code, existing conventions, anything that already
+half-solves this. Not a dispatched scout: this stage's agent is read-only and has
+no `Agent` (`architect.md:7`), and keeping it that way is the trade this makes. A
+question asked without having looked first spends the person's time on something
+you could have found yourself.
+
+## Step 2 — Route it: broken, or never there
+
+A request does not say which it is, and its wording is not evidence. "Add a
+retry" sounds like a feature; its root cause is often a misconfigured pool,
+where the retry treats the symptom. A ticket's title is written by whoever
+noticed the problem, not by whoever knows its cause.
+
+So route on evidence, with one test:
+
+> **Can you write a test that fails now and would pass if an existing promise
+> held?**
+
+A promise is an existing test, the documentation, a spec, or an invariant in
+a stance document. **Never anyone's expectation** — an expectation nobody
+wrote down is a requirement, and that answers the question the other way.
+
+- **Yes** → it is broken. The design stage runs **diagnosis** mode, and that
+  failing test is its entry condition, already written.
+- **No, because nothing ever promised it** → it was never there. The design
+  stage runs **stance** mode.
+
+The best part of this test is that running it is not overhead: whichever way
+it comes out, that test had to be written. Routing is the first piece of the
+work, not a ceremony in front of it.
+
+**Both at once is normal.** "Login is slow" can be an N+1 query (broken) and
+a caching layer nobody ever built (never there) in the same ticket. Split
+it: the half you can write a failing test for goes one way, the half you
+cannot goes the other. Forced down one road, the second half silently looks
+finished when the first is.
+
+**Report the route with its evidence**, not as a label: the test you wrote or
+the reason you could not, and which promise it tests against. Three
+counter-checks, none of which needs judgement:
+
+- Called a bug, but no failing test can be written → it is not a bug.
+- Called a feature, but an existing test or the documentation already
+  promises the opposite → it is a bug.
+- Either way, if the cause later lands on an invariant, diagnosis escalates
+  to stance (`stage-design.md`). That escalation is one-way and gets
+  recorded.
+
+## Step 3 — Ask one question at a time
+
+Whatever is still ambiguous after exploring goes to the user, following the
+interview move (`stage-discover.md`, move C):
+
+- Open with the count and the ordering — "4 open questions, ordered by
+  blast radius."
+- **Ask one question at a time and wait.** A numbered list of questions is
+  not an interview; it gets one vague answer covering none of them.
+- Order by whether the answer changes the shape of the work, not by what is
+  easiest to answer. Cheap cosmetic questions go last or get dropped.
+- Offer a default with each question ("I'd assume X — correct me"), so a
+  shrug still moves things forward.
+
+Skip this step when the request already reads unambiguous — interviewing
+someone who already answered is noise.
+
+## Step 4 — Propose 2–3 approaches
+
+Once the request is unambiguous, propose 2–3 approaches. Each one carries:
+
+- what it does, concretely;
+- its trade-offs — what it costs, what it constrains later;
+- how it fails — the situation where this would be the wrong choice.
+
+Mark at most one **(recommended)**, and say why from the trade-offs above —
+never from preference alone. This is the same option-weighing
+`stage-design.md`'s Decisions mode runs before an architecture choice, sized
+for a raw request rather than a full feasibility table.
+
+Lay each approach out in `option-explainer.md`'s six-field shape: a title line,
+then the six numbered, one field per item. Not a paragraph with them run
+together — every field is still there and none of them can be found (#73).
+`options_lint.py` checks that shape, and this stage does not run it: dispatched
+by the track this stage's runner is `cai_architect`, which has neither `Write` nor
+a python interpreter (`architect.md:7`). The probe runs where the options reach
+the person — `references/pending-questions.md` step 0 for a dispatched run, the
+always-on self-check in `option-explainer.md` when this stage is the main
+session. Do not add the command here; add the capability first, in the open
+(`scripts/validate.py`'s `RETIRED_IMPERATIVES` fails the build if it appears).
+
+## Step 5 — Wait for approval
+
+**Do not start implementing.** Hand back the problem statement, the
+acceptance criteria it implies, and the recommended approach, then stop.
+The next stage — `discover` when the solution space is still unclear, or
+`design` when it is not — only starts once the user has said yes to this
+one. Typing the request is not agreement to whatever was inferred from it.
+
+That yes is a menu, not a word to type: the approaches from Step 4 become the
+options, `references/approval-gates.md` holds the shape, and the person who
+puts it is the main session (this stage's runner has no interactive tool).
+
+**Hand the route up with it**, in the same breath as the problem statement:
+which entrance the design stage will take, and the evidence Step 2 produced
+for it. A route inferred later, from the shape of the request, is the guess
+Step 2 exists to replace.
+
+## Report
+
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- the problem statement that was agreed
+- which questions were skipped and why
+- any deviation from this procedure
+
+A track resuming in a fresh session with no memory of this conversation
+reads that cell, not this file, to find out what happened.
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

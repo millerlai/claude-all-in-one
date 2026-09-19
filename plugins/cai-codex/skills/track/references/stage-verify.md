@@ -1,0 +1,154 @@
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
+# stage-verify — four lenses over one diff, and no claim without evidence
+
+On this platform, the main session always reads Step 0 through Step 1 of
+this file itself — including dispatching the four review agents below —
+whether under a track or standing alone via `$verify`. It then
+dispatches this stage's own agent for Step 2 on with their four reports
+attached; that agent never dispatches anyone itself.
+
+One reviewer reading a diff finds what that reviewer is tuned to find. The
+misses are not random: a reader hunting off-by-one errors is not, in the
+same pass, asking whether the feature was worth building. Splitting the
+lenses and running them separately is what makes the second question get
+asked at all.
+
+## The evidence rule
+
+No completion claim without having just run the command and read its
+output. "Should pass" is not evidence, and neither is remembering that it
+passed five minutes ago in this conversation — the tree has moved since
+then. Every verdict below — the reconciled findings, the fix, the final
+report — traces back to a command that was actually run in this pass.
+
+## Step 0 — Fix the scope
+
+Find the base ref, taking the first that works: the ref the user named, or
+`git symbolic-ref --short refs/remotes/origin/HEAD`, or `origin/main` (or
+`origin/master`). Then, as separate commands:
+
+- `git merge-base HEAD <base-ref>` — the branch point.
+- `git diff --stat <branch-point>...HEAD` — the file list.
+
+Carry the values yourself. Do not wire them into one pipeline with shell
+variables, `sed`, or `${VAR:-default}` — none of that parses under the
+PowerShell tool, and this has to work on Windows.
+
+An empty diff, or one that is entirely generated files, stops here. Say so.
+
+## Step 0.5 — Provenance check
+
+Run `<cai> provenance` once, unconditionally
+-- not gated on the diff being empty, unlike Step 0's early-stop. Exit 2 is a
+Blocker: report it and stop right there. Never edit the ledger's citations or
+a restated file to turn the red green -- a drift needs a person to re-confirm
+the claim first, not a string edit that proves nothing.
+
+## Step 1 — Dispatch the lenses
+
+Four agents, in parallel, one message: three `cai_reviewer` agents, one lens
+each, plus the `cai_security-reviewer` agent for the fourth. Four and not more —
+`model-selection.md` caps parallel subagents at 2–4.
+
+| Lens | What it hunts |
+|---|---|
+| **correctness** | Off-by-one and boundary errors, state leaking between instances or requests, a `match`/`switch` that silently falls through, a flag set and never cleared, an error swallowed, ordering assumed but not guaranteed |
+| **conformance** | What the change does that nothing asked for, and what it was asked for and skipped. Compare against the plan, spec, issue, or the request in this conversation |
+| **coverage** | For each behaviour change: is there a test that would **fail if this change were reverted**? Name the tests that are missing, not the coverage percentage |
+| **security** | The four hunt items in `finding-severity.md`, and no fifth: an external call routed through a shell, who controls what reaches the argument vector, raw error/output/argument text reaching a print or a kept record, and a command shape the repo's own refusal list does not cover |
+
+Give each agent the base ref, the file list, and the requirement it is
+reviewing against — the plan, issue, or the user's own words. The
+conformance lens is useless without that last one; if no requirement exists
+in written form, say so and review the other three.
+
+The three severity words Step 2 ranks by, and the security lens's four hunt
+items, are defined in one place:
+`<cai-root>/skills/track/references/finding-severity.md`. Read it
+before classifying anything, and give `cai_security-reviewer` its four items as the
+lens it is reviewing against.
+
+## Step 2 — Reconcile
+
+Do this inline; it is dedup and ranking over data already gathered, not
+worth another subagent run.
+
+- Merge findings that name the same `file:line` and the same cause. Two
+  lenses reaching the same defect independently is evidence, not noise.
+- Drop anything with no failure scenario, whichever lens produced it.
+- Every surviving `Blocker`/`Major` must name what requirement it's based
+  on — the original request's own words, a plan/issue paragraph, or an
+  existing standing obligation (naming which file, which heading). A
+  finding that can name none of those is not a defect this stage may fix —
+  reject it or park it as a proposal instead of sending it into Fixing.
+- Rank `Blocker` → `Major` → `Minor`. What the three mean is defined in one
+  place, and ranking here applies those definitions rather than restating
+  them: `<cai-root>/skills/track/references/finding-severity.md`.
+- **Verify before reporting.** For each surviving Blocker and Major, open
+  the file and confirm the line still says what the finding claims — the
+  same evidence rule this stage opens with, applied to the reviewers'
+  output rather than your own.
+
+## Step 3 — Report
+
+1. **Verdict.** `Ready` / `Revise` / `Rework`, one sentence of why.
+2. **Findings**, ranked. Each keeps `file:line`, the failure with concrete
+   inputs, and the smallest fix.
+3. **Requirement decisions to confirm.** Everything the conformance lens
+   found that the requirements do not reach, in either direction — the
+   element, the requirement it implies as one sentence, and what follows
+   from yes and from no. Not optional and not the findings list: code that
+   does more than was asked is a decision someone made silently, and
+   deleting it yourself is a second one. Surface it, don't take it.
+4. **Not covered.** What the lenses could not check, and why.
+
+## Fixing
+
+Fix `Blocker` and `Major` only. For anything that looks like a bug: write
+the failing test first, **run it and read the output showing it fail**,
+then fix it and **run it again and read the output showing it pass**. A fix
+with no test run you watched is a fix you cannot prove, whatever it looks
+like on the screen.
+
+Leave `Minor` documented and unfixed unless asked. Wait for answers on
+section 3 before touching anything in it. Fix nothing Step 2 could not
+trace to a requirement — a parked proposal stays parked until the user
+answers, and must not be swept in together with ordinary `Minor` findings.
+
+## When not to use this
+
+- The artifact is a plan, spec, or design doc, not a diff — that is
+  `stage-design.md`'s gate, via `plan-review`.
+- The change is one file and a few lines. Read it.
+
+## When this is the wrong tool
+
+- **Checking your own understanding of the diff, rather than its quality** —
+  that is `$quiz`, which stops and asks you questions. This stage never
+  stops for an answer, because inside a track it has to run to completion.
+- **Reviewing a plan rather than code** — that is `plan-review`.
+
+## Report
+
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- the verdict
+- what was fixed
+- what Step 3's **Requirement decisions to confirm** raised and how it was
+  answered
+- what remains unfixed and why
+- what is left open -- every Minor left unfixed and every parked proposal, one item each
+- what got parked as a proposal, and which requirement it would need to
+  stop being parked
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

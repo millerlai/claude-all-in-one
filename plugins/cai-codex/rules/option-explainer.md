@@ -1,0 +1,59 @@
+# Presenting options
+- Only when a reply is about to offer two or more ways forward. If the user
+  has already said "you pick", decide and answer — do not list.
+- `epistemics.md` decides whether to stop and ask; this file starts after
+  that and governs only how the options are laid out. `communication.md`'s
+  brevity still binds: drop options, not fields.
+
+# Before the list
+- Name 2-4 comparison dimensions first, as bullets, then the options. Describe
+  every option on the same ones; "not applicable" needs a reason, not a blank.
+- Gloss every term, abbreviation, package name and bare code (`A1`) on first
+  use, in words that introduce no new term. A gloss needing its own is not one.
+- Too many terms to gloss inline? Write the background first, then list.
+- Two options barely differ, or one is plainly worse: say so and cut to 1-2.
+- Missing a fact the choice turns on? Ask one question — one — and stop there.
+- Options differing in something the reader will see — an output or data
+  format, a file's contents, a message's wording — get a real sample of each,
+  same input, elided where identical. Prose about a format is not a sample.
+
+# Six fields per option, all filled
+Each option is a title line, then these six as a numbered list — one field per
+item, its label first. Never a paragraph with the six run together: every field
+is still there and none of them can be found.
+
+1. What it literally is — the thing itself, one sentence, no jargon.
+2. ELI5 — the same thing as one everyday-life analogy, in different words.
+3. What actually changes — which files appear or change, what is different to
+   operate afterwards. Observable facts, not "cleaner" or "more flexible".
+4. What it costs — time, complexity, what has to be learned.
+5. How reversible — low/medium/high, and what replacing it later costs.
+6. When it fits — the condition that makes this option the right one.
+
+# Close with a pick
+- End with "if you would rather not weigh it, pick X, because ...", plus the
+  condition that would make X the wrong pick. Never end on "it depends".
+- Mark X `(recommended)` in its title — that marker, not the closing
+  sentence, is the part a check and a menu can both read.
+
+# Self-check before sending — any no, do not send
+- [ ] The cai plugin's `scripts/options_lint.py` exits 0 on the draft. It sees
+      shape only; every box below is still yours.
+- [ ] Every option described on the same dimensions.
+- [ ] Every first-use term glossed, no gloss introducing a new term.
+- [ ] Every "what actually changes" observable, not an adjective.
+- [ ] A visible-output difference is shown as a sample, not described.
+- [ ] A pick, and the condition that voids it.
+- [ ] ELI5 carries no proper noun, abbreviation or package name.
+- [ ] ELI5 contains one everyday-life analogy.
+- [ ] ELI5 worded differently from field 1.
+
+# When there is not room for all of it
+- Keep in this order: shared dimensions, the pick, ELI5, term glosses, the
+  remaining fields. Drop a gloss before dropping the analogy.
+- A list already went out that nobody can act on: `$options` rewrites it.
+
+<!-- 59 lines by validate.py's count; wc -l agrees only with the trailing
+newline. 40 -> 45: six fields plus three ELI5 checks do not fit. 45 -> 56 for
+#73: the fields were here and their layout was not. 56 -> 59: a format
+difference described in prose cannot be compared against another. -->

@@ -905,6 +905,38 @@ dispatch = ["cmd", "/c", DISPATCHER.replace("/", "\\")] if os.name == "nt" else 
 for cmd, expected in [("git reset --hard HEAD~1", 2), ("git status", 0)]:
     check(f"dispatcher [{cmd}] -> {expected}", run(dispatch, cmd, "Bash", WORK) == expected)
 
+# launcher.py guard -- the Codex counterpart of the two checks above. Codex's
+# own hook payload shape is UNVERIFIED (C9); this follows the documented form
+# in docs/design/2026-09-18-codex-support-detail.md, "### launcher.py", and
+# real verify (C9) is what confirms or corrects it. A temp $CODEX_HOME whose
+# cache points at this repo's own plugins/cai-codex/scripts/bash_guard.py lets
+# the adapter's real child process run, rather than adding launcher behaviour
+# the spec does not describe just to make it testable.
+LAUNCHER = f"{PLUGIN}-codex/scripts/launcher.py"
+if os.path.isfile(LAUNCHER):
+    CODEX_GUARD_HOME = tempfile.mkdtemp(prefix="cai-codex-guard-home-")
+    _codex_version_scripts = os.path.join(
+        CODEX_GUARD_HOME, "plugins", "cache", "local", "cai-codex", "0.1.0", "scripts")
+    os.makedirs(_codex_version_scripts, exist_ok=True)
+    shutil.copy(f"{PLUGIN}-codex/scripts/bash_guard.py", _codex_version_scripts)
+
+    CODEX_GUARD_CASES = [
+        # (Codex-shaped payload, expected exit code)
+        ({"tool_input": {"command": "git push --force origin main"}, "cwd": WORK}, 2),
+    ]
+
+    def run_codex_guard(payload):
+        env = dict(os.environ)
+        env["CODEX_HOME"] = CODEX_GUARD_HOME
+        return subprocess.run(
+            [sys.executable, LAUNCHER, "guard"],
+            input=json.dumps(payload), capture_output=True, text=True, env=env,
+        ).returncode
+
+    for payload, expected in CODEX_GUARD_CASES:
+        cmd = payload["tool_input"]["command"]
+        check(f"codex guard [{cmd}] -> {expected}", run_codex_guard(payload) == expected)
+
 
 # design_probe.py holds the two design commands' absolutes -- every capability
 # cites evidence, every use case reaches a component, every glossary term points
@@ -1479,6 +1511,29 @@ if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
           not leaked)
     for line in leaked[:8]:
         print(f"     {line}")
+
+# plugins/cai-codex/ is generated from plugins/cai/ (gen-codex.py); a plugin
+# edit that drifts the two apart is caught here rather than at Codex install
+# time, the same way the gen-models block above catches a hand-edited tier.
+GEN_CODEX = "scripts/gen-codex.py"
+if os.path.isfile(GEN_CODEX):
+    codex_check = subprocess.run([sys.executable, GEN_CODEX, "--check"],
+                                 capture_output=True, encoding="utf-8")
+    check("plugins/cai-codex matches gen-codex.py", codex_check.returncode == 0)
+    if codex_check.returncode != 0:
+        print("    ", codex_check.stdout.strip().replace("\n", "\n     "))
+
+# D6: this build of Codex reads only a bare-string `source`, and silently
+# drops the plugin entry if it is ever hand-edited back to the documented
+# `{"path": ...}` object form (E2) -- catch that here rather than at install.
+AGENTS_MARKETPLACE = ".agents/plugins/marketplace.json"
+try:
+    amp = json.load(open(AGENTS_MARKETPLACE, encoding="utf-8"))
+    codex_sources_are_strings = all(
+        isinstance(entry.get("source"), str) for entry in amp.get("plugins", []))
+except (OSError, json.JSONDecodeError):
+    codex_sources_are_strings = False
+check(f"{AGENTS_MARKETPLACE} sources are strings", codex_sources_are_strings)
 
 # What each stage's agent must be granted, checked against its `tools:`
 # frontmatter rather than its name -- picking an agent by tier alone is
