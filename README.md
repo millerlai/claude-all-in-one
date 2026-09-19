@@ -1,8 +1,9 @@
 # claude-all-in-one
 
-A [Claude Code](https://claude.com/claude-code) plugin that installs a working
-set of everyday capabilities — cheaper model routing, safer git, and a shared
-set of behavioural rules — into every project on your machine.
+A [Claude Code](https://claude.com/claude-code) plugin — with a generated
+Codex CLI counterpart, `cai-codex` — that installs a working set of everyday
+capabilities — cheaper model routing, safer git, and a shared set of
+behavioural rules — into every project on your machine.
 
 Three documents, and they answer different questions. This one is what the
 pieces are. [`MANUAL.md`](MANUAL.md) is how to drive them — what to type, what
@@ -319,6 +320,71 @@ If content changed without a version bump, or the cache looks corrupted:
 /plugin uninstall cai@claude-all-in-one
 /plugin install cai@claude-all-in-one
 ```
+
+## Using it with Codex CLI
+
+`cai-codex` is a generated counterpart of this plugin for Codex CLI — the
+same cost-tiered agents, skills, and rules, kept in sync automatically
+rather than hand-translated. See
+[`plugins/cai-codex/README.md`](plugins/cai-codex/README.md) for exactly
+what's equivalent, what's degraded, and what's documented but not yet
+checked end to end.
+
+### Install
+
+```
+codex plugin marketplace add millerlai/claude-all-in-one
+codex plugin add cai-codex@claude-all-in-one
+```
+
+The `owner/repo` form is the one Codex documents; this build exercised the
+equivalent local form, `codex plugin marketplace add <path to a clone>`.
+
+Start Codex with `--enable default_mode_request_user_input` so `$setup`'s
+language question renders as a menu. The track's two human gates ask the
+same way when the flag is on, but can still fall back to numbered text even
+then — observed once during a live run. Then, inside Codex:
+
+```
+$setup
+```
+
+Approve running it outside the sandbox when asked — it writes into
+`~/.codex`, outside your workspace. Then run `/hooks`, review the cai
+entry, and trust it; restart Codex.
+
+### Use
+
+`$track <feature>` carries one feature through the same six stages as
+`/cai:track`, intake to ship. Every other skill works the same way with a
+`$` instead of `/cai:` — `$design`, `$verify`, `$git`, `$chore`, and the
+rest. See [`plugins/cai-codex/README.md`](plugins/cai-codex/README.md)'s
+Usage section for the human gates, the ship push approval, and
+Windows-specific notes.
+
+### Update
+
+```
+codex plugin marketplace upgrade
+codex plugin remove cai-codex@claude-all-in-one
+codex plugin add cai-codex@claude-all-in-one
+```
+
+Then run `$setup` inside Codex. The first line refreshes Codex's copy of
+this repository ("Refresh configured Git marketplace snapshots", in
+`codex plugin marketplace --help`); it was not exercised in this build.
+The remove/add pair and `$setup` were, but only against a local-path
+marketplace, which is read fresh on every add.
+
+### Uninstall
+
+```
+codex plugin remove cai-codex@claude-all-in-one
+```
+
+Then remove what `$setup` wrote by hand — see
+[`plugins/cai-codex/README.md`](plugins/cai-codex/README.md)'s Uninstall
+section for the exact list.
 
 ## Model tiers
 

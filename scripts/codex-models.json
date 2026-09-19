@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "The Codex model and reasoning effort for each source role (D3=A).",
+    "Roles come from plugins/cai/models.json's own 'assignments'; this file",
+    "only maps a role name to a Codex slug and effort, applied by",
+    "scripts/gen-codex.py's emit(). Ruled out: adding these columns to",
+    "plugins/cai/models.json itself, which I1 keeps untouched.",
+    "",
+    "Re-tiering is a one-line edit here, followed by --release; a slug",
+    "retired or hidden for an account (C19) breaks dispatch for that user."
+  ],
+  "roles": {
+    "chore": { "model": "gpt-5.6-luna", "effort": "low" },
+    "build": { "model": "gpt-5.6-terra", "effort": "medium" },
+    "think": { "model": "gpt-5.6-terra", "effort": "high" }
+  }
+}

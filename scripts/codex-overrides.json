@@ -1,0 +1,696 @@
+{
+  "overrides": [
+    {
+      "target": "skills/track/references/stage-verify.md",
+      "anchor": [
+        "This file is read two ways: by the subagent the track dispatches to run this",
+        "stage, and by `/cai:verify` when someone runs the stage standing alone, with",
+        "no track underneath it. The procedure below is the same either way."
+      ],
+      "replacement": [
+        "On this platform, the main session always reads Step 0 through Step 1 of",
+        "this file itself — including dispatching the four review agents below —",
+        "whether under a track or standing alone via `/cai:verify`. It then",
+        "dispatches this stage's own agent for Step 2 on with their four reports",
+        "attached; that agent never dispatches anyone itself."
+      ],
+      "why": "D9: the main session does the only dispatch this stage needs; the dispatched agent (verifier) only reconciles from Step 2 on, never spawning another agent. Replaces the whole opening paragraph rather than appending, since the old \"subagent the track dispatches to run this stage\" framing would otherwise contradict the new sentence."
+    },
+    {
+      "target": "skills/track/references/stage-build.md",
+      "anchor": [
+        "This file is read two ways: by the subagent the track dispatches to run this",
+        "stage, and by `/cai:build` when someone runs the stage standing alone, with",
+        "no track underneath it. The procedure below is the same either way."
+      ],
+      "replacement": [
+        "On this platform, this file is always read directly by the main session —",
+        "never handed to a dispatched agent to run as a whole stage — whether under",
+        "a track or standing alone via `/cai:build`. The main session dispatches",
+        "`explorer`, `test-runner`, and each unit's `implementer` itself;",
+        "`implementer` only ever receives one unit's brief and never dispatches",
+        "anyone."
+      ],
+      "why": "D9: the main session does every dispatch this stage needs; `implementer` writes one briefed unit and never orchestrates the schedule or spawns another agent. Replaces the whole opening paragraph rather than appending, for the same reason as stage-verify.md above."
+    },
+    {
+      "target": "skills/track/SKILL.md",
+      "anchor": [
+        "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
+        "   to the subagent named in that row's `agent` field — never choose by",
+        "   judgement, the field decides, because model tier rides on it. Tell the",
+        "   agent to read its `reference` file, resolved against",
+        "   `${CLAUDE_PLUGIN_ROOT}/skills/track/`."
+      ],
+      "replacement": [
+        "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
+        "   to the subagent named in that row's `agent` field — never choose by",
+        "   judgement, the field decides, because model tier rides on it. Tell the",
+        "   agent to read its `reference` file, resolved against",
+        "   `${CLAUDE_PLUGIN_ROOT}/skills/track/`. For `build` and `verify`, that",
+        "   reference file has you dispatch its helpers directly yourself instead",
+        "   of handing over the whole procedure — follow what it says there before",
+        "   dispatching the stage's own agent, if any."
+      ],
+      "why": "D9: names the exception build/verify need so this step doesn't hand the whole procedure to a subagent that would then have to spawn its own helpers."
+    },
+    {
+      "target": "agents/designer.md",
+      "anchor": [
+        "- Dispatch `explorer` to locate evidence in this project; read what it",
+        "  points at yourself before writing it down. A scout's summary is not a",
+        "  citation."
+      ],
+      "replacement": [
+        "- Locate evidence in this project yourself with `Read`/`Grep`/`Glob`",
+        "  rather than dispatching another agent for it — you never dispatch",
+        "  anyone. A scout's summary would not be a citation either way."
+      ],
+      "why": "Deviation (not named by D9, applied conservatively for the same reason): nested dispatch is untested here, so designer uses its own read-only tools instead of dispatching explorer."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "- **This project** — dispatch `explorer` (read-only) to locate and quote the",
+        "  relevant lines, then read those files yourself and decide what they mean.",
+        "  A scout's summary is a pointer, not evidence.",
+        "- **Official documentation** — for any tool, framework, or platform the",
+        "  design stands on, fetch the vendor's own docs (`explorer`'s tools are",
+        "  Read/Grep/Glob only, so this needs a chore-tier subagent with web access),",
+        "  then interpret it yourself. Record the URL and the sentence taken."
+      ],
+      "replacement": [
+        "- **This project** — locate and quote the relevant lines yourself with",
+        "  `Read`/`Grep`/`Glob`, then decide what they mean; a scout's summary",
+        "  would only be a pointer, not evidence.",
+        "- **Official documentation** — for any tool, framework, or platform the",
+        "  design stands on, hand the fetch up as a `## Pending questions` item",
+        "  (a request, not a decision) and wait for the main session to dispatch",
+        "  a web-capable helper and return what it found, then interpret it",
+        "  yourself. Record the URL and the sentence taken."
+      ],
+      "why": "Deviation (not named by D9, applied conservatively for the same reason): the designer never dispatches; project evidence uses its own tools, and a web fetch it cannot do itself gets handed up like a pending question."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "files state: the platform removes `AskUserQuestion` from every subagent, and"
+      ],
+      "replacement": [
+        "files state: no subagent can ask the person directly here either, and"
+      ],
+      "why": "I8: subagents never ask on Codex either, regardless of whether the platform enforces it the way Claude does."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "says *how* it asks, and the answer is the same everywhere: `AskUserQuestion`,"
+      ],
+      "replacement": [
+        "says *how* it asks, and the answer is the same everywhere: if",
+        "`request_user_input` is in your tool list, ask with it — a menu the person",
+        "clicks; only when it is not in your tool list, ask with numbered options",
+        "in text instead. Either way,"
+      ],
+      "why": "D10, tightened after C11 (PARTIAL): the live run showed the tool being available did not stop the model from asking in plain text, so the generated text now states an explicit if/else on the model's own tool list instead of a soft \"when available\"."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "for the case that actually needs it — `AskUserQuestion` adds that entry",
+        "itself, so it is never an option you write, and \"none of these\" never needs",
+        "one of the four slots."
+      ],
+      "replacement": [
+        "for the case that actually needs it — whether the question tool",
+        "(`request_user_input`, or numbered text options when it's absent) adds that",
+        "entry itself is untested, so write it in yourself, and \"none of these\"",
+        "never needs one of the four slots."
+      ],
+      "why": "I4/D10: fixes U1's carried defect (implementation-notes.md) -- the generated text no longer claims Codex's question tool auto-adds a free-text entry (C11 is UNVERIFIED, and E8 saw a schema with no free-text field)."
+    },
+    {
+      "target": "skills/track/references/stage-ship.md",
+      "anchor": [
+        "**Before the irreversible operations below — merging, tagging, publishing,",
+        "and closing the linked ticket — confirm with the person first.** This is",
+        "one of the two human gates the track never skips; running this stage",
+        "standing alone does not remove it. Closing the ticket joins this same gate",
+        "rather than adding a third — see `references/ticket-mirror.md`'s ship",
+        "section for that confirmation's own separate item."
+      ],
+      "replacement": [
+        "**On Codex, this stage prepares only and never runs the irreversible",
+        "operations below** — merging, tagging, publishing, and closing the linked",
+        "ticket. No subagent runs an irreversible git/gh operation here: after",
+        "the person confirms, the main session runs them itself. That confirmation",
+        "is one of the two human gates the track never skips; running this stage",
+        "standing alone does not remove it. Closing the ticket joins this same gate",
+        "rather than adding a third — see `references/ticket-mirror.md`'s ship",
+        "section for that confirmation's own separate item. The sandbox's own push",
+        "approval prompt is untested through release — do not treat it as a",
+        "second safety net; Gate 2 is the only confirmation you can rely on."
+      ],
+      "why": "I9/G1: the shipper prepares only on Codex, the main session runs the irreversible steps after Gate 2, and the push-prompt reminder (G1's veto) is stated rather than implied."
+    },
+    {
+      "target": "skills/track/references/stage-ship.md",
+      "anchor": [
+        "git merge-base --is-ancestor <given-id> HEAD && echo OK   # must print OK"
+      ],
+      "replacement": [
+        "git merge-base --is-ancestor <given-id> HEAD   # exit 0 means it is an ancestor of HEAD, nonzero means it is not"
+      ],
+      "why": "D16/C18: PowerShell 5.1 has no `&&`; the exit code itself carries the same information without chaining."
+    },
+    {
+      "target": "skills/track/references/stage-ship.md",
+      "anchor": [
+        "git branch \"backup/${BRANCH}-$(date +%Y%m%d-%H%M%S)\""
+      ],
+      "replacement": [
+        "git branch backup/<branch>-<timestamp>   # <branch> from Step 1; <timestamp> as YYYYMMDD-HHMMSS, computed yourself rather than with a bash-only date substitution"
+      ],
+      "why": "D16/C18: `$(date ...)` is bash-only; matches the placeholder style the Rollback section below already uses (`backup/<branch>-<timestamp>`)."
+    },
+    {
+      "target": "skills/quiz/SKILL.md",
+      "anchor": [
+        "DEFAULT=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|origin/||')",
+        "git merge-base HEAD \"origin/${DEFAULT:-main}\""
+      ],
+      "replacement": [
+        "git symbolic-ref --short refs/remotes/origin/HEAD",
+        "git merge-base HEAD origin/<default-branch>"
+      ],
+      "why": "D16/C18: drops the bash-only `$(...)`/`2>/dev/null`/`${VAR:-default}` pipeline for the same two-command, carry-the-value-yourself form `stage-ship.md`/`stage-verify.md` already use."
+    },
+    {
+      "target": "skills/refactor/references/selection.md",
+      "anchor": [
+        "ls Makefile package.json pyproject.toml build.gradle pom.xml Cargo.toml go.mod 2>/dev/null"
+      ],
+      "replacement": [
+        "ls Makefile package.json pyproject.toml build.gradle pom.xml Cargo.toml go.mod"
+      ],
+      "why": "D16/C18: `2>/dev/null` is bash-only; this is a manual exploration hint, not scripted logic, so dropping the redirect changes nothing but the noise."
+    },
+    {
+      "target": "skills/track/SKILL.md",
+      "anchor": [
+        "A report ending in `## Pending questions` is not an outcome: before step 3, you — the main session, not a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/pending-questions.md`, because the platform removes `AskUserQuestion` from every subagent whatever its `tools:` says."
+      ],
+      "replacement": [
+        "A report ending in `## Pending questions` is not an outcome: before step 3, you — the main session, not a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/pending-questions.md`, because no subagent can ask the person directly here either."
+      ],
+      "why": "I8: subagents never ask on Codex either."
+    },
+    {
+      "target": "skills/track/SKILL.md",
+      "anchor": [
+        "- **Before the irreversible operations in `ship`** — merging, tagging,",
+        "  publishing. Confirm with the person before running them."
+      ],
+      "replacement": [
+        "- **Before the irreversible operations in `ship`** — merging, tagging,",
+        "  publishing, and closing the linked ticket. Confirm with the person before",
+        "  running them, then run them yourself: no subagent runs an irreversible",
+        "  git/gh operation here, so `ship`'s own dispatched stage only prepares."
+      ],
+      "why": "I9: names the main session as the one that runs the irreversible ship operations after confirmation."
+    },
+    {
+      "target": "skills/track/SKILL.md",
+      "anchor": [
+        "Both are asked as a menu — `AskUserQuestion`, labelled options, never a"
+      ],
+      "replacement": [
+        "Both are asked with `request_user_input` if it is in your tool list — a",
+        "menu, labelled options; only when it is not in your tool list, ask with",
+        "numbered options in text instead, never a"
+      ],
+      "why": "D10, tightened after C11 (PARTIAL): the live run showed the tool being available did not stop the model from asking in plain text, so the generated text now states an explicit if/else on the model's own tool list instead of a soft \"as a menu\" claim."
+    },
+    {
+      "target": "agents/designer.md",
+      "anchor": [
+        "  decision at a time, biggest blast radius first. You cannot ask: the",
+        "  platform removes `AskUserQuestion` from every subagent. Never resolve one"
+      ],
+      "replacement": [
+        "  decision at a time, biggest blast radius first. You cannot ask: no",
+        "  subagent can ask the person directly here either. Never resolve one"
+      ],
+      "why": "I8: subagents never ask on Codex either."
+    },
+    {
+      "target": "agents/verifier.md",
+      "anchor": [
+        "  Runs the `verify` stage: dispatches four review agents in parallel - the",
+        "  three `reviewer` lenses plus the security one - reconciles what they report,",
+        "  runs this repo's test command, and fixes only Blocker/Major, test-first."
+      ],
+      "replacement": [
+        "  Runs the back half of the `verify` stage: reconciles four review reports",
+        "  the main session already dispatched and handed you, runs this repo's test",
+        "  command, and fixes only Blocker/Major, test-first. Never dispatches",
+        "  another agent yourself."
+      ],
+      "why": "D9: the description no longer claims verifier does the dispatching -- the main session does, and hands verifier the four reports."
+    },
+    {
+      "target": "agents/verifier.md",
+      "anchor": [
+        "You run the whole `verify` stage, following `stage-verify.md`. **The lenses",
+        "are not yours to read** — dispatch the four agents it names, in parallel in",
+        "one message, one lens each: three `reviewer` agents plus `security-reviewer`.",
+        "Reading all four yourself collapses them back into the single pass that file",
+        "exists to split apart. Reconciling what comes back, running the tests, and",
+        "fixing is your half.",
+        "",
+        "`Agent` is granted unscoped because a type list inside the parentheses is",
+        "ignored in a subagent definition, so `Agent(reviewer)` would restrict",
+        "nothing. `stage-verify.md` names the four; nothing else is yours to spawn."
+      ],
+      "replacement": [
+        "You run the back half of the `verify` stage, following `stage-verify.md`",
+        "from Step 2 on. The main session already ran Step 0 through Step 1 and",
+        "dispatched the four agents that file names — three `reviewer` agents plus",
+        "`security-reviewer` — before handing you their reports; reading all four",
+        "yourself would collapse them back into the single pass that file exists to",
+        "split apart. Reconciling what comes back, running the tests, and fixing is",
+        "your half.",
+        "",
+        "You never dispatch another agent yourself — the main session already did",
+        "the only dispatching this stage needs."
+      ],
+      "why": "D9: verifier reconciles only and never spawns; the main session does the one dispatch this stage needs, before handing verifier the reports."
+    },
+    {
+      "target": "agents/implementer.md",
+      "anchor": [
+        "Handed a stage reference to run rather than a unit to write —",
+        "`stage-build.md` is the one — running it is the job, dispatching the",
+        "`explorer`, `implementer` and `test-runner` agents it names included.",
+        "`Agent` is unscoped because a type list inside the parentheses is ignored in",
+        "a subagent definition; spawn only what that file names."
+      ],
+      "replacement": [
+        "You only ever receive one unit's brief from `stage-build.md`, handed to you",
+        "directly by the main session, which dispatches `explorer` and `test-runner`",
+        "itself. You never dispatch another agent yourself."
+      ],
+      "why": "D9: implementer only ever implements one briefed unit; the main session does every dispatch stage-build.md needs, never handing the whole procedure to a subagent."
+    },
+    {
+      "target": "agents/shipper.md",
+      "anchor": [
+        "description: >",
+        "  Squashes a branch into one conventional commit, pushes it, and opens the",
+        "  PR — following stage-ship.md's procedure. Dispatched by the `ship` stage.",
+        "  Stops for confirmation before any irreversible step."
+      ],
+      "replacement": [
+        "description: >",
+        "  Prepares a branch for release on Codex: squashes it into one conventional",
+        "  commit and drafts the release note, following stage-ship.md's procedure.",
+        "  Dispatched by the `ship` stage. No subagent runs an irreversible git/gh",
+        "  operation here — the main session pushes, merges, tags, publishes and",
+        "  closes the linked ticket after the person confirms."
+      ],
+      "why": "I9: the shipper's own description says prepare only."
+    },
+    {
+      "target": "agents/shipper.md",
+      "anchor": [
+        "- Push with `git push --force-with-lease` only — never plain `-f`/`--force`.",
+        "- Merging, tagging, or publishing needs the person's confirmation first,",
+        "  every time — this is one of the two human gates the track never skips.",
+        "  Hand that up the same way: the gate does not move, only who voices it."
+      ],
+      "replacement": [
+        "- Do not push, merge, tag, publish, or close the linked ticket yourself.",
+        "  No subagent runs an irreversible git/gh operation here: report the",
+        "  drafted commit, the backup branch, and the exact commands, and stop.",
+        "  The person confirms first, every time — one of the two human gates the",
+        "  track never skips — then the main session runs them, never this stage."
+      ],
+      "why": "I9: the shipper never runs push/merge/tag/publish/close itself on Codex."
+    },
+    {
+      "target": "skills/debug/SKILL.md",
+      "anchor": [
+        "and why the failures look structural (`AskUserQuestion`, or escalate to"
+      ],
+      "replacement": [
+        "and why the failures look structural (the question tool, or escalate to"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/ticket-mirror.md",
+      "anchor": [
+        "3. **Ask, with `AskUserQuestion`.** The proposed name, plus the free-text slot",
+        "   the tool adds anyway. This directory name appears in every"
+      ],
+      "replacement": [
+        "3. **Ask.** If `request_user_input` is in your tool list, ask with it —",
+        "   otherwise ask with numbered options in text. Offer the proposed name plus",
+        "   an explicit free-text/\"other\" choice yourself — whether the tool also",
+        "   adds one is untested. This directory name appears in every"
+      ],
+      "why": "I4/D10, tightened after C11 (PARTIAL): drops the claim that the question tool auto-adds a free-text slot (still UNVERIFIED), and restates the ask rule as an explicit if/else on the model's own tool list rather than a soft \"when it's available\", since the live run showed availability alone did not stop a plain-text ask."
+    },
+    {
+      "target": "skills/goal/SKILL.md",
+      "anchor": [
+        "  `AskUserQuestion` and wait for an answer. Never resolve them yourself —"
+      ],
+      "replacement": [
+        "  the question tool and wait for an answer. Never resolve them yourself —"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/goal/SKILL.md",
+      "anchor": [
+        "criteria. Ask with `AskUserQuestion`, two options — write the stance now, or"
+      ],
+      "replacement": [
+        "criteria. Ask with the question tool, two options — write the stance now, or"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-build.md",
+      "anchor": [
+        "subagent, and the platform removes `AskUserQuestion` from every subagent",
+        "whatever `tools:` says. Step 0.5's two answers, and Step 2's row that sends"
+      ],
+      "replacement": [
+        "subagent, and no subagent can ask the person directly here either.",
+        "Step 0.5's two answers, and Step 2's row that sends"
+      ],
+      "why": "I8: subagents never ask on Codex either."
+    },
+    {
+      "target": "skills/track/references/stage-build.md",
+      "anchor": [
+        "| Any architecture decision the document didn't make | **the user** | `AskUserQuestion`, never resolved here |"
+      ],
+      "replacement": [
+        "| Any architecture decision the document didn't make | **the user** | the question tool, never resolved here |"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "subagent, and the platform removes `AskUserQuestion` from every subagent",
+        "whatever `tools:` says. Each `AskUserQuestion` below then means: finish"
+      ],
+      "replacement": [
+        "subagent, and no subagent can ask the person directly here either.",
+        "Each mention of the question tool below then means: finish"
+      ],
+      "why": "I8: subagents never ask on Codex either."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "That does **not** mean every choice goes to `AskUserQuestion`. Asking about"
+      ],
+      "replacement": [
+        "That does **not** mean every choice goes to the question tool. Asking about"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   design. Put it to them with `AskUserQuestion` rather than writing your"
+      ],
+      "replacement": [
+        "   design. Put it to them with the question tool rather than writing your"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   put Tier 1 to the person with `AskUserQuestion`, **one at a time, in"
+      ],
+      "replacement": [
+        "   put Tier 1 to the person with the question tool, **one at a time, in"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   otherwise invent goes to `AskUserQuestion`."
+      ],
+      "replacement": [
+        "   otherwise invent goes to the question tool."
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   `AskUserQuestion` — one decision at a time, biggest blast radius first."
+      ],
+      "replacement": [
+        "   the question tool — one decision at a time, biggest blast radius first."
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   `AskUserQuestion`. At most three rounds."
+      ],
+      "replacement": [
+        "   the question tool. At most three rounds."
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   `AskUserQuestion` rather than writing it in."
+      ],
+      "replacement": [
+        "   the question tool rather than writing it in."
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "7. **What you could not pin down** → `AskUserQuestion` under the decision"
+      ],
+      "replacement": [
+        "7. **What you could not pin down** → the question tool under the decision"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   section 4 → `AskUserQuestion`; Minor → leave documented. At most three"
+      ],
+      "replacement": [
+        "   section 4 → the question tool; Minor → leave documented. At most three"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/pending-questions.md",
+      "anchor": [
+        "That is not a convention this repo chose. The platform removes",
+        "`AskUserQuestion` from every subagent before it starts, whatever the agent's",
+        "`tools:` field says — it is on the list of tools filtered out \"even when",
+        "listed in the `tools` field\" (https://code.claude.com/docs/en/sub-agents,",
+        "\"Available tools\"). So a stage reference telling its runner to ask —"
+      ],
+      "replacement": [
+        "That is not a convention this repo chose. No subagent can ask the person",
+        "directly here either: stage dispatch does not hand a runner an",
+        "interactive tool. So a stage reference telling its runner to ask —"
+      ],
+      "why": "I8: subagents never ask on Codex either; drops the Claude-docs citation that does not apply here."
+    },
+    {
+      "target": "skills/track/references/pending-questions.md",
+      "anchor": [
+        "puts the main session in the runner's seat, where `AskUserQuestion` is",
+        "present. Ask directly there; none of this applies."
+      ],
+      "replacement": [
+        "puts the main session in the runner's seat, where the question tool is",
+        "available directly. Ask directly there; none of this applies."
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/pending-questions.md",
+      "anchor": [
+        "0. **Lay the options out before asking, and lint them.** `AskUserQuestion`'s"
+      ],
+      "replacement": [
+        "0. **Lay the options out before asking, and lint them.** The question tool's"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "skills/track/references/pending-questions.md",
+      "anchor": [
+        "1. **Ask one decision per turn.** `AskUserQuestion`, biggest blast radius"
+      ],
+      "replacement": [
+        "1. **Ask one decision per turn.** The question tool, biggest blast radius"
+      ],
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
+    },
+    {
+      "target": "rules/workflow.md",
+      "anchor": [
+        "  adding to user-scope rules; if project-specific, to that project's CLAUDE.md."
+      ],
+      "replacement": [
+        "  adding to user-scope rules; if project-specific, to that project's AGENTS.md."
+      ],
+      "why": "D11: Codex reads per-project instructions from AGENTS.md, not CLAUDE.md (config-reference, cited C14)."
+    },
+    {
+      "target": "rules/workflow.md",
+      "anchor": [
+        "  (`~/.claude/skills/<name>/`). On approval, create it: SKILL.md with"
+      ],
+      "replacement": [
+        "  (a user-global location outside any project, if this platform has one). On approval, create it: SKILL.md with"
+      ],
+      "why": "D11: `~/.claude/` is Claude-only and no Codex equivalent path is documented -- narrowed rather than inventing one; logged as a deviation."
+    },
+    {
+      "target": "rules/model-selection.md",
+      "anchor": [
+        "- Before delegating via the Task tool or a subagent, check whether a program layer"
+      ],
+      "replacement": [
+        "- Before delegating via a subagent, check whether a program layer"
+      ],
+      "why": "I4: drops the Claude-only \"Task tool\" name (the exact example stance I4 cites, model-selection.md:26) without naming an unverified Codex equivalent."
+    },
+    {
+      "target": "scripts/usage_collector.py",
+      "anchor": [
+        "def session_id_from_env():",
+        "    \"\"\"`CLAUDE_CODE_SESSION_ID` is undocumented (C21) -- absent means the",
+        "    caller gets None and decides what that means, not an exception.\"\"\"",
+        "    return os.environ.get(SESSION_ID_ENV) or None"
+      ],
+      "replacement": [
+        "def session_id_from_env():",
+        "    \"\"\"No session-id environment variable is documented for this",
+        "    platform -- usage stays empty and the reason is recorded, by",
+        "    design.\"\"\"",
+        "    return None"
+      ],
+      "why": "D12: usage accounting is accepted as degraded on Codex -- this makes that explicit instead of checking for a Claude-only env var name that will never be set here."
+    },
+    {
+      "target": "scripts/usage_collector.py",
+      "anchor": [
+        "SESSION_ID_ENV = \"CLAUDE_CODE_SESSION_ID\""
+      ],
+      "replacement": [
+        "# SESSION_ID_ENV removed here -- no session-id env var is documented for this platform; session_id_from_env() always returns None."
+      ],
+      "why": "D12: the constant is now unused after the override above; kept as a comment rather than silently vanishing."
+    },
+    {
+      "target": "scripts/usage_collector.py",
+      "anchor": [
+        "    \"\"\"`~/.claude/projects/` directory name for `cwd`: every non-alphanumeric",
+        "    character becomes `-`.\"\"\""
+      ],
+      "replacement": [
+        "    \"\"\"The per-project transcript directory name for `cwd`: every",
+        "    non-alphanumeric character becomes `-`.\"\"\""
+      ],
+      "why": "I1: drops the literal Claude config path from a docstring; the function itself is unaffected."
+    },
+    {
+      "target": "scripts/ledger.py",
+      "anchor": [
+        "        usage_problems = [\"no session id: CLAUDE_CODE_SESSION_ID is not set\"]"
+      ],
+      "replacement": [
+        "        usage_problems = [\"no session id: no session-id environment variable is documented for this platform\"]"
+      ],
+      "why": "D12: matches the reworded session_id_from_env() -- the reported reason no longer names a Claude-only env var."
+    },
+    {
+      "target": "templates/CLAUDE.md.tpl",
+      "anchor": [
+        "`~/.claude/rules/`, installed by `/cai:setup`. They load automatically"
+      ],
+      "replacement": [
+        "Claude Code's shared rules location, installed by its own setup flow (this template is Claude-only). They load automatically"
+      ],
+      "why": "I1: this template scaffolds Claude Code's own personal-preferences file and is not reachable from any included Codex skill (skills/setup is excluded) -- worded so it makes no Codex claim rather than being excluded outright (excluding files is outside this unit's scope, logged as a deviation)."
+    },
+    {
+      "target": "templates/CLAUDE-project.md.tpl",
+      "anchor": [
+        "<!-- Write only what ~/.claude/rules/ and each contributor's personal"
+      ],
+      "replacement": [
+        "<!-- Write only what the shared rules location and each contributor's personal"
+      ],
+      "why": "I1: same orphaned-template reasoning as CLAUDE.md.tpl above. Single-line anchor -- this file uses CRLF line endings, so a `\\n`-joined multi-line anchor does not match."
+    },
+    {
+      "target": "templates/CLAUDE-project.md.tpl",
+      "anchor": [
+        "     ~/.claude/CLAUDE.md cannot know about this repo — its own verification"
+      ],
+      "replacement": [
+        "     project-instructions file cannot know about this repo — its own verification"
+      ],
+      "why": "I1: same orphaned-template reasoning as CLAUDE.md.tpl above."
+    },
+    {
+      "target": "templates/CLAUDE-project.md.tpl",
+      "anchor": [
+        "     ~/.claude/rules/ — naming, layout, patterns a new session would not"
+      ],
+      "replacement": [
+        "     the shared rules location — naming, layout, patterns a new session would not"
+      ],
+      "why": "I1: same orphaned-template reasoning as CLAUDE.md.tpl above."
+    },
+    {
+      "target": "templates/CLAUDE-project.md.tpl",
+      "anchor": [
+        "     belongs in ~/.claude/rules/ instead. -->"
+      ],
+      "replacement": [
+        "     belongs in the shared rules location instead. -->"
+      ],
+      "why": "I1: same orphaned-template reasoning as CLAUDE.md.tpl above."
+    },
+    {
+      "target": "rules/epistemics.md",
+      "anchor": [
+        "  free-text choice is always added, so \"none of these\" needs no option of its own."
+      ],
+      "replacement": [
+        "  free-text choice must be available — add one yourself if the tool does not, so \"none of these\" needs no option of its own."
+      ],
+      "why": "I4: drops the claim that the question tool always adds a free-text choice (C11 is UNVERIFIED on Codex)."
+    }
+  ]
+}

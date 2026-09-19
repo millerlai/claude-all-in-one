@@ -1,0 +1,182 @@
+# stage-ship — squash, release-note, and stop before anything irreversible
+
+This file is read two ways: by the subagent the track dispatches to run this
+stage, and by `$ship` when someone runs the stage standing alone, with
+no track underneath it. The procedure below is the same either way.
+
+**On Codex, this stage prepares only and never runs the irreversible
+operations below** — merging, tagging, publishing, and closing the linked
+ticket. No subagent runs an irreversible git/gh operation here: after
+the person confirms, the main session runs them itself. That confirmation
+is one of the two human gates the track never skips; running this stage
+standing alone does not remove it. Closing the ticket joins this same gate
+rather than adding a third — see `references/ticket-mirror.md`'s ship
+section for that confirmation's own separate item. The sandbox's own push
+approval prompt is untested through release — do not treat it as a
+second safety net; Gate 2 is the only confirmation you can rely on.
+
+**Every confirmation here is a menu**, quoting the exact commands about to
+run — never a sentence the person types a word back into.
+`references/approval-gates.md` holds the options and which of them are asked
+on their own turn.
+
+**Voicing that gate is the one thing not the same either way.** Dispatched
+by the track you are a subagent, and the platform gives no subagent an
+interactive tool. That confirmation, and every "stop and ask" below, then
+means: stop there, and end the report with the `## Pending questions`
+section `references/pending-questions.md` specifies — the main session puts
+it to the person. The gate does not move; only who speaks it does.
+Standing alone you are the main session — ask directly.
+
+## The grounding rule
+
+Everything this stage writes — the commit message, the release note, the PR
+body — is prose about a diff, read later by people who will not open the
+diff to check it. That is exactly the shape a plausible sentence survives
+in: a use case renumbered, a file described that was never added, a report
+named that does not exist.
+
+So every factual claim in what you hand back names the diff line, commit,
+or file it came from, and you confirmed that source in this pass. Three
+things settle a claim and nothing else does: a hunk in `git diff
+<BASE>..HEAD`, a line in `git log <BASE>..HEAD`, or a file you opened and
+read. Not the design document's plan for the change — that says what was
+intended, not what landed. Not the branch name. Not what the last stage
+reported.
+
+A claim you cannot ground gets cut, not softened. "Also improves error
+handling" with no hunk behind it is not a weaker claim than the ones that
+have one; it is the one that will be wrong.
+
+**When this stage runs as a dispatched subagent, the main session applies
+this rule again to its output before using it** — re-derive each claim from
+the diff itself. A subagent's report is a draft, and the diff is the only
+thing that outranks it.
+
+## Step 1 — Preflight checks
+
+```bash
+git status --porcelain
+git branch --show-current
+```
+
+Working tree must be clean — if dirty, stop and ask the user to commit or
+stash first. Must be on a feature branch — if on `main`/`master` or detached
+HEAD, stop.
+
+## Step 2 — Determine BASE
+
+If a commit id was given, validate it:
+
+```bash
+git cat-file -t <given-id>            # must print "commit"
+git merge-base --is-ancestor <given-id> HEAD   # exit 0 means it is an ancestor of HEAD, nonzero means it is not
+```
+
+Either check failing → stop, tell the user the id is invalid or not an
+ancestor of HEAD.
+
+Otherwise detect the default branch and compute the merge-base — run these
+as separate commands, not piped through shell variables or `${VAR:-default}`,
+so it works on Windows:
+
+```bash
+git symbolic-ref --short refs/remotes/origin/HEAD
+git merge-base HEAD origin/<default-branch>
+```
+
+Fall back to `origin/main`, then `origin/master`, if the first command fails.
+
+## Step 3 — Show what will be squashed
+
+```bash
+git log --oneline <BASE>..HEAD
+git diff --stat <BASE>..HEAD
+```
+
+0 commits → nothing to do, stop. 1 commit → only the message needs
+rewriting, proceed. Otherwise show the commit list to the user.
+
+## Step 4 — Draft the final commit message
+
+Read `git log <BASE>..HEAD --pretty=format:'%h %s%n%b'` and the diff stat.
+Compose one conventional commit message in English: `type(scope): summary`,
+imperative mood, ≤72 chars, then 2–6 body bullets summarizing the *net*
+change — not a replay of intermediate commits, and not fixup/WIP noise.
+Every bullet is a claim; the grounding rule above applies to each one.
+
+**Show the drafted message to the user and wait for confirmation** before
+Step 5 — the message in full, then a menu (`references/approval-gates.md`),
+asked on its own turn rather than folded into the gate above. This is
+history-rewriting; never skip confirmation.
+
+## Step 5 — Backup, then squash
+
+```bash
+git branch backup/<branch>-<timestamp>   # <branch> from Step 1; <timestamp> as YYYYMMDD-HHMMSS, computed yourself rather than with a bash-only date substitution
+git reset --soft <BASE>
+git commit -m "<title>" -m "<body>"
+```
+
+## Step 6 — Verify and report
+
+```bash
+git log --oneline -3
+git status
+git diff --stat <BASE>..HEAD    # content must be identical to before the squash
+```
+
+Report the new single commit (hash + title), the backup branch name, and
+the push instruction: `git push --force-with-lease` only — never plain
+`-f`/`--force`.
+
+## Step 7 — Write the release note
+
+One paragraph, written for someone who was not in this conversation: what
+changed, why (the requirement it satisfies, not the mechanism), and
+anything a caller needs to do differently. Pull the "why" from the design
+document this track produced, if one exists, rather than re-deriving it
+from the diff — but the *what* still comes from the diff under the
+grounding rule, since a design document describes a plan and this paragraph
+describes what shipped. Where the two disagree, the diff is right and the
+gap is worth a sentence. Put it in the PR description — you have `gh`, and that is where it always
+lands. If this project also keeps a `CHANGELOG.md`, do not write it: hand
+the same paragraph up in your `## Report`, naming the file, and the main
+session writes the entry. Files this stage does not already own are not
+yours to write.
+
+## Rollback
+
+```bash
+git reset --soft backup/<branch>-<timestamp>
+```
+
+`--soft` fully restores the original history — the squash never touches the
+working tree, so only the branch pointer needs to move back. Never
+`git reset --hard`.
+
+## When not to use this
+
+- The branch has already been squashed and the message is fine — say so and
+  do nothing.
+- Nothing has changed since the last ship — there is no diff to note.
+
+## Report
+
+This is what you hand back to the main session -- not the report this
+file's own steps describe. Put these fields in a `## Report` section. The
+main session, not you, is the only writer of the track's state table and
+of the ledger's `--note`; you write no track file at all.
+
+- the final commit hash
+- whether the merge/tag/publish step ran or is still waiting on the person
+- where the release note landed
+- what is left open -- anything still waiting on the person after merge, one item each
+
+Evidence goes in the artifact this stage already produces, never pasted
+in here. 4000 characters is the ceiling for this section: the largest
+note any finished track has written is 1941 characters, measured across
+30 rows in five tracks, and a report carries those fields plus what never
+reaches that cell. The number is the user's call, 2026-09-08. A
+`## Pending questions` section (`references/pending-questions.md`) sits
+outside the ceiling -- a decision handed up has to carry its evidence.

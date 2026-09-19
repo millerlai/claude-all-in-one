@@ -1,0 +1,14 @@
+{
+  "name": "claude-all-in-one",
+  "interface": {
+    "displayName": "ML's claude-all-in-one (Codex)"
+  },
+  "plugins": [
+    {
+      "name": "cai-codex",
+      "description": "Codex CLI counterpart of the cai plugin: the same cost-tiered agents, skills and rules, generated from plugins/cai.",
+      "source": "./plugins/cai-codex",
+      "category": "development"
+    }
+  ]
+}
