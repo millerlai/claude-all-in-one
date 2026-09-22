@@ -41,15 +41,18 @@ and got nothing back", which is a different and much worse claim.
 0. **Lay the options out before asking, and lint them.** The question tool's
    labels hold a few words each, so the reasoning goes in the message above
    it, in `option-explainer.md`'s six-field shape — the stage handed up
-   evidence, and a menu that drops it asks the person to choose blind. Write
-   that message to a file — when the round is about a decisions document's
-   `## Tier 1` entry, that file is `<track-dir>/options-<id>.md`, `<id>` being
-   the entry's own id (e.g. `options-D1.md`), since that is the path
-   `preflight.py build`'s `options_drafts` check looks for — and
+   evidence, and a menu that drops it asks the person to choose blind. Also
+   write that message to a file — when the round is about a decisions
+   document's `## Tier 1` entry, that file is `<track-dir>/options-<id>.md`,
+   `<id>` being the entry's own id (e.g. `options-D1.md`), since that is the
+   path `preflight.py build`'s `options_drafts` check looks for — and run
    `<cai> options_lint <the draft>`; exit 0
-   or fix what it names (#73). This is the main session's step for the same
-   reason the asking is: four of the six stage agents can run neither a
-   script nor a `Write`.
+   or fix what it names (#73). That file is where the lint and `preflight.py`
+   read it later, not where the person reads it: once the lint exits 0, send
+   the linted text itself, in full, as the message that asks. A file path
+   plus a one-line summary per option is the failure this step exists to
+   prevent. This is the main session's step for the same reason the asking
+   is: four of the six stage agents can run neither a script nor a `Write`.
 1. **Ask one decision per turn.** The question tool, biggest blast radius
    first, the rest queued. A turn carrying two questions carries none — the
    second gets answered against a guess about the first.

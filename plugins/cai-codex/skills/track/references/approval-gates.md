@@ -11,7 +11,7 @@ says *how* it asks, and the answer is the same everywhere: if
 `request_user_input` is in your tool list, ask with it — a menu the person
 clicks; only when it is not in your tool list, ask with numbered options
 in text instead. Either way,
-two to four labelled options, the reasoning in the message above it (#74).
+two to four labelled options, the reasoning in full in the same message, before the options (#74).
 
 **Why a menu rather than "reply `approved` when you've read it".** That
 sentence fails three ways at once. Typing a word is work, and work at the

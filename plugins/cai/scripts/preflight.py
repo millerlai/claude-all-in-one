@@ -394,7 +394,7 @@ def options_drafts(text, artifact, track_dir):
         except (OSError, UnicodeDecodeError) as exc:
             failed.append((False, (
                 "options_drafts (missing options-%s.md -- pending-questions.md's "
-                "Step 0 says to write the draft there before this stage can pass; "
+                "Step 0 saves the options shown to the person there before this stage can pass; "
                 "write it to %s -- %s)" % (id_, path, exc))))
             continue
         checked += 1
