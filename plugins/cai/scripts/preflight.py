@@ -215,19 +215,29 @@ def artifact_unchanged(track_dir, project_dir):
 
 
 def design_signed_off(track_dir):
-    """A person picked Approve, not just the pipeline moving state.md along.
+    """A person picked Approve on the design build is about to read, not just
+    the pipeline moving state.md along.
 
-    Only a `passed` record with `gate: human` counts -- a `failed` or
-    `blocked` human record is Changes requested or Reject, the two ways
-    Gate 1 says no, and an `auto` record is not a human at all. Reading
-    every record with ledger.records() rather than last_passed() means a
-    later failed re-run does not erase an earlier approval that still
-    stands."""
-    for record in ledger.records(track_dir, "design"):
-        if record.get("malformed"):
-            continue
-        if record.get("outcome") == "passed" and record.get("gate") == "human":
-            return True, "design_signed_off (recorded)"
+    Only the last `passed` design record counts, and only with `gate: human`.
+    Any human record anywhere used to be enough, but `design` has a stop
+    inside it -- the stance approval -- that is not Gate 1: a run that
+    recorded it as a human row and then passed the finished design as `auto`
+    reached build with nothing signed. The last pass is also the record
+    artifact_unchanged fingerprints, so both checks speak about one document.
+    A `failed` or `blocked` record -- Changes requested, Reject, a re-run that
+    did not pass -- is not a pass, so it neither signs off nor erases an
+    approval made before it."""
+    record = ledger.last_passed(track_dir, "design")
+    if record is not None and record.get("gate") == "human":
+        return True, "design_signed_off (recorded)"
+    if record is not None:
+        return False, (
+            "design_signed_off (the last passed design record is `gate: %s`, "
+            "not a person's Approve -- a person must pick Approve at "
+            "approval-gates.md Gate 1, which appends a passed record with "
+            "`--gate human` after the stage's own; a human record from before "
+            "it, such as the stance approval inside `design`, does not count)"
+            % record.get("gate"))
     return False, (
         "design_signed_off (no passed+human design record on the ledger -- a "
         "person must pick Approve at the design gate, approval-gates.md Gate "
