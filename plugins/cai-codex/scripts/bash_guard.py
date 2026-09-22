@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""PreToolUse guard. Two jobs, and they are not the same kind of rule:
+"""PreToolUse guard. Three jobs, and they are not the same kind of rule:
 
 - block destructive git/shell commands unless the user explicitly confirmed them;
 - block a commit made directly onto a protected branch, which destroys nothing
-  but is the one absolute in rules/workflow.md a hook can actually decide.
+  but is the one absolute in rules/workflow.md a hook can actually decide;
+- block a backtick Bash would run as a command, which rewrites a commit
+  message or PR body without an error.
 
 Cross-platform (pure stdlib, works on Windows).
 Exit codes: 0 = allow, 2 = block (stderr is fed back to Claude).
@@ -111,12 +113,246 @@ NON_BASH = [
 COMMIT = re.compile(r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*" + GIT + r"commit\b")
 PROTECTED = ("main", "master")
 
-# A heredoc body is data the command writes out, not commands it runs. Matched
-# as text, a PR body or release note that merely mentions `git commit` reads as
-# a commit, and a generated .ps1 containing @'...'@ reads as a here-string in
-# Bash. Both are ordinary work, and a guard that blocks ordinary work is a
-# guard that gets switched off - see GUIDE.md.
-HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1.*?^\s*\2\s*$", re.DOTALL | re.MULTILINE)
+# A quoted heredoc body is data the command writes out, not commands it runs.
+# Matched as text, a PR body or release note that merely mentions `git commit`
+# would read as a commit, and a generated .ps1 containing @'...'@ would read as
+# a here-string in Bash. Both are ordinary work, and a guard that blocks
+# ordinary work is a guard that gets switched off - see GUIDE.md.
+HEREDOC_OPEN = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(?:'(\w+)'|\"(\w+)\"|\\(\w+)|(\w+))(?=[ \t\r\n]|$)")
+
+EXPANDED = "a backtick Bash would run as a command"
+UNPARSED = (
+    "a backtick after shell syntax this guard does not parse ($'...', a # "
+    "comment, a quote inside \"$(...)\", or an unusual heredoc delimiter)"
+)
+
+BACKTICK = (
+    "Bash runs the text between backticks as a command and pastes in its "
+    "output. For literal text use single quotes ('fix `x`'), pass a file "
+    "(git commit -F <file>, gh pr create --body-file <file>), or feed it "
+    "through a heredoc with a quoted delimiter (<<'EOF'). To substitute a "
+    "command's output on purpose, write $(command)."
+)
+
+
+def _heredoc_terminator(command, start, delim):
+    """First line at or after `start` whose stripped text is `delim`, as
+    (line_start, line_end) with line_end past its trailing newline (or at the
+    end of the string, if that line has none). None if no such line exists."""
+    n = len(command)
+    pos = start
+    while pos <= n:
+        nl = command.find("\n", pos)
+        content_end = nl if nl != -1 else n
+        if command[pos:content_end].strip() == delim:
+            return pos, (nl + 1 if nl != -1 else n)
+        if nl == -1:
+            return None
+        pos = nl + 1
+    return None
+
+
+def substitutions(body):
+    """The $(...) and `...` segments of one unquoted heredoc body, left to
+    right. Quotes inside `body` are literal here -- an unquoted body
+    contributes only its segments, nothing else."""
+    n = len(body)
+    i = 0
+    segments = []
+    while i < n:
+        c = body[i]
+        if c == "\\" and i + 1 < n and body[i + 1] in "$`\\\n":
+            i += 2
+            continue
+        if c == "\\":
+            i += 1
+            continue
+        if c == "$" and i + 1 < n and body[i + 1] == "(":
+            start = i
+            depth = 1
+            i += 2
+            while i < n and depth > 0:
+                if body[i] == "(":
+                    depth += 1
+                elif body[i] == ")":
+                    depth -= 1
+                i += 1
+            segments.append(body[start:i])
+            continue
+        if c == "`":
+            start = i
+            i += 1
+            while i < n and not (body[i] == "`" and body[i - 1] != "\\"):
+                i += 1
+            if i < n:
+                i += 1
+            segments.append(body[start:i])
+            continue
+        i += 1
+    return segments
+
+
+def scan_command(command):
+    """Read `command` once, left to right, replacing each heredoc opener with
+    a space and each unquoted body with its substitution segments -- a quoted
+    body is data and is dropped entirely. Returns (code, verdict): `code` is
+    what the BLOCKED/COMMIT rules match against, and `verdict` (None,
+    EXPANDED or UNPARSED) is the first backtick this scan saw, for main() to
+    act on."""
+    n = len(command)
+    i = 0
+    state = "normal"  # normal, single, double
+    walk_depth = 0  # >0 while walking a $( ... ) inside a double-quoted string
+    unmodelled = False
+    queue = []  # pending (delim, quoted, term_start, term_end), oldest first
+    out = []
+    verdict = [None]
+
+    def record(v):
+        if verdict[0] is None:
+            verdict[0] = v
+
+    while i < n:
+        c = command[i]
+
+        if walk_depth > 0 or state == "normal":
+            if c == "\\":
+                out.append(c)
+                if i + 1 < n:
+                    out.append(command[i + 1])
+                    i += 2
+                else:
+                    i += 1
+                continue
+            if c == "'":
+                if walk_depth > 0:
+                    unmodelled = True
+                else:
+                    state = "single"
+                out.append(c)
+                i += 1
+                continue
+            if c == '"':
+                if walk_depth > 0:
+                    unmodelled = True
+                else:
+                    state = "double"
+                out.append(c)
+                i += 1
+                continue
+            if walk_depth == 0 and c == "$" and i + 1 < n and command[i + 1] == "'":
+                unmodelled = True
+                out.append(c)
+                i += 1
+                continue
+            if c == "#" and (i == 0 or command[i - 1] in " \t\n;&|()<>"):
+                unmodelled = True
+                out.append(c)
+                i += 1
+                continue
+            if c == "<" and i + 1 < n and command[i + 1] == "<":
+                m = None if unmodelled else HEREDOC_OPEN.match(command, i)
+                term = None
+                delim = None
+                if m:
+                    delim = m.group(2) or m.group(3) or m.group(4) or m.group(5)
+                    quoted = m.group(2) is not None or m.group(3) is not None or m.group(4) is not None
+                    if queue:
+                        search_from = queue[-1][3]
+                    else:
+                        nl = command.find("\n", i)
+                        search_from = (nl + 1) if nl != -1 else None
+                    if search_from is not None:
+                        term = _heredoc_terminator(command, search_from, delim)
+                if m and term:
+                    out.append(" ")
+                    queue.append((delim, quoted, term[0], term[1]))
+                    i = m.end()
+                else:
+                    out.append("<<")
+                    unmodelled = True
+                    i += 2
+                continue
+            if c == "\n":
+                out.append(c)
+                i += 1
+                if queue:
+                    for delim, quoted, term_start, term_end in queue:
+                        body = command[i:term_start]
+                        if not quoted:
+                            segs = substitutions(body)
+                            out.append("\n".join(segs))
+                            for seg in segs:
+                                if "`" in seg:
+                                    record(UNPARSED if unmodelled else EXPANDED)
+                        i = term_end
+                    queue = []
+                continue
+            if c == "`":
+                record(UNPARSED if unmodelled else EXPANDED)
+                out.append(c)
+                i += 1
+                continue
+            if walk_depth > 0 and c == "(":
+                walk_depth += 1
+                out.append(c)
+                i += 1
+                continue
+            if walk_depth > 0 and c == ")":
+                walk_depth -= 1
+                out.append(c)
+                i += 1
+                if walk_depth == 0:
+                    state = "double"
+                continue
+            out.append(c)
+            i += 1
+            continue
+
+        if state == "single":
+            if c == "'":
+                state = "normal"
+                out.append(c)
+                i += 1
+                continue
+            if c == "`" and unmodelled:
+                record(UNPARSED)
+            out.append(c)
+            i += 1
+            continue
+
+        # state == "double"
+        if c == "\\":
+            out.append(c)
+            if i + 1 < n:
+                out.append(command[i + 1])
+                i += 2
+            else:
+                i += 1
+            continue
+        if c == '"':
+            state = "normal"
+            out.append(c)
+            i += 1
+            continue
+        if c == "$" and i + 1 < n and command[i + 1] == "(":
+            out.append(command[i:i + 2])
+            walk_depth = 1
+            i += 2
+            continue
+        if c == "`":
+            record(UNPARSED if unmodelled else EXPANDED)
+            out.append(c)
+            i += 1
+            continue
+        if c == "<" and i + 1 < n and command[i + 1] == "<":
+            out.append("<<")
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+
+    return "".join(out), verdict[0]
 
 
 def git(cwd, *args):
@@ -185,11 +421,14 @@ def main() -> int:
 
     # Match against the command with heredoc bodies removed, but always show
     # the user what they actually typed.
-    code = HEREDOC.sub("", command)
+    code, verdict = scan_command(command)
 
     for pattern, reason, advice in BLOCKED + shell_rules:
         if re.search(pattern, code):
             return deny(reason, command, advice)
+
+    if verdict and payload.get("tool_name") == "Bash":
+        return deny(verdict, command, BACKTICK)
 
     # The branch comes from the session's cwd, which is not necessarily where
     # the command runs -- `cd sub && git commit` and `git -C ../other commit`

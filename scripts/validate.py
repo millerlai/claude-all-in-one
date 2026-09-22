@@ -883,6 +883,52 @@ CASES = [
     ("Bash", "cat > s.ps1 <<'EOF'\n$m = @'\nhello\n'@\nEOF", 0, WORK),
     # ...but the heredoc feeding a real commit must not hide the commit itself.
     ("Bash", "git commit -F - <<'EOF'\nfeat: x\nEOF", 2, MAIN),
+    # --- U1: scan_command's heredoc half (opener/body/segment scan, replacing HEREDOC) ---
+    ("Bash", "cat <<EOF\n$(git push --force origin main)\nEOF", 2, WORK),
+    ("Bash", "cat <<EOF\n`git push --force origin main`\nEOF", 2, WORK),
+    ("Bash", "cat <<EOF\n$(git commit -m x)\nEOF", 2, MAIN),
+    ("Bash", "cat > notes.md <<EOF\ngit commit -m x rewrites nothing\nEOF", 0, MAIN),
+    ("Bash", "cat <<'EOF' && git push --force origin main\nx\nEOF", 2, WORK),
+    ("Bash", "cat <<EOF && git push --force origin main\nx\nEOF", 2, WORK),
+    ("Bash", "cat <<\\EOF\n$(git push --force origin main)\nEOF", 0, WORK),
+    ("Bash", "cat <<'A' > a\nx\nA\ncat <<'B' > b\ngit push --force origin main\nB", 0, WORK),
+    ("Bash", "cat <<A <<'B'\n$(git push --force origin main)\nA\nplain\nB", 2, WORK),
+    ("Bash", "cat <<'A' <<B\nplain\nA\n$(git push --force origin main)\nB", 2, WORK),
+    ("Bash", "cat <<EOF\n$(git push --force origin main", 2, WORK),
+    ("Bash", "echo '<<EOF'\ngit push --force origin main\nEOF", 2, WORK),
+    ("Bash", 'echo "<<EOF"\ngit push --force origin main\nEOF', 2, WORK),
+    ("Bash", "ls # <<EOF\ngit push --force origin main\nEOF", 2, WORK),
+    ("Bash", "echo '<<EOF'", 0, WORK),
+    # A delimiter quoted only in part (`<<E"O"F`) must not fall back to the
+    # bare-word alternative and silently truncate to "E" -- that treats
+    # everything up to a later coincidental "E" line, including a real
+    # command past the true "EOF" terminator, as a dropped heredoc body.
+    ("Bash", "cat <<E\"O\"F\nharmless data\nEOF\ngit push --force origin main\nE", 2, WORK),
+    # --- U2: scan_command's verdict (backtick / unmodelled rules) ---
+    ("Bash", 'git commit -m "fix: handle `None` in parse"', 2, WORK),
+    ("Bash", 'gh pr create --title x --body "uses `foo()` now"', 2, WORK),
+    ("Bash", "git commit -m 'fix: `None`'", 0, WORK),
+    ('Bash', 'git commit -m "fix: \\`None\\`"', 0, WORK),
+    ("PowerShell", 'git commit -m "fix `None`"', 0, WORK),
+    ("Bash", 'git branch "backup/${B}-$(date +%s)"', 0, WORK),
+    ("Bash", "git commit -m \"$(cat <<'EOF'\nfix `x`\nEOF\n)\"", 0, WORK),
+    ("Bash", "cat > f <<EOF\nuse `x`\nEOF", 2, WORK),
+    ("Bash", "cat > f <<'EOF'\nuse `x`\nEOF", 0, WORK),
+    ("Bash", "ls # don't\necho 'it`s'", 2, WORK),
+    ("Bash", "echo $'it\\'s `x`'", 2, WORK),
+    ("Bash", 'echo "$(printf \'%s\' `date`)"', 2, WORK),
+    ("Bash", "cat <<'A-B'\nuse `x`\nA-B", 2, WORK),
+    ("Bash", 'echo "#1" \'a`b\'', 0, WORK),
+    ("Bash", "echo a#b 'x`y'", 0, WORK),
+    ("Bash", "echo $'a\\tb'", 0, WORK),
+    ("Bash", "cat <<< 'x'", 0, WORK),
+    ("Bash", 'cat <<< "`x`"', 2, WORK),
+    ("Bash", "git commit -F notes.txt", 0, WORK),
+    ("Bash", 'echo "$(date)"', 0, WORK),
+    # --- U4: shipped commit/PR forms pass the new backtick block ---
+    ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 0, WORK),
+    ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 2, MAIN),
+    ("Bash", "gh pr create --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
 ]
 
 
@@ -923,6 +969,14 @@ if os.path.isfile(LAUNCHER):
     CODEX_GUARD_CASES = [
         # (Codex-shaped payload, expected exit code)
         ({"tool_input": {"command": "git push --force origin main"}, "cwd": WORK}, 2),
+        # List-form commands name their own program in command[0], so
+        # _tool_name() (launcher.py:134-144) resolves Bash vs PowerShell from
+        # that rather than the host OS -- the bare-string form falls back to
+        # os.name and is ambiguous on a Windows host running a POSIX guard
+        # under test, which is exactly what these two rows need to avoid.
+        ({"tool_input": {"command": ["bash", "-c", 'git commit -m "fix `None`"']}, "cwd": WORK}, 2),
+        ({"tool_input": {"command": ["powershell.exe", "-Command", 'git commit -m "fix `None`"']}, "cwd": WORK}, 0),
+        ({"tool_input": {"command": ["bash", "-c", "cat <<EOF\n$(git push --force origin main)\nEOF"]}, "cwd": WORK}, 2),
     ]
 
     def run_codex_guard(payload):

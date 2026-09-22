@@ -149,6 +149,12 @@ restatement is a ledger line, not new code.
   so a PowerShell pipe that feeds a recursive listing into `Remove-Item -Force`
   reads as two harmless halves. Both are the cost of a hook that has to stay
   fast and never guess; the alternative is parsing shell grammar.
+- The guard's one scan tracks only single quotes, double quotes, backslashes and
+  heredoc delimiters. It does not parse `$'…'`, `#` comments, quotes inside
+  `"$(…)"`, or an unusual heredoc delimiter such as `<<'A-B'`. After one of
+  those it blocks any backtick and stops recognising heredocs, rather than
+  guess. The rewrites in its advice always pass: single quotes, `-F <file>`,
+  `<<'EOF'`, or `$(…)`.
 - Several procedures still live as prose in `rules/` rather than as skills: the
   subagent flow in `model-selection.md`, the test loop in `workflow.md`, and
   the "validate the diagram before shipping" step in `documentation.md`.

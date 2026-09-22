@@ -111,7 +111,11 @@ history-rewriting; never skip confirmation.
 ```bash
 git branch "backup/${BRANCH}-$(date +%Y%m%d-%H%M%S)"
 git reset --soft <BASE>
-git commit -m "<title>" -m "<body>"
+git commit -F - <<'EOF'
+<title>
+
+<body>
+EOF
 ```
 
 ## Step 6 — Verify and report
@@ -136,7 +140,15 @@ from the diff — but the *what* still comes from the diff under the
 grounding rule, since a design document describes a plan and this paragraph
 describes what shipped. Where the two disagree, the diff is right and the
 gap is worth a sentence. Put it in the PR description — you have `gh`, and that is where it always
-lands. If this project also keeps a `CHANGELOG.md`, do not write it: hand
+lands. Pass the body on stdin behind a quoted delimiter, so Bash leaves any backtick in it alone:
+
+```bash
+gh pr create --title '<title>' --body-file - <<'EOF'
+<release note>
+EOF
+```
+
+If this project also keeps a `CHANGELOG.md`, do not write it: hand
 the same paragraph up in your `## Report`, naming the file, and the main
 session writes the entry. Files this stage does not already own are not
 yours to write.
