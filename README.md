@@ -417,8 +417,8 @@ Two things follow, and both are enforced rather than remembered:
 Deciding *whether* to re-tier stays a human's call — that is a judgement, and
 judgements are exactly what this table says not to automate.
 
-**When this account cannot run a tier's model, Claude Code handles most of
-it already:**
+**When this account cannot run a tier's model, Claude Code v2.1.247 or later
+handles most of it already:**
 
 - A subagent whose alias (`sonnet`, `opus`, `haiku`) is blocked by an
   `availableModels` allowlist moves to the newest permitted version of that
@@ -433,11 +433,10 @@ it already:**
   LLM gateway deployment
   ([Organization model restrictions](https://code.claude.com/docs/en/model-config#organization-model-restrictions)).
 
-One case is left uncovered: a subagent pinned to a specific model ID (say, a
-retired version) that the API rejects outright fails instead of
-substituting. Claude Code v2.1.247 or later can route around that with a
-fallback chain — set `fallbackModel` in `~/.claude/settings.json` as an
-array (entries accept an alias):
+Not covered: a subagent whose model the API rejects outright — a retired model
+ID, for example — fails instead of substituting. Claude Code v2.1.247 or later
+can route around that with a fallback chain — set `fallbackModel` in
+`~/.claude/settings.json` as an array (entries accept an alias):
 
 ```json
 {
