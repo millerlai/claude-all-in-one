@@ -234,6 +234,51 @@ def test_a_failed_human_record_does_not_count_as_sign_off(tmp_path):
     assert "FAIL design_signed_off" in done.stdout
 
 
+def test_an_approval_inside_design_does_not_sign_off_what_design_finished(tmp_path):
+    """Issue #112, the ledger a live run left: the stance approval -- a stop
+    inside `design`, not Gate 1 -- was recorded as passed+human, the finished
+    design then passed as auto, and Gate 1 never ran. Any human record
+    anywhere used to be enough, so build started on a design nobody signed."""
+    stance = write_doc(tmp_path, "d-stance.md", HLD)
+    detail = write_doc(tmp_path, "d-detail.md", DETAIL)
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=stance, gate="human")
+    ledger.append(track, "design", "passed", artifact=detail, gate="auto")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+
+
+def test_gate_1_after_the_stage_own_auto_record_signs_off(tmp_path):
+    """The order every real run writes: the stage records its own pass as
+    auto, and Gate 1's Approve lands after it."""
+    doc = write_doc(tmp_path, "d-detail.md", DETAIL)
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="auto")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout
+
+
+def test_a_failed_rerun_after_approval_does_not_erase_it(tmp_path):
+    """A failed record is not a pass, so it does not replace the approval as
+    the design build reads."""
+    doc = write_doc(tmp_path, "d-detail.md", DETAIL)
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    ledger.append(track, "design", "failed", artifact=doc, gate="auto")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout
+
+
 # --- options_drafts: a decisions document's Tier 1 owes a draft per entry --
 
 def test_v5_a_non_decisions_artifact_is_not_checked(tmp_path):
