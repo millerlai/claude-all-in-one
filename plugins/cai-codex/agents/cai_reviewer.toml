@@ -1,4 +1,4 @@
-# cai-codex-version: 0.1.2
+# cai-codex-version: 0.2.1
 name = "cai_reviewer"
 description = "Reviews a diff through one named lens and reports findings. Dispatched by the `verify` stage, several at a time. Read-only; does not fix anything."
 model = "gpt-5.6-terra"

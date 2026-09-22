@@ -12,7 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 README = REPO_ROOT / "plugins" / "cai-codex" / "README.md"
 
-STATUSES = {"verified", "documented, not tested", "degraded"}
+STATUSES = {"verified", "documented, not tested", "degraded", "unverified"}
 
 # A design-id citation, e.g. "(C9)" or "(D5=A)" -- CLAUDE.md's "Who a file is
 # for" makes a path into this repo's own tooling a defect in a shipped file,
@@ -108,6 +108,14 @@ def test_usage_row_is_degraded():
     assert row[2] == "degraded"
 
 
+def test_model_detection_row_is_unverified_and_names_the_choice_file():
+    text = README.read_text(encoding="utf-8")
+    rows = _table_rows(text)
+    row = next(r for r in rows if "chore/build/think" in r[0].lower())
+    assert row[2] == "unverified"
+    assert "cai-model-choice.json" in row[1]
+
+
 def test_no_design_id_citation():
     text = README.read_text(encoding="utf-8")
     assert not DESIGN_ID.search(text)
@@ -124,7 +132,7 @@ def test_launcher_path_is_always_under_the_real_home_directory():
     never `$CODEX_HOME`."""
     text = README.read_text(encoding="utf-8")
     assert "$HOME/.codex/cai/" in text
-    assert "$CODEX_HOME/cai" not in text
+    assert "$CODEX_HOME/cai/" not in text
 
 
 def test_requirements_describe_interpreter_lookup_order_not_a_bare_python():
