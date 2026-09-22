@@ -1202,8 +1202,12 @@ def test_render_mapping_ignored_line_only_when_positive():
 
 
 def test_render_mapping_full_sample_matches_design():
+    # Built with `/` rather than a backslash literal: on POSIX a backslash is an
+    # ordinary character, so `render_mapping`'s own `chome / name` would join
+    # with `/` and never match a hard-coded Windows path.
+    chome = Path("...") / ".codex"
     detection = install_codex.Detection(
-        True, "", Path(r"...\.codex\models_cache.json"),
+        True, "", chome / "models_cache.json",
         ("gpt-5.6-luna", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.5"),
         {}, 7, 0, "2026-09-22T08:13:21.014621200Z")
     plans = {
@@ -1220,10 +1224,10 @@ def test_render_mapping_full_sample_matches_design():
                         ("gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-luna", "gpt-5.5")),
     }
 
-    lines = install_codex.render_mapping(plans, detection, Path(r"...\.codex"), full=True)
+    lines = install_codex.render_mapping(plans, detection, chome, full=True)
 
     assert lines == [
-        r"models: detected 5 of 7 from ...\.codex\models_cache.json "
+        f"models: detected 5 of 7 from {chome / 'models_cache.json'} "
         "(fetched 2026-09-22T08:13:21.014621200Z)",
         "role chore: gpt-5.6-luna / low (cai default) -- "
         "cai_explorer, cai_shipper, cai_test-runner",
@@ -1240,7 +1244,7 @@ def test_render_mapping_full_sample_matches_design():
         "ask again build: saved gpt-reserve is not offered by this detection; "
         "default answer gpt-5.6-terra",
         "ask: keep-or-switch",
-        r"answers file: ...\.codex\cai-model-answers.json",
+        f"answers file: {chome / 'cai-model-answers.json'}",
     ]
 
 
