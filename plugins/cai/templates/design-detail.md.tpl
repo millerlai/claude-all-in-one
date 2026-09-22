@@ -187,6 +187,11 @@ Status: approved <YYYY-MM-DD>
 <!--
   What can fail, and what happens when it does. A document describing only the
   happy path is not a short one, it is unfinished.
+
+  Boundary inputs belong here too, even when nothing fails: an empty list, a
+  value exactly at a Budgets limit, the first run with no existing state. Each
+  has a behaviour someone must choose, and one left unwritten gets chosen by
+  whoever implements it — differently in each component.
 -->
 
 | Situation | What happens | What the caller sees |
