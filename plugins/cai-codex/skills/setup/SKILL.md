@@ -45,6 +45,88 @@ try the next one in the list for your OS. If every interpreter in the list
 fails, stop here and quote the last failure to the user rather than guessing
 what went wrong.
 
+### Read the mapping block
+
+The installer's own stdout ends with a mapping block: a `models:` line
+(and, when it applies, a `models: ignored ...` line), one `role <role>: ...`
+line per role, then, when detection succeeded, `offer <role>: ...` lines
+per role, then zero or more `ask again <role>:` and `not offered <role>:`
+lines, then an `ask:` line, then an `answers file:` line. Read these lines
+back out of the output you just captured.
+
+Show the user the `role <role>: ...` lines as the current mapping. Show
+every `ask again <role>:` line and every `not offered <role>:` line too,
+each on its own line, verbatim — this file holds no rule about what they
+mean beyond what they say.
+
+### Ask what the `ask:` line says to ask
+
+Follow the `ask:` line exactly:
+
+- `ask: keep-or-switch` — ask one question: keep the current mapping
+  (first option, the default) or switch it.
+  - If the user switches, ask one question per role, in the order chore,
+    build, think: the options are that role's `offer <role>: ...` entries,
+    in the same order the line lists them, first entry first.
+  - If the user keeps, ask one question per role that has an `ask again
+    <role>:` line only — a role with no stale saved slug is not re-asked.
+    Its options again come from that role's `offer <role>: ...` line.
+- `ask: keep-or-type <role> <role> ...` — ask one question per role named
+  after `keep-or-type`: keep (first option, the default) or type a model
+  name. Every one of these questions must carry this warning: "setup
+  cannot check a typed name against your account".
+- `ask: nothing` — ask no question at all. (Step 5's report says the saved
+  choice was reused, and why.)
+
+Menus for these questions follow the same rule Step 3 already states: a
+menu tool if one is available, else numbered text.
+
+### Apply the answers
+
+If no role was answered with a slug this run — every answer was "keep", or
+nothing was asked at all — stop here: write no answers file, and run the
+installer no further.
+
+Otherwise, write the answers file with the file-edit tool at the exact
+path from the `answers file:` line:
+
+```
+{"format": 1, "roles": {"<role>": "<slug>", ...}}
+```
+
+with one entry for every role that was asked a question this run and
+answered with a slug — a role answered "keep" gets no entry, even if it was
+asked.
+
+Then run the installer again, with `--apply` placed right after the script
+path — on Windows, before the `2>&1` pipe segment — using the same
+interpreter that just succeeded; do not retry the interpreter list.
+
+macOS or Linux:
+
+```
+<interpreter> "<cai-root>/scripts/install_codex.py" --apply
+```
+
+Windows:
+
+```
+& { & <interpreter> "<cai-root>/scripts/install_codex.py" --apply 2>&1 | ForEach-Object { "$_" }; exit $LASTEXITCODE }
+```
+
+If this run exits non-zero, quote its output to the user and stop — do not
+retry it with another interpreter, because it is the answers that failed,
+not the interpreter.
+
+Otherwise, capture and read this `--apply` run's own stdout the same way
+you read run 1's in "Read the mapping block" above. The roles written to
+the answers file are not necessarily the roles actually saved — the
+installer drops a role from the saved file when the answered slug equals
+that role's cai default. Determine which roles were actually saved from
+this apply run's own `role <role>: ...` lines: a role is saved this run
+only if its tag reads `saved; cai default <default>`, not plain `cai
+default`.
+
 ## Step 3 — Set the response language
 
 Ask the user which language they want responses in. If a menu tool is
@@ -85,3 +167,11 @@ Report concisely:
 - Which interpreter succeeded.
 - The response language that was set.
 - Whether the user still needs to run `/hooks` to activate the guard.
+- The `models:` line, quoted verbatim.
+- Every `not offered <role>:` line, quoted verbatim.
+- Which roles were saved this run, per the `--apply` run's own `role
+  <role>: ...` tags (not per which roles were written to the answers
+  file) — or, if `ask: nothing` meant no question was asked at all, that
+  the saved choice was reused, and why (the `models:` line's own reason).
+- This exact sentence: "If a cai agent later fails to start with a model
+  error, re-run `$setup` and switch that role."

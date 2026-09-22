@@ -18,6 +18,7 @@ import importlib.util
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -53,9 +54,138 @@ def fake_env(tmp_path, **extra):
     return env
 
 
+def fake_cache(chome, models, fetched_at=None):
+    """Writes a `models_cache.json` (C1 shape,
+    `docs/design/2026-09-22-codex-model-fallback-detail.md`, "decisions.md:22")
+    into `chome`, for `detect()` to read."""
+    data = {"models": models}
+    if fetched_at is not None:
+        data["fetched_at"] = fetched_at
+    return write(chome, install_codex.MODELS_CACHE_NAME, json.dumps(data))
+
+
 def run(env):
     return subprocess.run([sys.executable, str(SCRIPT)],
                           capture_output=True, encoding="utf-8", env=env)
+
+
+# ---------------------------------------------------------------------------
+# Line rewriter -- rewrite_model_lines, fallback_effort
+# ---------------------------------------------------------------------------
+
+SHIPPED_AGENTS_DIR = REPO_ROOT / "plugins" / "cai-codex" / "agents"
+
+
+@pytest.mark.parametrize("toml_path", sorted(SHIPPED_AGENTS_DIR.glob("*.toml")))
+def test_rewrite_model_lines_only_changes_lines_4_and_5(toml_path):
+    original = toml_path.read_bytes()
+    rewritten = install_codex.rewrite_model_lines(original, "gpt-9-nova", "xhigh")
+
+    orig_lines = original.split(b"\n")
+    new_lines = rewritten.split(b"\n")
+    assert len(orig_lines) == len(new_lines)
+    assert new_lines[0] == orig_lines[0]  # line 1, the version stamp, untouched
+    assert new_lines[3] == b'model = "gpt-9-nova"'
+    assert new_lines[4] == b'model_reasoning_effort = "xhigh"'
+    for i in range(len(orig_lines)):
+        if i in (3, 4):
+            continue
+        assert new_lines[i] == orig_lines[i], f"line {i + 1} changed unexpectedly"
+
+
+def test_rewrite_model_lines_crlf_input_keeps_crlf():
+    real = (SHIPPED_AGENTS_DIR / "cai_explorer.toml").read_bytes()
+    crlf = real.replace(b"\n", b"\r\n")
+
+    rewritten = install_codex.rewrite_model_lines(crlf, "gpt-9-nova", "xhigh")
+
+    assert b"\r\n" in rewritten
+    assert b"\n" not in rewritten.replace(b"\r\n", b"")  # no bare \n snuck in
+    lines = rewritten.split(b"\r\n")
+    assert lines[0] == crlf.split(b"\r\n")[0]
+    assert lines[3] == b'model = "gpt-9-nova"'
+    assert lines[4] == b'model_reasoning_effort = "xhigh"'
+
+
+@pytest.mark.parametrize("bad_model", [
+    'has"quote', "has\nnewline", "$(echo x)", "Uppercase", "a" * 65, "gpt-5.6-sol\n",
+])
+def test_rewrite_model_lines_rejects_invalid_model(bad_model):
+    real = (SHIPPED_AGENTS_DIR / "cai_explorer.toml").read_bytes()
+    with pytest.raises(ValueError):
+        install_codex.rewrite_model_lines(real, bad_model, "high")
+
+
+def test_slug_re_rejects_invalid_slugs():
+    for bad in ['has"quote', "has\nnewline", "$(echo x)", "Uppercase", "a" * 65]:
+        assert install_codex.SLUG_RE.match(bad) is None
+
+
+def test_slug_re_rejects_trailing_newline():
+    """A bare `$` anchor (no `re.MULTILINE`) matches just before a string's
+    final `\\n`, not only at the true end of string -- so `"gpt-5.6-sol\\n"`
+    would wrongly pass a `$`-anchored pattern even though `\\n` is outside
+    `[a-z0-9.-]`, and then be written as a raw newline inside a TOML basic
+    string, breaking it (AC7, M4, D7)."""
+    assert install_codex.SLUG_RE.match("gpt-5.6-sol\n") is None
+
+
+def test_slug_re_accepts_max_length_slug():
+    assert install_codex.SLUG_RE.match("a" * 64) is not None
+
+
+def test_rewrite_model_lines_anchor_missing_raises():
+    toml = b'# cai-codex-version: 0.1.1\nname = "x"\ndescription = "d"\n'
+    with pytest.raises(install_codex.AnchorError):
+        install_codex.rewrite_model_lines(toml, "gpt-9-nova", "high")
+
+
+def test_rewrite_model_lines_anchor_duplicated_raises():
+    toml = (
+        b'# cai-codex-version: 0.1.1\n'
+        b'model = "a"\n'
+        b'model = "b"\n'
+        b'model_reasoning_effort = "low"\n'
+    )
+    with pytest.raises(install_codex.AnchorError):
+        install_codex.rewrite_model_lines(toml, "gpt-9-nova", "high")
+
+
+def test_rewrite_model_lines_ignores_model_line_inside_developer_instructions():
+    toml = (
+        b'# cai-codex-version: 0.1.1\n'
+        b'model = "a"\n'
+        b'model_reasoning_effort = "low"\n'
+        b"developer_instructions = '''\n"
+        b'model = "not a real anchor, this is body text"\n'
+        b"'''\n"
+    )
+    rewritten = install_codex.rewrite_model_lines(toml, "gpt-9-nova", "high")
+
+    assert b'model = "gpt-9-nova"' in rewritten
+    assert b'model_reasoning_effort = "high"' in rewritten
+    # the body-text line, past the developer_instructions split, is untouched
+    assert b'model = "not a real anchor, this is body text"' in rewritten
+
+
+def test_fallback_effort_returns_own_when_offered():
+    assert install_codex.fallback_effort("high", ("low", "medium", "high")) == "high"
+
+
+def test_fallback_effort_falls_back_to_next_lower_when_own_missing():
+    assert install_codex.fallback_effort("high", ("low", "medium")) == "medium"
+
+
+def test_fallback_effort_falls_back_to_lowest_when_none_lower():
+    assert install_codex.fallback_effort("low", ("medium", "high")) == "medium"
+
+
+def test_fallback_effort_returns_own_when_levels_is_none():
+    assert install_codex.fallback_effort("high", None) == "high"
+
+
+def test_fallback_effort_returns_own_when_levels_has_no_known_names():
+    assert install_codex.fallback_effort("high", ("turbo", "ultra-plus")) == "high"
 
 
 # ---------------------------------------------------------------------------
@@ -607,3 +737,907 @@ def test_cli_agents_md_contains_the_cai_command_line_once_after_two_runs(tmp_pat
 
     agents_md = (codex_home / "AGENTS.md").read_text(encoding="utf-8")
     assert agents_md.count("To run a cai-codex script") == 1
+
+
+# ---------------------------------------------------------------------------
+# Detection -- detect
+# Design: docs/design/2026-09-22-codex-model-fallback-detail.md, "Detection".
+# ---------------------------------------------------------------------------
+
+def test_detect_missing_file(tmp_path):
+    chome = tmp_path / ".codex"
+    chome.mkdir()
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is False
+    assert d.reason == f"{chome / install_codex.MODELS_CACHE_NAME} is missing"
+    assert d.offered == ()
+    assert d.total == 0
+    assert d.ignored == 0
+    assert d.fetched_at is None
+
+
+def test_detect_unparsable_json(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.MODELS_CACHE_NAME, "{not json")
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is False
+    assert d.reason.startswith(f"{chome / install_codex.MODELS_CACHE_NAME} cannot be parsed:")
+
+
+def test_detect_top_level_not_object(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.MODELS_CACHE_NAME, json.dumps([1, 2, 3]))
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is False
+    assert "cannot be parsed" in d.reason
+
+
+def test_detect_models_not_list(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.MODELS_CACHE_NAME, json.dumps({"models": "nope"}))
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is False
+    assert "cannot be parsed" in d.reason
+
+
+def test_detect_models_entry_not_object(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.MODELS_CACHE_NAME, json.dumps({"models": ["not an object"]}))
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is False
+    assert "cannot be parsed" in d.reason
+
+
+def test_detect_no_offered_after_filtering(tmp_path):
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [{"slug": "gpt-hidden", "visibility": "hide",
+                         "supported_reasoning_levels": []}])
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is False
+    assert d.reason == f"{chome / install_codex.MODELS_CACHE_NAME} lists no offered models"
+    assert d.total == 1
+    assert d.ignored == 0
+
+
+def test_detect_non_str_slug_skipped_not_counted_anywhere(tmp_path):
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": 123, "visibility": "list", "supported_reasoning_levels": []},
+        {"slug": "gpt-5.6-sol", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is True
+    assert d.total == 1  # the non-str-slug entry counted in neither total, offered, nor ignored
+    assert d.ignored == 0
+    assert d.offered == ("gpt-5.6-sol",)
+
+
+def test_detect_ignored_counts_a_bad_slug(tmp_path):
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": "Bad Slug!", "visibility": "list", "supported_reasoning_levels": []},
+        {"slug": "gpt-5.6-sol", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is True
+    assert d.total == 2
+    assert d.ignored == 1
+    assert d.offered == ("gpt-5.6-sol",)
+
+
+def test_detect_offered_levels_and_fetched_at(tmp_path):
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": "gpt-5.6-sol", "visibility": "list",
+         "supported_reasoning_levels": [{"effort": "low"}, {"effort": "high"}]},
+    ], fetched_at="2026-09-22T08:13:21.014621200Z")
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is True
+    assert d.reason == ""
+    assert d.offered == ("gpt-5.6-sol",)
+    assert d.levels == {"gpt-5.6-sol": ("low", "high")}
+    assert d.fetched_at == "2026-09-22T08:13:21.014621200Z"
+    assert d.source == chome / install_codex.MODELS_CACHE_NAME
+
+
+def test_detect_hidden_and_no_visibility_key_not_offered(tmp_path):
+    """D5: `visibility: "hide"` and no `visibility` key at all are both NOT
+    offered -- only `visibility == "list"` is."""
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": "gpt-hidden", "visibility": "hide", "supported_reasoning_levels": []},
+        {"slug": "gpt-novis", "supported_reasoning_levels": []},
+        {"slug": "gpt-5.6-sol", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+
+    d = install_codex.detect(chome)
+
+    assert d.ok is True
+    assert d.offered == ("gpt-5.6-sol",)
+
+
+# ---------------------------------------------------------------------------
+# Saved choice -- load_choice, save_choice
+# ---------------------------------------------------------------------------
+
+def test_load_choice_missing_file_returns_empty(tmp_path):
+    chome = tmp_path / ".codex"
+    assert install_codex.load_choice(chome) == {}
+
+
+def test_load_choice_invalid_json_raises(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME, "{not json")
+
+    with pytest.raises(install_codex.ChoiceParseError):
+        install_codex.load_choice(chome)
+
+
+def test_load_choice_wrong_format_raises(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME, json.dumps({"format": 2, "roles": {}}))
+
+    with pytest.raises(install_codex.ChoiceParseError):
+        install_codex.load_choice(chome)
+
+
+def test_load_choice_non_str_role_value_raises(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME, json.dumps({"format": 1, "roles": {"build": 5}}))
+
+    with pytest.raises(install_codex.ChoiceParseError):
+        install_codex.load_choice(chome)
+
+
+def test_load_choice_bad_slug_raises(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME,
+          json.dumps({"format": 1, "roles": {"build": "Uppercase Nope"}}))
+
+    with pytest.raises(install_codex.ChoiceParseError):
+        install_codex.load_choice(chome)
+
+
+def test_load_choice_valid_roundtrip(tmp_path):
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-5.6-sol"}}))
+
+    assert install_codex.load_choice(chome) == {"build": "gpt-5.6-sol"}
+
+
+def test_save_choice_writes_lf_no_bom_and_the_sample_shape(tmp_path):
+    chome = tmp_path / ".codex"
+
+    dest = install_codex.save_choice(chome, {"build": "gpt-5.6-sol"})
+
+    data = dest.read_bytes()
+    assert not data.startswith(b"\xef\xbb\xbf")  # no BOM
+    assert b"\r\n" not in data  # LF only
+    text = data.decode("utf-8")
+    assert json.loads(text) == {"format": 1, "roles": {"build": "gpt-5.6-sol"}}
+    assert text == '{\n  "format": 1,\n  "roles": {\n    "build": "gpt-5.6-sol"\n  }\n}\n'
+
+
+def test_save_choice_empty_roles_writes_empty_object(tmp_path):
+    chome = tmp_path / ".codex"
+
+    dest = install_codex.save_choice(chome, {})
+
+    assert json.loads(dest.read_text(encoding="utf-8")) == {"format": 1, "roles": {}}
+
+
+# ---------------------------------------------------------------------------
+# Role map -- role_agents, shipped_defaults
+# ---------------------------------------------------------------------------
+
+CAI_CODEX_ROOT = REPO_ROOT / "plugins" / "cai-codex"
+
+
+def test_role_agents_matches_the_real_tree():
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+
+    assert list(agents.keys()) == ["chore", "build", "think"]
+    assert agents["chore"] == ["cai_explorer.toml", "cai_shipper.toml", "cai_test-runner.toml"]
+
+
+def test_shipped_defaults_matches_the_real_tree():
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+
+    defaults = install_codex.shipped_defaults(CAI_CODEX_ROOT, agents)
+
+    assert defaults["chore"] == ("gpt-5.6-luna", "low")
+    assert defaults["build"] == ("gpt-5.6-terra", "medium")
+    assert defaults["think"] == ("gpt-5.6-terra", "high")
+
+
+# ---------------------------------------------------------------------------
+# Planner -- plan_roles, ask_directive
+# ---------------------------------------------------------------------------
+
+def _detection(ok, offered=(), levels=None, reason=""):
+    return install_codex.Detection(
+        ok=ok, reason=reason, source=Path("/fake/models_cache.json"),
+        offered=tuple(offered), levels=levels or {}, total=len(offered),
+        ignored=0, fetched_at=None)
+
+
+def test_plan_roles_reask_true_when_saved_slug_missing_or_hidden():
+    agents = {"build": ["cai_implementer.toml"]}
+    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    detection = _detection(True, offered=("gpt-5.6-terra", "gpt-5.6-sol"))
+    saved = {"build": "gpt-reserve"}  # not offered by this detection
+
+    plans = install_codex.plan_roles(agents, defaults, detection, saved)
+
+    assert plans["build"].reask is True
+    assert plans["build"].in_effect == "gpt-reserve"
+    assert plans["build"].offer[0] == "gpt-5.6-terra"  # cai default, offered
+    assert plans["build"].effort == "medium"  # fallback_effort(own, None) == own
+
+
+def test_plan_roles_offer0_is_first_offered_when_default_not_offered():
+    agents = {"build": ["cai_implementer.toml"]}
+    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    detection = _detection(True, offered=("gpt-5.6-sol", "gpt-5.6-nova"))
+    saved = {"build": "gpt-reserve"}  # not offered; default also not offered
+
+    plans = install_codex.plan_roles(agents, defaults, detection, saved)
+
+    assert plans["build"].reask is True
+    assert plans["build"].offer[0] == "gpt-5.6-sol"  # first offered, catalog order
+    assert plans["build"].offer == ("gpt-5.6-sol", "gpt-5.6-nova")
+
+
+def test_plan_roles_reask_false_when_saved_slug_still_offered():
+    agents = {"build": ["cai_implementer.toml"]}
+    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    detection = _detection(True, offered=("gpt-5.6-sol", "gpt-5.6-terra"))
+    saved = {"build": "gpt-5.6-sol"}
+
+    plans = install_codex.plan_roles(agents, defaults, detection, saved)
+
+    assert plans["build"].reask is False
+    assert plans["build"].in_effect == "gpt-5.6-sol"
+    assert plans["build"].offer == ("gpt-5.6-sol", "gpt-5.6-terra")
+
+
+def test_plan_roles_unlisted_default_only_for_unsaved_role_on_success():
+    agents = {"build": ["cai_implementer.toml"], "chore": ["cai_explorer.toml"]}
+    defaults = {"build": ("gpt-5.6-terra", "medium"), "chore": ("gpt-5.6-luna", "low")}
+    detection = _detection(True, offered=("gpt-5.6-sol",))
+    saved = {"chore": "gpt-5.6-sol"}  # chore saved; build unsaved, default unlisted
+
+    plans = install_codex.plan_roles(agents, defaults, detection, saved)
+
+    assert plans["build"].unlisted_default is True
+    assert plans["chore"].unlisted_default is False  # saved, never marked
+
+
+def test_plan_roles_unlisted_default_never_set_when_detection_failed():
+    agents = {"build": ["cai_implementer.toml"]}
+    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    detection = _detection(False, reason="boom")
+    saved = {}
+
+    plans = install_codex.plan_roles(agents, defaults, detection, saved)
+
+    assert plans["build"].unlisted_default is False
+    assert plans["build"].reask is False
+    assert plans["build"].offer == ()
+
+
+def test_plan_roles_drops_saved_role_not_present_in_agents():
+    agents = {"build": ["cai_implementer.toml"]}
+    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    detection = _detection(True, offered=("gpt-5.6-terra",))
+    saved = {"build": "gpt-5.6-terra", "ghost-role": "gpt-5.6-sol"}
+
+    plans = install_codex.plan_roles(agents, defaults, detection, saved)
+
+    assert set(plans.keys()) == {"build"}
+
+
+def test_ask_directive_ok_detection_is_keep_or_switch():
+    detection = _detection(True, offered=("gpt-5.6-sol",))
+    plans = {"build": install_codex.RolePlan(
+        "build", (), "gpt-5.6-terra", "medium", "gpt-5.6-terra", False, "medium",
+        False, False, ("gpt-5.6-terra",))}
+
+    assert install_codex.ask_directive(plans, detection) == "ask: keep-or-switch"
+
+
+def test_ask_directive_failed_detection_lists_unsaved_roles_in_role_order():
+    detection = _detection(False, reason="boom")
+    plans = {
+        "chore": install_codex.RolePlan("chore", (), "m", "low", "m", True, "low",
+                                         False, False, ()),
+        "build": install_codex.RolePlan("build", (), "m", "medium", "m", False, "medium",
+                                         False, False, ()),
+        "think": install_codex.RolePlan("think", (), "m", "high", "m", False, "high",
+                                         False, False, ()),
+    }
+
+    assert install_codex.ask_directive(plans, detection) == "ask: keep-or-type build think"
+
+
+def test_ask_directive_failed_detection_all_saved_is_nothing():
+    detection = _detection(False, reason="boom")
+    plans = {
+        "chore": install_codex.RolePlan("chore", (), "m", "low", "m", True, "low",
+                                         False, False, ()),
+        "build": install_codex.RolePlan("build", (), "m", "medium", "m", True, "medium",
+                                         False, False, ()),
+    }
+
+    assert install_codex.ask_directive(plans, detection) == "ask: nothing"
+
+
+# ---------------------------------------------------------------------------
+# agent_bytes -- every shipped cai_*.toml name -> bytes
+# ---------------------------------------------------------------------------
+
+def _real_plans(saved, detection=None):
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    defaults = install_codex.shipped_defaults(CAI_CODEX_ROOT, agents)
+    detection = detection if detection is not None else _detection(False, reason="no cache")
+    return install_codex.plan_roles(agents, defaults, detection, saved)
+
+
+def test_agent_bytes_unsaved_role_is_shipped_bytes():
+    plans = _real_plans({})
+
+    contents = install_codex.agent_bytes(CAI_CODEX_ROOT, plans)
+
+    shipped = (CAI_CODEX_ROOT / "agents" / "cai_explorer.toml").read_bytes()
+    assert contents["cai_explorer.toml"] == shipped
+
+
+def test_agent_bytes_saved_role_is_rewritten():
+    plans = _real_plans({"build": "gpt-5.6-sol"})
+
+    contents = install_codex.agent_bytes(CAI_CODEX_ROOT, plans)
+
+    shipped = (CAI_CODEX_ROOT / "agents" / "cai_implementer.toml").read_bytes()
+    expected = install_codex.rewrite_model_lines(
+        shipped, "gpt-5.6-sol", plans["build"].effort)
+    assert contents["cai_implementer.toml"] == expected
+    # an unsaved role's file in the same tree stays shipped
+    assert contents["cai_architect.toml"] == (
+        CAI_CODEX_ROOT / "agents" / "cai_architect.toml").read_bytes()
+
+
+def test_agent_bytes_covers_every_shipped_toml():
+    plans = _real_plans({})
+
+    contents = install_codex.agent_bytes(CAI_CODEX_ROOT, plans)
+
+    shipped_names = {p.name for p in CAI_CODEX_ROOT.glob("agents/cai_*.toml")}
+    assert set(contents.keys()) == shipped_names
+
+
+# ---------------------------------------------------------------------------
+# install_agents(contents=...) -- optional override, unchanged when None
+# ---------------------------------------------------------------------------
+
+def test_install_agents_writes_given_contents(tmp_path):
+    root = tmp_path / "root"
+    write(root, "agents/cai_a.toml", "shipped a\n")
+    write(root, "agents/cai_b.toml", "shipped b\n")
+    home = tmp_path / "codex_home"
+
+    written, removed = install_codex.install_agents(
+        root, home, {"cai_a.toml": b"rewritten a\n", "cai_b.toml": b"shipped b\n"})
+
+    assert (home / "agents" / "cai_a.toml").read_text(encoding="utf-8") == "rewritten a\n"
+    assert (home / "agents" / "cai_b.toml").read_text(encoding="utf-8") == "shipped b\n"
+    assert {p.name for p in written} == {"cai_a.toml", "cai_b.toml"}
+    assert removed == []
+
+
+# ---------------------------------------------------------------------------
+# render_mapping
+# ---------------------------------------------------------------------------
+
+def _plan(role, agents, default_model, default_effort, in_effect, saved, effort,
+          reask, unlisted_default, offer):
+    return install_codex.RolePlan(role, agents, default_model, default_effort, in_effect,
+                                   saved, effort, reask, unlisted_default, offer)
+
+
+def test_render_mapping_models_line_ok_with_fetched_at():
+    detection = install_codex.Detection(
+        True, "", Path("/x/.codex/models_cache.json"), ("gpt-a",), {}, 3, 0,
+        "2026-09-22T08:13:21.014621200Z")
+    plans = {}
+
+    lines = install_codex.render_mapping(plans, detection, Path("/x/.codex"), full=True)
+
+    assert lines[0] == (
+        f"models: detected 1 of 3 from {Path('/x/.codex/models_cache.json')} "
+        "(fetched 2026-09-22T08:13:21.014621200Z)")
+
+
+def test_render_mapping_models_line_ok_no_fetched_at():
+    detection = install_codex.Detection(
+        True, "", Path("/x/.codex/models_cache.json"), ("gpt-a",), {}, 1, 0, None)
+    lines = install_codex.render_mapping({}, detection, Path("/x/.codex"), full=True)
+    assert lines[0] == f"models: detected 1 of 1 from {Path('/x/.codex/models_cache.json')}"
+
+
+def test_render_mapping_models_line_failed():
+    detection = _detection(False, reason="boom")
+    lines = install_codex.render_mapping({}, detection, Path("/x/.codex"), full=True)
+    assert lines[0] == "models: detection failed: boom"
+
+
+def test_render_mapping_ignored_line_only_when_positive():
+    detection = install_codex.Detection(
+        True, "", Path("/x"), ("gpt-a",), {}, 2, 1, None)
+    lines = install_codex.render_mapping({}, detection, Path("/x/.codex"), full=True)
+    assert "models: ignored 1 slug(s) outside [a-z0-9.-]" in lines
+
+    detection2 = install_codex.Detection(
+        True, "", Path("/x"), ("gpt-a",), {}, 1, 0, None)
+    lines2 = install_codex.render_mapping({}, detection2, Path("/x/.codex"), full=True)
+    assert not any(line.startswith("models: ignored") for line in lines2)
+
+
+def test_render_mapping_full_sample_matches_design():
+    detection = install_codex.Detection(
+        True, "", Path(r"...\.codex\models_cache.json"),
+        ("gpt-5.6-luna", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.5"),
+        {}, 7, 0, "2026-09-22T08:13:21.014621200Z")
+    plans = {
+        "chore": _plan("chore", ("cai_explorer.toml", "cai_shipper.toml", "cai_test-runner.toml"),
+                        "gpt-5.6-luna", "low", "gpt-5.6-luna", False, "low", False, False,
+                        ("gpt-5.6-luna", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.5")),
+        "build": _plan("build", ("cai_implementer.toml", "cai_refactoring-detector.toml",
+                                  "cai_reviewer.toml", "cai_security-reviewer.toml",
+                                  "cai_verifier.toml"),
+                        "gpt-5.6-terra", "medium", "gpt-reserve", True, "medium", True, False,
+                        ("gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-luna", "gpt-5.5")),
+        "think": _plan("think", ("cai_architect.toml", "cai_designer.toml"),
+                        "gpt-5.6-terra", "high", "gpt-5.6-terra", False, "high", False, False,
+                        ("gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-luna", "gpt-5.5")),
+    }
+
+    lines = install_codex.render_mapping(plans, detection, Path(r"...\.codex"), full=True)
+
+    assert lines == [
+        r"models: detected 5 of 7 from ...\.codex\models_cache.json "
+        "(fetched 2026-09-22T08:13:21.014621200Z)",
+        "role chore: gpt-5.6-luna / low (cai default) -- "
+        "cai_explorer, cai_shipper, cai_test-runner",
+        "role build: gpt-reserve / medium (saved; cai default gpt-5.6-terra) -- "
+        "cai_implementer, cai_refactoring-detector, cai_reviewer, "
+        "cai_security-reviewer, cai_verifier",
+        "role think: gpt-5.6-terra / high (cai default) -- cai_architect, cai_designer",
+        "offer chore: gpt-5.6-luna (in effect, cai default), gpt-5.6-sol, gpt-6-astra, "
+        "gpt-5.6-terra, gpt-5.5",
+        "offer build: gpt-5.6-terra (cai default), gpt-5.6-sol, gpt-6-astra, "
+        "gpt-5.6-luna, gpt-5.5",
+        "offer think: gpt-5.6-terra (in effect, cai default), gpt-5.6-sol, gpt-6-astra, "
+        "gpt-5.6-luna, gpt-5.5",
+        "ask again build: saved gpt-reserve is not offered by this detection; "
+        "default answer gpt-5.6-terra",
+        "ask: keep-or-switch",
+        r"answers file: ...\.codex\cai-model-answers.json",
+    ]
+
+
+def test_render_mapping_g1_line():
+    detection = _detection(True, offered=("gpt-5.6-sol",))
+    plans = {
+        "think": _plan("think", ("cai_architect.toml",), "gpt-5.6-terra", "high",
+                        "gpt-5.6-terra", False, "high", False, True, ("gpt-5.6-sol",)),
+    }
+
+    lines = install_codex.render_mapping(plans, detection, Path("/x/.codex"), full=True)
+
+    assert ("not offered think: gpt-5.6-terra is in effect but this detection "
+            "does not list it") in lines
+
+
+def test_render_mapping_not_full_omits_offer_and_appends_applied_count():
+    detection = _detection(True, offered=("gpt-5.6-sol",))
+    plans = {
+        "build": _plan("build", ("cai_implementer.toml",), "gpt-5.6-terra", "medium",
+                        "gpt-5.6-sol", True, "medium", False, False, ("gpt-5.6-sol",)),
+        "chore": _plan("chore", ("cai_explorer.toml",), "gpt-5.6-luna", "low",
+                        "gpt-5.6-luna", False, "low", False, False, ("gpt-5.6-luna",)),
+    }
+
+    lines = install_codex.render_mapping(plans, detection, Path("/x/.codex"), full=False)
+
+    assert not any(line.startswith("offer ") for line in lines)
+    assert not any(line.startswith("ask:") for line in lines)
+    assert not any(line.startswith("answers file:") for line in lines)
+    assert lines[-1] == "applied: 1 role(s) saved"
+
+
+# ---------------------------------------------------------------------------
+# CLI, run 1 -- AC1, AC3, AC6, decision 5, decision 13
+# ---------------------------------------------------------------------------
+
+def test_cli_run1_no_saved_roles_leaves_toml_shipped_bytes_and_asks_keep_or_switch(tmp_path):
+    """AC1 / UC1 / M2."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": "gpt-5.6-luna", "visibility": "list", "supported_reasoning_levels": []},
+        {"slug": "gpt-5.6-terra", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+
+    result = run(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    real_agents = sorted((REPO_ROOT / "plugins" / "cai-codex" / "agents").glob("cai_*.toml"))
+    for p in real_agents:
+        assert (chome / "agents" / p.name).read_bytes() == p.read_bytes()
+    assert "ask: keep-or-switch" in result.stdout
+
+
+def test_cli_ac3_saved_role_rewritten_from_a_copied_and_updated_tree(tmp_path):
+    """AC3 / UC3: run against a copied `<cai-root>` whose shipped TOMLs were
+    just "updated" (a new stamp), with `build` saved from before the update."""
+    copy_root = tmp_path / "cai-codex-copy"
+    shutil.copytree(REPO_ROOT / "plugins" / "cai-codex", copy_root)
+    new_stamp = b"# cai-codex-version: 9.9.9"
+    for p in (copy_root / "agents").glob("cai_*.toml"):
+        data = p.read_bytes()
+        first_nl = data.index(b"\n")
+        p.write_bytes(new_stamp + data[first_nl:])
+
+    home = tmp_path / "home"
+    chome = home / ".codex"
+    fake_cache(chome, [
+        {"slug": "gpt-5.6-sol", "visibility": "list", "supported_reasoning_levels": []},
+        {"slug": "gpt-5.6-terra", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+    write(chome, install_codex.CHOICE_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-5.6-sol"}}))
+
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    env["CODEX_HOME"] = str(chome)
+    result = subprocess.run(
+        [sys.executable, str(copy_root / "scripts" / "install_codex.py")],
+        capture_output=True, encoding="utf-8", env=env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    build_toml = (chome / "agents" / "cai_implementer.toml").read_bytes()
+    lines = build_toml.split(b"\n")
+    assert lines[0] == b"# cai-codex-version: 9.9.9"
+    assert lines[3] == b'model = "gpt-5.6-sol"'
+    assert "saved; cai default" in result.stdout
+
+
+def test_cli_ac6_no_cache_build_saved_asks_keep_or_type_unsaved_roles(tmp_path):
+    """AC6 / UC5: no cache present, `build` saved -- build's saved slug
+    installs unchanged and the ask directive lists only unsaved roles."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-5.6-sol"}}))
+
+    result = run(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    shipped = (REPO_ROOT / "plugins" / "cai-codex" / "agents"
+               / "cai_implementer.toml").read_bytes()
+    expected = install_codex.rewrite_model_lines(shipped, "gpt-5.6-sol", "medium")
+    assert (chome / "agents" / "cai_implementer.toml").read_bytes() == expected
+    assert "ask: keep-or-type chore think" in result.stdout
+
+
+def test_cli_ac6_every_role_saved_no_cache_asks_nothing(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME, json.dumps({"format": 1, "roles": {
+        "chore": "gpt-5.6-luna", "build": "gpt-5.6-terra", "think": "gpt-5.6-terra"}}))
+
+    result = run(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "ask: nothing" in result.stdout
+
+
+def test_cli_invalid_saved_choice_exits_1_before_any_write(tmp_path):
+    """Decision 5."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.CHOICE_NAME, "{not json")
+
+    assert not (tmp_path / ".codex" / "cai" / "launcher.py").is_file()
+
+    result = run(env)
+
+    assert result.returncode == 1
+    assert not (tmp_path / ".codex" / "cai" / "launcher.py").is_file()
+    assert not list((chome / "agents").glob("cai_*.toml")) if (chome / "agents").is_dir() else True
+    assert "invalid saved model choice, not overwritten" in result.stdout
+
+
+def test_cli_removes_stale_answers_file(tmp_path):
+    """Decision 13."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    stale = write(chome, "cai-model-answers.json", json.dumps({"format": 1, "roles": {}}))
+
+    result = run(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not stale.exists()
+    assert f"removed stale {stale}" in result.stdout
+
+
+@pytest.mark.skipif(platform.system() != "Windows",
+                     reason="POSIX permits unlinking an open file; only Windows locks it")
+def test_cli_stale_answers_file_locked_reports_instead_of_crashing(tmp_path):
+    """`apply_answers`'s own end-of-run cleanup of this same file is wrapped
+    in `try/except OSError` (`:784-789`), but run 1's stale-file removal
+    was not -- a routine Windows file lock (open elsewhere, an antivirus
+    scan) on an abandoned setup's leftover answers file used to crash the
+    whole install with an unhandled exception instead of the module's own
+    documented exit-code contract ("1 a write failed ... with the failing
+    path printed")."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    stale = write(chome, install_codex.ANSWERS_NAME, json.dumps({"format": 1, "roles": {}}))
+
+    fh = open(stale, "r")
+    try:
+        # errors="replace": the locked-file OSError's message is localized by
+        # Windows into the console's own codepage, not necessarily UTF-8 --
+        # unrelated to what this test checks, so decode leniently rather than
+        # letting an unrelated UnicodeDecodeError mask the real assertion.
+        result = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True,
+                                 encoding="utf-8", errors="replace", env=env)
+    finally:
+        fh.close()
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "could not remove stale" in result.stdout
+    # the rest of the install still completed despite the locked leftover file
+    real_agents = sorted((REPO_ROOT / "plugins" / "cai-codex" / "agents").glob("cai_*.toml"))
+    for p in real_agents:
+        assert (chome / "agents" / p.name).read_bytes() == p.read_bytes()
+
+
+def run_apply(env):
+    return subprocess.run([sys.executable, str(SCRIPT), "--apply"],
+                          capture_output=True, encoding="utf-8", env=env)
+
+
+def test_cli_apply_no_answers_file_exits_1(tmp_path):
+    env = fake_env(tmp_path)
+    assert run(env).returncode == 0
+
+    result = run_apply(env)
+
+    assert result.returncode == 1
+    assert "answers not applied:" in result.stdout
+    assert "is missing" in result.stdout
+
+
+def test_cli_apply_answers_malformed_json_exits_1(tmp_path):
+    """`read_answers`'s malformed-JSON branch (`install_codex.py:497-507`)
+    had no CLI test -- stance.md's "Optimises for" commits every rule about
+    what gets written to a `tests/test_codex_install.py` case."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    assert run(env).returncode == 0
+
+    write(chome, install_codex.ANSWERS_NAME, "{not json")
+
+    result = run_apply(env)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "answers not applied:" in result.stdout
+    assert "cannot be parsed" in result.stdout
+    assert not (chome / install_codex.CHOICE_NAME).exists()
+
+
+def test_cli_apply_answers_unknown_role_exits_1(tmp_path):
+    """`read_answers`'s unknown-role branch (`install_codex.py:511-512`) had
+    no CLI test."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    assert run(env).returncode == 0
+
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"no-such-role": "gpt-5.6-sol"}}))
+
+    result = run_apply(env)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "answers not applied:" in result.stdout
+    assert "unknown role" in result.stdout
+    assert not (chome / install_codex.CHOICE_NAME).exists()
+
+
+def test_cli_apply_invalid_saved_choice_exits_1_before_any_write(tmp_path):
+    """`apply_answers`'s own `load_choice`/`ChoiceParseError` handling
+    (`install_codex.py:733-738`) mirrors run 1's (already covered by
+    `test_cli_invalid_saved_choice_exits_1_before_any_write`), but had no
+    test of its own on the `--apply` path."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    assert run(env).returncode == 0  # run 1, valid install
+
+    write(chome, install_codex.CHOICE_NAME, "{not json")
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-5.6-sol"}}))
+
+    result = run_apply(env)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "invalid saved model choice, not overwritten" in result.stdout
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    for name in agents["build"]:
+        shipped = (CAI_CODEX_ROOT / "agents" / name).read_bytes()
+        assert (chome / "agents" / name).read_bytes() == shipped
+
+
+def test_cli_apply_merges_answers_and_removes_answers_file(tmp_path):
+    """AC2/UC2/D6: an answer equal to the role's cai default is not saved,
+    while a different answer is saved and rewrites that role's TOMLs."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    assert run(env).returncode == 0  # run 1, no cache yet -- shipped bytes
+
+    chore_default = install_codex.shipped_defaults(
+        CAI_CODEX_ROOT, install_codex.role_agents(CAI_CODEX_ROOT))["chore"][0]
+    write(chome, install_codex.ANSWERS_NAME, json.dumps({
+        "format": 1,
+        "roles": {"build": "gpt-5.6-sol", "chore": chore_default},
+    }))
+
+    result = run_apply(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    for name in agents["build"]:
+        rewritten = (chome / "agents" / name).read_bytes()
+        assert rewritten.split(b"\n")[3] == b'model = "gpt-5.6-sol"'
+    for name in agents["chore"]:
+        shipped = (CAI_CODEX_ROOT / "agents" / name).read_bytes()
+        assert (chome / "agents" / name).read_bytes() == shipped
+
+    choice = json.loads((chome / install_codex.CHOICE_NAME).read_text(encoding="utf-8"))
+    assert choice["roles"] == {"build": "gpt-5.6-sol"}
+    assert not (chome / install_codex.ANSWERS_NAME).exists()
+
+
+@pytest.mark.parametrize("bad_value_label,bad_value", [
+    ("embedded_quote", 'x"y'),
+    ("embedded_newline", 'has\nmodel = "z"'),
+    ("trailing_newline", "gpt-5.6-sol\n"),
+    ("dollar_subexpression", None),  # filled per-test with a real marker path
+])
+def test_cli_apply_ac7_rejects_shell_hostile_answers(tmp_path, bad_value_label, bad_value):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    assert run(env).returncode == 0  # run 1, no cache yet -- shipped bytes
+
+    marker = tmp_path / "PWNED_APPLY_ANSWERS"
+    if bad_value_label == "dollar_subexpression":
+        bad_value = f"$(touch {marker.as_posix()})"
+
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": bad_value}}))
+
+    result = run_apply(env)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert not (chome / install_codex.CHOICE_NAME).exists()
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    for name in agents["build"]:
+        shipped = (CAI_CODEX_ROOT / "agents" / name).read_bytes()
+        assert (chome / "agents" / name).read_bytes() == shipped
+    if bad_value_label == "dollar_subexpression":
+        assert not marker.exists(), "the $(...) subexpression ran"
+
+
+def test_cli_apply_m1_answer_not_offered_by_detection_is_rejected(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": "gpt-5.6-terra", "visibility": "list", "supported_reasoning_levels": []},
+        {"slug": "gpt-5.6-luna", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+    assert run(env).returncode == 0  # run 1, with cache -- detection.ok True
+
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-9-unoffered"}}))
+
+    result = run_apply(env)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "is not offered by this detection; re-run $setup" in result.stdout
+    assert not (chome / install_codex.CHOICE_NAME).exists()
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    for name in agents["build"]:
+        shipped = (CAI_CODEX_ROOT / "agents" / name).read_bytes()
+        assert (chome / "agents" / name).read_bytes() == shipped
+
+
+def test_cli_apply_m1_no_detection_accepts_typed_slug_with_own_effort(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    assert run(env).returncode == 0  # run 1, no cache -- detection.ok False
+
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-9-custom"}}))
+
+    result = run_apply(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    build_default_effort = install_codex.shipped_defaults(
+        CAI_CODEX_ROOT, install_codex.role_agents(CAI_CODEX_ROOT))["build"][1]
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    for name in agents["build"]:
+        rewritten = (chome / "agents" / name).read_bytes()
+        lines = rewritten.split(b"\n")
+        assert lines[3] == b'model = "gpt-9-custom"'
+        assert lines[4] == f'model_reasoning_effort = "{build_default_effort}"'.encode()
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="chmod-based unwritable-dir test only works as non-root on POSIX")
+def test_cli_apply_partial_failure_keeps_answers_file_then_succeeds_on_retry(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    assert run(env).returncode == 0  # run 1, creates chome/agents
+
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-5.6-sol"}}))
+
+    os.chmod(chome / "agents", 0o555)
+    try:
+        result = run_apply(env)
+
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "write failed:" in result.stdout
+        assert "re-run $setup to finish" in result.stdout
+        choice = json.loads((chome / install_codex.CHOICE_NAME).read_text(encoding="utf-8"))
+        assert choice["roles"] == {"build": "gpt-5.6-sol"}
+        assert (chome / install_codex.ANSWERS_NAME).exists()
+    finally:
+        os.chmod(chome / "agents", 0o755)
+
+    retry = run_apply(env)
+
+    assert retry.returncode == 0, retry.stdout + retry.stderr
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    for name in agents["build"]:
+        rewritten = (chome / "agents" / name).read_bytes()
+        assert rewritten.split(b"\n")[3] == b'model = "gpt-5.6-sol"'
+
+
+def test_cli_unknown_argument_exits_2(tmp_path):
+    env = fake_env(tmp_path)
+    result = subprocess.run([sys.executable, str(SCRIPT), "--bogus"],
+                             capture_output=True, encoding="utf-8", env=env)
+    assert result.returncode == 2

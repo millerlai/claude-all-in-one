@@ -53,6 +53,11 @@ when one is available, or the numbered text options otherwise.
 version-stamped, and a stage's launcher refuses to run (exit 3) until the
 stamp matches the plugin version you have installed.
 
+**Choosing models.** `$setup` shows which model each cai role runs on and
+asks whether to keep or switch, offering only models your account's model
+list shows. It checks that list only while it runs: if a cai agent later
+fails to start with a model error, re-run `$setup` and switch that role.
+
 **The ship push approval.** `ship`'s push to GitHub needs escalation outside
 the sandbox, and Codex asks you to approve it. Answer "yes" once rather than
 "don't ask again" if you want every future push confirmed too — "don't ask
@@ -69,13 +74,16 @@ scripts already handle this for themselves.
 
 Status is one of `verified` (observed on Codex), `documented, not tested`
 (described in Codex's own docs or by this build's behavior, but not checked
-end to end here), or `degraded` (a Claude Code capability with no working
-Codex equivalent, accepted as a known gap).
+end to end here), `degraded` (a Claude Code capability with no working
+Codex equivalent, accepted as a known gap), or `unverified` (what cai relies
+on here is neither described in Codex's documentation nor guaranteed to stay
+as observed; it may change with a Codex update).
 
 | Claude Code behaviour | Codex counterpart | Status | Evidence |
 |---|---|---|---|
 | Menu gate (`AskUserQuestion`) at design/ship | `request_user_input`, or numbered options answered in text when the tool is unavailable | verified | observed with codex-cli 0.155.1 on Windows 11, 2026-09-19: starting Codex with `--enable default_mode_request_user_input` made the `$setup` language question render as a real, clickable menu. This is not guaranteed on every gate — during a live track run the model asked a human gate in plain numbered text even though the flag was enabled and the tool was available. Without the flag, Codex's default mode has no question tool at all, so cai asks in numbered text there instead. |
 | Per-agent model pin (`chore`/`build`/`think`) | A user-level `~/.codex/agents/*.toml` per agent, with `model` set | verified | observed with codex-cli 0.155.0 on Windows 11, 2026-09-18: dispatching a personal agent TOML by name applied its `model` override. |
+| Choosing a model per role (chore/build/think) | `$setup` reads the model list Codex keeps for your account in `$CODEX_HOME/models_cache.json`, offers only the models it lists, and saves your per-role choice in `$CODEX_HOME/cai-model-choice.json`, which every later `$setup` re-applies | unverified | observed with codex-cli 0.155.1 on Windows 11, 2026-09-22: the file lists each model's slug, whether it is shown or hidden, and its supported reasoning efforts. It is not described in Codex's documentation, so a Codex update may move or reshape it; setup then says it could not read the list and offers to keep the current models or type a name, rather than guessing. Whether the list leaves out models a restricted account cannot use was not checked. |
 | Per-agent reasoning effort | The same TOML also sets `model_reasoning_effort` | documented, not tested | the field is documented for agent TOML configuration, but whether it takes effect was never exercised in this build — only `model` was observed. |
 | `/cai:x` skill invocation | `$x` | verified | observed with codex-cli 0.155.0 on Windows 11, 2026-09-18: the bare `$name` form invoked a plugin skill on the first try, with no plugin-qualified form needed. |
 | `${CLAUDE_PLUGIN_ROOT}`-relative paths to this plugin's own scripts | A small launcher installed at the fixed path `$HOME/.codex/cai/launcher.py` (always under the real home directory, never `$CODEX_HOME`), invoked through the interpreter `$setup` recorded rather than a literal `python`, that finds the newest installed cai-codex version and runs the named script | verified | observed with codex-cli 0.155.0 on Windows 11, 2026-09-18: `${CLAUDE_PLUGIN_ROOT}` and `${PLUGIN_ROOT}` come back literal and unsubstituted in a skill body, so this plugin never relies on substitution. Generated commands now call the launcher through the interpreter `$setup` recorded (its own `sys.executable`) rather than a hard-coded `python`. On Windows the recorded command additionally pipes the launcher's output through PowerShell (`ForEach-Object`), because a Python script's own output did not reach the tool output on Windows with codex-cli 0.155.x on Windows 11, 2026-09-19, and piping it through PowerShell did. In Codex's Windows sandbox, git reports "dubious ownership" for your own repository; cai's scripts handle this for the folder you opened, but your own git commands may still need `-c safe.directory=<path>` (observed with codex-cli 0.155.1 on Windows 11, 2026-09-19). cai's scripts ran through the recorded command for a whole `$track` run, intake through ship, on Windows (observed with codex-cli 0.155.1 on Windows 11, 2026-09-19). |
@@ -109,5 +117,6 @@ Then remove what `$setup` wrote, since removing the plugin does not touch it:
   contains `.codex/cai/launcher.py`.
 - In `$CODEX_HOME/AGENTS.md`, the block between `<!-- cai-codex:begin -->`
   and `<!-- cai-codex:end -->`.
+- `$CODEX_HOME/cai-model-choice.json` — your saved per-role model choice.
 
 There is no uninstall command for these; remove them by hand.
