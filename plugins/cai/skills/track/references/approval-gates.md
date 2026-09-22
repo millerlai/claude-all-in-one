@@ -8,7 +8,7 @@ a menu is the one thing this file is about.
 
 `SKILL.md`'s "Human gates" says *where* the track stops for a person. This
 says *how* it asks, and the answer is the same everywhere: `AskUserQuestion`,
-two to four labelled options, the reasoning in the message above it (#74).
+two to four labelled options, the reasoning in full in the same message, before the options (#74).
 
 **Why a menu rather than "reply `approved` when you've read it".** That
 sentence fails three ways at once. Typing a word is work, and work at the
