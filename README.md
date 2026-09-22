@@ -417,6 +417,40 @@ Two things follow, and both are enforced rather than remembered:
 Deciding *whether* to re-tier stays a human's call — that is a judgement, and
 judgements are exactly what this table says not to automate.
 
+**When this account cannot run a tier's model, Claude Code v2.1.247 or later
+handles most of it already:**
+
+- A subagent whose alias (`sonnet`, `opus`, `haiku`) is blocked by an
+  `availableModels` allowlist moves to the newest permitted version of that
+  family, or, when no version is permitted, to the main conversation's model
+  ([Restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection),
+  [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)).
+- A skill or command whose `model` frontmatter is blocked is ignored; the
+  skill runs on the session's own model instead
+  ([Restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection)).
+- An organisation cannot disable `haiku` — every member keeps at least one
+  usable model — though that guarantee only reaches the Anthropic API and an
+  LLM gateway deployment
+  ([Organization model restrictions](https://code.claude.com/docs/en/model-config#organization-model-restrictions)).
+
+Not covered: a subagent whose model the API rejects outright — a retired model
+ID, for example — fails instead of substituting. Claude Code v2.1.247 or later
+can route around that with a fallback chain — set `fallbackModel` in
+`~/.claude/settings.json` as an array (entries accept an alias):
+
+```json
+{
+  "fallbackModel": ["sonnet", "haiku"]
+}
+```
+
+It applies to every Claude Code session, switches only when a request fails
+— an overloaded, unavailable, or otherwise non-retryable model, never an
+authentication, billing, or organisation-policy denial, which are never
+retried this way — lasts for the current turn only, and isn't shown in
+`/status`
+([Fallback model chains](https://code.claude.com/docs/en/model-config#fallback-model-chains)).
+
 ## The rules
 
 `/cai:setup` writes these to `~/.claude/rules/`. They are ordinary
