@@ -115,7 +115,8 @@ history-rewriting; never skip confirmation.
 ```bash
 git branch backup/<branch>-<timestamp>   # <branch> from Step 1; <timestamp> as YYYYMMDD-HHMMSS, computed yourself rather than with a bash-only date substitution
 git reset --soft <BASE>
-git commit -m "<title>" -m "<body>"
+# Write the message (title, a blank line, the body) to cai-commit-msg.txt in the system temp directory with your file-writing tool, not the shell.
+git commit -F '<full path of cai-commit-msg.txt>'
 ```
 
 ## Step 6 — Verify and report
@@ -140,7 +141,13 @@ from the diff — but the *what* still comes from the diff under the
 grounding rule, since a design document describes a plan and this paragraph
 describes what shipped. Where the two disagree, the diff is right and the
 gap is worth a sentence. Put it in the PR description — you have `gh`, and that is where it always
-lands. If this project also keeps a `CHANGELOG.md`, do not write it: hand
+lands. Write the release note to cai-pr-body.md in the system temp directory with your file-writing tool, not the shell, then pass the file:
+
+```bash
+gh pr create --title '<title>' --body-file '<full path of cai-pr-body.md>'   # keep the title free of apostrophes: bash and PowerShell escape one differently
+```
+
+If this project also keeps a `CHANGELOG.md`, do not write it: hand
 the same paragraph up in your `## Report`, naming the file, and the main
 session writes the entry. Files this stage does not already own are not
 yours to write.

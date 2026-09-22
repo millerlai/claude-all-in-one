@@ -18,6 +18,8 @@
   (an `implementation-notes.md` for long runs), and keep going — then report the
   deviations with the result. Silently re-scoping hands back a change I never approved.
 - Never commit or push unless I explicitly ask.
+- Never install packages or otherwise change the environment (`pip install`,
+  `npm i -g`) without asking first — least of all on a dirty working tree.
 
 # Commits
 - English, conventional-commit style (feat:, fix:, refactor:).

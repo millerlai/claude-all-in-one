@@ -89,3 +89,10 @@ start of a new, fieldless entry and fails the ledger's own checks.
 - Failure: commit 73d0a3a ("docs(cai): add the layer that costs nothing to model-selection"). The rule described three tiers and all three spent model tokens; the layer underneath -- work a deterministic check settles, at zero cost -- was missing from the always-on prose even though design_probe.py, preflight.py, track_state.py and validate.py were already doing exactly that job.
 - Rule: Make the free layer bigger before routing what's left by judgement risk. Moving a judgement call down a paid tier to save money, before asking whether it needed a model at all, is the mistake to avoid.
 - Cited by: plugins/cai/rules/model-selection.md § Layers, cheapest first
+
+## workflow-ask-before-environment-changes — no installs or environment changes without asking
+
+- Date: 2026-09-21
+- Failure: the person's Claude Code Insights report of 2026-09-21 (a local usage report, not in this repo) records them interrupting an unrequested `pip install mypy` on a dirty tree; stance UC6 carries it.
+- Rule: Never install packages or otherwise change the environment (`pip install`, `npm i -g`) without asking first — least of all on a dirty working tree.
+- Cited by: plugins/cai/rules/workflow.md § Workflow

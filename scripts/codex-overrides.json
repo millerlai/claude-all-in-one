@@ -174,6 +174,41 @@
       "why": "D16/C18: `$(date ...)` is bash-only; matches the placeholder style the Rollback section below already uses (`backup/<branch>-<timestamp>`)."
     },
     {
+      "target": "skills/track/references/stage-ship.md",
+      "anchor": [
+        "git commit -F - <<'EOF'",
+        "<title>",
+        "",
+        "<body>",
+        "EOF"
+      ],
+      "replacement": [
+        "# Write the message (title, a blank line, the body) to cai-commit-msg.txt in the system temp directory with your file-writing tool, not the shell.",
+        "git commit -F '<full path of cai-commit-msg.txt>'"
+      ],
+      "why": "D1=A/D13=P: PowerShell 5.1 has no <<'EOF' heredoc syntax; the agent writes the message to a file in the system temp directory with its own file tool, then -F <file> parses identically in both shells."
+    },
+    {
+      "target": "skills/track/references/stage-ship.md",
+      "anchor": [
+        "Pass the body on stdin behind a quoted delimiter, so Bash leaves any backtick in it alone:",
+        "",
+        "```bash",
+        "gh pr create --title '<title>' --body-file - <<'EOF'",
+        "<release note>",
+        "EOF",
+        "```"
+      ],
+      "replacement": [
+        "Write the release note to cai-pr-body.md in the system temp directory with your file-writing tool, not the shell, then pass the file:",
+        "",
+        "```bash",
+        "gh pr create --title '<title>' --body-file '<full path of cai-pr-body.md>'   # keep the title free of apostrophes: bash and PowerShell escape one differently",
+        "```"
+      ],
+      "why": "D13=P: same heredoc problem as the commit above, on the PR body. gh pr create has no title-from-file flag, so the title stays an argument, and decisions Tier 3 keeps it apostrophe-free rather than trying to make one shell's quoting match the other's."
+    },
+    {
       "target": "skills/quiz/SKILL.md",
       "anchor": [
         "DEFAULT=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|origin/||')",
