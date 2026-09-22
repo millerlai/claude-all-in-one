@@ -1,4 +1,4 @@
-# cai-codex-version: 0.1.1
+# cai-codex-version: 0.2.0
 name = "cai_refactoring-detector"
 description = "Read-only code smell analyst. Invoke to survey a file, module or package and return an evidenced, severity-scored list of code smells with candidate refactorings. Use for parallel analysis across several modules, or when a scan would flood the main conversation with file contents."
 model = "gpt-5.6-terra"
