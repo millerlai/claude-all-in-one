@@ -306,7 +306,7 @@ def test_guard_end_to_end_allows_plain_status(tmp_path, monkeypatch):
 def test_guard_declares_the_payload_cwd_a_safe_directory(tmp_path, monkeypatch):
     """bash_guard.py's own git() calls (current_branch()/worktree_dirty(),
     used to block a protected-branch commit or a dirty-tree discard) run in
-    the payload's own `cwd` (bash_guard.py:198), not the launcher's --
+    the payload's own `cwd` (read in bash_guard.py's main()), not the launcher's --
     Codex's elevated Windows sandbox makes an ungranted directory's git
     calls fail with "dubious ownership", which both of those checks treat
     as "can't tell" and fail open (allow). run_guard must give bash_guard.py
