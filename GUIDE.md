@@ -156,6 +156,14 @@ restatement is a ledger line, not new code.
   those it blocks any backtick and stops recognising heredocs, rather than
   guess. The rewrites in its advice always pass: single quotes, `-F <file>`,
   `<<'EOF'`, or `$(…)`.
+- A `$(…)` outside quotes stays allowed, since it is how the backtick advice
+  substitutes on purpose, except in the stretch between a single quote an
+  apostrophe closed early and the next one, where Bash runs what was meant as
+  message text. The scan tells that stretch from deliberate code only by a
+  letter touching either quote (`it's`, `owners'`), so a stray quote with
+  spaces on both sides still gets through. After one of the shapes above, a
+  `$(…)` it takes to be inside single quotes is blocked, as a backtick is;
+  the advice then says to take the apostrophe out of the comment or `$'…'`.
 - Several procedures still live as prose in `rules/` rather than as skills: the
   subagent flow in `model-selection.md`, the test loop in `workflow.md`, and
   the "validate the diagram before shipping" step in `documentation.md`.

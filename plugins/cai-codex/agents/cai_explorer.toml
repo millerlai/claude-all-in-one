@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.7
+# cai-codex-version: 0.2.8
 name = "cai_explorer"
 description = "Fast codebase exploration. Use PROACTIVELY for locating files, symbols, usages, and config entries before any implementation work. Read-only."
 model = "gpt-5.6-luna"

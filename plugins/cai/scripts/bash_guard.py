@@ -4,8 +4,9 @@
 - block destructive git/shell commands unless the user explicitly confirmed them;
 - block a commit made directly onto a protected branch, which destroys nothing
   but is the one absolute in rules/workflow.md a hook can actually decide;
-- block a backtick Bash would run as a command, which rewrites a commit
-  message or PR body without an error.
+- block a backtick Bash would run as a command, or a $(...) a stray
+  apostrophe left unquoted, which rewrites a commit message or PR body -- or
+  runs something -- without an error.
 
 Cross-platform (pure stdlib, works on Windows).
 Exit codes: 0 = allow, 2 = block (stderr is fed back to Claude).
@@ -134,6 +135,27 @@ BACKTICK = (
     "command's output on purpose, write $(command)."
 )
 
+# The same silent rewrite through the other substitution syntax (#130). A
+# deliberate $(...) is how BACKTICK substitutes on purpose, so only the shape
+# a stray apostrophe makes is judged: a $( between a single quote that closed
+# and the next that opens, with a letter touching either quote (`it's`,
+# `owners'`) -- the one mark that tells English text from shell code.
+SUBSTITUTED = "a $(...) that an apostrophe left outside its single quotes, which Bash runs"
+UNPARSED_SUBSTITUTION = (
+    "a $(...) after shell syntax this guard does not parse ($'...', a # "
+    "comment, a quote inside \"$(...)\", or an unusual heredoc delimiter)"
+)
+
+SUBSTITUTION = (
+    "A single-quoted argument ends at the next apostrophe, so text after a "
+    "stray one is live shell and its $(...) runs before the command does. "
+    "Pass a message as a file (git commit -F <file>, gh pr create "
+    "--body-file <file>) or through a heredoc with a quoted delimiter "
+    "(<<'EOF'). To substitute a command's output on purpose, write "
+    "\"$(command)\"; if a # comment or $'...' before it holds an apostrophe, "
+    "take that apostrophe out, since the guard cannot tell where those end."
+)
+
 
 def _heredoc_terminator(command, start, delim):
     """First line at or after `start` whose stripped text is `delim`, as
@@ -197,13 +219,18 @@ def scan_command(command):
     a space and each unquoted body with its substitution segments -- a quoted
     body is data and is dropped entirely. Returns (code, verdict): `code` is
     what the BLOCKED/COMMIT rules match against, and `verdict` (None,
-    EXPANDED or UNPARSED) is the first backtick this scan saw, for main() to
-    act on."""
+    EXPANDED, UNPARSED, SUBSTITUTED or UNPARSED_SUBSTITUTION) is the first
+    backtick, or $(...) a stray apostrophe left unquoted, this scan saw, for
+    main() to act on."""
     n = len(command)
     i = 0
     state = "normal"  # normal, single, double
     walk_depth = 0  # >0 while walking a $( ... ) inside a double-quoted string
     unmodelled = False
+    # Between a single quote that closed and the next that opens: the stretch
+    # a stray apostrophe leaves unquoted. `glued` is whether a letter touches
+    # the quote that closed it, `subst` whether a $( sits in it.
+    bridge = glued = subst = False
     queue = []  # pending (delim, quoted, term_start, term_end), oldest first
     out = []
     verdict = [None]
@@ -228,6 +255,9 @@ def scan_command(command):
                 if walk_depth > 0:
                     unmodelled = True
                 else:
+                    if bridge and subst and (glued or (i > 0 and command[i - 1].isalpha())):
+                        record(UNPARSED_SUBSTITUTION if unmodelled else SUBSTITUTED)
+                    bridge = False
                     state = "single"
                 out.append(c)
                 i += 1
@@ -305,6 +335,8 @@ def scan_command(command):
                 if walk_depth == 0:
                     state = "double"
                 continue
+            if walk_depth == 0 and bridge and c == "$" and i + 1 < n and command[i + 1] == "(":
+                subst = True
             out.append(c)
             i += 1
             continue
@@ -312,11 +344,16 @@ def scan_command(command):
         if state == "single":
             if c == "'":
                 state = "normal"
+                bridge = True
+                glued = i + 1 < n and command[i + 1].isalpha()
+                subst = False
                 out.append(c)
                 i += 1
                 continue
             if c == "`" and unmodelled:
                 record(UNPARSED)
+            if c == "$" and i + 1 < n and command[i + 1] == "(" and unmodelled:
+                record(UNPARSED_SUBSTITUTION)
             out.append(c)
             i += 1
             continue
@@ -428,7 +465,8 @@ def main() -> int:
             return deny(reason, command, advice)
 
     if verdict and payload.get("tool_name") == "Bash":
-        return deny(verdict, command, BACKTICK)
+        advice = SUBSTITUTION if verdict in (SUBSTITUTED, UNPARSED_SUBSTITUTION) else BACKTICK
+        return deny(verdict, command, advice)
 
     # The branch comes from the session's cwd, which is not necessarily where
     # the command runs -- `cd sub && git commit` and `git -C ../other commit`
