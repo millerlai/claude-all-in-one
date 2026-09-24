@@ -247,7 +247,7 @@ def design_signed_off(track_dir, project_dir):
 
     with open(doc, "rb") as fh:
         now = hashlib.sha256(fh.read()).hexdigest()
-    if any(r.get("sha256") == now for r in approvals):
+    if ledger.approved(approvals, now):
         return True, "design_signed_off (%s)" % artifact
 
     fingerprinted = [r for r in approvals if r.get("sha256")]
