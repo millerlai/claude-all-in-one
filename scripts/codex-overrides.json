@@ -34,6 +34,22 @@
       "why": "D9: the main session does every dispatch this stage needs; `implementer` writes one briefed unit and never orchestrates the schedule or spawns another agent. Replaces the whole opening paragraph rather than appending, for the same reason as stage-verify.md above."
     },
     {
+      "target": "skills/track/references/stage-build.md",
+      "anchor": [
+        "5. **Commit**, write the id into the table beside `done`, and re-read the",
+        "   table before starting the next unit."
+      ],
+      "replacement": [
+        "5. **Commit** with a single git commit using `-m` and a single-quoted,",
+        "   single-line message (`git commit -m '<type(scope): summary>'`), with",
+        "   no message file written. Keep the summary free of apostrophes,",
+        "   backticks, and `$`; paraphrase rather than trying to escape one.",
+        "   Write the id into the table beside `done`, and re-read the table",
+        "   before starting the next unit."
+      ],
+      "why": "Without a spelled-out method, the model defaults to writing a commit-message file per its git skill's general advice, tripping a sandbox-approval prompt on every unit; a single-quoted `-m` message needs no file and no approval. An embedded apostrophe closes the single-quoted string early, leaving anything after it -- including a `$(...)` the summary happens to mention -- as live unquoted shell text instead of committed content; excluding apostrophes/backticks/`$` avoids that rather than trying to escape them."
+    },
+    {
       "target": "skills/track/SKILL.md",
       "anchor": [
         "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",

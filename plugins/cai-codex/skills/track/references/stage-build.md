@@ -157,8 +157,12 @@ For each unit, in schedule order:
    - Green → continue.
    - Red → back to `cai_implementer` once with the actual failure text. Still
      red → stop and report. No unbounded fix loop.
-5. **Commit**, write the id into the table beside `done`, and re-read the
-   table before starting the next unit.
+5. **Commit** with a single git commit using `-m` and a single-quoted,
+   single-line message (`git commit -m '<type(scope): summary>'`), with
+   no message file written. Keep the summary free of apostrophes,
+   backticks, and `$`; paraphrase rather than trying to escape one.
+   Write the id into the table beside `done`, and re-read the table
+   before starting the next unit.
 
 **Never leave the tree uncompilable between units.** A unit that needs a
 broken intermediate state is cut in the wrong place — re-cut it and log the
