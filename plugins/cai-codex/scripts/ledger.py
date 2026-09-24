@@ -471,6 +471,19 @@ def last_passed(track_dir, stage):
     return found
 
 
+def approved(records, sha):
+    """Whether any of these records is a person's Approve of the document
+    whose sha256 is `sha`: `passed`, `gate: human`, that digest. A null sha
+    approves nothing -- an Approve appended without --artifact cannot say
+    what it approved (#126). preflight.py asks it about the design row's
+    document as it stands; usage_report.py about design's last pass, the
+    nearest the ledger alone gets to the same question (#128)."""
+    return bool(sha) and any(
+        not r.get("malformed") and r.get("outcome") == "passed"
+        and r.get("gate") == "human" and r.get("sha256") == sha
+        for r in records)
+
+
 def attempts(track_dir, stage):
     return sum(1 for r in streak(track_dir, stage)
                if r.get("outcome") in COUNTS_AS_RETRY)
