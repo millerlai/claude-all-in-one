@@ -19,7 +19,13 @@ STATUSES = {"verified", "documented, not tested", "degraded", "unverified"}
 # and a bare design id is exactly that: unreadable and unshippable outside
 # this repository.
 DESIGN_ID = re.compile(r"\((I[0-9]|D[0-9]{1,2}|G[0-9]|C[0-9]{1,2}|E[0-9])[^)]{0,12}\)")
-REPO_INTERNAL_PATHS = (".claude/track", "docs/design", "raw/")
+REPO_INTERNAL_PATHS = ("docs/design", "raw/")
+# This repo's own track records -- the design cited its evidence as
+# `.claude/track/codex-support/discover/...`. A named track directory is
+# one; the location itself (`.claude/track/`, `.claude/track/<feature>/`)
+# is where a user's own state lives, which the README has to be able to say
+# (#114).
+TRACK_RECORD = re.compile(r"\.claude/track/(?!<)[\w.-]+/")
 
 
 def _table_rows(text):
@@ -125,6 +131,23 @@ def test_no_repo_internal_path():
     text = README.read_text(encoding="utf-8")
     for bad in REPO_INTERNAL_PATHS:
         assert bad not in text
+    assert not TRACK_RECORD.search(text), TRACK_RECORD.search(text).group(0)
+
+
+def test_the_track_record_rule_flags_a_tracks_records_not_the_location():
+    assert TRACK_RECORD.search("see `.claude/track/codex-support/discover/raw/`")
+    assert not TRACK_RECORD.search("state lives in `.claude/track/<feature>/`")
+    assert not TRACK_RECORD.search("keep `.claude/track/` out of git")
+
+
+def test_usage_says_where_track_state_lives_and_why():
+    """#114: `$track` keeps its state in the project's `.claude/track/`, where
+    Claude Code's cai keeps it, on purpose -- one repository's track can be
+    resumed from either tool. Nothing told a Codex user that."""
+    section = _section(README.read_text(encoding="utf-8"), "## Usage")
+    para = next((p for p in section.split("\n\n") if ".claude/track/" in p), "")
+    assert para, "Usage never says where $track keeps its state"
+    assert "Claude Code" in para and "resume" in para
 
 
 def test_launcher_path_is_always_under_the_real_home_directory():
