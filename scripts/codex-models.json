@@ -12,6 +12,6 @@
   "roles": {
     "chore": { "model": "gpt-5.6-luna", "effort": "low" },
     "build": { "model": "gpt-5.6-terra", "effort": "medium" },
-    "think": { "model": "gpt-5.6-terra", "effort": "high" }
+    "think": { "model": "gpt-6-astra", "effort": "high" }
   }
 }

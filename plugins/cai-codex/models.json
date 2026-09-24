@@ -18,7 +18,11 @@
     "Re-tiering a role (say Haiku grows capable enough to own `build`) is a",
     "one-line edit here followed by `python scripts/gen-models.py`. Deciding",
     "WHETHER to re-tier is a judgement call and stays a human's: the criteria",
-    "below are the test, not the frequency of the task."
+    "below are the test, not the frequency of the task.",
+    "",
+    "A person can also put a tier on another model for themselves alone:",
+    "$models (scripts/model_choice.py) rewrites the model: lines of their",
+    "installed copy from their own saved choice, and never this file."
   ],
 
   "roles": {

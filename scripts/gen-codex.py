@@ -47,6 +47,7 @@ RELEASE_FILE = SCRIPT_DIR / "codex-release.json"
 EXCLUDE_DIRS = {
     "skills/usage",       # replaced by nothing -- Codex has no usage report
     "skills/setup",       # replaced by the hand-written Codex setup skill
+    "skills/models",      # replaced by the hand-written Codex $models skill
     "evals",              # `claude plugin eval` is Claude-only tooling
     "hooks",              # D4=B: setup writes the hook, not the generator
     ".claude-plugin",     # Claude's own manifest (name "cai", version 1.27.0); emit() writes the Codex one at .codex-plugin/ instead
@@ -65,6 +66,7 @@ EXCLUDE_FILES = {
     "scripts/context_peak.py",
     "scripts/gen-models.py",
     "scripts/gen-commands.py",
+    "scripts/model_choice.py",  # rewrites an installed Claude Code copy; Codex has install_codex.py
 }
 
 # The hand-written files (D18) -- the generator never writes or deletes
@@ -73,12 +75,16 @@ EXCLUDE_FILES = {
 # `emit()`'s own OPENAI_YAML constant, added here (U5) only because the
 # setup skill lives under EXCLUDE_DIRS's "skills/setup" and so never reaches
 # emit()'s per-skill loop; without this entry --check would report it as
-# stale drift and write mode would delete it.
+# stale drift and write mode would delete it. The `$models` skill is the same
+# case with no source at all: plugins/cai has no counterpart, since Claude
+# Code's tiers are fixed at build time, so emit() never reaches it either.
 HAND_WRITTEN = {
     "scripts/launcher.py",
     "scripts/install_codex.py",
     "skills/setup/SKILL.md",
     "skills/setup/agents/openai.yaml",
+    "skills/models/SKILL.md",
+    "skills/models/agents/openai.yaml",
     "README.md",
 }
 

@@ -5,7 +5,9 @@ skill (`skills/setup/SKILL.md`) runs this with no arguments; the launcher does
 not exist yet the first time it runs, so `<cai-root>` is this file's own
 grandparent directory rather than anything the launcher resolves.
 
-    python install_codex.py
+    python install_codex.py            # run 1: install, then print the mapping
+    python install_codex.py --models   # print the mapping only; write nothing
+    python install_codex.py --apply    # write the answers a skill collected
 
 Writes, in order (design: docs/design/2026-09-18-codex-support-detail.md,
 "### install_codex.py"):
@@ -28,7 +30,9 @@ saved model choice, and every role's TOML header before writing anything
 docs/design/2026-09-22-codex-model-fallback-detail.md, "Run 1 order"), then
 removes a leftover `cai-model-answers.json`, and prints a mapping block
 (`render_mapping`) describing the roles and the question `skills/setup/SKILL.md`
-should ask next.
+should ask next. `--models` prints that same block and writes nothing at all,
+so `skills/models/SKILL.md` can change a role's model without a reinstall;
+either skill then writes its answers with `--apply`.
 
 Every write goes to a temp file in the destination's own directory and then
 `os.replace`s it into place, so a crash mid-write leaves the previous file
@@ -515,7 +519,8 @@ def read_answers(chome: Path, roles: tuple[str, ...], detection: Detection) -> d
                 f"rejected {role}: {value!r} is not a model name (allowed: {SLUG_RE.pattern})")
         if detection.ok and value not in detection.offered:
             raise AnswersError(
-                f"rejected {role}: {value} is not offered by this detection; re-run $setup")
+                f"rejected {role}: {value} is not offered by this detection; "
+                "run $models to pick one it offers")
         result[role] = value
     return result
 
@@ -794,12 +799,45 @@ def apply_answers(root: Path, chome: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Models run -- show_models
+# ---------------------------------------------------------------------------
+
+def show_models(root: Path, chome: Path) -> int:
+    """The `--models` run: run 1's mapping block, and no write of any kind --
+    no launcher, agents, hooks or AGENTS.md -- so changing one role's model
+    does not reinstall the rest."""
+    detection = detect(chome)
+    try:
+        saved = load_choice(chome)
+    except ChoiceParseError as e:
+        print(f"invalid saved model choice, not overwritten: {e}")
+        return 1
+
+    try:
+        agents = role_agents(root)
+        defaults = shipped_defaults(root, agents)
+    except AnchorError as e:
+        print(f"cannot read {root / 'agents'}: {e}")
+        return 1
+    except (OSError, json.JSONDecodeError, KeyError) as e:
+        print(f"cannot read {root / 'models.json'}: {e}")
+        return 1
+
+    plans = plan_roles(agents, defaults, detection, saved)
+    for line in render_mapping(plans, detection, chome, full=True):
+        print(line)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--apply", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--apply", action="store_true")
+    mode.add_argument("--models", action="store_true")
     args = parser.parse_args(argv)
 
     root = CAI_ROOT
@@ -808,6 +846,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.apply:
         return apply_answers(root, chome)
+    if args.models:
+        return show_models(root, chome)
 
     detection = detect(chome)
     try:

@@ -966,7 +966,7 @@ def test_shipped_defaults_matches_the_real_tree():
 
     assert defaults["chore"] == ("gpt-5.6-luna", "low")
     assert defaults["build"] == ("gpt-5.6-terra", "medium")
-    assert defaults["think"] == ("gpt-5.6-terra", "high")
+    assert defaults["think"] == ("gpt-6-astra", "high")
 
 
 # ---------------------------------------------------------------------------
@@ -1433,6 +1433,66 @@ def run_apply(env):
                           capture_output=True, encoding="utf-8", env=env)
 
 
+def run_models(env):
+    return subprocess.run([sys.executable, str(SCRIPT), "--models"],
+                          capture_output=True, encoding="utf-8", env=env)
+
+
+def test_cli_models_prints_the_mapping_block_and_writes_nothing(tmp_path):
+    """`$models` changes the mapping without a reinstall, so `--models` prints
+    run 1's mapping block and touches nothing: no launcher, no agents, no
+    hooks.json, no AGENTS.md."""
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": "gpt-5.6-luna", "visibility": "list", "supported_reasoning_levels": []},
+        {"slug": "gpt-5.6-terra", "visibility": "list", "supported_reasoning_levels": []},
+        {"slug": "gpt-6-astra", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+    before = sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*"))
+
+    result = run_models(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*")) == before
+    lines = result.stdout.splitlines()
+    for prefix in ("models: detected 3 of 3", "role chore:", "role build:", "role think:",
+                   "offer think:", "ask: keep-or-switch", "answers file:"):
+        assert any(line.startswith(prefix) for line in lines), prefix
+
+
+def test_cli_models_shows_a_saved_role_as_saved(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [
+        {"slug": "gpt-5.6-sol", "visibility": "list", "supported_reasoning_levels": []},
+    ])
+    write(chome, install_codex.CHOICE_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-5.6-sol"}}))
+
+    result = run_models(env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "role build: gpt-5.6-sol / medium (saved; cai default gpt-5.6-terra)" in result.stdout
+
+
+def test_cli_models_invalid_saved_choice_exits_1(tmp_path):
+    env = fake_env(tmp_path)
+    write(tmp_path / ".codex", install_codex.CHOICE_NAME, "{not json")
+
+    result = run_models(env)
+
+    assert result.returncode == 1
+    assert "invalid saved model choice, not overwritten" in result.stdout
+
+
+def test_cli_models_and_apply_together_is_a_usage_error(tmp_path):
+    result = subprocess.run([sys.executable, str(SCRIPT), "--models", "--apply"],
+                            capture_output=True, encoding="utf-8", env=fake_env(tmp_path))
+
+    assert result.returncode == 2
+
+
 def test_cli_apply_no_answers_file_exits_1(tmp_path):
     env = fake_env(tmp_path)
     assert run(env).returncode == 0
@@ -1578,7 +1638,7 @@ def test_cli_apply_m1_answer_not_offered_by_detection_is_rejected(tmp_path):
     result = run_apply(env)
 
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "is not offered by this detection; re-run $setup" in result.stdout
+    assert "is not offered by this detection; run $models to pick one it offers" in result.stdout
     assert not (chome / install_codex.CHOICE_NAME).exists()
     agents = install_codex.role_agents(CAI_CODEX_ROOT)
     for name in agents["build"]:

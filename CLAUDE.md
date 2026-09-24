@@ -27,9 +27,11 @@ maintains the repo and never reaches an installed copy. Decide which side a
 new file is on before writing it, not after.
 
 `plugins/cai-codex/` is generated from `plugins/cai/` by `scripts/gen-codex.py`
-and must not be hand-edited except its five hand-written files:
+and must not be hand-edited except its seven hand-written files:
 `scripts/launcher.py`, `scripts/install_codex.py`, `skills/setup/SKILL.md`,
-`skills/setup/agents/openai.yaml`, and `README.md`. After changing
+`skills/setup/agents/openai.yaml`, `skills/models/SKILL.md`,
+`skills/models/agents/openai.yaml`, and `README.md` (the list is
+`HAND_WRITTEN` in `scripts/gen-codex.py`). After changing
 `plugins/cai/`, regenerate it (`python scripts/gen-codex.py`); once a
 cai-codex version is on `main`, an output change also needs
 `python scripts/gen-codex.py --release <greater version>`, or `validate.py`

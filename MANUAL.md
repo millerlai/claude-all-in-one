@@ -26,6 +26,7 @@ like they fit, the more specific one is right.
 | Review a plan or spec | `/cai:plan-review` | Traces design back to requirements |
 | Choose between options you can't compare | `/cai:options` | Six fields per option, then a pick |
 | See what a track, or a month, cost | `/cai:usage` | Relays what `usage_report.py` computed |
+| Put the tiers on a newer model | `/cai:models` | Saved for you alone; restart to apply |
 | Run a git or gh operation | `/cai:git` | Runs on the chore tier, not your session's |
 | Run a mechanical one-off | `/cai:chore` | Chore tier; hands back anything needing judgement |
 | Apply one named refactoring | `/cai:extract-method` | One of 72, tab-completable |
@@ -234,6 +235,7 @@ the same way.
     csv-import/              archived; never counts toward the cap
 
 ~/.claude/cai/usage.jsonl    every ledger record from every project, for /cai:usage
+~/.claude/cai/model-choice.json   your own tier -> model choice, for /cai:models
 ```
 
 `state.md` holds one row per stage — status, the artifact it produced, and a

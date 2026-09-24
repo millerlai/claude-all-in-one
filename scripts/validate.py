@@ -232,9 +232,15 @@ for path in skills:
 # what excludes it from that sum. Its description is 142 characters against 23
 # of headroom, so always-on it would not have fitted at all: the choice was the
 # flag or a ceiling raise, and a ceiling raise is a decision, not a chore.
+#
+# `models` is the same kind again: a person runs it by name when a new model
+# comes out, so it carries the flag, and what it decides lives in
+# scripts/model_choice.py. It declares no model of its own on purpose -- a
+# tier set to a model that does not start must not take down the command
+# that fixes it.
 SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git",
-               "git-sweep", "goal", "intake", "options", "plan-review", "quiz",
-               "refactor", "setup", "ship", "track", "usage", "verify"]
+               "git-sweep", "goal", "intake", "models", "options", "plan-review",
+               "quiz", "refactor", "setup", "ship", "track", "usage", "verify"]
 skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
 check(f"skills/ holds exactly the {len(SKILL_NAMES)} names {SKILL_NAMES} "
       f"({skill_dirs})", skill_dirs == SKILL_NAMES)
@@ -974,6 +980,25 @@ for tool, cmd, expected, cwd in CASES:
 dispatch = ["cmd", "/c", DISPATCHER.replace("/", "\\")] if os.name == "nt" else ["sh", DISPATCHER]
 for cmd, expected in [("git reset --hard HEAD~1", 2), ("git status", 0)]:
     check(f"dispatcher [{cmd}] -> {expected}", run(dispatch, cmd, "Bash", WORK) == expected)
+
+# The SessionStart launcher runs model_choice.py against the plugin root it
+# sits in. Run from here, that root is this repo's own source tree, and a
+# person's saved choice must never be written into it -- so run it with one
+# saved, then check it exited 0 and every component still matches models.json.
+MODELS_DISPATCHER = f"{PLUGIN}/hooks/run-models.cmd"
+_models_config = tempfile.mkdtemp(prefix="cai-models-config-")
+os.makedirs(os.path.join(_models_config, "cai"))
+with open(os.path.join(_models_config, "cai", "model-choice.json"), "w", encoding="utf-8") as fh:
+    json.dump({"format": 1, "roles": {"think": "claude-validate-probe"}}, fh)
+_models_dispatch = (["cmd", "/c", MODELS_DISPATCHER.replace("/", "\\")] if os.name == "nt"
+                    else ["sh", MODELS_DISPATCHER])
+_models_done = subprocess.run(_models_dispatch, capture_output=True, text=True,
+                              env=dict(os.environ, CLAUDE_CONFIG_DIR=_models_config))
+check("models dispatcher [SessionStart, source tree] -> 0", _models_done.returncode == 0)
+_models_drift = subprocess.run([sys.executable, f"{PLUGIN}/scripts/gen-models.py", "--check"],
+                               capture_output=True, text=True)
+check("models dispatcher leaves the source tree's model lines alone",
+      _models_drift.returncode == 0)
 
 # launcher.py guard -- the Codex counterpart of the two checks above. Codex's
 # own hook payload shape is UNVERIFIED (C9); this follows the documented form
