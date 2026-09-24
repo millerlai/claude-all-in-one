@@ -929,6 +929,30 @@ CASES = [
     ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 0, WORK),
     ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 2, MAIN),
     ("Bash", "gh pr create --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
+    # --- #130: a $(...) a stray apostrophe left outside its single quotes ---
+    # Two apostrophes close the quote early and re-open it later, and Bash
+    # runs the $(...) between them before the command. A contraction glues the
+    # first to a letter, a plural possessive the second; either is enough.
+    ("Bash", "git commit -m 'fix: it's $(echo hi)'s bug'", 2, WORK),
+    ("Bash", "git commit -m 'the users' data $(echo hi) the owners' view'", 2, WORK),
+    ("Bash", "git commit -m 'first line\nit's $(echo hi)\nthat's all'", 2, WORK),
+    # One stray apostrophe leaves the quote open, so Bash refuses the line --
+    # blocked anyway, since the advice is the same fix to the quoting.
+    ("Bash", "git commit -m 'don't $(echo hi)'", 2, WORK),
+    # Deliberate substitution: nothing glues it to a quote that closed early.
+    ("Bash", "x=$(git merge-base HEAD main)", 0, WORK),
+    ("Bash", "git diff $(git merge-base HEAD main)..HEAD", 0, WORK),
+    ("Bash", "grep -rn 'pattern' $(git ls-files '*.py')", 0, WORK),
+    ("Bash", "cd 'dir' && make -j$(nproc) && echo 'done'", 0, WORK),
+    ("Bash", "git log --format='%h %s' $(git merge-base HEAD main)..HEAD -- 'src/*.py'", 0, WORK),
+    ("Bash", "echo 'prefix'$(date)'suffix'", 0, WORK),
+    ("Bash", "echo 'it'\\''s $(date)'", 0, WORK),
+    ("Bash", "git commit -m 'use $(pwd) here'", 0, WORK),
+    ("Bash", "ls # a comment\necho $(date)", 0, WORK),
+    # After a shape the scan does not model, a $(...) it takes to be inside
+    # single quotes is blocked, as a backtick there is (stance trade T-b).
+    ("Bash", "ls # it's\necho $(date)", 2, WORK),
+    ("PowerShell", "git commit -m 'fix: it's $(echo hi)'s bug'", 0, WORK),
 ]
 
 
@@ -977,6 +1001,7 @@ if os.path.isfile(LAUNCHER):
         ({"tool_input": {"command": ["bash", "-c", 'git commit -m "fix `None`"']}, "cwd": WORK}, 2),
         ({"tool_input": {"command": ["powershell.exe", "-Command", 'git commit -m "fix `None`"']}, "cwd": WORK}, 0),
         ({"tool_input": {"command": ["bash", "-c", "cat <<EOF\n$(git push --force origin main)\nEOF"]}, "cwd": WORK}, 2),
+        ({"tool_input": {"command": ["bash", "-c", "git commit -m 'fix: it's $(echo hi)'s bug'"]}, "cwd": WORK}, 2),
     ]
 
     def run_codex_guard(payload):
