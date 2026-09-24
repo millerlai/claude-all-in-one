@@ -124,7 +124,17 @@ def format_status(feature, track_dir, order, show_next=True):
         # every existing track's output is byte-for-byte what it was.
         passed = ledger.last_passed(track_dir, sid)
         if passed:
-            line += "  (gate: %s)" % passed.get("gate", "unknown")
+            gate = passed.get("gate", "unknown")
+            if sid == "design":
+                # Gate 1 is not whoever passed last: its Approve may land
+                # before the stage's own pass, or carry no sha, and build
+                # decides by design_signed_off -- so ask that, from the
+                # project root this script runs in (DEFAULT_TRACK_ROOT's
+                # assumption), rather than tell a person the opposite of what
+                # build will do (#139).
+                gate = ("human" if preflight.design_signed_off(track_dir, ".")[0]
+                        else "not signed off")
+            line += "  (gate: %s)" % gate
         lines.append(line)
         if next_stage is None and status not in ("done", "skipped"):
             next_stage = sid

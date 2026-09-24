@@ -214,6 +214,58 @@ def test_design_approve_without_an_artifact_prints_footnote(tmp_path, monkeypatc
     assert "gate not walked: design" in report
 
 
+def test_an_approve_that_wrote_its_status_first_joins_the_pass_it_signs(tmp_path, monkeypatch):
+    """Issue #140. A diagnosis -- or a legacy high-level design -- carries its
+    own `## Status`, and Gate 1's Approve writes the date into it before its
+    row is appended (approval-gates.md), so the two rows' shas differ. Still
+    one attempt, signed by a person."""
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    doc = tmp_path / "d-diagnosis.md"
+    doc.write_text("## Status\ndraft\n", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:00:00Z",
+            artifact=str(doc), gate="auto")
+    doc.write_text("## Status\napproved 2026-09-01\n", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:10:00Z",
+            artifact=str(doc), gate="human")
+
+    design_line = _line(usage_report.metrics_report(track), "design")
+    assert "rework=1" in design_line
+    assert "human_signed=1/1" in design_line
+
+
+def test_two_auto_passes_of_one_changed_document_are_still_two_attempts(tmp_path, monkeypatch):
+    """Issue #140's limit: only a person's sign-off joins across a sha
+    change. The stage running again and writing something else is a second
+    attempt, whatever the file is called."""
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    doc = tmp_path / "d-diagnosis.md"
+    doc.write_text("first run", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:00:00Z", artifact=str(doc))
+    doc.write_text("second run", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:10:00Z", artifact=str(doc))
+
+    assert "rework=2" in _line(usage_report.metrics_report(track), "design")
+
+
+def test_an_approve_of_another_document_is_still_its_own_attempt(tmp_path, monkeypatch):
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    detail = tmp_path / "d-detail.md"
+    detail.write_text("detail", encoding="utf-8")
+    stance = tmp_path / "d-stance.md"
+    stance.write_text("stance", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:00:00Z",
+            artifact=str(detail))
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:10:00Z",
+            artifact=str(stance), gate="human")
+
+    design_line = _line(usage_report.metrics_report(track), "design")
+    assert "rework=2" in design_line
+    assert "human_signed=1/2" in design_line
+
+
 # --- (d) central aggregation over two tracks --------------------------------
 
 def test_central_metrics_aggregates_across_tracks(tmp_path, monkeypatch):

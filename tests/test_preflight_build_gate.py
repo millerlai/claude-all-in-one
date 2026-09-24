@@ -462,6 +462,90 @@ def test_two_tier1_entries_colliding_to_the_same_id_fail_instead_of_double_count
     assert "2 draft(s) checked" not in done.stdout
 
 
+# --- #138: once Detail ran, Tier 1 lives in the decisions doc it references --
+#
+# The design row names the detail design then (#124), so the row's own suffix
+# never led options_drafts to a `## Tier 1` on any track that went through
+# Detail.
+
+def detail_with_reference(reference):
+    """A detail design whose `## Reference` block is `reference`."""
+    return ("# x\n\n## Reference\n\n%s\nStatus: approved 2026-08-30\n\n"
+            "## Work breakdown\n\n| # | Unit |\n|---|---|\n| 1 | a |\n" % reference)
+
+
+# The template's own shape: project-root-relative paths, stance listed first.
+TEMPLATE_REFERENCE = ("Stance doc: docs/design/d-stance.md\n"
+                      "Decisions doc: docs/design/d-decisions.md")
+
+
+def test_a_detail_design_is_checked_against_the_decisions_it_references(tmp_path):
+    (tmp_path / "docs" / "design").mkdir(parents=True)
+    write_doc(tmp_path, "docs/design/d-decisions.md", DECISIONS_ONE_TIER1)
+    doc = write_doc(tmp_path, "docs/design/d-detail.md", detail_with_reference(TEMPLATE_REFERENCE))
+    track = make_track(tmp_path, "docs/design/d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL options_drafts (missing options-D1.md" in done.stdout
+
+
+def test_the_referenced_decisions_pass_once_their_drafts_are_on_disk(tmp_path):
+    (tmp_path / "docs" / "design").mkdir(parents=True)
+    write_doc(tmp_path, "docs/design/d-decisions.md", DECISIONS_ONE_TIER1)
+    doc = write_doc(tmp_path, "docs/design/d-detail.md", detail_with_reference(TEMPLATE_REFERENCE))
+    track = make_track(tmp_path, "docs/design/d-detail.md")
+    (tmp_path / "track" / "options-D1.md").write_text(VALID_DRAFT, encoding="utf-8")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS options_drafts (1 draft(s) checked)" in done.stdout
+
+
+def test_a_detail_design_that_references_no_decisions_document_says_so(tmp_path):
+    # One elaborating a legacy high-level design: no Tier 1 anywhere to owe.
+    write_doc(tmp_path, "d-high-level.md", HLD)
+    doc = write_doc(tmp_path, "d-detail.md",
+                    detail_with_reference("High-level design: d-high-level.md"))
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS options_drafts (d-detail.md references no decisions document)" in done.stdout
+
+
+def test_a_decisions_line_still_holding_the_template_placeholder_names_nothing(tmp_path):
+    """The template's `Decisions doc:` line left unfilled, on a design that
+    owes no Tier 1. Scanned as it stands it yields the fragment
+    `-decisions.md`, a reference that resolves nowhere -- and the only way
+    past that refusal, editing the signed document, re-opens Gate 1."""
+    write_doc(tmp_path, "d-high-level.md", HLD)
+    doc = write_doc(tmp_path, "d-detail.md", detail_with_reference(
+        "High-level design: d-high-level.md\n"
+        "Decisions doc: docs/design/<YYYY-MM-DD>-<topic>-decisions.md"))
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS options_drafts (d-detail.md references no decisions document)" in done.stdout
+
+
+def test_a_decisions_reference_that_resolves_nowhere_fails_and_names_it(tmp_path):
+    doc = write_doc(tmp_path, "d-detail.md",
+                    detail_with_reference("Decisions doc: d-gone-decisions.md"))
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    line = next(l for l in done.stdout.splitlines() if "options_drafts" in l)
+    assert line.startswith("FAIL ") and "d-gone-decisions.md" in line
+
+
 def test_a_passed_human_record_signs_off_the_design(tmp_path):
     doc = write_doc(tmp_path, "d-high-level.md", HLD)
     track = make_track(tmp_path, "d-high-level.md")
