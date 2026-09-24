@@ -174,4 +174,4 @@ Report concisely:
   file) — or, if `ask: nothing` meant no question was asked at all, that
   the saved choice was reused, and why (the `models:` line's own reason).
 - This exact sentence: "If a cai agent later fails to start with a model
-  error, re-run `$setup` and switch that role."
+  error, run `$models` and switch that role."
