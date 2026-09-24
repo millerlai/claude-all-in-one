@@ -214,35 +214,65 @@ def artifact_unchanged(track_dir, project_dir):
     return True, "artifact_unchanged (%s)" % artifact
 
 
-def design_signed_off(track_dir):
-    """A person picked Approve on the design build is about to read, not just
-    the pipeline moving state.md along.
+def design_signed_off(track_dir, project_dir):
+    """A person picked Approve on the document build is about to read -- the
+    one state.md's design row names -- not on some other file, and not the
+    pipeline moving state.md along.
 
-    Only the last `passed` design record counts, and only with `gate: human`.
-    Any human record anywhere used to be enough, but `design` has a stop
-    inside it -- the stance approval -- that is not Gate 1: a run that
-    recorded it as a human row and then passed the finished design as `auto`
-    reached build with nothing signed. The last pass is also the record
-    artifact_unchanged fingerprints, so both checks speak about one document.
-    A `failed` or `blocked` record -- Changes requested, Reject, a re-run that
-    did not pass -- is not a pass, so it neither signs off nor erases an
-    approval made before it."""
-    record = ledger.last_passed(track_dir, "design")
-    if record is not None and record.get("gate") == "human":
-        return True, "design_signed_off (recorded)"
-    if record is not None:
+    The Approve's own sha256 is the proof: some `passed` + `gate: human`
+    design record has to carry the digest that document has now. Where that
+    record sits on the ledger does not matter -- a Gate 1 handed up as a
+    pending question lands before the stage's own pass (#125) -- while an
+    approval of another file, such as the stance approval inside `design`
+    (#112, #124), or an Approve appended without `--artifact` (#126) can
+    never match. A `failed` or `blocked` record -- Changes requested, Reject,
+    a re-run that did not pass -- is not a pass, so it neither signs off nor
+    erases an approval made before it."""
+    approvals = [r for r in ledger.records(track_dir, "design")
+                 if not r.get("malformed") and r.get("outcome") == "passed"
+                 and r.get("gate") == "human"]
+    if not approvals:
         return False, (
-            "design_signed_off (the last passed design record is `gate: %s`, "
-            "not a person's Approve -- a person must pick Approve at "
-            "approval-gates.md Gate 1, which appends a passed record with "
-            "`--gate human` after the stage's own; a human record from before "
-            "it, such as the stance approval inside `design`, does not count)"
-            % record.get("gate"))
+            "design_signed_off (no passed+human design record on the ledger -- a "
+            "person must pick Approve at the design gate, approval-gates.md Gate "
+            "1, which appends one with `--gate human`; a failed or blocked human "
+            "record -- Changes requested, Reject -- does not count)")
+
+    row = state_row(track_dir, "design")
+    artifact = row[2] if row is not None and len(row) > 2 else ""
+    doc = resolve(artifact, project_dir, track_dir) if artifact not in ("", "—") else None
+    if doc is None:
+        return False, ("design_signed_off (no design document to tie the Approve to -- "
+                       "state.md's design row names none that exists)")
+
+    with open(doc, "rb") as fh:
+        now = hashlib.sha256(fh.read()).hexdigest()
+    if any(r.get("sha256") == now for r in approvals):
+        return True, "design_signed_off (%s)" % artifact
+
+    fingerprinted = [r for r in approvals if r.get("sha256")]
+    if not fingerprinted:
+        return False, (
+            "design_signed_off (the Approve on the ledger carries no --artifact, so "
+            "nothing ties it to %s -- record Approve again with `--artifact %s`)"
+            % (artifact, artifact))
+
+    same_file = []
+    for record in fingerprinted:
+        approved = resolve(record.get("artifact") or "", project_dir, track_dir)
+        if approved is not None and os.path.samefile(approved, doc):
+            same_file.append(record)
+    if same_file:
+        return False, (
+            "design_signed_off (%s changed since it was approved: %s now, %s then -- "
+            "revert the edit, or take it back through approval-gates.md Gate 1)"
+            % (artifact, now[:12], same_file[-1]["sha256"][:12]))
     return False, (
-        "design_signed_off (no passed+human design record on the ledger -- a "
-        "person must pick Approve at the design gate, approval-gates.md Gate "
-        "1, which appends one with `--gate human`; a failed or blocked human "
-        "record -- Changes requested, Reject -- does not count)")
+        "design_signed_off (the Approve on the ledger is for %s, not %s, which is "
+        "what build reads -- a person must pick Approve at approval-gates.md Gate "
+        "1 with `--artifact %s`; an approval inside `design`, such as the stance "
+        "one, does not count)"
+        % (", ".join(r.get("artifact") or "?" for r in fingerprinted), artifact, artifact))
 
 
 def git(cwd, *args):
@@ -418,12 +448,12 @@ def options_drafts(text, artifact, track_dir):
 
 
 def build(track_dir, project_dir):
-    # Computed first so they survive the early returns below: both answer from
-    # the ledger, so they are just as valid when state.md is the thing that is
+    # Computed first so they survive the early returns below: both start from
+    # the ledger, so they still speak when state.md is the thing that is
     # broken -- and "the design changed after sign-off" (or was never signed
     # off at all) is worth saying even then.
     unchanged = artifact_unchanged(track_dir, project_dir)
-    signed_off = design_signed_off(track_dir)
+    signed_off = design_signed_off(track_dir, project_dir)
 
     row = state_row(track_dir, "design")
     if row is None:

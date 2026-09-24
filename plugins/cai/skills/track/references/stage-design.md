@@ -266,7 +266,11 @@ full, and lower them when the answer is no.
    After sign-off the work goes straight to Detail when the fix touches more
    than a couple of files, or to `build` when it does not — Decisions has
    nothing to route, because a diagnosis with real options escalated at
-   step 4 instead.
+   step 4 instead. Going to `build`, this stop is Gate 1: the diagnosis is
+   the design row's document, and the Approve fingerprints it. Going to
+   Detail, it is a stop inside `design`, like the stance approval — the date
+   goes into `## Status`, no ledger row — and Gate 1 comes after Detail, on
+   the detail design the design row then names.
 
 ## Mode: Stance
 
@@ -517,18 +521,24 @@ line by line. That is why the first two have
 ceilings and the third does not: **what a person signs has to stay small
 enough to sign again** after it changes.
 
-**Which path goes in the track's `design` row:** the decisions document. It
-is the last one signed, and its `## Reference` names the stance, so a reader
-who starts there reaches both. `preflight.py` reads that cell, picks the kind
-off the `-decisions.md` suffix, and runs the matching probe.
+**Which path goes in the track's `design` row:** the document `build` reads —
+the detail design when Detail mode ran, otherwise the last document this
+stage wrote. A detail design's `## Reference` names the stance and the
+decisions it elaborates, so a reader who starts there reaches all three.
+`preflight.py` reads that cell, picks the kind off the suffix, and runs the
+matching probe; Gate 1's Approve fingerprints the same file. Not because the
+person reads the build spec line by line — they sign the entrance's
+documents, above — but because it is what `build` acts on, so editing it
+after the Approve re-opens the gate.
 
 **A known gap in that arrangement.** The ledger fingerprints one file, so
-editing the *stance* after sign-off does not trip `artifact_unchanged` the way
-editing the decisions document does. The probe still catches the case that
-matters — the stance's `## Status` going back to `draft` — but a reworded
-invariant under an unchanged status is not caught. Until the ledger can carry
-more than one artifact, treat a stance edit after sign-off as re-opening the
-gate, and say so rather than relying on a check that will not fire.
+editing the *stance* or the decisions document after sign-off does not trip
+`preflight.py build` the way editing the document in the design row does.
+The probe still catches the case that matters — the stance's `## Status`
+going back to `draft` — but a reworded invariant under an unchanged status
+is not caught. Until the ledger can carry more than one artifact, treat an
+edit to either after sign-off as re-opening the gate, and say so rather than
+relying on a check that will not fire.
 
 ## When to skip this stage entirely
 

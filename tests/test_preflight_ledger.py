@@ -200,13 +200,13 @@ def test_a_design_changed_after_sign_off_stops_build(tmp_path):
     assert "changed since sign-off" in changed.stdout
 
 
-def test_build_without_a_recorded_sign_off_is_not_second_guessed(tmp_path):
-    # R4 again: no ledger means no fingerprint to compare, which is a track
-    # that predates this feature -- not a track whose design was tampered with.
-    # The passed/human record below carries no artifact, so it satisfies
-    # design_signed_off (added later, gated on stage/outcome/gate only)
-    # without giving artifact_unchanged a fingerprint to compare against --
-    # the "no signed-off design recorded" path this test is about stays live.
+def test_no_fingerprint_is_not_second_guessed_and_is_not_a_sign_off(tmp_path):
+    # R4 again: no fingerprint on the ledger is a track that predates this
+    # feature, not a design that was tampered with -- artifact_unchanged still
+    # says so and passes. The passed/human record below carries no artifact,
+    # though, and since #126 that is not a sign-off: design_signed_off needs
+    # an Approve whose sha matches the document the design row names, so
+    # build is refused on that check rather than on this one.
     project = tmp_path / "project"
     (project / "docs" / "design").mkdir(parents=True)
     doc = project / "docs" / "design" / "thing-detail.md"
@@ -218,8 +218,9 @@ def test_build_without_a_recorded_sign_off_is_not_second_guessed(tmp_path):
     ledger.append(track, "design", "passed", gate="human")
 
     done = run("build", track, str(project))
-    assert done.returncode == 0
+    assert done.returncode == 2
     assert "PASS artifact_unchanged (no signed-off design recorded)" in done.stdout
+    assert "FAIL design_signed_off" in done.stdout
 
 
 def test_the_fingerprint_is_taken_from_the_ledger_not_state_md(tmp_path):
