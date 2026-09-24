@@ -547,7 +547,7 @@ def _stage_attempts(stage_records):
     return groups
 
 
-def stage_metrics(stage_records):
+def stage_metrics(stage_records, stage):
     """The four issue-#85 numbers for one stage, from that stage's own
     non-malformed records (any outcome, file order). A stage with zero
     attempts (`rework` 0) carries no other number either -- callers print
@@ -567,6 +567,14 @@ def stage_metrics(stage_records):
     # has actually passed -- a stage still failing has not been bypassed,
     # it just has not gotten there yet.
     gate_not_walked = has_passed and human_num == 0 and human_den > 0
+    if stage == "design" and has_passed:
+        # #128: "any human row" counted the #112 ledger -- stance approved,
+        # finished design passed auto -- as walked, while preflight.py
+        # refused build on it. Ask what preflight asks, as near as the
+        # ledger alone gets: does a person's Approve carry the sha of
+        # design's last pass?
+        last = [r for r in stage_records if r.get("outcome") == "passed"][-1]
+        gate_not_walked = not ledger.approved(stage_records, last.get("sha256"))
 
     first_ts = _parse_ts(stage_records[0].get("ts")) if stage_records else None
     last_passed_ts = None
@@ -620,7 +628,7 @@ def track_metrics(records):
     None) for one track's own records -- shared by metrics_report() (one
     track) and central_metrics_report() (one (project, track) group)."""
     by_stage = _by_stage(records)
-    per_stage = {stage: stage_metrics(by_stage[stage]) for stage in ledger.stage_ids()}
+    per_stage = {stage: stage_metrics(by_stage[stage], stage) for stage in ledger.stage_ids()}
     return per_stage, _track_cycle_seconds(by_stage)
 
 
