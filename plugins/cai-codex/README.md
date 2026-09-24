@@ -49,6 +49,16 @@ after `design`, before any code exists, and before the irreversible
 operations in `ship` — merging, tagging, publishing. Answer with the menu
 when one is available, or the numbered text options otherwise.
 
+**Where a track keeps its state.** `$track` writes each feature's state to
+your project's `.claude/track/<feature>/` and reads ticket-mirroring
+settings from `.claude/cai.json` — the same files the Claude Code plugin
+uses. That is deliberate: both run the same scripts over the same files, so
+one repository's track can be resumed from either tool, although switching
+tools in the middle of a track has not been exercised end to end. Keep
+`.claude/track/` out of git: `$track`'s intake stage reminds you when it is
+not ignored, because `ship` refuses to start on a working tree with
+uncommitted changes.
+
 **After every plugin update, re-run `$setup`.** The installed agents are
 version-stamped, and a stage's launcher refuses to run (exit 3) until the
 stamp matches the plugin version you have installed.
