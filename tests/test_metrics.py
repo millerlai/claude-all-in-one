@@ -159,6 +159,61 @@ def test_ship_passed_with_human_gate_has_no_footnote(tmp_path, monkeypatch):
     assert "gate not walked" not in report
 
 
+def test_design_whose_approve_is_for_another_document_prints_footnote(tmp_path, monkeypatch):
+    """Issue #128, the #112 ledger: the stance approved, then the finished
+    design passed as auto. preflight.py refuses build on it, so the report
+    must not count the gate as walked just because a human row exists."""
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    stance = tmp_path / "d-stance.md"
+    stance.write_text("stance", encoding="utf-8")
+    detail = tmp_path / "d-detail.md"
+    detail.write_text("detail", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:00:00Z",
+            artifact=str(stance), gate="human")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:10:00Z",
+            artifact=str(detail), gate="auto")
+
+    report = usage_report.metrics_report(track)
+
+    assert "gate not walked: design" in report
+
+
+def test_design_approved_before_its_own_pass_has_no_footnote(tmp_path, monkeypatch):
+    """Issue #128. Gate 1 handed up as a pending question lands before the
+    stage's own pass, on the same document -- walked, the same answer
+    preflight.py gives, even though the last row is auto."""
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    doc = tmp_path / "d-detail.md"
+    doc.write_text("detail", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:00:00Z",
+            artifact=str(doc), gate="human")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:10:00Z",
+            artifact=str(doc), gate="auto")
+
+    report = usage_report.metrics_report(track)
+
+    assert "gate not walked" not in report
+
+
+def test_design_approve_without_an_artifact_prints_footnote(tmp_path, monkeypatch):
+    """Issue #128. An Approve appended without --artifact carries no sha, so
+    it ties to no document; preflight.py refuses build on it, and the report
+    says the gate was not walked."""
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    doc = tmp_path / "d-detail.md"
+    doc.write_text("detail", encoding="utf-8")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:00:00Z",
+            artifact=str(doc), gate="auto")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:10:00Z", gate="human")
+
+    report = usage_report.metrics_report(track)
+
+    assert "gate not walked: design" in report
+
+
 # --- (d) central aggregation over two tracks --------------------------------
 
 def test_central_metrics_aggregates_across_tracks(tmp_path, monkeypatch):
