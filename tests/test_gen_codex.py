@@ -495,6 +495,43 @@ def test_generated_ship_text_says_prepare_only(tmp_path):
     assert "Do not push" in shipper
 
 
+def test_generated_build_text_uses_single_line_commit_m(tmp_path):
+    # Codex's git skill defaults to a commit-message file when told only
+    # "Commit" with no method, tripping a sandbox-approval prompt per unit --
+    # the per-unit commit step must spell out a single-quoted, single-line
+    # `git commit -m` instead.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    stage_build = (out / "skills/track/references/stage-build.md").read_text(encoding="utf-8")
+
+    start = stage_build.index("5. **Commit**")
+    end = stage_build.index("**Never leave the tree", start)
+    span = stage_build[start:end]
+
+    assert "git commit -m '" in span
+    assert "no message file" in span
+    assert "-F" not in span
+
+
+def test_generated_build_text_forbids_apostrophes_in_commit_summary(tmp_path):
+    # N1 (docs/design/2026-09-23-codex-commit-message-prompts-stance.md): the
+    # per-unit summary must stay free of apostrophes -- an embedded `'` closes
+    # the single-quoted `-m` string early, and unquoted text after it (e.g. a
+    # `$(...)` the summary happens to mention) runs as a live shell command
+    # instead of being committed as text.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    stage_build = (out / "skills/track/references/stage-build.md").read_text(encoding="utf-8")
+
+    start = stage_build.index("5. **Commit**")
+    end = stage_build.index("**Never leave the tree", start)
+    span = stage_build[start:end]
+
+    assert "apostrophe" in span.lower()
+
+
 def test_generated_agent_and_stage_text_never_tells_a_subagent_to_dispatch(tmp_path):
     # D9: on Codex the main session does every dispatch build/verify need;
     # verifier only reconciles and implementer only implements one briefed

@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.3
+# cai-codex-version: 0.2.5
 name = "cai_shipper"
 description = "Prepares a branch for release on Codex: squashes it into one conventional commit and drafts the release note, following stage-ship.md's procedure. Dispatched by the `ship` stage. No subagent runs an irreversible git/gh operation here — the main session pushes, merges, tags, publishes and closes the linked ticket after the person confirms."
 model = "gpt-5.6-luna"
