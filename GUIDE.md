@@ -108,8 +108,8 @@ the judgement in prose; move the rest.
   exactly that shape and nothing more.
 - "Do not start `build` without that sign-off" is a sentence in the track
   skill, and on its own that is the model remembering. `preflight.py`'s `design_signed_off`
-  now refuses `build` unless the last pass the ledger holds for `design` is a
-  person's Approve, and
+  now refuses `build` unless a person's Approve on the ledger carries the sha
+  of the document `build` is about to read, and
   `artifact_unchanged` refuses it if the document changed after — the promote
   path from the diagnostic above, taken.
 - Design documents promise absolutes — every capability carries evidence,

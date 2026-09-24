@@ -52,18 +52,26 @@ document invalidates the signature, so what gets signed has to stay small
 enough to sign again — which is why those two carry ceilings the probe
 enforces and the build spec does not.
 
-Say the document's path, then ask. Nothing in `build` starts until this is
-answered, and `preflight.py build` fingerprints whatever was signed off, so
-the answer is load-bearing rather than ceremonial. `preflight.py build` also
-refuses to start at all unless the last `passed` record for `design` carries
-`gate: human` — so skipping this menu is caught by the gate itself, not only
-by the fingerprint catching an edit to the document after. An earlier human
-record does not stand in for this one: a stance approval recorded before the
-stage's own `passed` row is not Gate 1.
+What the Approve's ledger row fingerprints is a third thing: the document in
+the track's design row, which is what `build` reads — the build spec when
+Detail ran (`stage-design.md`, "Which path goes in the track's `design`
+row"). The person reads the stance and the decisions; fingerprinting the
+build spec is what makes the authorisation stick. An edit to it after the
+Approve re-opens the gate, and re-signing stays cheap: what the person
+re-reads is still those two small documents.
+
+Say the documents' paths, then ask. Nothing in `build` starts until this is
+answered: `preflight.py build` refuses to start unless a `passed` record with
+`gate: human` carries the sha256 of the design row's document as it stands —
+so skipping this menu is caught by the gate itself, and so is an edit to that
+document after it. Where that record sits on the ledger does not matter:
+handed up as a pending question, it lands before the stage's own `passed`
+row, and that is fine. An approval of any other document does not stand in
+for this one — the stance approval is not Gate 1.
 
 | Option | What it does |
 |---|---|
-| Approve | Write `approved <YYYY-MM-DD>` into `## Status` **first**, then append the ledger row. `build` may start. |
+| Approve | Where the design row's document has a `## Status` of its own (a diagnosis, a legacy high-level design), write `approved <YYYY-MM-DD>` into it **first**, then append the ledger row; elsewhere, only the row. The row is `--gate human --artifact <that document>`. `build` may start. |
 | Changes requested | Re-dispatch `design` with what they said, quoted. Counts as one of that stage's three rounds. |
 | Reject | The design stops here. Record the outcome and what was rejected; build nothing. |
 
@@ -133,6 +141,10 @@ is only the shape — a menu, never a sentence to type a word back into:
   third gate. Same three options as Gate 1, and the same writer: the date
   goes into `## Status` when a person picks Approve, never when the stage
   decides its own work is done.
+- `stage-design.md`'s diagnosis sign-off, when Detail follows it. The root
+  cause is approved there, in `## Status`, with no ledger row; Gate 1 comes
+  after Detail, on the detail design. Going straight to `build`, the same
+  stop is Gate 1 itself.
 - `stage-design.md`'s Tier 1 entries, in Decisions mode — one menu per entry,
   in dependency order, re-running the cost test on what remains after each
   answer. These are ordinary choices between ways forward, so unlike the two

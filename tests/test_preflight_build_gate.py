@@ -104,12 +104,18 @@ def run(track, project):
         capture_output=True, text=True, encoding="utf-8")
 
 
+def signed_off_line(done):
+    """design_signed_off's own line. artifact_unchanged prints paths too, so
+    asserting on the whole of stdout could pass on the wrong check's label."""
+    return next(line for line in done.stdout.splitlines() if "design_signed_off" in line)
+
+
 # --- the kinds that never carry a schedule --------------------------------
 
 def test_a_high_level_design_with_no_work_breakdown_can_be_built(tmp_path):
-    write_doc(tmp_path, "d-high-level.md", HLD)
+    doc = write_doc(tmp_path, "d-high-level.md", HLD)
     track = make_track(tmp_path, "d-high-level.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
@@ -118,9 +124,9 @@ def test_a_high_level_design_with_no_work_breakdown_can_be_built(tmp_path):
 
 
 def test_a_delta_design_with_no_work_breakdown_can_be_built(tmp_path):
-    write_doc(tmp_path, "d-delta.md", HLD)
+    doc = write_doc(tmp_path, "d-delta.md", HLD)
     track = make_track(tmp_path, "d-delta.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
@@ -130,9 +136,9 @@ def test_a_delta_design_with_no_work_breakdown_can_be_built(tmp_path):
 # --- detail is the one kind that promises a schedule ----------------------
 
 def test_a_detail_design_still_has_to_carry_one(tmp_path):
-    write_doc(tmp_path, "d-detail.md", HLD)
+    doc = write_doc(tmp_path, "d-detail.md", HLD)
     track = make_track(tmp_path, "d-detail.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 2
@@ -141,9 +147,9 @@ def test_a_detail_design_still_has_to_carry_one(tmp_path):
 
 
 def test_a_detail_design_that_carries_one_passes(tmp_path):
-    write_doc(tmp_path, "d-detail.md", DETAIL)
+    doc = write_doc(tmp_path, "d-detail.md", DETAIL)
     track = make_track(tmp_path, "d-detail.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
@@ -252,8 +258,8 @@ def test_an_approval_inside_design_does_not_sign_off_what_design_finished(tmp_pa
 
 
 def test_gate_1_after_the_stage_own_auto_record_signs_off(tmp_path):
-    """The order every real run writes: the stage records its own pass as
-    auto, and Gate 1's Approve lands after it."""
+    """Gate 1 asked after the stage reported: the stage's own pass is
+    recorded as auto, and the Approve lands after it."""
     doc = write_doc(tmp_path, "d-detail.md", DETAIL)
     track = make_track(tmp_path, "d-detail.md")
     ledger.append(track, "design", "passed", artifact=doc, gate="auto")
@@ -279,12 +285,108 @@ def test_a_failed_rerun_after_approval_does_not_erase_it(tmp_path):
     assert "PASS design_signed_off" in done.stdout
 
 
+def test_gate_1_recorded_before_the_stage_own_pass_still_signs_off(tmp_path):
+    """Issue #125. A stage the track dispatched hands Gate 1 up as a pending
+    question (approval-gates.md "Who asks"), is re-dispatched once it is
+    answered (pending-questions.md step 2), and only then records its own
+    pass -- so the Approve lands first, on the same document."""
+    doc = write_doc(tmp_path, "d-detail.md", DETAIL)
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="auto")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout
+
+
+def test_rerunning_design_on_an_unchanged_document_keeps_the_sign_off(tmp_path):
+    """Issue #125. design ran again after sign-off and passed without
+    changing the document: what was approved is still what build reads."""
+    doc = write_doc(tmp_path, "d-detail.md", DETAIL)
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="auto")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="auto")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout
+
+
+def test_an_approve_for_another_document_does_not_sign_off_the_design_row(tmp_path):
+    """Issue #124. The Approve names the stance, the design row names the
+    decisions document, and build reads the design row -- an approval of any
+    other file is not a sign-off on it, whichever order the records landed
+    in. The label names what was approved, so the person can see the mix-up."""
+    stance = write_doc(tmp_path, "d-stance.md", HLD)
+    decisions = write_doc(tmp_path, "d-decisions.md", DECISIONS_EMPTY_TIER1)
+    track = make_track(tmp_path, "d-decisions.md")
+    ledger.append(track, "design", "passed", artifact=decisions, gate="auto")
+    ledger.append(track, "design", "passed", artifact=stance, gate="human")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+    assert "d-stance.md" in signed_off_line(done)
+
+
+def test_a_design_row_naming_an_unsigned_document_blocks_build(tmp_path):
+    """Issue #124. The signed document is untouched, so artifact_unchanged --
+    which follows the ledger, not state.md -- passes. The design row names
+    another file, and that file is what build reads."""
+    signed = write_doc(tmp_path, "signed-detail.md", DETAIL)
+    write_doc(tmp_path, "other-detail.md", DETAIL.replace("# x", "# other"))
+    track = make_track(tmp_path, "other-detail.md")
+    ledger.append(track, "design", "passed", artifact=signed, gate="human")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+
+
+def test_a_document_edited_after_its_approve_is_named_as_edited(tmp_path):
+    """Issue #124. Same path, older sha: the label says the document changed,
+    rather than that nobody approved it."""
+    doc = write_doc(tmp_path, "d-detail.md", DETAIL)
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    write_doc(tmp_path, "d-detail.md", DETAIL + "\nedited after sign-off\n")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+    assert "changed since" in signed_off_line(done)
+
+
+def test_an_approve_without_an_artifact_does_not_sign_off(tmp_path):
+    """Issue #126. An Approve appended without --artifact carries no sha, so
+    it cannot say which document it approved; the stage's own row has one,
+    but is not a person. An edit after that must not reach build."""
+    doc = write_doc(tmp_path, "d-detail.md", DETAIL)
+    track = make_track(tmp_path, "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="auto")
+    ledger.append(track, "design", "passed", gate="human")
+    write_doc(tmp_path, "d-detail.md", DETAIL + "\nedited after sign-off\n")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    assert "FAIL design_signed_off" in done.stdout
+    assert "--artifact" in signed_off_line(done)
+
+
 # --- options_drafts: a decisions document's Tier 1 owes a draft per entry --
 
 def test_v5_a_non_decisions_artifact_is_not_checked(tmp_path):
-    write_doc(tmp_path, "d-high-level.md", HLD)
+    doc = write_doc(tmp_path, "d-high-level.md", HLD)
     track = make_track(tmp_path, "d-high-level.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
@@ -292,9 +394,9 @@ def test_v5_a_non_decisions_artifact_is_not_checked(tmp_path):
 
 
 def test_v5_an_empty_tier_1_is_not_checked(tmp_path):
-    write_doc(tmp_path, "d-decisions.md", DECISIONS_EMPTY_TIER1)
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_EMPTY_TIER1)
     track = make_track(tmp_path, "d-decisions.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
@@ -302,9 +404,9 @@ def test_v5_an_empty_tier_1_is_not_checked(tmp_path):
 
 
 def test_v2_a_tier_1_entry_with_no_draft_on_disk_fails_and_names_it(tmp_path):
-    write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
     track = make_track(tmp_path, "d-decisions.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 2
@@ -312,10 +414,10 @@ def test_v2_a_tier_1_entry_with_no_draft_on_disk_fails_and_names_it(tmp_path):
 
 
 def test_v3_a_complete_six_field_draft_passes(tmp_path):
-    write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
     track = make_track(tmp_path, "d-decisions.md")
     (tmp_path / "track" / "options-D1.md").write_text(VALID_DRAFT, encoding="utf-8")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
@@ -323,10 +425,10 @@ def test_v3_a_complete_six_field_draft_passes(tmp_path):
 
 
 def test_v4_a_draft_missing_a_field_fails_and_names_the_probe(tmp_path):
-    write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
     track = make_track(tmp_path, "d-decisions.md")
     (tmp_path / "track" / "options-D1.md").write_text(DRAFT_MISSING_A_FIELD, encoding="utf-8")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 2
@@ -334,9 +436,9 @@ def test_v4_a_draft_missing_a_field_fails_and_names_the_probe(tmp_path):
 
 
 def test_v5b_a_dirty_tier_1_title_sanitises_to_a_buildable_path(tmp_path):
-    write_doc(tmp_path, "d-decisions.md", DECISIONS_DIRTY_TITLE)
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_DIRTY_TITLE)
     track = make_track(tmp_path, "d-decisions.md")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 2
@@ -348,10 +450,10 @@ def test_two_tier1_entries_colliding_to_the_same_id_fail_instead_of_double_count
     `Requirement gaps` #1 in the decisions doc: N Tier 1 entries need N drafts
     on disk, missing any one is FAIL -- a collision silently turns that into
     "N entries need 1 draft", which is not what was asked."""
-    write_doc(tmp_path, "d-decisions.md", DECISIONS_COLLIDING_TIER1)
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_COLLIDING_TIER1)
     track = make_track(tmp_path, "d-decisions.md")
     (tmp_path / "track" / "options-D1.md").write_text(VALID_DRAFT, encoding="utf-8")
-    ledger.append(track, "design", "passed", gate="human")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
 
     assert done.returncode == 2

@@ -1285,9 +1285,10 @@ with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "no-breakdown-detail
     fh.write(NO_BREAKDOWN)
 
 # build also requires a human sign-off on the ledger (design_signed_off) --
-# recorded once here, so it covers every build case below; none of them are
-# about this check, so appending it up front keeps each case testing only
-# what its own name says.
+# recorded once here, against billing-detail.md: an Approve only signs off
+# the document whose sha it carries, so it covers the one case below that is
+# meant to pass. The others fail for the reason their own name says, and on
+# design_signed_off as well, which none of them assert on.
 #
 # ledger.append() also copies every record to the cross-project central
 # ledger, and this script runs by hand, in CI and from the PostToolUse hook --
@@ -1297,7 +1298,9 @@ with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "no-breakdown-detail
 os.environ["CAI_USAGE_LEDGER"] = os.path.join(
     tempfile.mkdtemp(prefix="cai-validate-central-"), "usage.jsonl")
 os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
-ledger.append(PREFLIGHT_TRACK, "design", "passed", gate="human")
+ledger.append(PREFLIGHT_TRACK, "design", "passed",
+              artifact=os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md"),
+              gate="human")
 
 write_preflight_state("docs/design/billing-detail.md")
 done = run_preflight("build")

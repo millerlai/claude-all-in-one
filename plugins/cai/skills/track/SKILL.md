@@ -82,8 +82,8 @@ For the stage about to run:
      overwrite that stage's `state.md` row: `status` = `done`, plus artifact
      and note — never append a row; the row count must equal `stages.json`'s.
 
-   `--gate human` belongs to the two human gates below and nowhere else. A
-   non-zero exit stops the step: report it and leave `state.md` untouched.
+   `--gate human` belongs to the two human gates below and nowhere else; at the design gate it takes `--artifact`.
+   A non-zero exit stops the step: report it and leave `state.md` untouched.
 
 When `.claude/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `/cai:track skip`.
 A report ending in `## Pending questions` is not an outcome: before step 3, you — the main session, not a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/pending-questions.md`, because the platform removes `AskUserQuestion` from every subagent whatever its `tools:` says.
