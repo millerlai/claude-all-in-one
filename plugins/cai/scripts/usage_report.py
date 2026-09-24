@@ -525,8 +525,15 @@ GATE_WALKED_STAGES = ("design", "ship")
 def _stage_attempts(stage_records):
     """One list per attempt, in file order: consecutive `passed` records
     that share a sha256 collapse into the same attempt (design's auto row
-    and its human sign-off share a sha; two separate passes of a stage
-    never do). A null sha is not a shared one: stages that record no
+    and a human sign-off of the same bytes; two separate passes of a stage
+    never do). So does a person's sign-off (`gate: human`) of the artifact
+    the pass before it named, whatever its sha: Gate 1's Approve writes
+    `approved <date>` into a document with a `## Status` of its own -- a
+    diagnosis, a legacy high-level design -- before its row is appended, so
+    there the two shas differ and it is still one attempt (#140). The
+    recorded string is what is compared, since this report reads only the
+    ledger and has no project to resolve a path against.
+    A null sha is not a shared one: stages that record no
     artifact (verify, intake) leave sha256 null on every row, and two such
     passes are two attempts, not one (verify, 2026-09-13). `stage_records`
     already excludes `skipped`/`unavailable`/malformed by the time an
@@ -539,8 +546,10 @@ def _stage_attempts(stage_records):
         prev = groups[-1] if groups else None
         if (prev and record.get("outcome") == "passed"
                 and prev[-1].get("outcome") == "passed"
-                and record.get("sha256") is not None
-                and record.get("sha256") == prev[-1].get("sha256")):
+                and ((record.get("sha256") is not None
+                      and record.get("sha256") == prev[-1].get("sha256"))
+                     or (record.get("gate") == "human" and record.get("artifact")
+                         and record.get("artifact") == prev[-1].get("artifact")))):
             prev.append(record)
         else:
             groups.append([record])

@@ -447,6 +447,40 @@ def options_drafts(text, artifact, track_dir):
     return [(True, "options_drafts (%d draft(s) checked)" % checked)]
 
 
+def tier1_drafts(text, artifact, doc, track_dir, project_dir):
+    """options_drafts, run on whichever document holds the Tier 1 entries.
+
+    That is the design row's own document, unless the row names a detail
+    design -- which it does once Detail ran (#124) -- and then it is the
+    decisions document the detail design's `## Reference` names. Keyed on
+    the row's suffix alone, the check never ran on a track that went
+    through Detail (#138)."""
+    if not artifact.endswith("-detail.md"):
+        return options_drafts(text, artifact, track_dir)
+
+    reference = design_probe.COMMENT.sub("", design_probe.sections(text).get("Reference", ""))
+    # A path still holding the template's `<...>` placeholders names no
+    # document; scanned as it stands it yields the fragment `-decisions.md`.
+    reference = re.sub(r"\S*<[^>\s]*>\S*", "", reference)
+    named = [c for c in re.findall(r"[\w./\\-]+\.md", reference) if c.endswith("-decisions.md")]
+    if not named:
+        return [(True, "options_drafts (%s references no decisions document)" % artifact)]
+    for cand in named:
+        # design_probe's order: beside the detail design first, then the root.
+        path = resolve(cand, os.path.dirname(doc), project_dir, track_dir)
+        if path is not None:
+            with open(path, encoding="utf-8") as fh:
+                return options_drafts(fh.read(), cand, track_dir)
+    # Nothing upstream catches this: the detail probe's reference_resolves
+    # stops at the first .md that resolves, and the template lists the
+    # stance first.
+    return [(False, (
+        "options_drafts (%s names %s as its decisions document, and it is not "
+        "there -- restore it at that path, or fix the path in ## Reference and "
+        "take that edit back through approval-gates.md Gate 1)"
+        % (artifact, ", ".join(named))))]
+
+
 def build(track_dir, project_dir):
     # Computed first so they survive the early returns below: both start from
     # the ledger, so they still speak when state.md is the thing that is
@@ -480,10 +514,10 @@ def build(track_dir, project_dir):
 
     with open(doc, encoding="utf-8") as fh:
         text = fh.read()
+    drafts = tier1_drafts(text, artifact, doc, track_dir, project_dir)
     has_breakdown = "## Work breakdown" in text
     if has_breakdown:
-        return [unchanged, signed_off, (True, "work_breakdown (%s)" % artifact),
-                *options_drafts(text, artifact, track_dir)]
+        return [unchanged, signed_off, (True, "work_breakdown (%s)" % artifact), *drafts]
 
     # Only a detail design promises a schedule: `## Work breakdown` is in
     # design_probe.py's DETAIL_HEADINGS and in no other kind's list, and
@@ -503,10 +537,10 @@ def build(track_dir, project_dir):
     if kind == "detail":
         return [unchanged, signed_off, (False, "work_breakdown (%s is a detail design and "
                                    "has no ## Work breakdown heading)" % artifact),
-                *options_drafts(text, artifact, track_dir)]
+                *drafts]
     return [unchanged, signed_off, (True, "work_breakdown (%s carries none -- stage-build.md "
                               "cuts the units instead)" % artifact),
-            *options_drafts(text, artifact, track_dir)]
+            *drafts]
 
 
 def find_base_ref(cwd):

@@ -23,7 +23,9 @@
   every use case in it is reached below.
 
   For a design that ran stance and decisions modes, name the stance document
-  (it owns the UC/R ids) and the decisions document beside it. A legacy
+  (it owns the UC/R ids) and the decisions document beside it; `build`'s
+  preflight follows the `-decisions.md` path to check that every Tier 1 entry
+  has its options draft. A legacy
   high-level design works too -- the probe reads `## Use cases / Issues` from
   whichever it is pointed at.
 -->
