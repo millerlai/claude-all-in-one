@@ -275,13 +275,14 @@ check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not l
 # since those never reach the model unbidden.
 #
 # This is a ratchet, not the design's target. UC4's target is 4,673
-# characters; measured here, this repo is not there yet, and a ratchet is
-# what stops the total drifting back up while that gap is still open. Two
-# things are known to still be on the table for closing it: retiring `goal`
-# once a track has actually been run end to end (see the SKILL_NAMES comment
-# above), and shortening the longest descriptions -- which trades against
-# those same descriptions still needing to be long enough to trigger, so it
-# is not done here.
+# characters; measured here, this repo was not there until MP-05 (the last
+# paragraph below), and a ratchet is what stops the total drifting back up
+# while that gap is still open. Two things were known to be on the table for
+# closing it: retiring `goal` once a track has actually been run end to end
+# (see the SKILL_NAMES comment above), and shortening the longest
+# descriptions -- which trades against those same descriptions still needing
+# to be long enough to trigger, so it was not done here until MP-05 did it
+# description by description.
 #
 # Raised to 5697 for pb04. The fourth verify lens is a tenth agent, and its
 # description is 187 characters measured, not estimated. Two existing

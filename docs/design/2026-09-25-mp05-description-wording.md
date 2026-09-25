@@ -16,6 +16,12 @@
 - **folded scalar（折行值）**：YAML 裡 `description: >` 後面接好幾行縮排文字的寫法；讀出來時各行以空白接成一行。`validate.py` 計數用的就是接成一行後的長度。
 - **anchor（錨點）**：`scripts/codex-overrides.json` 裡每一條覆寫要比對的原文；`gen-codex.py` 要求它在目標檔裡恰好出現一次，否則整個產生流程失敗。
 - **sibling（同胞）**：同屬 cai 的另一個 skill 或 agent。
+- **PR（pull request，拉取請求）**：一次送審的變更。
+- **token**：模型計費與上下文長度的單位，約略是一個詞的一部分。
+- **lens（鏡）**：verify 階段一次審查所用的一個固定視角；correctness、conformance、coverage、security 各是一個。
+- **review（審查）**：這條分支在合併前被另外兩個 agent 逐項檢查的那一輪；「review 後補回」指的就是它。
+- **fingerprint（指紋）**：`gen-codex.py --release` 對整個 `plugins/cai-codex/` 產物算出的 SHA-256，記在 `scripts/codex-release.json`，產物一變它就變。
+- **grep**：以字串或正規表示式搜尋檔案內容。
 
 ## 1. 三條規則，三個不動
 
@@ -67,7 +73,7 @@ PASS always-on description budget does not exceed 5697 chars (5674)
 | 13 | `agents/implementer` | 137 | 83 | -54 | a, c | 「Not for architectural decisions」body :21-22 已說；L2 未啟用（見下） |
 | 14 | `agents/refactoring-detector` | 281 | 162 | -119 | a, c | 回傳格式是 body `## Return format` |
 | 15 | `agents/reviewer` | 146 | 108 | -38 | a, c | 身分句刪；「does not fix anything」改正向「findings only」 |
-| 16 | `agents/security-reviewer` | 187 | 151 | -36 | a, c | 同 reviewer；四個 hunt item 留（body 只指向 finding-severity.md） |
+| 16 | `agents/security-reviewer` | 187 | 151 | -36 | a, c | 同 reviewer；四個要抓的項目留（body 只指向 finding-severity.md） |
 | 17 | `agents/shipper` | 199 | 159 | -40 | a, c | 「Stops for confirmation」是 body :16-24；Codex anchor 同步 |
 | 18 | `agents/test-runner` | 96 | 94 | -2 | a, c, L3 | 身分句「Runs test suites and reports failures」去掉；「Does not fix code」縮成兩個字；「Use PROACTIVELY」留（L3） |
 | 19 | `agents/verifier` | 222 | 157 | -65 | a, c | 「three reviewer lenses plus the security one」是 body :12-14；Codex anchor 同步 |
@@ -269,7 +275,7 @@ description 本身保留原語言，不翻譯。理由裡引用的 body 行號�
 
 > The security lens over one diff - shell execution, argv, secrets in logs, guard bypass - as the `verify` stage dispatches it. Read-only, findings only.
 
-理由：同 reviewer。四個 hunt item 留——body 只指向 `finding-severity.md`，沒有列出它們，不算 body 已有。原句的 ` - ` 分隔符照舊。
+理由：同 reviewer。四個要抓的項目留——body 只指向 `finding-severity.md`，沒有列出它們，不算 body 已有。原句的 ` - ` 分隔符照舊。
 
 **17. `plugins/cai/agents/shipper.md`**（折行）
 
@@ -350,7 +356,7 @@ PASS no evals file contains a home-directory path (0 found)
 
 三個 prompt 都以 slash 指令起頭（pb02 量測紀錄 §7.1 於 2026-09-14 加上的），而 slash 指令由平台在 prompt 層直接展開（同紀錄 §7.2：「slash 指令在 prompt 層被展開（C11），不經過任何工具呼叫」）。所以這三個 case 量到的是 skill body 展開後模型的措辭，**不是 description 的觸發**；三個 case 裡唯一碰到 always-on description 的是 `track`，而它也是經 slash 到達的。這是差距文件 MP-05 風險欄說「三個 eval case 是唯一的信號」的實際含意：它們能抓到 body 行為的退步，抓不到 description 不再觸發。
 
-`track` 的 prompt 裡 description 該繼續對得上的字：「feature track」「stopped」「which stage」「resume」——改後的 description 含 `feature`、`stage`、`resume where it stopped`、`.claude/track/`（§3.2 第 8 條）。
+`track` 的 prompt 裡 description 該繼續對得上的字：「feature track」「stopped」「which stage」——改後的 description 含 `feature`、`stage`、`stopped`（「resume where it stopped」）、`.claude/track/`（§3.2 第 8 條）。
 
 **指令逐字**（來自 `docs/design/2026-09-12-pb02-plugin-evals-measurement.md`；`$SCRATCH` 是當次 session 的 scratchpad 根，`$REPO` 是 repo 根；副本用 `cp -r "$REPO/plugins/cai" …` 複製後先 `diff -r` 確認再跑）。最近一次跑 `track-status-runs-the-script` 與 `design-gate-is-a-menu` 的指令是 §7.3（2026-09-14，`--runs 3`）：
 
