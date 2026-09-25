@@ -26,6 +26,8 @@ Find the base ref, taking the first that works: the ref the user named, or
 
 - `git merge-base HEAD <base-ref>` — the branch point.
 - `git diff --stat <branch-point>...HEAD` — the file list.
+- `git rev-parse --show-toplevel` — `<top>`, the directory Step 1's convention
+  files live under.
 
 Carry the values yourself. Do not wire them into one pipeline with shell
 variables, `sed`, or `${VAR:-default}` — none of that parses under the
@@ -50,14 +52,24 @@ each, plus the `security-reviewer` agent for the fourth. Four and not more —
 | Lens | What it hunts |
 |---|---|
 | **correctness** | Off-by-one and boundary errors, state leaking between instances or requests, a `match`/`switch` that silently falls through, a flag set and never cleared, an error swallowed, ordering assumed but not guaranteed |
-| **conformance** | What the change does that nothing asked for, and what it was asked for and skipped. Compare against the plan, spec, issue, or the request in this conversation |
+| **conformance** | What the change does that nothing asked for, and what it was asked for and skipped. Compare against the plan, spec, issue, or the request in this conversation, and against the convention files at `<top>` — `<top>/CLAUDE.md` and `<top>/.claude/CLAUDE.md`, by file rather than by heading |
 | **coverage** | For each behaviour change: is there a test that would **fail if this change were reverted**? Name the tests that are missing, not the coverage percentage |
 | **security** | The four hunt items in `finding-severity.md`, and no fifth: an external call routed through a shell, who controls what reaches the argument vector, raw error/output/argument text reaching a print or a kept record, and a command shape the repo's own refusal list does not cover |
 
 Give each agent the base ref, the file list, and the requirement it is
-reviewing against — the plan, issue, or the user's own words. The
-conformance lens is useless without that last one; if no requirement exists
-in written form, say so and review the other three.
+reviewing against — the plan, issue, or the user's own words. Before
+dispatching, check which of `<top>/CLAUDE.md` and `<top>/.claude/CLAUDE.md`
+exist and give the conformance lens only the paths that do. `@path` imports
+are not followed, and `CLAUDE.local.md` does not count — only a line inside
+one of those two files themselves may be cited, and a convention finding
+with no `file:line` in one of them is not a finding.
+
+A written requirement and a convention file are independent inputs to
+conformance. With neither, conformance is skipped and the other three
+lenses still run, as before. With a requirement but no convention file,
+compare only against the requirement, as before. With a convention file but
+no requirement, conformance still runs and compares only against the
+convention files. With both, compare against both.
 
 The three severity words Step 2 ranks by, and the security lens's four hunt
 items, are defined in one place:
@@ -72,6 +84,12 @@ worth another subagent run.
 
 - Merge findings that name the same `file:line` and the same cause. Two
   lenses reaching the same defect independently is evidence, not noise.
+- A convention finding whose `file:line` already appears in a command this
+  pass actually ran and read the output of merges into that finding instead
+  of standing alone — the repo's own verification command already caught
+  it. One the commands run this pass never reached stays as its own
+  finding, and Step 3's `Not covered` names which command would have
+  covered it.
 - Drop anything with no failure scenario, whichever lens produced it.
 - Every surviving `Blocker`/`Major` must name what requirement it's based
   on — the original request's own words, a plan/issue paragraph, or an
@@ -97,7 +115,9 @@ worth another subagent run.
    from yes and from no. Not optional and not the findings list: code that
    does more than was asked is a decision someone made silently, and
    deleting it yourself is a second one. Surface it, don't take it.
-4. **Not covered.** What the lenses could not check, and why.
+4. **Not covered.** What the lenses could not check, and why — including
+   "no written requirement" or "no written conventions" when either was
+   missing from conformance's inputs.
 
 ## Fixing
 
