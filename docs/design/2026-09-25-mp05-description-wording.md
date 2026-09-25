@@ -401,7 +401,9 @@ claude plugin eval "$SCRATCH/pb02-eval-copy/2026-09-12/cai" \
 
 ## 7. Eval before/after
 
-尚待主 session 用付費的 `claude plugin eval` 於改前（`main` 5e1a29f）與改後（本分支）各跑一輪三個 case（`--runs 3`）後補上；本輪的執行者依指示沒有跑它。
+**沒有跑，決定於 2026-09-25。** §6 已說明原因：三個 case 的 prompt 都以 slash 指令起頭，平台直接展開 skill body、不經 description 比對，兩個 case 練的還是帶 `disable-model-invocation: true` 的 skill；改前改後同分是可以事先知道的結果，那筆錢買不到任何跟 description 觸發有關的資訊。差距文件 MP-05 風險欄說「三個 eval case 是唯一的信號」——它們是 body 行為的信號，不是觸發的信號。
+
+改用的判準：日常使用。哪個 skill 在以前會觸發的說法上不再觸發，就把那一條 description 還原成 §3.2 的改前原文（單條還原、總量回升，ceiling 跟著抬並說明為什麼）。要有真正的觸發量測，得有一個 prompt 不帶 slash 指令、靠 description 讓模型自己選 skill 的 eval case——那是另一項工作，這裡沒有做。
 
 ## 8. 沒動的東西
 
