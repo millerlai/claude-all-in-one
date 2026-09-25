@@ -371,7 +371,7 @@ def test_claude_rows_marks_a_foreign_pid_domain_unknown_without_check_alive(
         tmp_path, monkeypatch):
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir()
-    _write_registry(str(sessions_dir), 2, "idle", pidDomain="linux:some-other-host")
+    _write_registry(str(sessions_dir), 2, "idle", pidDomain="plan9:some-other-host")
 
     def boom(*a, **k):
         raise AssertionError("check_alive must not be called for a foreign pidDomain")
@@ -409,7 +409,7 @@ def test_claude_rows_builds_a_row_with_identifying_fields(tmp_path, monkeypatch)
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir()
     reg = _write_registry(str(sessions_dir), 5, "idle",
-                          cwd="D:\\made-up\\project-x", sessionId="sess-xyz")
+                          cwd=os.path.join(os.sep, "made-up", "project-x"), sessionId="sess-xyz")
     monkeypatch.setattr(viewer, "check_alive", lambda *a, **k: "alive")
     rows, problems = viewer.claude_rows(str(tmp_path), 0)
     assert len(rows) == 1
@@ -417,7 +417,7 @@ def test_claude_rows_builds_a_row_with_identifying_fields(tmp_path, monkeypatch)
     assert row["key"] == "claude:5:%s" % reg["procStart"]
     assert row["platform"] == "claude"
     assert row["project"] == "project-x"
-    assert row["cwd"] == "D:\\made-up\\project-x"
+    assert row["cwd"] == os.path.join(os.sep, "made-up", "project-x")
     assert row["sessionId"] == "sess-xyz"
     assert row["model"] is None
     assert row["state"] == "done"
@@ -468,7 +468,7 @@ def test_claude_rows_populates_summary_recent_and_subagents_from_transcript(
 def test_claude_rows_unknown_domain_row_has_d2_defaults(tmp_path):
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir()
-    _write_registry(str(sessions_dir), 8, "idle", pidDomain="linux:some-other-host")
+    _write_registry(str(sessions_dir), 8, "idle", pidDomain="plan9:some-other-host")
     rows, problems = viewer.claude_rows(str(tmp_path), 0)
     assert len(rows) == 1
     assert rows[0]["summary"] is None

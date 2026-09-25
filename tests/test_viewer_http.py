@@ -217,6 +217,18 @@ def test_run_keeps_previous_snapshot_on_unexpected_exception(monkeypatch):
     assert final["problems"] == ["poller error: boom"]
 
 
+def test_poller_does_not_shadow_thread_internals():
+    """Poller subclasses threading.Thread, whose private attributes differ by
+    Python version: 3.12 calls self._stop() from join(), 3.13 has no _stop at
+    all. An instance attribute with one of these names passes on 3.13 and
+    breaks every join() on 3.12 ("'Event' object is not callable")."""
+    thread_internals = {"_stop", "_started", "_is_stopped", "_tstate_lock",
+                        "_target", "_name", "_args", "_kwargs", "_daemonic",
+                        "_ident", "_native_id", "_initialized", "_handle"}
+    p = viewer.Poller("cfg", "codex", "state.json", 1, lambda: None)
+    assert thread_internals.isdisjoint(set(vars(p)) - set(vars(threading.Thread())))
+
+
 def test_run_does_not_accumulate_problems_across_repeated_failures(monkeypatch):
     """An end-to-end run of the real thread body: a sustained build_snapshot
     failure must not grow `problems` without bound cycle over cycle -- each

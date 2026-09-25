@@ -2130,14 +2130,15 @@ class Poller(threading.Thread):
         self.own_token = own_token
         self._lock = threading.Lock()
         self._snapshot_bytes = json.dumps(EMPTY_SNAPSHOT).encode("utf-8")
-        self._stop = threading.Event()
+        # Not `_stop`: Python 3.12's Thread.join() calls self._stop().
+        self._stop_event = threading.Event()
 
     def snapshot(self):
         with self._lock:
             return self._snapshot_bytes
 
     def stop(self):
-        self._stop.set()
+        self._stop_event.set()
 
     def _self_check(self):
         """True to keep polling, False if this instance was just told to
@@ -2159,7 +2160,7 @@ class Poller(threading.Thread):
         return True
 
     def run(self):
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             if not self._self_check():
                 return
             try:
@@ -2175,7 +2176,7 @@ class Poller(threading.Thread):
                 encoded = json.dumps(prev).encode("utf-8")
             with self._lock:
                 self._snapshot_bytes = encoded
-            self._stop.wait(SERVER_POLL_INTERVAL_S)
+            self._stop_event.wait(SERVER_POLL_INTERVAL_S)
 
 
 # =============================================================launcher====

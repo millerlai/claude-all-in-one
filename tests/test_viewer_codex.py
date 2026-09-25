@@ -319,9 +319,9 @@ def test_codex_rows_builds_a_row_with_identifying_fields(tmp_path):
     codex_home = str(tmp_path)
     tid = _thread_id(2)
     rollout_path = os.path.join(codex_home, "sessions", "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
-    _write_rollout(rollout_path, [_session_meta(cwd="D:\\made-up\\project-y"),
+    _write_rollout(rollout_path, [_session_meta(cwd=os.path.join(os.sep, "made-up", "project-y")),
                                   _task_started(1, BASE_MS), _task_complete(2, BASE_MS)])
-    _make_state_db(codex_home, 1, [(tid, rollout_path, "D:\\made-up\\project-y", BASE_MS,
+    _make_state_db(codex_home, 1, [(tid, rollout_path, os.path.join(os.sep, "made-up", "project-y"), BASE_MS,
                                     "user", "codex-tui", 0, "made-up-name")])
     _make_history_db(codex_home, 1, [(tid, "turn-1", "completed", BASE_MS, BASE_MS, 10)])
 
@@ -332,7 +332,7 @@ def test_codex_rows_builds_a_row_with_identifying_fields(tmp_path):
     assert row["key"] == "codex:%s" % tid
     assert row["platform"] == "codex"
     assert row["project"] == "project-y"
-    assert row["cwd"] == "D:\\made-up\\project-y"
+    assert row["cwd"] == os.path.join(os.sep, "made-up", "project-y")
     assert row["sessionId"] == tid
     assert row["name"] == "made-up-name"
     assert row["state"] == "done"
@@ -506,7 +506,7 @@ def test_codex_rows_falls_back_when_no_sqlite_files_present(tmp_path):
     tid = _thread_id(40)
     rollout_path = os.path.join(codex_home, "sessions",
                                 "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
-    _write_rollout(rollout_path, [_session_meta(cwd="D:\\made-up\\fallback-proj"),
+    _write_rollout(rollout_path, [_session_meta(cwd=os.path.join(os.sep, "made-up", "fallback-proj")),
                                   _task_started(1, BASE_MS), _task_complete(2, BASE_MS)])
 
     rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
