@@ -360,7 +360,7 @@ so asking where you are is free.
 
 The six stage reports all land in one conversation, and nothing in the track
 trims it. The place to decide what to do about that is between stages — once
-the ledger row for the one that just finished exists, and before the next one
+the one that just finished has its row in `state.md`, and before the next one
 is dispatched:
 
 | Do | When it fits |
@@ -369,16 +369,16 @@ is dispatched:
 | End the session; `/cai:track <feature>` in a new one | You are stepping away, or the window is close to full. The new session resumes at the next unfinished stage from the files above and nothing else: a report longer than its note cell is gone, and so is anything you said that no file took down |
 | `/compact`, naming the next stage in it — `/compact next is verify` | Same session, with room made. The summary keeps what you point it at, so name the stage; left to choose, it keeps what looked important at the time, which is not always what that stage comes back to |
 
-Only there, never mid-stage: a stage cut off before its ledger row leaves
+Only there, never mid-stage: a stage cut off before its row is written leaves
 none, so a resume runs it again from its preflight, and a pending-questions
 round dies with the conversation — `build` alone stops mid-way on purpose,
 and the `in-progress` status above is its handoff.
 
 The number to decide by is your own peak, not a threshold from somewhere
 else: `python <plugin-root>/scripts/context_peak.py --track-dir .claude/track/<feature>`
-prints, for every session that has written to this track's ledger, its peak
-context occupancy in tokens and as a share of a 1M window (`--window` for a
-smaller one). Run it at each boundary, and break at the one where the climb
+prints, for each session the ledger names, its peak context occupancy in
+tokens and as a share of a 1M window (`--window` for a smaller one). Run it
+at each boundary, and break at the one where the climb
 has got too close to your model's window.
 
 ## Seeing what it cost
