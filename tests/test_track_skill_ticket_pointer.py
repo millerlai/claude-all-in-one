@@ -207,7 +207,8 @@ def test_always_on_budget_is_unchanged_at_3836():
     # decision, because every character here is read by every session.
     #
     # 5674 -> 3836 on 2026-09-25, all nineteen descriptions, measured
-    # (docs/design/2026-09-25-mp05-description-wording.md). Each was
+    # (MP-05 of the mattpocock/skills gap analysis; its record is a local
+    # design document, not in git). Each was
     # rewritten by three rules: the triggering situation opens the sentence,
     # one trigger per branch, and nothing the body already says. The first
     # cut measured 3802; review put "Use PROACTIVELY." back into explorer.md

@@ -296,7 +296,8 @@ check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not l
 # trade is not free. Raising it further is a decision: every character here is
 # read by every session, forever.
 #
-# Lowered to 3836 for MP-05 (docs/design/2026-09-25-mp05-description-wording.md).
+# Lowered to 3836 for MP-05 of the 2026-09-25 mattpocock/skills gap analysis
+# (its record is a local design document, not in git).
 # All nineteen descriptions were rewritten by three rules -- the triggering
 # situation opens the sentence, one trigger per branch, and nothing the body
 # already says -- and the total measured afterwards is 3836, which is what
