@@ -96,3 +96,10 @@ start of a new, fieldless entry and fails the ledger's own checks.
 - Failure: the person's Claude Code Insights report of 2026-09-21 (a local usage report, not in this repo) records them interrupting an unrequested `pip install mypy` on a dirty tree; stance UC6 carries it.
 - Rule: Never install packages or otherwise change the environment (`pip install`, `npm i -g`) without asking first — least of all on a dirty working tree.
 - Cited by: plugins/cai/rules/workflow.md § Workflow
+
+## communication-gloss-original-form-terms — a term kept in English is glossed on first use
+
+- Date: 2026-09-25
+- Failure: reported by the user, and landing in the same change as this entry -- no commit predates it. The language line's "keep technical terms in their original form" was being read as licence to leave every such term bare, so a non-English document came out as prose threaded with unexplained English, and a reader meeting a term for the first time had nothing in their own language to learn its meaning from. The fix the user asked for is the pattern README.zh-TW.md's architecture section already uses -- the meaning in the document's language, then the term in parentheses -- or a glossary at the top.
+- Rule: In a reply or document written in a language other than English, a term kept in its original form is not left bare on first use: give its meaning in that language, then the term in parentheses — or, in a document, open with a glossary that does this for every such term. A reader meeting the term for the first time cannot recover the meaning from the English alone.
+- Cited by: plugins/cai/rules/communication.md § Communication

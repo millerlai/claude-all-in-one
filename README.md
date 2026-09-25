@@ -466,7 +466,7 @@ asks before overwriting them.
 
 | File | What it governs |
 |---|---|
-| `communication.md` | Response language, conciseness, leading with the answer. |
+| `communication.md` | Response language, conciseness, leading with the answer. In a non-English reply or document, a term kept in English gets its meaning in that language first, then the term in parentheses — or a glossary up front. |
 | `epistemics.md` | Check before answering, cite sources, never fabricate, re-read as a skeptic before delivering. When to stop and ask, and how: one decision per turn, through the question tool, recommended option first. Verify against the original request before claiming done. |
 | `coding.md` | Pure functions, comment the why, read the reference's source when matching an existing implementation, minimum code, surgical changes only. |
 | `workflow.md` | Branch before touching code, plan non-trivial changes and order them by what you're likeliest to change, prototype taste-driven work, log deviations from the plan, run tests before claiming done, never commit unless asked. |
