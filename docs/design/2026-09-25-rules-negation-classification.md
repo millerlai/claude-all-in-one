@@ -4,6 +4,12 @@
 
 ## 名詞
 
+- 儲存庫（repo）：一個 git 版本庫；本文件說的 repo 就是 claude-all-in-one。
+- 外掛（plugin）：cai 這個安裝進 Claude Code 的套件本身。
+- 提交（commit）：git 記下的一個版本。
+- 工作副本（checkout／clone）：從版本庫取到磁碟上的一份完整目錄；同一台機器可以有好幾份。
+- 軌道（track）：`/cai:track` 讓一個功能依序走完六個階段（stage）的一次流程。
+- 暫存區（scratchpad）：本 session 專用、不在 repo 內的暫存目錄。
 - 拉取請求（PR）：一次送審的變更；MP-07 拆成兩個，這份是第一個。
 - 對話工作階段（session）：Claude Code 從開啟到關閉的一次對話。
 - 技能（skill）／代理（agent）：plugin 出貨的兩種元件，前者是一段被指令或模型觸發的程序，後者是被派去做一件事的子模型。
@@ -84,8 +90,8 @@
 | 18 | `workflow.md:10-12` | When the project already has tests, loop on verifiable goals (don't add a harness uninvited; suggest it if missing): validation → test invalid inputs; bug → reproduce in a test; refactor → tests pass before and after. Run tests before saying it's done. | 可引導 | （只改括號）(a missing harness is suggested first and added once asked) | 住在 § Workflow，不是 Rule 句；不動帳本 |
 | 19 | `workflow.md:13-15` | A large multi-file change runs in checkpointed units, never as one long edit: an interruption must not leave work half-done or the tree incompilable. Keep responses concise as you go (no large summaries) so the budget goes to the work. | 可引導 | （只改第一句）A large multi-file change runs in checkpointed units: after any interruption the tree still compiles and every finished unit stands on its own. ——順便收掉同句的「must not」（pattern 沒抓到） | 住在 § Workflow，不是 Rule 句；不動帳本 |
 | 20 | `workflow.md:16-19` | Plans are written with incomplete information. When implementation hits something the plan didn't anticipate, take the conservative option, log the deviation and its reason (an `implementation-notes.md` for long runs), and keep going — then report the deviations with the result. Silently re-scoping hands back a change I never approved. | 非禁止句 | 不改（「a change I never approved」是理由裡的描述，不是禁止） | 住在 § Workflow，不是 Rule 句 |
-| 21 | `workflow.md:20` | Never commit or push unless I explicitly ask. | **硬護欄** | 加在同一個 bullet 後面：Until then the work stays in the working tree. ——`GUIDE.md:137-140` 說明它刻意留在散文；原則 2 | 住在 § Workflow，不是 Rule 句（帳本沒有這條的條目）；`GUIDE.md:137` 的轉述句仍為真 |
-| 22 | `workflow.md:21-22` | Never install packages or otherwise change the environment (`pip install`, `npm i -g`) without asking first — least of all on a dirty working tree. | **硬護欄** | 加在同一個 bullet 後面：Ask first, naming the package and why it is needed. ——原則 2；也是 29 條裡**唯一的帳本 Rule 句**。字面上「Ask before installing … — above all on a dirty working tree」是等價的正向版本，主 session 若改判可引導，帳本 `:97` 必須同一個 edit 更新 | **是 Rule 句**：`workflow-ask-before-environment-changes`，帳本 `:97`（Rule）、`:98`（Cited by § Workflow）。加句放在原句後，原句仍是該節的子字串，`provenance.py` 不受影響 |
+| 21 | `workflow.md:20` | Never commit or push unless I explicitly ask. | **硬護欄** | 加在同一條列點後面：Until then the work stays in the working tree. ——`GUIDE.md:137-140` 說明它刻意留在散文；原則 2 | 住在 § Workflow，不是 Rule 句（帳本沒有這條的條目）；`GUIDE.md:137` 的轉述句仍為真 |
+| 22 | `workflow.md:21-22` | Never install packages or otherwise change the environment (`pip install`, `npm i -g`) without asking first — least of all on a dirty working tree. | **硬護欄** | 加在同一條列點後面：Ask first, naming the package and why it is needed. ——原則 2；也是 29 條裡**唯一的帳本 Rule 句**。字面上「Ask before installing … — above all on a dirty working tree」是等價的正向版本，主 session 若改判可引導，帳本 `:97` 必須在同一次修改裡更新 | **是 Rule 句**：`workflow-ask-before-environment-changes`，帳本 `:97`（Rule）、`:98`（Cited by § Workflow）。加句放在原句後，原句仍是該節的子字串，`provenance.py` 不受影響 |
 | 23 | `workflow.md:41-42`（2 個命中） | Bar: a multi-step procedure likely to recur. Don't propose for one-off tasks or trivial single commands, and don't re-propose one the user declined. | 可引導 | Bar: a multi-step procedure likely to recur; a declined proposal stays declined. ——「one-off／trivial」是門檻的反面，門檻本身已經說了 | 無（§ Recurring procedures → skills 未被引用） |
 | 24 | `option-explainer.md:2-3` | Only when a reply is about to offer two or more ways forward. If the user has already said "you pick", decide and answer — do not list. | 可引導 | （只改第二句）If the user has already said "you pick", decide and answer with that one pick. ——仍是 2 行 | 無（§ Presenting options 未被引用；帳本引的是 § Before the list） |
 | 25 | `option-explainer.md:21-23` | Each option is a title line, then these six as a numbered list — one field per item, its label first. Never a paragraph with the six run together: every field is still there and none of them can be found. | 可引導 | Each option is a title line, then these six as a numbered list — one field per item, its label first, so that a reader finds every field by its label and can compare it across options. ——仍是 3 行；形狀本身由 `options_lint.py` 檢查（`GUIDE.md:104-108`） | 無 |
@@ -110,7 +116,7 @@
 3. 三個 case、11 個 grader 量的都是 skill 側的句子：`options-six-fields` 的六個標籤 grader 對 `skills/options/references/template.md`（`graders/label-eli5.md:8`），`reads-options-references` 對 `skills/options/SKILL.md:21-29`；`track-status-runs-the-script` 對 `skills/track/SKILL.md:21-25`；`design-gate-is-a-menu` 三個對 `skills/track/references/approval-gates.md:68-72`。Grep `rules` 於 `plugins/cai/evals/` 零命中。沒有任何一個 grader 的比對字串來自 29 句中的任何一句。
 4. 任務書提到的 `case.yaml` 不存在：Glob `plugins/cai/evals/**/case.yaml` 零檔；一個 case 就是 `prompt.md` 加 `graders/*.md`（Glob `plugins/cai/evals/**/*` 共 14 個檔）。
 
-這對差距文件 `:254` 的判準——「改前改後各跑一次三個 case；如果看不出差別，就寫看不出差別，不繼續改」——的意思是：**結果在跑之前就決定了**。三個 case 讀不到 `plugins/cai/rules/`，判分器也不比對這 29 句裡的任何字，改前改後必然同分；花掉的 US$0.24（`2026-09-12-pb02-plugin-evals-measurement.md:103`）買到的是一個與改寫無關的「無差別」。照字面執行，第二個 PR 會因為一個非觀測而停下。
+這對差距文件 `:254` 的判準——「改前改後各跑一次三個 case；如果看不出差別，就寫看不出差別，不繼續改」——的意思是：**結果在跑之前就決定了**。三個 case 讀不到 `plugins/cai/rules/`，判分器也不比對這 29 句裡的任何字，改前改後同分是預期結果（C12）；花掉的 US$0.24（`2026-09-12-pb02-plugin-evals-measurement.md:103`）買到的是一個與改寫無關的「無差別」。照字面執行，第二個 PR 會因為一個非觀測而停下。
 
 本 repo 沒有別的方法能量這件事，逐一查過：`scripts/activation.py` 數的是 skill／agent 被用過幾天（`:2-16`），不是規則被遵守的程度；`tests/review-benchmark/` 量 verify 四鏡抓到什麼；`validate.py` 只查形狀。對方自己的說法是無效句「用跑的來裁決」（`writing-for-agents/SKILL.md:81`），而這裡沒有任何東西會跑 rules。要不要在沒有量測的前提下做第二個 PR，是主 session 的決定，本文件不替它選；三種讀法：(a) 判準不適用，憑本分類就做；(b) 照字面，做到本 PR 為止；(c) 等有一個能載入 `~/.claude/rules/` 的量測再說——那是另一條 track，repo 裡沒有。
 
@@ -120,7 +126,7 @@
 
 **改寫（20 個命中、19 個句子）**：第 1、2、3、4、6、7、10、11、13、14、15、16、18、19、23、24、25、26、27 列，提議文字照逐句表。
 
-**加正向句（2 條硬護欄）**：第 21 列（`workflow.md:20`）、第 22 列（`workflow.md:21-22`），各在原 bullet 後加一句，原句一字不動。第 5、9、17 列的正向句已在，不動。
+**加正向句（2 條硬護欄）**：第 21 列（`workflow.md:20`）、第 22 列（`workflow.md:21-22`），各在原列點後加一句，原句一字不動。第 5、9、17 列的正向句已在，不動。
 
 **不動（4 條非禁止句）**：第 8、12、20、28 列。
 
@@ -151,4 +157,4 @@
 - 任務來源：`docs/design/2026-09-25-mattpocock-skills-gap-analysis.md:243-256`（MP-07）；`:249` 的 29 與本次 Grep 一致。
 - 對方文件：`mattpocock/skills` `skills/productivity/writing-for-agents/SKILL.md`（scratchpad 內 shallow clone，`:61-74` Leading words 與 Negation、`:76-81` Pruning，一手）。
 - cai 側：`plugins/cai/rules/*.md` 八個檔逐行讀；`docs/rule-provenance.md` 全文（12 個條目）；`plugins/cai/scripts/provenance.py:33-99`、`:247-296`；`scripts/validate.py:320-420`、`:427-469`；`GUIDE.md:85-121`、`:135-145`；`plugins/cai/skills/setup/SKILL.md:11-34`；`plugins/cai/.claude-plugin/plugin.json`；`plugins/cai/evals/` 三個 `prompt.md` 與四個 grader 檔逐字讀，其餘七個 grader 由 Glob 確認存在；`scripts/activation.py:1-37`；README.md:461-463、`:612-633`。
-- eval 能不能看到 rules：本 checkout `docs/design/2026-09-12-pb02-plugin-evals-measurement.md:20-28`、`:103`；同機另一個 clone `D:/project/claude-all-in-one/docs/design/2026-09-12-pb02-plugin-evals-probes.md:22`、`2026-09-12-pb02-plugin-evals-high-level.md:34`、`:440`。
+- eval 能不能看到 rules：本 checkout `docs/design/2026-09-12-pb02-plugin-evals-measurement.md:20-28`（eval 跑的是 `plugins/cai` 複製到 scratchpad 的孤立副本，旁邊沒有本 repo 那份會 `@` 匯入 rules 的 CLAUDE.md）、`:103`（一輪的花費）；決定性的證據在同機另一個 clone `D:/project/claude-all-in-one/docs/design/2026-09-12-pb02-plugin-evals-probes.md:22`、`2026-09-12-pb02-plugin-evals-high-level.md:34`、`:440`。
