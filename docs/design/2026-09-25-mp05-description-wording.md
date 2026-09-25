@@ -333,7 +333,7 @@ PASS no evals file contains a ghp_ (0 found)
 PASS no evals file contains a home-directory path (0 found)
 ```
 
-- `python -m pytest`：結果見 PR 說明（本檔寫成時尚在跑；主 session 的 PR body 引用最後一行）。
+- `python -m pytest`（分支最終狀態，2026-09-25）：`741 passed, 1 skipped in 446.42s (0:07:26)`。
 
 ## 5. Codex 端
 
