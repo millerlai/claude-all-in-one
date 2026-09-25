@@ -175,6 +175,24 @@ For each unit, in schedule order:
 broken intermediate state is cut in the wrong place — re-cut it and log the
 deviation.
 
+The one shape that resists that rule is a **wide refactor** — a rename, a
+retyped shared symbol, a moved column — whose blast radius fans across the
+codebase, so a single edit breaks every call site at once and no unit can
+land green on its own. Re-cut it as **expand, migrate, contract**: an
+`expand` unit adds the new form beside the old, so nothing breaks; `migrate`
+units move the call sites over in batches sized by blast radius (a package,
+a directory), each `Depends on` the expand unit and each green alone because
+the old form still exists; a `contract` unit deletes the old form once no
+caller remains, `Depends on` every migrate unit. One row per batch, never one
+unit that does all three:
+
+| # | Unit | Depends on | Alongside | Verify with | Status | Commit |
+|---|---|---|---|---|---|---|
+| 1 | expand: add `user_id` beside `uid` | nothing | — | `pytest tests/models` | `pending` | |
+| 2 | migrate `api/` to `user_id` | 1 | 3 | `pytest tests/api` | `pending` | |
+| 3 | migrate `jobs/` to `user_id` | 1 | 2 | `pytest tests/jobs` | `pending` | |
+| 4 | contract: drop `uid` | 2, 3 | — | `pytest` | `pending` | |
+
 ## Step 4 — Two units at once
 
 Only when all three hold, otherwise sequential, silently:

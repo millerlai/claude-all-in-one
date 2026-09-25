@@ -235,7 +235,9 @@ Status: approved <YYYY-MM-DD>
 <!--
   Cut the units where the Implementation spec's interfaces already cut them — a
   stated interface is what makes two units safe to build at the same time. Then
-  start with the riskiest unit that has no unmet dependency.
+  start with the riskiest unit that has no unmet dependency. A rename or
+  retype that fans out across the codebase is not one unit: cut it as expand,
+  migrate (one row per batch), contract — the shape stage-build.md gives.
 
   Record anything OUTSIDE this repo that must exist first — another team's
   endpoint, a provisioned queue, a credential. An upstream blocker nobody wrote

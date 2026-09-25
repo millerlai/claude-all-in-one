@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.14
+# cai-codex-version: 0.2.15
 name = "cai_designer"
 description = "Writes a design document — diagnosis, stance, decisions, detail, or delta — following stage-design.md's procedure. Dispatched by the `design` stage. Cites evidence for every claim about existing behaviour and hands any architecture-level choice up unanswered rather than deciding it."
 model = "gpt-6-astra"
