@@ -23,7 +23,9 @@
 
 <!-- Only what is specific to this repo and not already covered by
      the shared rules location — naming, layout, patterns a new session would not
-     guess. -->
+     guess. If this repo keeps a `CONTEXT.md` glossary at its top level, add
+     one line here pointing to it; the terms themselves stay in that file,
+     not in this one. -->
 
 ## Mistakes Claude repeats here
 

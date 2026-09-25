@@ -11,7 +11,7 @@ anyone.
 
 **Asking is the one thing that is not.** Dispatched by the track you are a
 subagent, and no subagent can ask the person directly here either.
-Step 0.5's two answers, and Step 2's row that sends
+Step 0.5's answers, and Step 2's row that sends
 architecture decisions to the user, then mean: finish what the answer does
 not block — the four sizing lines are not blocked — and end the report with
 the `## Pending questions` section `references/pending-questions.md`
@@ -56,16 +56,17 @@ before reading anything:
 A non-zero exit means building against a document already known to be
 wrong — say so and stop.
 
-## Step 0.5 — Say what it will cost, then get two answers
+## Step 0.5 — Say what it will cost, then get up to three answers
 
 Four lines first, before anything is dispatched: how many units, which of
 them can run alongside another, the verify command each will have to pass,
 and anything in the document you already know you will have to ask about.
 A long pass nobody sized is a long pass nobody agreed to.
 
-Then two answers, once for the whole run and not per unit. Two decisions, so
-two menus on two turns — `references/approval-gates.md` holds the shape, and
-neither is a sentence the person types a word back into:
+Then up to three answers, once for the whole run and not per unit. Up to
+three decisions, so up to three menus on as many turns —
+`references/approval-gates.md` holds the shape, and none is a sentence the
+person types a word back into:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
   procedure needs one commit per verified unit, and the parallel lane below
@@ -74,6 +75,17 @@ neither is a sentence the person types a word back into:
 - **The parallel lane itself.** Buys wall-clock, costs a worktree per lane
   plus a merge. For three or four small units it is not worth it.
   Recommend, let the user decide, default to sequential.
+- **Which glossary terms join `CONTEXT.md`.** Only when the document is a
+  Detail design and its `## Glossary` has at least one data row that is not
+  the template's placeholder. Group the terms into **propose to merge**
+  (project-specific concepts) and **leave out** (implementation nouns — file
+  names, functions, fields), one line each with a reason; a term already in
+  `CONTEXT.md` under the same name shows the existing definition alongside
+  the new one. Two options, the whole group at once — "merge as proposed
+  (recommended)" or "merge none" — free text moves individual terms between
+  groups or drops one. An empty "propose to merge" group means skip the
+  question. Fold this into the same `## Pending questions` report as the
+  other two.
 
 ## Step 1 — Turn the schedule into a state table
 
@@ -98,6 +110,10 @@ resumed run this table exists to serve. Standing alone there is no ledger to
 compare against and nothing to trip, but keep the table out of the design
 document there too — the next run may be a tracked one. Say in the notes
 which design document the table belongs to.
+
+Step 0.5's glossary answer belongs here too: once decided, record the terms
+that ended up merged, the definition each will write, and any definition
+each replaces — a resumed session needs this at Step 6 without re-asking.
 
 Under a track the notes go in `.claude/track/<feature>/`, beside the
 `state.md` a cold session resumes from. Check `.gitignore` covers
@@ -261,13 +277,31 @@ Units all green is not done:
    that now satisfies it. A row you cannot point at is unimplemented. It goes
    in `implementation-notes.md` and the report, never back into the design
    document's own `### Traceability`, for the reason Step 1 gives.
-2. **Run `stage-verify.md`** over the whole branch, passing the design
-   document as the requirement its conformance lens reviews against. Fix
+2. **Write the merged terms into `<top>/CONTEXT.md`**, before verify. Skip
+   entirely — no file created, nothing said about it in the report — when no
+   glossary term ended up merged (the third menu was never asked, was
+   answered "merge none", or free text moved every term out). Otherwise:
+   `<top>` is what `git rev-parse --show-toplevel` prints; find `CONTEXT.md`
+   there, and if it does not exist, create it verbatim from
+   `<cai-root>/templates/CONTEXT.md.tpl` first. Append each new
+   term as one line, `**Term**: definition`, after whatever the file already
+   has. A line already starting with that term name (case-insensitive) is
+   replaced in place with the new definition instead of appended; any
+   hand-written `_Avoid_` line or subheading is left untouched, and no
+   `Where it lives` column is written. Replacing by name rather than
+   appending a duplicate makes this idempotent — an interrupted rerun lands
+   the same file. Commit this write on its own, the same way Step 3's commit
+   does, when Step 0.5 answered commit-per-unit yes; otherwise leave it in
+   the working tree.
+3. **Run `stage-verify.md`** over the whole branch, passing the design
+   document as the requirement its conformance lens reviews against, and
+   Step 0.5's glossary answer as recorded in `implementation-notes.md`. Fix
    Blocker/Major per that stage's rules; leave Minor documented; its
    requirement decisions go to the user.
-3. **Report.** What each unit built and where it landed, the traceability
-   table, every deviation, the review verdict, and what could not be
-   verified automatically as numbered manual steps.
+4. **Report.** What each unit built and where it landed, the traceability
+   table, every deviation, every `CONTEXT.md` definition replaced with the
+   old text quoted, the review verdict, and what could not be verified
+   automatically as numbered manual steps.
 
 ## Report
 
@@ -280,6 +314,7 @@ of the ledger's `--note`; you write no track file at all.
 - which units ran in parallel
 - every deviation
 - anything skipped
+- every `CONTEXT.md` definition replaced, old text quoted
 
 The in-flight `unit <N> of <total>` row is still written by Step 5.5
 above, not here -- this section is what you hand back once the whole
