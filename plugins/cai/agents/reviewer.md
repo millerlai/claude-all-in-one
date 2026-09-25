@@ -1,8 +1,8 @@
 ---
 name: reviewer
 description: >
-  Reviews a diff through one named lens and reports findings. Dispatched by the
-  `verify` stage, several at a time. Read-only; does not fix anything.
+  One named lens over one diff, as the `verify` stage dispatches several at
+  a time — read-only, findings only.
 tools: Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git show:*)
 model: sonnet
 effort: high

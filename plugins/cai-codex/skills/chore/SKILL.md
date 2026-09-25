@@ -1,6 +1,6 @@
 ---
 name: chore
-description: Run a mechanical, no-judgement chore on the chore tier instead of the main session model — renames, formatting, simple lookups, one-off shell commands, boilerplate. Usage: $chore <task>
+description: Mechanical, no-judgement work — renames, formatting, simple lookups, one-off shell commands, boilerplate — run on the chore tier instead of the main session model. Usage: $chore <task>
 model: haiku
 argument-hint: <quick task>
 ---

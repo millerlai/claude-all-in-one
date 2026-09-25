@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Use when improving the internal structure of existing code without changing its behaviour - cleaning up a long method, breaking up a god class, removing duplication, taming conditionals, fixing an inheritance hierarchy, or when the user says refactor, code smell, technical debt, tidy up, restructure, or names a specific refactoring such as Extract Method or Replace Conditional with Polymorphism. Also use before adding a feature to code that resists the change.
+description: Improving the internal structure of existing code without changing its behaviour - a long method, a god class, duplication, tangled conditionals, an inheritance hierarchy - or the user says refactor, code smell, technical debt, or names a refactoring such as Extract Method. Also use before adding a feature to code that resists the change.
 model: sonnet
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.

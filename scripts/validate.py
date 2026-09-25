@@ -275,13 +275,14 @@ check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not l
 # since those never reach the model unbidden.
 #
 # This is a ratchet, not the design's target. UC4's target is 4,673
-# characters; measured here, this repo is not there yet, and a ratchet is
-# what stops the total drifting back up while that gap is still open. Two
-# things are known to still be on the table for closing it: retiring `goal`
-# once a track has actually been run end to end (see the SKILL_NAMES comment
-# above), and shortening the longest descriptions -- which trades against
-# those same descriptions still needing to be long enough to trigger, so it
-# is not done here.
+# characters; measured here, this repo was not there until MP-05 (the last
+# paragraph below), and a ratchet is what stops the total drifting back up
+# while that gap is still open. Two things were known to be on the table for
+# closing it: retiring `goal` once a track has actually been run end to end
+# (see the SKILL_NAMES comment above), and shortening the longest
+# descriptions -- which trades against those same descriptions still needing
+# to be long enough to trigger, so it was not done here until MP-05 did it
+# description by description.
 #
 # Raised to 5697 for pb04. The fourth verify lens is a tenth agent, and its
 # description is 187 characters measured, not estimated. Two existing
@@ -294,7 +295,21 @@ check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not l
 # shortening the six longest descriptions; the comment above says why that
 # trade is not free. Raising it further is a decision: every character here is
 # read by every session, forever.
-ALWAYS_ON_CEILING = 5697
+#
+# Lowered to 3836 for MP-05 of the 2026-09-25 mattpocock/skills gap analysis
+# (its record is a local design document, not in git).
+# All nineteen descriptions were rewritten by three rules -- the triggering
+# situation opens the sentence, one trigger per branch, and nothing the body
+# already says -- and the total measured afterwards is 3836, which is what
+# the ratchet is set to: zero headroom, on purpose, because the next
+# description that grows should have to say why. 34 of those characters are
+# "Use PROACTIVELY." kept in explorer.md and test-runner.md (the first cut
+# measured 3802 without them): the Claude Code sub-agents doc names that
+# phrase as the lever for proactive delegation, it is not identity, and no
+# eval here would show it going missing, so it stays. This is the first time
+# the number sits under the 4,673 design target; the target line above stays
+# as the number the design asked for.
+ALWAYS_ON_CEILING = 3836
 always_on_paths = (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
                    + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
                    + sorted(glob.glob(f"{CATALOG}/*/SKILL.md")))

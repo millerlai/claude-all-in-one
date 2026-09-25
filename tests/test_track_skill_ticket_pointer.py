@@ -159,7 +159,7 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_unchanged_at_5674():
+def test_always_on_budget_is_unchanged_at_3836():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
@@ -205,10 +205,23 @@ def test_always_on_budget_is_unchanged_at_5674():
     # now small enough to be worth saying out loud: the next description that
     # grows is likely to need the ceiling raised, and raising it is a
     # decision, because every character here is read by every session.
+    #
+    # 5674 -> 3836 on 2026-09-25, all nineteen descriptions, measured
+    # (MP-05 of the mattpocock/skills gap analysis; its record is a local
+    # design document, not in git). Each was
+    # rewritten by three rules: the triggering situation opens the sentence,
+    # one trigger per branch, and nothing the body already says. The first
+    # cut measured 3802; review put "Use PROACTIVELY." back into explorer.md
+    # and test-runner.md (+34), because the Claude Code sub-agents doc names
+    # that phrase as the lever for proactive delegation and no eval here
+    # would show it missing. The ticket-mirror line this test guards is
+    # still body text and still contributes nothing here. ALWAYS_ON_CEILING
+    # moved 5697 -> 3836 in the same change: headroom 23 -> 0, so the next
+    # description that grows has to raise the ceiling and say why.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 5674
+    assert int(m.group(1)) == 3836
 
 
 # --- the added line itself carries the load-bearing instruction ------------

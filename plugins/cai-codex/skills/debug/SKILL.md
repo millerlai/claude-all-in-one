@@ -1,6 +1,6 @@
 ---
 name: debug
-description: Find the root cause of a bug before proposing any fix — a test that fails, a crash, a stack trace, unexpected behaviour, or something that used to work and stopped. Use when the user says "this is broken", "it's not working", "the test fails", "fix this bug", "為什麼會壞", "這段程式有 bug", or pastes an error message or stack trace. Not for a diff that might not be mergeable (`verify`), code that behaves correctly but is hard to read (`refactor`), or a question about what's unknown before any code exists (`discover`) — this is for something that demonstrably does not work right now.
+description: Something demonstrably broken right now — a failing test, a crash, wrong behaviour, a regression — where the root cause comes before any fix. Use when the user says "this is broken", "fix this bug", "為什麼會壞", or pastes an error message or stack trace.
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
 

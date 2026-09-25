@@ -1,8 +1,8 @@
 ---
 name: test-runner
 description: >
-  Runs test suites and reports failures. Use PROACTIVELY after any code
-  change. Does not fix code.
+  After any code change — the test suite run, failures reported, nothing
+  fixed. Use PROACTIVELY.
 tools: Bash(go test:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m unittest:*), Bash(uv run pytest:*), Bash(npm test:*), Bash(npm run:*), Read
 model: haiku
 ---
