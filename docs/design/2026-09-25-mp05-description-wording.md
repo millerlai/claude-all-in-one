@@ -17,18 +17,19 @@
 - **anchor（錨點）**：`scripts/codex-overrides.json` 裡每一條覆寫要比對的原文；`gen-codex.py` 要求它在目標檔裡恰好出現一次，否則整個產生流程失敗。
 - **sibling（同胞）**：同屬 cai 的另一個 skill 或 agent。
 
-## 1. 三條規則，兩個不動
+## 1. 三條規則，三個不動
 
 每一條 description 都逐一過這三條規則（沿用差距文件 MP-05 的說法）：
 
-- **(a) 情境前置**：開頭第一個子句寫「該觸發它的情況」，不寫「它是什麼」。「A skill that…」「Use PROACTIVELY…」「Runs the … stage:」這類開頭都拿掉。
+- **(a) 情境前置**：開頭第一個子句寫「該觸發它的情況」，不寫「它是什麼」。「A skill that…」「Runs the … stage:」這類開頭都拿掉。「Use PROACTIVELY」不是身分句，不在此列，見下方 L3。
 - **(b) 一分支一觸發**：已經有的觸發條件，再用同義詞或換句話寫一次，就是同一個分支寫兩次——砍掉後者，只留真正不同的分支。
 - **(c) 砍 body 已經有的**：身分陳述（「Read-only code smell analyst.」），以及 body 自己就有 `## When not to use this` 之類段落在重複的「Not for …」清單。
 
-兩個刻意不動，都是因為三個 eval case 量不到它們：
+三個刻意不動，都是因為三個 eval case 量不到它們：
 
 - **L1 中文觸發句留一句**：今天有中文的 description（`debug`、`plan-review`、`verify`）改完後仍各留一句中文；不因為砍同義而把一個語言整個砍掉。
 - **L2 同胞區隔的 Not-for 留著**：「Not for X」的 X 若是一個 sibling，而且拿掉這句後兩者的 description 會互相重疊（誤觸發到對方），就留。這一輪逐條判斷下來，三條有 Not-for 的 description（`debug`、`implementer`、及 `architect` 的「do not use for routine tasks」）只有 `architect` 那句留下——它不是指向 sibling，而是主 session 挑 agent 時的成本閘，body 沒有這句。其餘見 §3 各條的理由。
+- **L3 「Use PROACTIVELY」留著**（2026-09-25，review 後補回）：`explorer`、`test-runner` 改前各有一句「Use PROACTIVELY」，第一版把它當成開頭一併砍掉（總量量到 3802）。review 指出 Claude Code 的 sub-agents 文件（https://code.claude.com/docs/en/sub-agents §Understand automatic delegation，本輪實際抓取）原文是「To encourage proactive delegation, include phrases like "use proactively" in your subagent's description field」——它是平台自己點名的自動派工（automatic delegation）槓桿，不是規則 (c) 要砍的身分陳述；mattpocock 來源的三條規則（front-load the leading word／one trigger per branch／cut identity the body already carries）與差距文件 MP-05 都沒有要求拿掉它，而三個 eval case 也量不到它消失（§6）。所以兩條都以句尾「Use PROACTIVELY.」放回，情境仍在句首、規則 (a) 不受影響；各 +17，合計 +34，總量 3836。
 
 另外偏好 leading word：*regression*（取代「something that used to work and stopped」）、*scout*（explorer）、*test-first*（取代「a failing test run before and a passing one after」）、*lens*。
 
@@ -62,15 +63,15 @@ PASS always-on description budget does not exceed 5697 chars (5674)
 | 9 | `skills/verify` | 455 | 272 | -183 | a, b, c, L1 | 派工與測試機制是 stage-verify.md；三句 review 說法同分支 |
 | 10 | `agents/architect` | 184 | 173 | -11 | a, c | 身分句刪；成本閘留 |
 | 11 | `agents/designer` | 283 | 142 | -141 | a, c | 「cites evidence… hands up unanswered」是 body :22-25、:29-35 |
-| 12 | `agents/explorer` | 141 | 109 | -32 | a, c | 「Use PROACTIVELY」開頭去掉；read-only scout 一個詞 |
+| 12 | `agents/explorer` | 141 | 126 | -15 | a, c, L3 | 身分句「Fast codebase exploration」去掉；read-only scout 一個詞；「Use PROACTIVELY」留（L3） |
 | 13 | `agents/implementer` | 137 | 83 | -54 | a, c | 「Not for architectural decisions」body :21-22 已說；L2 未啟用（見下） |
 | 14 | `agents/refactoring-detector` | 281 | 162 | -119 | a, c | 回傳格式是 body `## Return format` |
 | 15 | `agents/reviewer` | 146 | 108 | -38 | a, c | 身分句刪；「does not fix anything」改正向「findings only」 |
 | 16 | `agents/security-reviewer` | 187 | 151 | -36 | a, c | 同 reviewer；四個 hunt item 留（body 只指向 finding-severity.md） |
 | 17 | `agents/shipper` | 199 | 159 | -40 | a, c | 「Stops for confirmation」是 body :16-24；Codex anchor 同步 |
-| 18 | `agents/test-runner` | 96 | 77 | -19 | a, c | 「Use PROACTIVELY」開頭去掉；「Does not fix code」縮成兩個字 |
+| 18 | `agents/test-runner` | 96 | 94 | -2 | a, c, L3 | 身分句「Runs test suites and reports failures」去掉；「Does not fix code」縮成兩個字；「Use PROACTIVELY」留（L3） |
 | 19 | `agents/verifier` | 222 | 157 | -65 | a, c | 「three reviewer lenses plus the security one」是 body :12-14；Codex anchor 同步 |
-| | **合計** | **5674** | **3802** | **-1872** | | |
+| | **合計** | **5674** | **3836** | **-1838** | | |
 
 字元數全部由 §2 的同一個計數方式量出（`validate.py` 的 `frontmatter_description()`），不是估的。
 
@@ -218,9 +219,9 @@ description 本身保留原語言，不翻譯。理由裡引用的 body 行號�
 
 改後：
 
-> Locating files, symbols, usages, and config entries before any implementation work — a fast, read-only scout.
+> Locating files, symbols, usages, and config entries before any implementation work — a fast, read-only scout. Use PROACTIVELY.
 
-理由：(a) 「Fast codebase exploration. Use PROACTIVELY for…」→ 情境開頭。(c) 身分句刪；body 已說「read-only codebase scout」，description 留 *scout* 一個詞（與 implementer 區別）。
+理由：(a) 「Fast codebase exploration. Use PROACTIVELY for…」→ 情境開頭。(c) 身分句刪；body 已說「read-only codebase scout」，description 留 *scout* 一個詞（與 implementer 區別）。L3：「Use PROACTIVELY」第一版隨開頭一起砍掉（109 字），review 後以句尾「Use PROACTIVELY.」放回（+17 → 126）——它是平台文件點名的派工槓桿，不是身分句，見 §1。
 
 **13. `plugins/cai/agents/implementer.md`**（折行）
 
@@ -290,9 +291,9 @@ description 本身保留原語言，不翻譯。理由裡引用的 body 行號�
 
 改後：
 
-> After any code change — the test suite run, failures reported, nothing fixed.
+> After any code change — the test suite run, failures reported, nothing fixed. Use PROACTIVELY.
 
-理由：(a) 「Runs test suites and reports failures. Use PROACTIVELY after any code change」→「After any code change — …」。(c) 「Does not fix code」body `:14` 已說「Do NOT attempt fixes」，縮成「nothing fixed」兩個字留著，因為 `verifier` 也跑測試但會修，這兩個字是兩者的區別。
+理由：(a) 「Runs test suites and reports failures. Use PROACTIVELY after any code change」→「After any code change — …」。(c) 「Does not fix code」body `:14` 已說「Do NOT attempt fixes」，縮成「nothing fixed」兩個字留著，因為 `verifier` 也跑測試但會修，這兩個字是兩者的區別。L3：同 explorer——「Use PROACTIVELY」第一版砍掉（77 字），review 後以句尾放回（+17 → 94）。
 
 **19. `plugins/cai/agents/verifier.md`**（折行）
 
@@ -309,15 +310,15 @@ description 本身保留原語言，不翻譯。理由裡引用的 body 行號�
 ## 4. 總量與 ceiling
 
 - 改前：**5674**（ratchet 5697，餘 23）。
-- 改後：**3802**，改後實跑 `python scripts/validate.py` 印出：
+- 改後：**3836**（第一版 3802，L3 放回兩句「Use PROACTIVELY.」後 +34），改後實跑 `python scripts/validate.py` 印出：
 
 ```
-     always-on description budget: 3802 chars (design target: 4673)
-PASS always-on description budget does not exceed 3802 chars (3802)
+     always-on description budget: 3836 chars (design target: 4673)
+PASS always-on description budget does not exceed 3836 chars (3836)
 ```
 
-- `ALWAYS_ON_CEILING` 5697 → **3802**（`scripts/validate.py`），刻意零餘裕：下一條要變長的 description 得先把 ceiling 抬高並說明為什麼。這是這個數字第一次落在 4,673 的設計目標之下；`(design target: 4673)` 那段印出文字沒有動。
-- `tests/test_track_skill_ticket_pointer.py` 的 `test_always_on_budget_is_unchanged_at_5674` 是對同一個數字的等式斷言（該檔的慣例：數字只跟著一段說明為什麼的註解一起動），改名為 `..._at_3802`、斷言改 3802，並依同檔慣例加一段 2026-09-25 的註解。
+- `ALWAYS_ON_CEILING` 5697 → **3836**（`scripts/validate.py`），刻意零餘裕：下一條要變長的 description 得先把 ceiling 抬高並說明為什麼。這是這個數字第一次落在 4,673 的設計目標之下；`(design target: 4673)` 那段印出文字沒有動。
+- `tests/test_track_skill_ticket_pointer.py` 的 `test_always_on_budget_is_unchanged_at_5674` 是對同一個數字的等式斷言（該檔的慣例：數字只跟著一段說明為什麼的註解一起動），改名為 `..._at_3836`、斷言改 3836，並依同檔慣例加一段 2026-09-25 的註解（含 L3 那 34 字的來由）。
 - `python scripts/validate.py`：exit 0，810 行 PASS，0 行 FAIL。最後三行：
 
 ```
@@ -333,7 +334,7 @@ PASS no evals file contains a home-directory path (0 found)
 - `scripts/codex-overrides.json` 有兩條 anchor 落在被改的 description 行上：`agents/verifier.md`（三行）與 `agents/shipper.md`（含 `description: >` 四行）。兩條 anchor 都改成新的行文，`gen-codex.py` 要求的「恰好出現一次」仍成立（`--check` 0 findings）。兩條的 **replacement**（Codex 專用的 description 文字）沒有動——它們不在這 19 條之內，也不進 `validate.py` 的計數；要不要對 Codex 端的兩段 replacement 套同樣三條規則，留給主 session 決定（見 PR 的 open questions）。
 - `python scripts/gen-codex.py`：237 file(s) generated, 0 finding(s)。
 - `plugins/cai/.claude-plugin/plugin.json` version 1.32.1 → 1.32.2。
-- `python scripts/gen-codex.py --release 0.2.16`：released 0.2.16（`scripts/codex-release.json` 的 version 與 fingerprint 隨之更新）。
+- `python scripts/gen-codex.py --release 0.2.16`：released 0.2.16（`scripts/codex-release.json` 的 version 與 fingerprint 隨之更新）。L3 放回後 `cai_explorer.toml`、`cai_test-runner.toml` 的 description 再變一次，fingerprint 重算，仍以 0.2.16 重新 release——`main` 上是 0.2.15，`gen-codex.py` 的 `release_refusal()` 只拒絕 ≤ base ref 已發佈版本的號碼，同一分支內重錄同一個號碼是允許的。
 - `python scripts/gen-codex.py --check`：237 file(s) checked, 0 finding(s)。
 - 產出的 `plugins/cai-codex/` 裡，19 個對應檔案（10 個 `agents/cai_*.toml` 的 `description = …`、9 個 `skills/*/SKILL.md` 的 frontmatter）跟著更新；`cai_verifier.toml`、`cai_shipper.toml` 的 description 仍是 override 的 replacement 文字。
 

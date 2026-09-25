@@ -2,7 +2,7 @@
 name: test-runner
 description: >
   After any code change — the test suite run, failures reported, nothing
-  fixed.
+  fixed. Use PROACTIVELY.
 tools: Bash(go test:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m unittest:*), Bash(uv run pytest:*), Bash(npm test:*), Bash(npm run:*), Read
 model: haiku
 ---

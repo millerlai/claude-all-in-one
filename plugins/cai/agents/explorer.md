@@ -2,7 +2,7 @@
 name: explorer
 description: >
   Locating files, symbols, usages, and config entries before any
-  implementation work — a fast, read-only scout.
+  implementation work — a fast, read-only scout. Use PROACTIVELY.
 tools: Read, Grep, Glob, Bash(git log:*), Bash(git grep:*)
 model: haiku
 ---
