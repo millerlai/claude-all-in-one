@@ -17,6 +17,42 @@
       "why": "D9: the main session does the only dispatch this stage needs; the dispatched agent (verifier) only reconciles from Step 2 on, never spawning another agent. Replaces the whole opening paragraph rather than appending, since the old \"subagent the track dispatches to run this stage\" framing would otherwise contradict the new sentence."
     },
     {
+      "target": "skills/track/references/stage-verify.md",
+      "anchor": [
+        "| **conformance** | What the change does that nothing asked for, and what it was asked for and skipped. Compare against the plan, spec, issue, or the request in this conversation, and against the convention files at `<top>` — `<top>/CLAUDE.md` and `<top>/.claude/CLAUDE.md`, by file rather than by heading |"
+      ],
+      "replacement": [
+        "| **conformance** | What the change does that nothing asked for, and what it was asked for and skipped. Compare against the plan, spec, issue, or the request in this conversation, and against the convention file at `<top>` — `<top>/AGENTS.md`, by file rather than by heading |"
+      ],
+      "why": "D9/D12: Codex reads project instructions from AGENTS.md at the Git root (D2=A), not from CLAUDE.md or .claude/CLAUDE.md. Single-line anchor -- it is the whole table row and does not break across lines."
+    },
+    {
+      "target": "skills/track/references/stage-verify.md",
+      "anchor": [
+        "dispatching, check which of `<top>/CLAUDE.md` and `<top>/.claude/CLAUDE.md`"
+      ],
+      "replacement": [
+        "dispatching, check whether `<top>/AGENTS.md`"
+      ],
+      "why": "D9/D12: same as above -- Codex has one convention file to check for, not two. Single-line anchor: this is the line listing both paths, and they are not broken across lines."
+    },
+    {
+      "target": "skills/track/references/stage-verify.md",
+      "anchor": [
+        "exist and give the conformance lens only the paths that do. `@path` imports",
+        "are not followed, and `CLAUDE.local.md` does not count — only a line inside",
+        "one of those two files themselves may be cited, and a convention finding",
+        "with no `file:line` in one of them is not a finding."
+      ],
+      "replacement": [
+        "exist and give the conformance lens that path if it does. `@path` imports",
+        "are not followed, and `CLAUDE.local.md` does not count — only a line inside",
+        "that file itself may be cited, and a convention finding",
+        "with no `file:line` in it is not a finding."
+      ],
+      "why": "verify-stage fix, found by this track's own verify stage's correctness and conformance lenses: the two overrides above only reworded the first line of this paragraph (two files -> one), leaving the rest of the sentence still saying \"the paths that do\", \"one of those two files themselves\", and \"in one of them\" -- self-contradictory on Codex, where there is only ever one convention file (AGENTS.md). This override rewrites the remainder to the singular case."
+    },
+    {
       "target": "skills/track/references/stage-build.md",
       "anchor": [
         "This file is read two ways: by the subagent the track dispatches to run this",
@@ -54,19 +90,19 @@
       "anchor": [
         "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
         "   to the subagent named in that row's `agent` field — never choose by",
-        "   judgement, the field decides, because model tier rides on it. Tell the",
-        "   agent to read its `reference` file, resolved against",
-        "   `${CLAUDE_PLUGIN_ROOT}/skills/track/`."
+        "   judgement, the field decides, because model tier rides on it. Tell the agent to",
+        "   read its `reference` file, resolved against `${CLAUDE_PLUGIN_ROOT}/skills/track/`,",
+        "   and give it `<top>`, what `git rev-parse --show-toplevel` prints."
       ],
       "replacement": [
         "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
         "   to the subagent named in that row's `agent` field — never choose by",
-        "   judgement, the field decides, because model tier rides on it. Tell the",
-        "   agent to read its `reference` file, resolved against",
-        "   `${CLAUDE_PLUGIN_ROOT}/skills/track/`. For `build` and `verify`, that",
-        "   reference file has you dispatch its helpers directly yourself instead",
-        "   of handing over the whole procedure — follow what it says there before",
-        "   dispatching the stage's own agent, if any."
+        "   judgement, the field decides, because model tier rides on it. Tell the agent to",
+        "   read its `reference` file, resolved against `${CLAUDE_PLUGIN_ROOT}/skills/track/`,",
+        "   and give it `<top>`, what `git rev-parse --show-toplevel` prints. For `build`",
+        "   and `verify`, that reference file has you dispatch its helpers directly",
+        "   yourself instead of handing over the whole procedure — follow what it says",
+        "   there before dispatching the stage's own agent, if any."
       ],
       "why": "D9: names the exception build/verify need so this step doesn't hand the whole procedure to a subagent that would then have to spawn its own helpers."
     },
@@ -436,11 +472,11 @@
       "target": "skills/track/references/stage-build.md",
       "anchor": [
         "subagent, and the platform removes `AskUserQuestion` from every subagent",
-        "whatever `tools:` says. Step 0.5's two answers, and Step 2's row that sends"
+        "whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends"
       ],
       "replacement": [
         "subagent, and no subagent can ask the person directly here either.",
-        "Step 0.5's two answers, and Step 2's row that sends"
+        "Step 0.5's answers, and Step 2's row that sends"
       ],
       "why": "I8: subagents never ask on Codex either."
     },

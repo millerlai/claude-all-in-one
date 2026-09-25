@@ -37,6 +37,100 @@ also start on their own when what you say matches them, so you rarely type
 those. `quiz`, `options`, `usage`, `setup`, the 72 named refactorings, and the
 four stages that write things (below) only ever start when typed.
 
+## What you see when one fires
+
+The seven that start on their own raise a different question: not how to type
+them, but whether one actually ran. Each leaves marks you can check in the
+transcript without opening its `SKILL.md`. One mark is shared — the turn shows
+a `Skill` tool call naming it, `cai:debug` or `cai:verify`, before the work
+begins. The rest are each skill's own.
+
+**`debug`**
+
+- Before any theory, one command and its red output (secrets replaced by
+  `<REDACTED>`), or a plain statement of what was tried and a stop at
+  reproduction. A theory arriving first means it is not running.
+- The failure it reproduces is the one you reported, and it shrinks the repro
+  until it can say why each remaining piece is load-bearing.
+- Three to five hypotheses arrive as a list — each "if X is the cause, changing
+  Y makes the symptom disappear" — before any one of them is tested.
+- Every temporary log carries one tag like `[DEBUG-a4f2]`, and a grep for that
+  tag comes back empty before it calls the fix done.
+- The fix is preceded by a failing test run you can see, and followed by the
+  passing one.
+- After three fixes that did not hold, it stops and questions the design
+  instead of trying a fourth.
+
+**`refactor`**
+
+- It says which hat it is wearing — refactoring, or adding function — and
+  never swaps mid-edit; a bug noticed on the way is written down, not fixed.
+- The test command runs green before the first edit. No coverage on the target
+  means characterisation tests first, or an explicit "the net is missing".
+- One named refactoring per step and per commit, the message
+  `refactor: <Name> on <target>`; a red run reverts the step rather than
+  debugging forward.
+- Smells are named from the catalog before anything moves; "clean this up"
+  never appears as the reason.
+
+**`verify`**
+
+- One message dispatches four agents at once — three `reviewer` lenses and
+  `security-reviewer` — not one reviewer reading everything.
+- Every finding carries `file:line`, a failure with concrete inputs, and the
+  smallest fix; "consider extracting" and "this could be cleaner" are absent.
+- The report opens with `Ready`, `Revise` or `Rework`, ranks findings Blocker
+  → Major → Minor, lists "Requirement decisions to confirm" on their own, and
+  ends with "Not covered".
+- Only Blockers and Majors get fixed, each with a failing test run shown
+  before and a passing one after; Minors stay in the report.
+- With a `CLAUDE.md` at the repo's top level, a convention finding cites a line
+  in it — or it is not a finding.
+
+**`discover`**
+
+- It names one of five moves — blindspot pass, vocabulary ladder, interview,
+  option space, directions and mock — says what it costs, and waits before a
+  long pass.
+- An interview is one question per turn with a default ("I'd assume X —
+  correct me"), biggest blast radius first; a numbered list of questions is
+  not it.
+- A blindspot pass ends in a rewritten prompt, after 5–8 landmines each
+  carrying `file:line`, why it bites, and the sentence to add.
+- An option space is about ten options sized S to XL, each grounded in a
+  file, and it ends by asking which resonate rather than picking one.
+- A mock is one HTML file with fake data and several deliberately
+  incompatible directions, and it is never committed.
+
+**`plan-review`**
+
+- It stops first when the plan states no requirement or no acceptance
+  criteria, and offers the matching skeleton.
+- A traceability table comes before any opinion — requirement → element and
+  element → requirement, gaps and orphans marked.
+- Findings run through eight lenses in a fixed order, requirement fit first
+  (precision first only against a detail design); each finding quotes where,
+  the failure, and the smallest fix.
+- Orphans come back as one-sentence requirements for you to accept or reject,
+  never deleted and never quietly folded in.
+
+**`git`**
+
+- `git status` — and `git diff` before a commit — runs before anything
+  changes.
+- Only the paths you named are staged; never `git add -A`.
+- A multi-line message goes through a file and `-F`; the subject is a
+  conventional commit in English.
+- Nothing is pushed unless you said push or pr, and never with force,
+  `reset --hard` or `--no-verify`.
+- It ends with the branch, the commit hash, and the push target or PR URL.
+
+**`chore`**
+
+- The reply is terse: what was done, files touched, result.
+- A task that turns out to need a design decision or multi-file reasoning
+  comes back as "run this on the main session", not as a guess.
+
 ## Walking a track
 
 ```
@@ -398,6 +492,18 @@ GitHub login it cached, and how the last update went, without calling GitHub;
 `ok`, `auth-failed`, `unreachable` and so on — recorded in `ticket.json`; a
 failed one never fails a stage or counts toward the retry cap. After `gh auth
 switch`, run `point` again so the cached login is re-read.
+
+## Questions people have asked
+
+One question has been filed twice (#73, #113), so it gets an answer here;
+nothing else has been asked more than once yet.
+
+**The options arrived as a file path and one-line summaries instead of the six
+fields.** Fixed in cai 1.27.1 and cai-codex 0.1.1: the linted text is now sent
+in full as the message that asks. The file under
+`.claude/track/<feature>/options-*.md` is where the lint and `preflight.py`
+read it, not a substitute for the message. Seeing the old shape means an older
+installed copy — update (below) and restart.
 
 ## Limits worth knowing
 

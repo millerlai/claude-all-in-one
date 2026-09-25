@@ -149,8 +149,9 @@ is only the shape — a menu, never a sentence to type a word back into:
   in dependency order, re-running the cost test on what remains after each
   answer. These are ordinary choices between ways forward, so unlike the two
   gates they **do** carry a `(recommended)` when the evidence supports one.
-- `stage-build.md` Step 0.5 — commit per unit, and the parallel lane. Two
-  decisions, so two turns.
+- `stage-build.md` Step 0.5 — commit per unit, the parallel lane, and, for a
+  detail design whose glossary has project terms, which of them join
+  `CONTEXT.md`. Up to three decisions, so up to three turns.
 
 Their options are whatever that stage's own text already offers. The rule
 here is the shape and the free-text slot, not a vocabulary.

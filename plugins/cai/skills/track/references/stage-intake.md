@@ -18,6 +18,12 @@ no `Agent` (`architect.md:7`), and keeping it that way is the trade this makes. 
 question asked without having looked first spends the person's time on something
 you could have found yourself.
 
+If `<top>/CONTEXT.md` exists — `<top>` being the path your brief names or, if
+it names none, what `git rev-parse --show-toplevel` prints — read it first
+and use its terms. If it does not exist, or neither gives you `<top>`, say
+nothing about it and do not suggest creating one. Read only that one file,
+not a `CONTEXT.md` in any subdirectory, and never write it.
+
 ## Step 2 — Route it: broken, or never there
 
 A request does not say which it is, and its wording is not evidence. "Add a

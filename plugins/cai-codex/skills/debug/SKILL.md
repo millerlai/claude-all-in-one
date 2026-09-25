@@ -2,6 +2,8 @@
 name: debug
 description: Find the root cause of a bug before proposing any fix — a test that fails, a crash, a stack trace, unexpected behaviour, or something that used to work and stopped. Use when the user says "this is broken", "it's not working", "the test fails", "fix this bug", "為什麼會壞", "這段程式有 bug", or pastes an error message or stack trace. Not for a diff that might not be mergeable (`verify`), code that behaves correctly but is hard to read (`refactor`), or a question about what's unknown before any code exists (`discover`) — this is for something that demonstrably does not work right now.
 ---
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
 
 # Debugging
 
@@ -19,14 +21,32 @@ in one sentence why the bug happens, you are not ready to touch the code.
 This applies double under time pressure. Guessing under a deadline is how a
 fifteen-minute bug turns into a three-hour one.
 
+Redact secrets from anything shown below (a reply, a diagnosis document, a
+temporary log) — write `<REDACTED>` in their place, and build commands
+against environment variables so a credential never has to appear at all.
+
 ## Step 1 — Reproduce it, on purpose
 
 Find the exact steps that trigger it, every time. Not reproducible yet →
-gather more data (logs, a smaller repro case, the exact input); a fix aimed
-at a bug you can't reliably trigger is aimed at nothing.
+gather more data (logs, a smaller repro case, the exact input); ten ways to
+build one when it isn't obvious are in
+`<cai-root>/skills/debug/references/feedback-loops.md`. A fix
+aimed at a bug you can't reliably trigger is aimed at nothing.
+
+**Done when you can point at one command**: named, rerunnable, already run
+this session, its redacted output pasted, its failure matching the symptom
+described. An existing failing test already is that command. None yet →
+write down what you tried and stop here, at reproduction. Then shrink it —
+drop one remaining element at a time, rerunning after each cut — until
+every element left is load-bearing: dropping any one stops the failure.
 
 ## Step 2 — Read what's already there
 
+- If `<top>/CONTEXT.md` exists — `<top>` being the path your brief names or,
+  if it names none, what `git rev-parse --show-toplevel` prints — read it
+  first and use its terms. If it does not exist, or neither gives you
+  `<top>`, say nothing about it and do not suggest creating one. Read only
+  that one file, not a `CONTEXT.md` in any subdirectory, and never write it.
 - The error message and the full stack trace, not just its last line — the
   cause is often named higher up, where the trace started.
 - What changed recently: `git log`, `git diff` against the last known-good
@@ -37,16 +57,22 @@ at a bug you can't reliably trigger is aimed at nothing.
 
 Don't theorize about which layer is at fault — instrument the boundary
 between each pair of components (log what enters, what leaves, what the
-config actually resolved to) and run it once. The evidence names the
-component; only then investigate that one.
+config actually resolved to) and run it once, tagging any temporary log
+with a marker unique to this session, e.g. `[DEBUG-a4f2]` — cleanup becomes
+one grep for that tag. The evidence names the component; only then
+investigate that one.
 
 ## Step 4 — One hypothesis, one small test
 
-State it as a sentence: "I think X causes this, because Y." Make the
-smallest possible change that would prove or disprove it — one variable,
-not a bundle of plausible fixes at once. Wrong → a new hypothesis, not a
-second fix stacked on the first. You cannot tell which change worked if two
-land together.
+List 3–5 falsifiable hypotheses before testing any — the first plausible one
+skips the other four. State each as: "If X is the cause, changing Y would
+make the symptom disappear." Show the list, then test one at a time,
+without waiting for a reply.
+
+For whichever is up: make the smallest possible change that would prove or
+disprove it — one variable, not a bundle of plausible fixes at once. Wrong →
+a new hypothesis, not a second fix stacked on the first. You cannot tell
+which change worked if two land together.
 
 ## Step 5 — Fix at the root, test-first
 
@@ -58,7 +84,8 @@ same one `stage-verify.md` opens with: no completion claim without having
 just run the command and read what it printed.
 
 One fix at a time. No unrelated cleanup riding along — that's `refactor`'s
-job, on a separate pass.
+job, on a separate pass. Before calling it done: grep Step 3's tag — zero
+hits left.
 
 ## After three fixes fail
 
@@ -85,6 +112,9 @@ Two seams, both already described above from this side:
 - **"After three fixes fail" is an escalation, not an ending.** Handing the
   design question up is exactly diagnosis mode escalating to stance mode. It
   goes one way only, and the track records it.
+
+Steps 1–4 sometimes need a command or edit `cai_designer` cannot run itself;
+`stage-design.md`'s diagnosis mode routes that to the main session.
 
 ## When not to use this
 
