@@ -1,6 +1,6 @@
 ---
 name: goal
-description: "Review a design doc, then route it: a document with a work breakdown schedule is built unit by unit, everything else goes to a single implementer — both lanes converge on the same test-and-report step. Usage: $goal <path to design/plan doc>"
+description: "A design or plan doc to take from review to verified implementation — unit by unit when it carries a work breakdown schedule, whole otherwise. Usage: $goal <path to design/plan doc>"
 argument-hint: "<path to design/plan doc>"
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.

@@ -1,8 +1,8 @@
 ---
 name: explorer
 description: >
-  Fast codebase exploration. Use PROACTIVELY for locating files, symbols,
-  usages, and config entries before any implementation work. Read-only.
+  Locating files, symbols, usages, and config entries before any
+  implementation work — a fast, read-only scout.
 tools: Read, Grep, Glob, Bash(git log:*), Bash(git grep:*)
 model: haiku
 ---

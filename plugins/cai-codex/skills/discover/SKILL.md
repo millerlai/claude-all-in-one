@@ -1,6 +1,6 @@
 ---
 name: discover
-description: Surface what the user doesn't know before writing implementation code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Use whenever the codebase area is unfamiliar, the requirements are ambiguous, the solution space has not been explored, or the result will be judged by look and feel. Also use when the user invokes $discover, or says "what am I missing", "find my blindspots", "interview me about this", "brainstorm the options", "show me some directions", "mock this up first", "I've never touched this code", or "I don't know what X is".
+description: An unknown that would change the work, surfaced before implementation code is written — the codebase area is unfamiliar, the requirements are ambiguous, the option space is unexplored, a term is undefined, or the result will be judged by look and feel. Use when the user says "what am I missing", "interview me about this", "brainstorm the options", "mock this up first", or "I don't know what X is".
 argument-hint: "<what is unclear>"
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.

@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Review a branch diff before merging by dispatching four read-only reviewers (correctness, conformance, coverage, security) in parallel and reconciling their findings, then fix Blockers and Majors with a failing test run before and a passing one after. Use when the user asks to review a diff, branch, or PR before merging, says "review my changes", "check this before I merge", "審一下這個 diff", "找出這次改動的問題" — and on your own changes before handing them over.
+description: A diff, branch, or PR to review before it merges — four read-only lenses (correctness, conformance, coverage, security), then Blockers and Majors fixed test-first. Use when the user says "review my changes", "審一下這個 diff" — and on your own changes before handing them over.
 argument-hint: "[base ref, or what to review against]"
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.

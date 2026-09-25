@@ -1,8 +1,8 @@
 ---
 name: implementer
 description: >
-  Implements well-specified features and fixes. Use when requirements are
-  clear and scoped to a few files. Not for architectural decisions.
+  A well-specified feature or fix, with requirements clear and scoped to a
+  few files.
 tools: Read, Edit, Write, Grep, Glob, Bash, Agent
 model: sonnet
 effort: medium

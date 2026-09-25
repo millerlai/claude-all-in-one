@@ -159,7 +159,7 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_unchanged_at_5674():
+def test_always_on_budget_is_unchanged_at_3802():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
@@ -205,10 +205,19 @@ def test_always_on_budget_is_unchanged_at_5674():
     # now small enough to be worth saying out loud: the next description that
     # grows is likely to need the ceiling raised, and raising it is a
     # decision, because every character here is read by every session.
+    #
+    # 5674 -> 3802 on 2026-09-25, all nineteen descriptions, measured
+    # (docs/design/2026-09-25-mp05-description-wording.md). Each was
+    # rewritten by three rules: the triggering situation opens the sentence,
+    # one trigger per branch, and nothing the body already says. The
+    # ticket-mirror line this test guards is still body text and still
+    # contributes nothing here. ALWAYS_ON_CEILING moved 5697 -> 3802 in the
+    # same commit: headroom 23 -> 0, so the next description that grows has
+    # to raise the ceiling and say why.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 5674
+    assert int(m.group(1)) == 3802
 
 
 # --- the added line itself carries the load-bearing instruction ------------

@@ -333,9 +333,9 @@
     {
       "target": "agents/verifier.md",
       "anchor": [
-        "  Runs the `verify` stage: dispatches four review agents in parallel - the",
-        "  three `reviewer` lenses plus the security one - reconciles what they report,",
-        "  runs this repo's test command, and fixes only Blocker/Major, test-first."
+        "  The `verify` stage's diff — four review lenses dispatched in parallel, their",
+        "  findings reconciled, this repo's tests run, only Blocker/Major fixed",
+        "  test-first."
       ],
       "replacement": [
         "  Runs the back half of the `verify` stage: reconciles four review reports",
@@ -393,9 +393,9 @@
       "target": "agents/shipper.md",
       "anchor": [
         "description: >",
-        "  Squashes a branch into one conventional commit, pushes it, and opens the",
-        "  PR — following stage-ship.md's procedure. Dispatched by the `ship` stage.",
-        "  Stops for confirmation before any irreversible step."
+        "  A finished branch to ship — squashed into one conventional commit, pushed,",
+        "  and opened as a PR by stage-ship.md's procedure — as the `ship` stage",
+        "  dispatches it."
       ],
       "replacement": [
         "description: >",
