@@ -1,9 +1,8 @@
 ---
 name: security-reviewer
 description: >
-  Reviews a diff through the security lens - shell execution, argv, secrets in
-  logs, guard bypass - and reports findings. Dispatched by the `verify` stage.
-  Read-only; does not fix anything.
+  The security lens over one diff - shell execution, argv, secrets in logs,
+  guard bypass - as the `verify` stage dispatches it. Read-only, findings only.
 tools: Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git show:*)
 model: sonnet
 effort: high

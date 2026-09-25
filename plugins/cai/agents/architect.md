@@ -1,9 +1,9 @@
 ---
 name: architect
 description: >
-  Deep design and architecture analysis. Use ONLY for cross-cutting design
-  decisions, concurrency/correctness issues, or ambiguous requirements.
-  Expensive — do not use for routine tasks.
+  Cross-cutting design decisions, concurrency or correctness questions, or
+  ambiguous requirements, analysed read-only by a senior architect.
+  Expensive — not for routine tasks.
 tools: Read, Grep, Glob
 model: opus
 effort: high

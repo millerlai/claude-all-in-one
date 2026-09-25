@@ -1,9 +1,9 @@
 ---
 name: shipper
 description: >
-  Squashes a branch into one conventional commit, pushes it, and opens the
-  PR — following stage-ship.md's procedure. Dispatched by the `ship` stage.
-  Stops for confirmation before any irreversible step.
+  A finished branch to ship — squashed into one conventional commit, pushed,
+  and opened as a PR by stage-ship.md's procedure — as the `ship` stage
+  dispatches it.
 tools: Read, Bash(git:*), Bash(gh:*)
 model: haiku
 ---

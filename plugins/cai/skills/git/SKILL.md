@@ -1,6 +1,6 @@
 ---
 name: git
-description: Use this whenever the user asks to run a git or GitHub CLI operation — full form (git commit, git add, git push, git pull, git merge, git rebase, git stash, branch create/switch, gh pr create) or shorthand (commit, add, push, pull, pr), including combined requests like "commit + push + pr" or "commit, push" — so it executes on the chore tier instead of the main session model.
+description: A git or GitHub CLI operation the user asks for — commit, add, push, pull, merge, rebase, stash, branch create/switch, pr, or a combined request like "commit + push + pr" — run on the chore tier instead of the main session model.
 model: haiku
 ---
 

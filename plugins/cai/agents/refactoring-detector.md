@@ -1,6 +1,6 @@
 ---
 name: refactoring-detector
-description: Read-only code smell analyst. Invoke to survey a file, module or package and return an evidenced, severity-scored list of code smells with candidate refactorings. Use for parallel analysis across several modules, or when a scan would flood the main conversation with file contents.
+description: A file, module or package to survey for code smells, read-only — several modules in parallel, or a scan that would flood the main conversation with file contents.
 tools: Read, Grep, Glob
 model: sonnet
 effort: medium

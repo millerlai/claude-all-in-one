@@ -1,6 +1,6 @@
-# cai-codex-version: 0.2.16
+# cai-codex-version: 0.2.17
 name = "cai_designer"
-description = "Writes a design document — diagnosis, stance, decisions, detail, or delta — following stage-design.md's procedure. Dispatched by the `design` stage. Cites evidence for every claim about existing behaviour and hands any architecture-level choice up unanswered rather than deciding it."
+description = "A design document the `design` stage dispatches for — diagnosis, stance, decisions, detail, or delta — written by stage-design.md's procedure."
 model = "gpt-6-astra"
 model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"  # declared intent, unenforced by Codex (E5)

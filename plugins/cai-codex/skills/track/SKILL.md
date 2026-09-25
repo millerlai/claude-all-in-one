@@ -1,6 +1,6 @@
 ---
 name: track
-description: "Carry one feature through the six SDLC stages (intake, discover, design, build, verify, ship), keeping state in .claude/track/ so a new session with no memory of this conversation can resume. Usage: $track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
+description: "One feature carried through every SDLC stage — intake, discover, design, build, verify, ship — with its state kept in .claude/track/ so a later session can resume where it stopped. Usage: $track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
 argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done]"
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
