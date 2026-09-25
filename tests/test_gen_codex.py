@@ -260,6 +260,39 @@ def test_deny_hits_is_clean_after_a_correct_rewrite():
     assert gen_codex.deny_hits(gen_codex.rewrite(files)) == []
 
 
+def test_deny_hits_allows_the_two_named_tokens_in_scripts_viewer_py():
+    # DENY_ALLOW exempts exactly (scripts/viewer.py, AskUserQuestion) and
+    # (scripts/viewer.py, subagent_type) -- the real use case is a Python
+    # string literal naming Claude's own tool/parameter, quoted for display.
+    files = {"scripts/viewer.py": (
+        'ROW = "AskUserQuestion"\n'
+        'FIELD = "subagent_type"\n'
+    )}
+
+    hits = gen_codex.deny_hits(files)
+
+    assert hits == []
+
+
+def test_deny_hits_still_blocks_the_same_token_in_a_different_file():
+    # Proves the allow-list is scoped to the exact path, not global.
+    files = {"skills/something/SKILL.md": "mentions AskUserQuestion here\n"}
+
+    hits = gen_codex.deny_hits(files)
+
+    assert hits == [("skills/something/SKILL.md", 1, "AskUserQuestion")]
+
+
+def test_deny_hits_still_blocks_other_tokens_in_scripts_viewer_py():
+    # Proves the allow-list exempts only the two named tokens, not the whole
+    # file.
+    files = {"scripts/viewer.py": "leaked ${CLAUDE_PLUGIN_ROOT} here\n"}
+
+    hits = gen_codex.deny_hits(files)
+
+    assert hits == [("scripts/viewer.py", 1, "${CLAUDE_PLUGIN_ROOT}")]
+
+
 def test_deny_hits_finds_the_u2_anywhere_tokens():
     files = {"a.md": (
         "AskUserQuestion leaked\n"

@@ -140,6 +140,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:options` | Lays out two or more ways forward so a person can actually choose between them: shared comparison dimensions, six fields per option including an everyday-life ELI5 analogy, a recommendation, and the condition that voids it. Use before a list of options goes out, or after one already did and the reader could not act on it. |
 | `/cai:usage` | Token usage and equivalent API spend for one track, or across every project over the last N days — plus per-stage process metrics: whether the first attempt passed, cycle time, rework, and how often a person actually signed off. Every number comes from `usage_report.py`; the model restates none of them. On the `chore` tier. |
 | `/cai:models` | Puts each tier — `chore`, `build`, `think` — on the model you choose, for you alone, all three in one pass: run it when a new model comes out. The choice survives `/plugin update`; restart Claude Code for it to take effect. |
+| `/cai:viewer` | Opens a local-only web page listing every running Claude Code and Codex main session, which ones need you, and cai track progress. `/cai:viewer stop` closes it. |
 
 ### The 72 named refactorings
 

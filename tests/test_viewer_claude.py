@@ -1,0 +1,476 @@
+"""viewer.py's ### tail and ### claude_source / classify_claude components.
+
+Fixtures are entirely synthetic: made-up pids, paths, question text -- never
+anything read from a real transcript. Registry and transcript key names
+match what unit 2's task brief confirmed against real local files.
+"""
+import json
+import os
+import platform
+import sys
+
+import viewer
+
+_LOCAL_PID_DOMAIN = "%s:%s" % (sys.platform, platform.node())
+
+
+# ================================================================ tail ====
+
+def test_read_tail_returns_empty_list_for_missing_file(tmp_path):
+    assert viewer.read_tail(str(tmp_path / "nope.jsonl"), 1024) == []
+
+
+def test_read_tail_parses_every_json_object_line(tmp_path):
+    path = tmp_path / "t.jsonl"
+    path.write_text(
+        json.dumps({"a": 1}) + "\n" + json.dumps({"a": 2}) + "\n", encoding="utf-8")
+    rows = viewer.read_tail(str(path), 65536)
+    assert rows == [{"a": 1}, {"a": 2}]
+
+
+def test_read_tail_skips_unparseable_and_non_dict_lines(tmp_path):
+    path = tmp_path / "t.jsonl"
+    path.write_text(
+        json.dumps({"a": 1}) + "\nnot json\n" + json.dumps([1, 2]) + "\n"
+        + json.dumps({"a": 2}) + "\n", encoding="utf-8")
+    rows = viewer.read_tail(str(path), 65536)
+    assert rows == [{"a": 1}, {"a": 2}]
+
+
+def test_read_tail_discards_partial_line_at_front_of_a_bounded_read(tmp_path):
+    path = tmp_path / "t.jsonl"
+    # Three full lines; a max_bytes small enough to land inside line 2 means
+    # line 2's partial fragment must be discarded, leaving only line 3.
+    lines = [json.dumps({"n": i}) for i in range(3)]
+    text = "\n".join(lines) + "\n"
+    path.write_text(text, encoding="utf-8")
+    # Land a few bytes into line 2 (not exactly on its boundary), so its
+    # fragment plus the rest of line 2 is what gets discarded, leaving 3.
+    tail_len = len(lines[2].encode("utf-8")) + 1 + 3
+    rows = viewer.read_tail(str(path), tail_len)
+    assert rows == [{"n": 2}]
+
+
+def test_read_tail_caches_until_the_file_changes(tmp_path, monkeypatch):
+    path = tmp_path / "t.jsonl"
+    path.write_text(json.dumps({"a": 1}) + "\n", encoding="utf-8")
+    viewer._tail_cache.clear()
+
+    first = viewer.read_tail(str(path), 65536)
+    assert first == [{"a": 1}]
+
+    calls = []
+    real_open = open
+
+    def spy_open(*a, **k):
+        calls.append(a)
+        return real_open(*a, **k)
+
+    monkeypatch.setattr("builtins.open", spy_open)
+    second = viewer.read_tail(str(path), 65536)
+    assert second == first
+    assert calls == []  # cache hit: no re-open
+
+    path.write_text(json.dumps({"a": 2}) + "\n", encoding="utf-8")
+    third = viewer.read_tail(str(path), 65536)
+    assert third == [{"a": 2}]
+
+
+def test_read_first_line_returns_the_first_full_line(tmp_path):
+    path = tmp_path / "meta.jsonl"
+    path.write_text(
+        json.dumps({"type": "session_meta", "id": "abc"}) + "\n"
+        + json.dumps({"type": "other"}) + "\n", encoding="utf-8")
+    assert viewer.read_first_line(str(path)) == {"type": "session_meta", "id": "abc"}
+
+
+def test_read_first_line_returns_none_for_missing_file(tmp_path):
+    assert viewer.read_first_line(str(tmp_path / "nope.jsonl")) is None
+
+
+def test_read_first_line_returns_none_for_unparseable_first_line(tmp_path):
+    path = tmp_path / "bad.jsonl"
+    path.write_text("not json\n", encoding="utf-8")
+    assert viewer.read_first_line(str(path)) is None
+
+
+# =================================================== classify_claude ====
+
+def _reg(status, **overrides):
+    reg = {"pid": 4242, "procStart": "1000", "sessionId": "sess-1",
+          "cwd": "D:\\made-up\\project", "status": status,
+          "statusUpdatedAt": 1_700_000_000_000, "kind": "interactive",
+          "pidDomain": _LOCAL_PID_DOMAIN}
+    reg.update(overrides)
+    return reg
+
+
+def _tool_use(tool_id, name, tool_input):
+    return {"type": "assistant", "message": {"model": "made-up-model",
+           "content": [{"type": "tool_use", "id": tool_id, "name": name,
+                       "input": tool_input}]}}
+
+
+def _tool_result(tool_id):
+    return {"type": "user", "message": {"content": [
+        {"type": "tool_result", "tool_use_id": tool_id, "content": "ok"}]}}
+
+
+def test_unknown_status_maps_to_unknown_state():
+    reg = _reg("stopped")
+    out = viewer.classify_claude(reg, [], 0)
+    assert out["state"] == "unknown"
+    assert out["certainty"] == "confirmed"
+    assert out["entryId"] == "unknown:1700000000000"
+
+
+def test_waiting_with_escalated_waiting_for_is_attention():
+    reg = _reg("waiting", waitingFor="dialog open")
+    out = viewer.classify_claude(reg, [], 0)
+    assert out["state"] == "attention"
+    assert out["certainty"] == "confirmed"
+    assert "dialog open" in out["notes"]
+
+
+def test_waiting_with_unresolved_ask_user_question_is_question():
+    tool_input = {"questions": [{"question": "要重新命名這個分支嗎？",
+                                "header": "分支命名", "multiSelect": False,
+                                "options": [{"label": "是", "description": "改名"},
+                                          {"label": "否", "description": "保留原名"}]}]}
+    tail = [_tool_use("toolu_1", "AskUserQuestion", tool_input)]
+    reg = _reg("waiting")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["state"] == "question"
+    assert out["certainty"] == "confirmed"
+    assert out["entryId"] == "toolu_1"
+    assert out["question"]["text"] == "要重新命名這個分支嗎？"
+    assert out["question"]["options"] == ["是", "否"]
+
+
+def test_waiting_with_unresolved_other_tool_is_permission():
+    tail = [_tool_use("toolu_2", "Bash", {"command": "rm -rf made-up-dir"})]
+    reg = _reg("waiting")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["state"] == "permission"
+    assert out["entryId"] == "toolu_2"
+    assert out["permission"] == {"tool": "Bash", "input": "rm -rf made-up-dir"}
+
+
+def test_waiting_with_a_resolved_tool_use_falls_back_to_attention():
+    tail = [_tool_use("toolu_3", "Bash", {"command": "echo hi"}),
+           _tool_result("toolu_3")]
+    reg = _reg("waiting")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["state"] == "attention"
+    assert out["notes"] == ["原因未知"]
+
+
+def test_idle_is_done():
+    reg = _reg("idle")
+    out = viewer.classify_claude(reg, [], 0)
+    assert out["state"] == "done"
+    assert out["certainty"] == "confirmed"
+    assert out["notes"] == []
+
+
+def test_shell_is_done_with_note():
+    reg = _reg("shell")
+    out = viewer.classify_claude(reg, [], 0)
+    assert out["state"] == "done"
+    assert out["notes"] == ["背景 shell 執行中"]
+
+
+def test_busy_with_stale_turn_duration_tail_is_inferred_done():
+    reg = _reg("busy")
+    tail = [{"type": "system", "subtype": "turn_duration"}]
+    now_ms = reg["statusUpdatedAt"] + 61000
+    out = viewer.classify_claude(reg, tail, now_ms)
+    assert out["state"] == "done"
+    assert out["certainty"] == "inferred"
+    assert out["notes"] == ["登記檔可能過時"]
+
+
+def test_busy_with_recent_turn_duration_tail_is_working():
+    reg = _reg("busy")
+    tail = [{"type": "system", "subtype": "turn_duration"}]
+    now_ms = reg["statusUpdatedAt"] + 1000
+    out = viewer.classify_claude(reg, tail, now_ms)
+    assert out["state"] == "working"
+
+
+def test_busy_with_unresolved_tool_use_reports_current():
+    tail = [_tool_use("toolu_4", "Read", {"file_path": "D:\\made-up\\file.py"})]
+    reg = _reg("busy")
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
+    assert out["state"] == "working"
+    assert out["certainty"] == "confirmed"
+    assert out["current"] == {"tool": "Read", "input": "D:\\made-up\\file.py",
+                              "since": reg["statusUpdatedAt"]}
+
+
+def test_busy_with_no_unresolved_tool_use_has_no_current():
+    reg = _reg("busy")
+    out = viewer.classify_claude(reg, [], reg["statusUpdatedAt"])
+    assert out["state"] == "working"
+    assert out["current"] is None
+
+
+def test_permission_input_is_truncated_to_500_chars():
+    long_cmd = "x" * 600
+    tail = [_tool_use("toolu_5", "Bash", {"command": long_cmd})]
+    reg = _reg("waiting")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert len(out["permission"]["input"]) == 500
+
+
+def test_current_input_is_truncated_to_120_chars():
+    long_path = "y" * 200
+    tail = [_tool_use("toolu_6", "Read", {"file_path": long_path})]
+    reg = _reg("busy")
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
+    assert len(out["current"]["input"]) == 120
+
+
+def test_question_text_and_options_are_truncated():
+    long_question = "z" * 1500
+    options = [{"label": "o" * 300, "description": "d"} for _ in range(15)]
+    tool_input = {"questions": [{"question": long_question, "header": "h",
+                                "multiSelect": False, "options": options}]}
+    tail = [_tool_use("toolu_7", "AskUserQuestion", tool_input)]
+    reg = _reg("waiting")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert len(out["question"]["text"]) == 1000
+    assert len(out["question"]["options"]) == 10
+    assert all(len(label) == 200 for label in out["question"]["options"])
+
+
+# ============== D2: summary (rule 1) / recent (rule 2) / subagents (rule 3)
+# Key names (message.content[].type == "text", "timestamp" ISO8601Z on the
+# row, tool_use.input.subagent_type) confirmed read-only against real local
+# transcripts 2026-09-25 (verify round 2); no conversation content copied.
+
+def _assistant_text(text, ts=None):
+    row = {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}}
+    if ts is not None:
+        row["timestamp"] = ts
+    return row
+
+
+def test_last_assistant_text_returns_the_last_assistant_message_text():
+    tail = [_assistant_text("先做的那句"), _assistant_text("後做的那句，應該回這句")]
+    assert viewer._last_assistant_text(tail) == "後做的那句，應該回這句"
+
+
+def test_last_assistant_text_joins_multiple_text_blocks_in_one_message():
+    row = {"type": "assistant", "message": {"content": [
+        {"type": "text", "text": "第一段"}, {"type": "text", "text": "第二段"}]}}
+    assert viewer._last_assistant_text([row]) == "第一段\n第二段"
+
+
+def test_last_assistant_text_is_none_when_last_assistant_message_has_no_text_block():
+    tail = [_assistant_text("有文字的那句"), _tool_use("toolu_x", "Read", {"file_path": "a"})]
+    assert viewer._last_assistant_text(tail) is None
+
+
+def test_last_assistant_text_is_none_for_empty_tail():
+    assert viewer._last_assistant_text([]) is None
+
+
+def test_recent_claude_actions_keeps_last_eight_in_order():
+    tail = [_tool_use("t%d" % i, "Read", {"file_path": "f%d.py" % i}) for i in range(10)]
+    recent = viewer._recent_claude_actions(tail)
+    assert [r["tool"] for r in recent] == ["Read"] * 8
+    assert [r["input"] for r in recent] == ["f%d.py" % i for i in range(2, 10)]
+
+
+def test_recent_claude_actions_input_is_truncated_to_80_chars():
+    long_cmd = "x" * 200
+    tail = [_tool_use("t1", "Bash", {"command": long_cmd})]
+    recent = viewer._recent_claude_actions(tail)
+    assert len(recent[0]["input"]) == 80
+
+
+def test_recent_claude_actions_reads_at_from_row_timestamp():
+    import datetime as dt
+    ts = "2026-09-25T00:00:00.000Z"
+    expected_ms = int(dt.datetime(2026, 9, 25, tzinfo=dt.timezone.utc).timestamp() * 1000)
+    row = {"type": "assistant", "timestamp": ts,
+          "message": {"content": [{"type": "tool_use", "id": "t1", "name": "Read",
+                                   "input": {"file_path": "a.py"}}]}}
+    recent = viewer._recent_claude_actions([row])
+    assert recent[0]["at"] == expected_ms
+
+
+def test_recent_claude_actions_at_is_none_without_a_timestamp():
+    tail = [_tool_use("t1", "Read", {"file_path": "a.py"})]
+    recent = viewer._recent_claude_actions(tail)
+    assert recent[0]["at"] is None
+
+
+def test_claude_subagents_lists_unresolved_agent_and_task_calls():
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "reviewer", "description": "d", "prompt": "p"}),
+           _tool_use("a2", "Task", {"subagent_type": "explorer", "description": "d", "prompt": "p"})]
+    assert viewer._claude_subagents(tail) == ["reviewer", "explorer"]
+
+
+def test_claude_subagents_excludes_resolved_calls():
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "reviewer", "description": "d", "prompt": "p"}),
+           _tool_result("a1")]
+    assert viewer._claude_subagents(tail) == []
+
+
+def test_claude_subagents_ignores_non_subagent_tools():
+    tail = [_tool_use("a1", "Bash", {"command": "echo hi"})]
+    assert viewer._claude_subagents(tail) == []
+
+
+def test_claude_subagents_falls_back_to_tool_name_without_subagent_type():
+    tail = [_tool_use("a1", "Agent", {"description": "d", "prompt": "p"})]
+    assert viewer._claude_subagents(tail) == ["Agent"]
+
+
+# ========================================================= claude_rows ====
+
+def _write_registry(sessions_dir, pid, status, **overrides):
+    reg = _reg(status, pid=pid)
+    reg.update(overrides)
+    path = os.path.join(sessions_dir, "%d.json" % pid)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(reg, fh)
+    return reg
+
+
+def test_claude_rows_skips_non_interactive_kind(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    _write_registry(str(sessions_dir), 1, "idle", kind="background")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert rows == []
+    assert problems == []
+
+
+def test_claude_rows_skips_bad_json_and_reports_a_problem(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    (sessions_dir / "1.json").write_text("not json", encoding="utf-8")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert rows == []
+    assert len(problems) == 1
+
+
+def test_claude_rows_never_opens_key_files(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    (sessions_dir / "1.key").write_text("secret-material", encoding="utf-8")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert rows == []
+    assert problems == []
+
+
+def test_claude_rows_marks_a_foreign_pid_domain_unknown_without_check_alive(
+        tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    _write_registry(str(sessions_dir), 2, "idle", pidDomain="linux:some-other-host")
+
+    def boom(*a, **k):
+        raise AssertionError("check_alive must not be called for a foreign pidDomain")
+    monkeypatch.setattr(viewer, "check_alive", boom)
+
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert len(rows) == 1
+    assert rows[0]["state"] == "unknown"
+
+
+def test_claude_rows_drops_a_gone_process(tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    _write_registry(str(sessions_dir), 3, "idle")
+    monkeypatch.setattr(viewer, "check_alive", lambda *a, **k: "gone")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert rows == []
+
+
+def test_claude_rows_notes_alive_unverified(tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    _write_registry(str(sessions_dir), 4, "idle")
+    monkeypatch.setattr(viewer, "check_alive", lambda *a, **k: "alive-unverified")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert len(rows) == 1
+    assert "存活：推斷" in rows[0]["notes"]
+    assert rows[0]["state"] == "done"
+    # V4: an inferred liveness must be tagged as such so the page's
+    # unconditional "存活：推斷" meta line (rowHTML's sinceNote) can fire.
+    assert rows[0]["aliveCertainty"] == "inferred"
+
+
+def test_claude_rows_builds_a_row_with_identifying_fields(tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    reg = _write_registry(str(sessions_dir), 5, "idle",
+                          cwd="D:\\made-up\\project-x", sessionId="sess-xyz")
+    monkeypatch.setattr(viewer, "check_alive", lambda *a, **k: "alive")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["key"] == "claude:5:%s" % reg["procStart"]
+    assert row["platform"] == "claude"
+    assert row["project"] == "project-x"
+    assert row["cwd"] == "D:\\made-up\\project-x"
+    assert row["sessionId"] == "sess-xyz"
+    assert row["model"] is None
+    assert row["state"] == "done"
+    assert row["notes"] == []
+    assert row["aliveCertainty"] == "confirmed"
+
+
+def test_claude_rows_missing_transcript_treats_tail_as_empty(tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    _write_registry(str(sessions_dir), 6, "waiting",
+                    cwd="D:\\made-up\\no-transcript-project", sessionId="sess-none")
+    monkeypatch.setattr(viewer, "check_alive", lambda *a, **k: "alive")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert len(rows) == 1
+    # No transcript on disk -> no unresolved tool_use can be found -> attention.
+    assert rows[0]["state"] == "attention"
+
+
+def test_claude_rows_populates_summary_recent_and_subagents_from_transcript(
+        tmp_path, monkeypatch):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    cwd = "D:\\made-up\\project-d2"
+    _write_registry(str(sessions_dir), 7, "idle", cwd=cwd, sessionId="sess-d2")
+    monkeypatch.setattr(viewer, "check_alive", lambda *a, **k: "alive")
+
+    encoded = viewer.usage_collector.encoded_project_dir(cwd)
+    transcript_dir = tmp_path / "projects" / encoded
+    transcript_dir.mkdir(parents=True)
+    transcript_path = transcript_dir / "sess-d2.jsonl"
+    lines = [
+        json.dumps(_tool_use("t1", "Read", {"file_path": "a.py"})),
+        json.dumps(_tool_result("t1")),
+        json.dumps({"type": "assistant", "message": {"content":
+                    [{"type": "text", "text": "完成了 D2 測試"}]}}),
+    ]
+    transcript_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["summary"] == "完成了 D2 測試"
+    assert row["recent"] == [{"at": None, "tool": "Read", "input": "a.py"}]
+    assert row["subagents"] == []
+
+
+def test_claude_rows_unknown_domain_row_has_d2_defaults(tmp_path):
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    _write_registry(str(sessions_dir), 8, "idle", pidDomain="linux:some-other-host")
+    rows, problems = viewer.claude_rows(str(tmp_path), 0)
+    assert len(rows) == 1
+    assert rows[0]["summary"] is None
+    assert rows[0]["recent"] == []
+    assert rows[0]["subagents"] == []

@@ -77,6 +77,11 @@ the sandbox, and Codex asks you to approve it. Answer "yes" once rather than
 "don't ask again" if you want every future push confirmed too — "don't ask
 again" saves a standing allow rule for that command shape.
 
+**Seeing which agents need you.** `$viewer` opens a local-only web page
+listing every running Claude Code and Codex main session, which ones need
+you, and cai track progress. It starts a background server outside the
+sandbox, so Codex asks you to approve that too. `$viewer stop` closes it.
+
 **On Windows.** Setup writes into `~/.codex`, outside your workspace, so
 approve running it outside the sandbox when asked. Codex's Windows sandbox
 also runs your commands as a different user than the one who owns your
