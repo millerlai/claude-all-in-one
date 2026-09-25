@@ -224,6 +224,28 @@ full, and lower them when the answer is no.
    The rule that matters here is its first one: **no fix before the root
    cause is found and stated.** This mode is where "stated" gets a reader.
 
+   **Inside a track, steps 1–4 sometimes need a command or a temporary
+   change `designer` cannot run itself** — Step 1's reproduction command,
+   Step 3's tagged boundary log, or Step 4's one small test. `designer`'s
+   own Bash is `python`/`py`/`python3`/`mmdc` only, and it writes no code
+   (`designer.md`). This does not apply standing alone: outside a track
+   this stage is the main session, and it already runs everything itself.
+
+   Hand it up as a `## Pending questions` item, worded as a request rather
+   than a decision, with two options: run it as written (recommended), or
+   don't — leave diagnosis at Step 1's "write down what you tried and stop
+   here, at reproduction" (`debug/SKILL.md`), with nothing filled in
+   afterward. Name every command in full, every tagged log's `file:line`
+   and the line to add there, every Step 4 temporary change's `file:line`
+   and its edit, and which outputs to bring back — everything this pass can
+   already name, in one item, since each hand-up spends one of
+   `pending-questions.md`'s three rounds. Told to run it: add the logs and
+   temporary changes, run the commands, revert both back to what they were,
+   grep the tag for zero hits, redact the output per `debug/SKILL.md`'s
+   redact rule, and carry that output unchanged into the next pass. Refused,
+   or a command will not run at all: diagnosis stays at reproduction, per
+   Step 1's own rule — nothing is invented in its place.
+
 2. **Write it.** Unless the person named a path:
    `docs/design/<YYYY-MM-DD>-<topic>-diagnosis.md`, date from `date +%F`.
    Copy `${CLAUDE_PLUGIN_ROOT}/templates/design-diagnosis.md.tpl`, fill it
