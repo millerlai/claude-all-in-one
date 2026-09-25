@@ -90,19 +90,19 @@
       "anchor": [
         "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
         "   to the subagent named in that row's `agent` field — never choose by",
-        "   judgement, the field decides, because model tier rides on it. Tell the",
-        "   agent to read its `reference` file, resolved against",
-        "   `${CLAUDE_PLUGIN_ROOT}/skills/track/`."
+        "   judgement, the field decides, because model tier rides on it. Tell the agent to",
+        "   read its `reference` file, resolved against `${CLAUDE_PLUGIN_ROOT}/skills/track/`,",
+        "   and give it `<top>`, what `git rev-parse --show-toplevel` prints."
       ],
       "replacement": [
         "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
         "   to the subagent named in that row's `agent` field — never choose by",
-        "   judgement, the field decides, because model tier rides on it. Tell the",
-        "   agent to read its `reference` file, resolved against",
-        "   `${CLAUDE_PLUGIN_ROOT}/skills/track/`. For `build` and `verify`, that",
-        "   reference file has you dispatch its helpers directly yourself instead",
-        "   of handing over the whole procedure — follow what it says there before",
-        "   dispatching the stage's own agent, if any."
+        "   judgement, the field decides, because model tier rides on it. Tell the agent to",
+        "   read its `reference` file, resolved against `${CLAUDE_PLUGIN_ROOT}/skills/track/`,",
+        "   and give it `<top>`, what `git rev-parse --show-toplevel` prints. For `build`",
+        "   and `verify`, that reference file has you dispatch its helpers directly",
+        "   yourself instead of handing over the whole procedure — follow what it says",
+        "   there before dispatching the stage's own agent, if any."
       ],
       "why": "D9: names the exception build/verify need so this step doesn't hand the whole procedure to a subagent that would then have to spawn its own helpers."
     },
@@ -472,11 +472,11 @@
       "target": "skills/track/references/stage-build.md",
       "anchor": [
         "subagent, and the platform removes `AskUserQuestion` from every subagent",
-        "whatever `tools:` says. Step 0.5's two answers, and Step 2's row that sends"
+        "whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends"
       ],
       "replacement": [
         "subagent, and no subagent can ask the person directly here either.",
-        "Step 0.5's two answers, and Step 2's row that sends"
+        "Step 0.5's answers, and Step 2's row that sends"
       ],
       "why": "I8: subagents never ask on Codex either."
     },

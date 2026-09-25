@@ -1948,7 +1948,7 @@ GATE_POINTERS = {
     "skills/track/references/stage-design.md": "the design sign-off, and the cost-sizing go",
     "skills/track/references/stage-ship.md": "the irreversible operations, and the squash",
     "skills/track/references/stage-intake.md": "the approval before anything is designed",
-    "skills/track/references/stage-build.md": "Step 0.5's two answers",
+    "skills/track/references/stage-build.md": "Step 0.5's answers",
     "skills/track/references/pending-questions.md": "a gate handed up by a subagent",
     "skills/track/references/ticket-mirror.md": "ship's separate ticket item",
 }

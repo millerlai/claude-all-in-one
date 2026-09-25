@@ -54,12 +54,12 @@ For the stage about to run:
    as `blocked` first, per step 3. Exit 0 means proceed.
 2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work
    to the subagent named in that row's `agent` field — never choose by
-   judgement, the field decides, because model tier rides on it. Tell the
-   agent to read its `reference` file, resolved against
-   `<cai-root>/skills/track/`. For `build` and `verify`, that
-   reference file has you dispatch its helpers directly yourself instead
-   of handing over the whole procedure — follow what it says there before
-   dispatching the stage's own agent, if any.
+   judgement, the field decides, because model tier rides on it. Tell the agent to
+   read its `reference` file, resolved against `<cai-root>/skills/track/`,
+   and give it `<top>`, what `git rev-parse --show-toplevel` prints. For `build`
+   and `verify`, that reference file has you dispatch its helpers directly
+   yourself instead of handing over the whole procedure — follow what it says
+   there before dispatching the stage's own agent, if any.
 3. **Record.** Every attempt goes in the ledger, not only the ones that
    worked — a stage whose failures leave no trace cannot say how many times
    it has been tried, or why it failed last time:
