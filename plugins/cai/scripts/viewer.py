@@ -70,6 +70,18 @@ USAGE = ("usage: viewer.py [start [--port N]] | stop | serve --port N")
 # happens to reuse the number. This is invariant V2 and has its own test
 # (test_no_os_kill_is_ever_called in tests/test_viewer_liveness.py).
 
+CODEX_APP_SERVER_MARKER = "app-server"
+
+
+def _is_app_server(text):
+    """True for a codex process that is the app-server -- the VS Code
+    extension's managed daemon (its image lives under
+    packages/app-server-daemon/) or a `codex app-server` -- which serves
+    threads but is not an interactive session, so it must not count as
+    one. Windows judges by the image path, Linux by the command line."""
+    return isinstance(text, str) and CODEX_APP_SERVER_MARKER in text.lower()
+
+
 if os.name == "nt":
     class _FILETIME(ctypes.Structure):
         _fields_ = [("dwLowDateTime", ctypes.c_uint32),
@@ -107,7 +119,27 @@ if os.name == "nt":
         k.CreateToolhelp32Snapshot.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
         k.Process32FirstW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_PROCESSENTRY32W)]
         k.Process32NextW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_PROCESSENTRY32W)]
+        k.QueryFullProcessImageNameW.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
+                                                  ctypes.c_wchar_p,
+                                                  ctypes.POINTER(ctypes.c_uint32)]
         return k
+
+    def _process_image_path_windows(pid):
+        try:
+            kernel32 = _win_kernel32()
+            handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if handle is None:
+                return None
+            try:
+                size = ctypes.c_uint32(1024)
+                buf = ctypes.create_unicode_buffer(size.value)
+                if not kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+                    return None
+                return buf.value
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:
+            return None
 
     def _process_start_windows(pid):
         try:
@@ -158,7 +190,7 @@ if os.name == "nt":
         finally:
             kernel32.CloseHandle(handle)
 
-    def _count_processes_windows(name):
+    def _count_processes_windows(name, skip_app_server=False):
         try:
             kernel32 = _win_kernel32()
             snap = kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPPROCESS, 0)
@@ -171,7 +203,9 @@ if os.name == "nt":
                 count = 0
                 found = kernel32.Process32FirstW(snap, ctypes.byref(entry))
                 while found:
-                    if entry.szExeFile.lower() == name.lower():
+                    if (entry.szExeFile.lower() == name.lower()
+                            and not (skip_app_server and _is_app_server(
+                                _process_image_path_windows(entry.th32ProcessID)))):
                         count += 1
                     found = kernel32.Process32NextW(snap, ctypes.byref(entry))
                 return count
@@ -222,7 +256,7 @@ else:
             return "alive"
         return "gone" if exact else "alive-unverified"
 
-    def _count_processes_linux(name):
+    def _count_processes_linux(name, skip_app_server=False):
         try:
             count = 0
             for entry in os.listdir("/proc"):
@@ -230,10 +264,21 @@ else:
                     continue
                 try:
                     with open("/proc/%s/comm" % entry, encoding="utf-8") as fh:
-                        if fh.read().strip() == name:
-                            count += 1
+                        if fh.read().strip() != name:
+                            continue
                 except OSError:
                     continue
+                if skip_app_server:
+                    # An unreadable command line counts as interactive, the
+                    # same as an unreadable image path on Windows.
+                    try:
+                        with open("/proc/%s/cmdline" % entry, "rb") as fh:
+                            cmdline = fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+                    except OSError:
+                        cmdline = None
+                    if _is_app_server(cmdline):
+                        continue
+                count += 1
             return count
         except Exception:
             return 0
@@ -251,10 +296,13 @@ def check_alive(pid, expected_start, exact):
     return _check_alive_linux(pid, expected_start, exact)
 
 
-def count_processes(name):
+def count_processes(name, skip_app_server=False):
+    """How many processes are named `name`; with skip_app_server, minus the
+    ones _is_app_server() recognises -- the number of interactive Codex
+    sessions rather than of codex processes."""
     if os.name == "nt":
-        return _count_processes_windows(name)
-    return _count_processes_linux(name)
+        return _count_processes_windows(name, skip_app_server)
+    return _count_processes_linux(name, skip_app_server)
 
 
 # ========================================================= state-file ====
@@ -1209,7 +1257,10 @@ def _truncate(text, limit):
 
 def _param_summary(tool_input, limit):
     tool_input = tool_input if isinstance(tool_input, dict) else {}
-    for key in ("file_path", "path", "pattern", "command", "cmd", "url"):
+    # "description" last: an Agent call has none of the other keys, and its
+    # description is what it is doing, where the raw JSON dump would be cut
+    # off before saying so.
+    for key in ("file_path", "path", "pattern", "command", "cmd", "url", "description"):
         if key in tool_input:
             return _truncate(str(tool_input[key]), limit)
     return _truncate(json.dumps(tool_input), limit)
@@ -1334,21 +1385,99 @@ def _recent_claude_actions(tail):
 # read-only 2026-09-25, same batch as above.
 
 CLAUDE_SUBAGENT_TOOLS = ("Agent", "Task")
+# The calls that keep running after their tool_result: the subagent tools,
+# and Workflow, which runs a script of subagents.
+CLAUDE_BACKGROUND_TOOLS = CLAUDE_SUBAGENT_TOOLS + ("Workflow",)
+ASYNC_LAUNCHED_STATUS = "async_launched"
+TASK_NOTIFICATION_TAG = "<task-notification>"
+
+
+def _subagent_name(block):
+    """input.subagent_type, falling back to the tool's own name
+    ("Agent"/"Task") when that key is missing."""
+    tool_input = block.get("input")
+    tool_input = tool_input if isinstance(tool_input, dict) else {}
+    name = tool_input.get("subagent_type")
+    return name if isinstance(name, str) and name else block.get("name")
+
+
+def _async_subagents(tail):
+    """(name, tool_use block) for every Agent/Task/Workflow call launched in
+    the background and not yet reported back, in launch order. Claude
+    answers such a call at once with a tool_result whose row-level
+    toolUseResult says status "async_launched" and carries the task's id
+    (agentId for a subagent, taskId for a workflow) -- so to
+    _unresolved_tool_uses(), which reads "has a tool_result" as "finished",
+    a running background subagent is invisible. Its real finish is the
+    later queue-operation row carrying a <task-notification> for that id
+    (its <status> is completed, failed, killed or stopped; every one means
+    not running). A subagent is named by its subagent_type, a workflow by
+    the result's workflowName. Shapes confirmed read-only against real
+    local transcripts 2026-09-26. A task the user resumes after its
+    notification is not re-listed."""
+    calls = {}      # tool_use id -> block, for the background tools only
+    running = {}    # task id -> (name, block), insertion order == launch order
+    for row in tail:
+        row_type = row.get("type")
+        if row_type == "queue-operation":
+            content = row.get("content")
+            if isinstance(content, str) and TASK_NOTIFICATION_TAG in content:
+                task_id = content.partition("<task-id>")[2].partition("</task-id>")[0]
+                running.pop(task_id, None)
+            continue
+        message = row.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        if row_type == "assistant":
+            for block in content:
+                if (isinstance(block, dict) and block.get("type") == "tool_use"
+                        and block.get("name") in CLAUDE_BACKGROUND_TOOLS):
+                    calls[block.get("id")] = block
+        elif row_type == "user":
+            result = row.get("toolUseResult")
+            if not (isinstance(result, dict)
+                    and result.get("status") == ASYNC_LAUNCHED_STATUS):
+                continue
+            task_id = result.get("agentId") or result.get("taskId")
+            if not isinstance(task_id, str):
+                continue
+            answered = [block for block in content
+                        if isinstance(block, dict) and block.get("type") == "tool_result"
+                        and block.get("tool_use_id") in calls]
+            # One row-level toolUseResult describes one call. A row answering
+            # several background calls at once has never been seen; if it
+            # ever is, it cannot say which call the id belongs to, so none is
+            # attributed rather than one guessed and later evicted wrongly.
+            if len(answered) != 1:
+                continue
+            call = calls[answered[0]["tool_use_id"]]
+            if call.get("name") == "Workflow":
+                workflow = result.get("workflowName")
+                name = ("Workflow %s" % workflow
+                        if isinstance(workflow, str) and workflow else "Workflow")
+            else:
+                name = _subagent_name(call)
+            running[task_id] = (name, call)
+    return list(running.values())
 
 
 def _claude_subagents(tail):
-    """Agent/Task tool_use blocks still running (no tool_result yet).
-    Name comes from input.subagent_type; falls back to the tool's own name
-    ("Agent"/"Task") when that key is missing."""
-    names = []
-    for block in _unresolved_tool_uses(tail):
-        if block.get("name") not in CLAUDE_SUBAGENT_TOOLS:
-            continue
-        tool_input = block.get("input")
-        tool_input = tool_input if isinstance(tool_input, dict) else {}
-        name = tool_input.get("subagent_type")
-        names.append(name if isinstance(name, str) and name else block.get("name"))
-    return names
+    """Names of the subagents still running: Agent/Task calls with no
+    tool_result yet (a foreground call), then the background launches
+    _async_subagents() knows have not reported back."""
+    foreground = [_subagent_name(block) for block in _unresolved_tool_uses(tail)
+                  if block.get("name") in CLAUDE_SUBAGENT_TOOLS]
+    return foreground + [name for name, _ in _async_subagents(tail)]
+
+
+def _turn_still_pending(row):
+    """True when a turn_duration row says the turn ended with background
+    work still running -- any pending*Count above zero
+    (pendingBackgroundAgentCount, pendingWorkflowCount seen so far)."""
+    return any(key.startswith("pending") and key.endswith("Count")
+               and isinstance(row[key], (int, float)) and row[key] > 0
+               for key in row)
 
 
 def classify_claude(reg, tail, now_ms):
@@ -1404,8 +1533,13 @@ def classify_claude(reg, tail, now_ms):
 
     # status == "busy"
     last = tail[-1] if tail else None
+    # A turn_duration at the tail that still counts pending background work
+    # is a turn that ended while a subagent or workflow kept running --
+    # Claude keeps the registry at busy on purpose then, so only a turn
+    # with nothing pending can mean the registry went stale.
     stale = (isinstance(last, dict) and last.get("type") == "system"
             and last.get("subtype") == "turn_duration"
+            and not _turn_still_pending(last)
             and now_ms - since > 60000)
     if stale:
         result.update(state="done", certainty="inferred",
@@ -1413,6 +1547,11 @@ def classify_claude(reg, tail, now_ms):
         return result
 
     block = _last_unresolved_tool_use(tail)
+    if block is None:
+        # Nothing in flight in the foreground: the newest background
+        # subagent or workflow still running is what this session waits on.
+        background = _async_subagents(tail)
+        block = background[-1][1] if background else None
     if block is not None:
         result["current"] = {
             "tool": block.get("name"),
@@ -1524,6 +1663,19 @@ CODEX_RECENT_THREADS_LIMIT = 50
 CODEX_PERMISSION_THRESHOLD_MS = 30000
 CODEX_FALLBACK_MAX_AGE_MS = 24 * 3600 * 1000
 CODEX_FALLBACK_MAX_FILES = 200
+# threads.source / session_meta.source of a thread the VS Code extension
+# opened. The app-server serves it, no codex process of its own exists, so
+# nothing says whether its panel is still open: such a thread is listed
+# only while a turn is in progress and never takes a session slot (the
+# slots count interactive codex processes, see count_processes()).
+CODEX_VSCODE_SOURCE = "vscode"
+
+
+def _codex_session_slots(session_count, confirmed_sources):
+    """Slots left for threads alive by inference: the interactive process
+    count minus the in-progress threads that already occupy one (a VS Code
+    thread occupies none)."""
+    return session_count - len([s for s in confirmed_sources if s != CODEX_VSCODE_SOURCE])
 
 
 def _codex_event_time_ms(item, tail_mtime_ms):
@@ -1808,13 +1960,17 @@ def _codex_subagents_by_parent(state_conn, thread_ids):
     return result
 
 
-def _codex_rows_primary(state_db, history_db, now_ms, process_count):
+def _codex_rows_primary(state_db, history_db, now_ms, process_count, session_count):
     state_conn = sqlite3.connect(_sqlite_uri(state_db), uri=True)
     try:
+        # threads.source arrived with a later Codex than the other columns
+        # here; an older schema without it reads every thread as not VS Code.
+        columns = {row[1] for row in state_conn.execute("PRAGMA table_info(threads)")}
         threads = state_conn.execute(
-            "SELECT id, rollout_path, cwd, updated_at_ms, name FROM threads "
+            "SELECT id, rollout_path, cwd, updated_at_ms, name, %s FROM threads "
             "WHERE archived = 0 AND originator = 'codex-tui' AND thread_source = 'user' "
-            "ORDER BY updated_at_ms DESC LIMIT ?",
+            "ORDER BY updated_at_ms DESC LIMIT ?"
+            % ("source" if "source" in columns else "NULL"),
             (CODEX_RECENT_THREADS_LIMIT,)).fetchall()
         subagents_by_parent = _codex_subagents_by_parent(state_conn, [t[0] for t in threads])
     finally:
@@ -1823,7 +1979,7 @@ def _codex_rows_primary(state_db, history_db, now_ms, process_count):
     history_conn = sqlite3.connect(_sqlite_uri(history_db), uri=True)
     try:
         turn_status_by_thread = {}
-        for thread_id, _rollout_path, _cwd, _updated_at_ms, _name in threads:
+        for thread_id, _rollout_path, _cwd, _updated_at_ms, _name, _source in threads:
             row = history_conn.execute(
                 "SELECT status FROM thread_turns WHERE thread_id = ? "
                 "ORDER BY started_at DESC LIMIT 1", (thread_id,)).fetchone()
@@ -1831,14 +1987,16 @@ def _codex_rows_primary(state_db, history_db, now_ms, process_count):
     finally:
         history_conn.close()
 
+    # Every in-progress thread is listed: the app-server runs any number of
+    # VS Code turns at once, so process_count says nothing about how many
+    # there are (it only had to be non-zero, see codex_rows()).
     confirmed = [t for t in threads if turn_status_by_thread[t[0]] == "inProgress"]
-    confirmed = confirmed[:process_count]
     confirmed_ids = {t[0] for t in confirmed}
     inferred = []
-    remaining_slots = process_count - len(confirmed)
+    remaining_slots = _codex_session_slots(session_count, [t[5] for t in confirmed])
     if remaining_slots > 0:
         for t in threads:  # already ordered by updated_at_ms desc
-            if t[0] in confirmed_ids:
+            if t[0] in confirmed_ids or t[5] == CODEX_VSCODE_SOURCE:
                 continue
             inferred.append(t)
             if len(inferred) >= remaining_slots:
@@ -1847,7 +2005,7 @@ def _codex_rows_primary(state_db, history_db, now_ms, process_count):
     selected = [(t, "confirmed") for t in confirmed] + [(t, "inferred") for t in inferred]
 
     rows = []
-    for (thread_id, rollout_path, cwd, _updated_at_ms, name), alive_certainty in selected:
+    for (thread_id, rollout_path, cwd, _updated_at_ms, name, _source), alive_certainty in selected:
         row = _codex_row(thread_id, cwd, name, alive_certainty,
                          turn_status_by_thread.get(thread_id), rollout_path, now_ms)
         # sqlite is authoritative here, same as turn_status above -- replace
@@ -1857,7 +2015,7 @@ def _codex_rows_primary(state_db, history_db, now_ms, process_count):
     return rows, []
 
 
-def _codex_rows_fallback(codex_home, now_ms, process_count):
+def _codex_rows_fallback(codex_home, now_ms, process_count, session_count):
     rows, problems = [], []
     cutoff_ms = now_ms - CODEX_FALLBACK_MAX_AGE_MS
 
@@ -1875,7 +2033,7 @@ def _codex_rows_fallback(codex_home, now_ms, process_count):
     candidates.sort(key=lambda pair: pair[1], reverse=True)
     candidates = candidates[:CODEX_FALLBACK_MAX_FILES]
 
-    entries = []  # (path, mtime_ms, thread_id, cwd)
+    entries = []  # (path, mtime_ms, thread_id, cwd, source)
     for path, mtime_ms in candidates:
         meta = read_first_line(path, CODEX_ROLLOUT_FIRST_LINE_MAX)
         if meta is None:
@@ -1889,7 +2047,7 @@ def _codex_rows_fallback(codex_home, now_ms, process_count):
         if stem.endswith(".jsonl"):
             stem = stem[:-len(".jsonl")]
         thread_id = stem[-36:]
-        entries.append((path, mtime_ms, thread_id, payload.get("cwd")))
+        entries.append((path, mtime_ms, thread_id, payload.get("cwd"), payload.get("source")))
 
     in_progress_entries, other_entries = [], []
     for entry in entries:
@@ -1898,12 +2056,12 @@ def _codex_rows_fallback(codex_home, now_ms, process_count):
         in_progress, _certainty = _codex_in_progress(None, tail)
         (in_progress_entries if in_progress else other_entries).append(entry)
 
-    selected = in_progress_entries[:process_count]
-    remaining_slots = process_count - len(selected)
+    selected = list(in_progress_entries)  # all of them, as in the sqlite path
+    remaining_slots = _codex_session_slots(session_count, [e[4] for e in selected])
     if remaining_slots > 0:
-        selected += other_entries[:remaining_slots]
+        selected += [e for e in other_entries if e[4] != CODEX_VSCODE_SOURCE][:remaining_slots]
 
-    for path, mtime_ms, thread_id, cwd in selected:
+    for path, mtime_ms, thread_id, cwd, _source in selected:
         row = _codex_row(thread_id, cwd, None, "inferred", None, path, now_ms)
         row["certainty"] = "inferred"
         rows.append(row)
@@ -1911,7 +2069,14 @@ def _codex_rows_fallback(codex_home, now_ms, process_count):
     return rows, problems
 
 
-def codex_rows(codex_home, now_ms, process_count):
+def codex_rows(codex_home, now_ms, process_count, session_count=None):
+    """process_count is every codex process (an in-progress turn needs one,
+    the app-server included, so zero means no Codex row at all);
+    session_count is the interactive ones only, the slots for threads alive
+    by inference. It defaults to process_count for a caller that does not
+    tell them apart."""
+    if session_count is None:
+        session_count = process_count
     if process_count == 0:
         return [], []
 
@@ -1920,11 +2085,12 @@ def codex_rows(codex_home, now_ms, process_count):
 
     if state_db is not None and history_db is not None:
         try:
-            return _codex_rows_primary(state_db, history_db, now_ms, process_count)
+            return _codex_rows_primary(state_db, history_db, now_ms, process_count,
+                                       session_count)
         except sqlite3.Error:
             pass
 
-    rows, problems = _codex_rows_fallback(codex_home, now_ms, process_count)
+    rows, problems = _codex_rows_fallback(codex_home, now_ms, process_count, session_count)
     return rows, ["Codex 資料庫讀不了，改看紀錄檔"] + problems
 
 
@@ -2090,7 +2256,8 @@ def build_snapshot(config_root, codex_home, now_ms):
     claude_list, claude_problems = claude_rows(config_root, now_ms)
     codex_exe = "codex.exe" if os.name == "nt" else "codex"
     process_count = count_processes(codex_exe)
-    codex_list, codex_problems = codex_rows(codex_home, now_ms, process_count)
+    session_count = count_processes(codex_exe, skip_app_server=True)
+    codex_list, codex_problems = codex_rows(codex_home, now_ms, process_count, session_count)
     problems = claude_problems + codex_problems
 
     rows = claude_list + codex_list

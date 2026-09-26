@@ -36,9 +36,17 @@ def test_build_snapshot_assembles_rows_and_problems(monkeypatch):
 
     monkeypatch.setattr(viewer, "claude_rows",
                         lambda config_root, now_ms: ([claude_row], ["claude problem"]))
-    monkeypatch.setattr(viewer, "count_processes", lambda name: 3)
-    monkeypatch.setattr(viewer, "codex_rows",
-                        lambda codex_home, now_ms, k: ([codex_row], ["codex problem"]))
+    # Three codex processes, one of them interactive: build_snapshot() must
+    # hand codex_rows() both counts, in that order.
+    monkeypatch.setattr(viewer, "count_processes",
+                        lambda name, skip_app_server=False: 1 if skip_app_server else 3)
+    seen_counts = []
+
+    def fake_codex_rows(codex_home, now_ms, process_count, session_count):
+        seen_counts.append((process_count, session_count))
+        return [codex_row], ["codex problem"]
+
+    monkeypatch.setattr(viewer, "codex_rows", fake_codex_rows)
     monkeypatch.setattr(viewer, "branch_for_cwd", lambda cwd: None)
 
     seen_find_track = []
@@ -60,6 +68,7 @@ def test_build_snapshot_assembles_rows_and_problems(monkeypatch):
         assert row["track"]["name"] == "t"
     assert snap["rows"][0]["summary"] == "做完了"
     assert snap["rows"][1]["subagents"] == ["reviewer"]
+    assert seen_counts == [(3, 1)]
 
     # Claude rows are matched by their real sessionId; Codex rows never pass
     # their thread id as though it were a Claude ledger session_id.
@@ -69,8 +78,8 @@ def test_build_snapshot_assembles_rows_and_problems(monkeypatch):
 def test_build_snapshot_track_is_none_when_cwd_missing(monkeypatch):
     row = {"key": "claude:1:2", "platform": "claude", "cwd": None, "sessionId": "s"}
     monkeypatch.setattr(viewer, "claude_rows", lambda config_root, now_ms: ([row], []))
-    monkeypatch.setattr(viewer, "count_processes", lambda name: 0)
-    monkeypatch.setattr(viewer, "codex_rows", lambda codex_home, now_ms, k: ([], []))
+    monkeypatch.setattr(viewer, "count_processes", lambda name, skip_app_server=False: 0)
+    monkeypatch.setattr(viewer, "codex_rows", lambda codex_home, now_ms, k, s: ([], []))
 
     def boom(*a, **k):
         raise AssertionError("find_track must not be called for a cwd-less row")

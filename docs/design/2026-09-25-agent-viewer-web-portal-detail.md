@@ -490,7 +490,7 @@ sequenceDiagram
 - **Errors / 規則:**
   - Windows：`kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)`；`OpenProcess(0x1000, False, pid)`；NULL 且 `get_last_error() == 5` → `alive-unverified`，其他 NULL → `gone`；`GetExitCodeProcess` 不是 259 → `gone`（只要 handle 還被別人握著，結束的行程也開得起來；UNVERIFIED 文件，由「起子行程、結束它、仍握著 Popen」的測試證明）；`GetProcessTimes` 的建立時間等於 `expected_start` → `alive`，不等 → `gone`；`expected_start` 是 None → `alive-unverified`；一定 `CloseHandle`。
   - Linux：`/proc/<pid>/stat` 讀不到 → `gone`；狀態欄是 `Z` → `gone`；第 22 欄等於 `expected_start` → `alive`；不等時 `exact=True`（自己寫的狀態檔）→ `gone`，`exact=False`（Claude 的 `procStart`，格式未知，C5）→ `alive-unverified`（D10）。
-  - `count_processes`：Windows 用 `CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS)` 加 `Process32FirstW/NextW`，`szExeFile` 不分大小寫等於 `codex.exe`（C6，`discover-evidence.md:42`）；Linux 掃 `/proc/*/comm` 等於 `codex`（C7）；任何錯誤 → 0。
+  - `count_processes`：Windows 用 `CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS)` 加 `Process32FirstW/NextW`，`szExeFile` 不分大小寫等於 `codex.exe`（C6，`discover-evidence.md:42`）；Linux 掃 `/proc/*/comm` 等於 `codex`（C7）；任何錯誤 → 0。加 `skip_app_server=True` 時不數 app-server（VS Code 擴充套件的常駐 daemon，執行檔在 `packages/app-server-daemon/` 下；或 `codex app-server`）：Windows 以 `QueryFullProcessImageNameW` 取執行檔路徑、Linux 讀 `/proc/<pid>/cmdline`，含 `app-server` 就跳過；取不到路徑就照數（2026-09-26 修正）。
 - **Concurrency:** 無共享狀態，可並行。
 - **Observability:** 無；誤判以列的「存活：推斷」標籤呈現。
 - **Where it lives:** plugins/cai/scripts/viewer.py（新）。
@@ -516,8 +516,9 @@ sequenceDiagram
   1. `status` 不在 `busy`、`idle`、`waiting`、`shell` → `unknown`。
   2. `waiting`：`waitingFor` 是 `sandbox request`、`worker request`、`dialog open` → `attention`（確定，標籤附原值）；否則看最後一個沒有對應 tool_result 的 tool_use：`name == "AskUserQuestion"` → `question`（確定，`input.questions[*].question` 與 `options[*].label`）；其他工具 → `permission`（確定，工具名與參數摘要）；沒有 → `attention`（確定，附 `waitingFor` 原值或「原因未知」）。
   3. `idle` → `done`（確定）；`shell` → `done`（確定），notes 加「背景 shell 執行中」。
-  4. `busy`：檔尾最後一項是 `turn_duration` 且 `now_ms - statusUpdatedAt > 60000` → `done`（推斷），notes 加「登記檔可能過時」；否則 `working`（確定），`current` 是最後一個沒有 result 的 tool_use。
-  - 參數摘要：`file_path`、`path`、`pattern`、`command`、`url` 依序取第一個存在的，否則 `json.dumps(input)`；依 Budgets 截斷。
+  4. `busy`：檔尾最後一項是 `turn_duration`、它沒有任何大於 0 的 `pending*Count`（目前見到 `pendingBackgroundAgentCount`、`pendingWorkflowCount`）、且 `now_ms - statusUpdatedAt > 60000` → `done`（推斷），notes 加「登記檔可能過時」；否則 `working`（確定），`current` 是最後一個沒有 result 的 tool_use，沒有的話是最後一個還在跑的背景 subagent／Workflow 的那個呼叫。`pending*Count > 0` 是一輪在背景 subagent 或 Workflow 還在跑時結束，Claude 刻意讓登記檔停在 `busy`，不是過時（2026-09-26 修正；本機 transcript 核對）。
+  - 背景 subagent／Workflow：Claude 對 `Agent`／`Task`／`Workflow` 呼叫立刻回一個 tool_result，該列的 `toolUseResult.status` 是 `async_launched`，id 在 `agentId`（subagent）或 `taskId`（Workflow，另有 `workflowName`）；跑完時檔尾多一列 `type` 為 `queue-operation`、`content` 含 `<task-notification>` 與 `<task-id>` 的項目（`<status>` 是 `completed`、`failed`、`killed` 或 `stopped`，都算不在跑）。「還在跑」= 有 `async_launched` 而尾端沒有它的 `<task-id>`；`subagents` 列的是前景沒 result 的呼叫加上這些，subagent 名稱讀 `subagent_type`，Workflow 顯示成 `Workflow <workflowName>`。
+  - 參數摘要：`file_path`、`path`、`pattern`、`command`、`url`、`description` 依序取第一個存在的，否則 `json.dumps(input)`；依 Budgets 截斷。`description` 排最後，只有 `Agent` 這類沒有前面幾個鍵的呼叫會用到。
   - `entryId`：`question`／`permission` 用那個 tool_use 的 `id`；其他用 `<state>:<statusUpdatedAt>`。`since` 用 `statusUpdatedAt`。
 - **claude_rows 規則：** glob `<config_root>/sessions/*.json`（不開 `*.key`）；`kind` 存在且不是 `interactive` → 略過；`pidDomain` 平台不符（或 Windows 上主機名不分大小寫不符）→ `unknown` 列、不做存活檢查；`check_alive(pid, procStart, exact=False)`：`gone` → 略過，`alive-unverified` → notes 加「存活：推斷」；transcript 用 `usage_collector.session_transcript(os.path.join(config_root, "projects"), cwd, sessionId)`，None 時檔尾是 `[]`（所以 `waiting` 會落在 `attention`）。
 - **Errors:** 單一登記檔讀不了或 JSON 壞 → 略過並在 problems 加一行；絕不讓一個檔的錯誤中斷整輪。
@@ -529,9 +530,9 @@ sequenceDiagram
 ### codex_source 與 classify_codex
 
 - **Responsibility:** 列出活著的互動式 Codex thread 並分類。
-- **Interface:** `codex_rows(codex_home: str, now_ms: int, process_count: int) -> tuple[list[dict], list[str]]`；`classify_codex(turn_status: str | None, tail: list[dict], now_ms: int, tail_mtime_ms: int) -> dict`。
+- **Interface:** `codex_rows(codex_home: str, now_ms: int, process_count: int, session_count: int | None = None) -> tuple[list[dict], list[str]]`（`session_count` 省略時等於 `process_count`，也就是修正前「每個 codex 行程都算一個 session」的讀法；`build_snapshot` 一定兩個都傳）；`classify_codex(turn_status: str | None, tail: list[dict], now_ms: int, tail_mtime_ms: int) -> dict`。
 - **Data（輸入）：** `state_*.sqlite` 取編號最大的一個，`thread_history_*.sqlite` 亦同，皆 `sqlite3.connect("file:<posix 路徑>?mode=ro", uri=True)`（C8、D9）。`threads`：`rollout_path`、`cwd`、`updated_at_ms`、`thread_source`、`originator`、`archived`、`name`（`discover-evidence.md:44`），條件 `archived = 0 AND originator = 'codex-tui' AND thread_source = 'user'`，依 `updated_at_ms` 由新到舊取 50 筆。`thread_turns`：`thread_id`、`status`、`started_at`（`probe/monitor.py:39`），每個 thread 取 `started_at` 最大的一筆的 `status`。threads 對 thread_turns 的鍵：thread id 取 rollout 檔名最後 36 個字元（UNVERIFIED；**unit 3 第一步**以唯讀查詢比對本機 `thread_turns.thread_id` 與 rollout 檔名，不符就改用 `threads` 的 id 欄，記進 implementation-notes）。rollout 每行 `{"type", "payload": {"type", "name", "call_id", "arguments"}}`（C9，`probe/monitor.py:58-59`）；`request_user_input` 的 `arguments` 鍵名、助理訊息文字的位置、每行有沒有 `timestamp`，都在 unit 3 第一步只核對鍵名。
-- **存活：** K 是 `count_processes("codex.exe" 或 "codex")`；K 為 0 → 沒有 Codex 列；否則先放最新 turn 是 `inProgress` 的 thread（存活：確定），再依 `updated_at_ms` 補到 K 個（存活：推斷），總數不超過 K（D6）。
+- **存活：** K 是 `count_processes("codex.exe" 或 "codex")`（所有 codex 行程，含 app-server），S 是同一函式加 `skip_app_server=True`（互動 session 數）；K 為 0 → 沒有 Codex 列；否則先放所有最新 turn 是 `inProgress` 的 thread（存活：確定；不以 K 封頂，因為一個 app-server 行程就能同時跑好幾輪 VS Code 的 turn，K 只說得出「有沒有 Codex 在跑」），再依 `updated_at_ms` 把 `source` 不是 `vscode` 的 thread 補到 S 個（存活：推斷；已確定的 thread 中 `source` 不是 `vscode` 的先佔掉名額）。`source = vscode` 的 thread 由 app-server 服務、沒有自己的行程，看不出面板還開著沒，所以只在 `inProgress` 時列、不佔名額；`threads` 沒有 `source` 欄（舊版）就全當不是 vscode。rollout 首行 `session_meta` 也有 `source`，fallback 路徑同規則（D6，2026-09-26 修正）。
 - **分類規則：**
   1. 本輪進行中＝`turn_status == "inProgress"`（確定）；sqlite 不可用時改看 rollout：最後一個 `task_started` 在最後一個 `task_complete` 之後（推斷）。
   2. 進行中：最後一個沒有 `function_call_output` 的 `function_call` 名稱是 `request_user_input` → `question`（確定）；是其他名稱且已超過 30 秒 → `permission`（推斷，`entryId` 用 `call_id`，響嗒）；否則 `working`。
@@ -707,7 +708,7 @@ sequenceDiagram
 | 登記檔的 `pidDomain` 是別台機器 | 不做存活檢查 | 「未知」列 |
 | Linux 上 Claude `procStart` 格式不同 | `alive-unverified` | meta「存活：推斷」 |
 | Codex 資料庫被鎖或 schema 換了 | 退回掃 rollout，Codex 列全標推斷 | 頁尾 problems 一行 |
-| 同時開多個 Codex，或 `codex exec` 也在跑（行程數 K 被灌大） | 多出來的 K 會把最近的互動 thread 標成活著（推斷） | 殘影列，標「存活：推斷」（stance 已接受，`stance.md:16`） |
+| 同時開多個 Codex，或 `codex exec` 也在跑（行程數 K 被灌大） | 多出來的 K 會把最近的互動 thread 標成活著（推斷） | 殘影列，標「存活：推斷」（stance 已接受，`stance.md:16`）。VS Code 擴充套件的 app-server daemon 曾讓這件事變成永久（沒開任何 TUI 也永遠有兩列），2026-09-26 起推斷名額不數 app-server；擴充套件若不走 managed daemon 而自己起 `codex app-server`，Windows 上只看得到執行檔路徑、看不到參數，仍會被數成一個 session |
 | Codex 崩潰留下 `inProgress` | 只要還有任何 codex 行程，它可能佔一個名額 | 殘影列（存活：確定——已知的誤判） |
 | 工具只是跑很久（Codex） | 30 秒後成為推斷的等權限，響嗒（開關預設開） | 「可能在等權限」，頁面提示可能只是跑得久 |
 | 同一台機器的其他帳號連進來（D1=B） | 照樣回資料 | 他們看得到原文（使用者已接受，decisions D1） |

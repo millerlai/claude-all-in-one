@@ -1,6 +1,6 @@
 {
   "name": "cai-codex",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "description": "Codex CLI counterpart of the cai plugin: the same cost-tiered agents, skills and rules, generated from plugins/cai by scripts/gen-codex.py.",
   "skills": "./skills/"
 }

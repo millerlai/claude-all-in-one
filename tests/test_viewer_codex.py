@@ -29,10 +29,13 @@ def _rollout_line(ordinal, type_, payload, ms=None):
     return line
 
 
-def _session_meta(originator="codex-tui", thread_source="user", cwd="D:\\made-up\\proj"):
-    return _rollout_line(0, "session_meta",
-                         {"originator": originator, "thread_source": thread_source,
-                          "cwd": cwd, "session_id": "made-up-session"}, ms=BASE_MS)
+def _session_meta(originator="codex-tui", thread_source="user", cwd="D:\\made-up\\proj",
+                  source=None):
+    payload = {"originator": originator, "thread_source": thread_source,
+               "cwd": cwd, "session_id": "made-up-session"}
+    if source is not None:  # "cli" / "vscode", confirmed read-only 2026-09-26
+        payload["source"] = source
+    return _rollout_line(0, "session_meta", payload, ms=BASE_MS)
 
 
 def _task_started(ordinal, ms):
@@ -78,7 +81,7 @@ def _write_rollout(path, lines, mtime_ms=BASE_MS):
         os.utime(path, (mtime_ms / 1000, mtime_ms / 1000))
 
 
-def _make_state_db(codex_home, n, threads, spawn_edges=()):
+def _make_state_db(codex_home, n, threads, spawn_edges=(), sources=None):
     path = os.path.join(codex_home, "state_%d.sqlite" % n)
     conn = sqlite3.connect(path)
     conn.execute("""CREATE TABLE threads (
@@ -87,6 +90,13 @@ def _make_state_db(codex_home, n, threads, spawn_edges=()):
     conn.executemany(
         "INSERT INTO threads (id, rollout_path, cwd, updated_at_ms, thread_source, "
         "originator, archived, name) VALUES (?,?,?,?,?,?,?,?)", threads)
+    # The real `source` column ("cli" / "vscode", confirmed read-only
+    # 2026-09-26) only when a test asks for it, so the others keep exercising
+    # the older schema without one.
+    if sources is not None:
+        conn.execute("ALTER TABLE threads ADD COLUMN source TEXT")
+        conn.executemany("UPDATE threads SET source = ? WHERE id = ?",
+                         [(source, tid) for tid, source in sources.items()])
     # Real schema, confirmed read-only 2026-09-25 (verify round 2): columns
     # parent_thread_id, child_thread_id, status -- only "open" seen locally.
     conn.execute("""CREATE TABLE thread_spawn_edges (
@@ -379,6 +389,75 @@ def test_codex_rows_caps_at_process_count_prioritizing_in_progress(tmp_path):
     assert len(inferred) == 1
 
 
+def _two_threads(codex_home, newest_status, oldest_status):
+    """A newer thread (id 40) and an older one (id 41) with the given turn
+    statuses; returns their ids."""
+    threads, turns = [], []
+    for i, status in enumerate((newest_status, oldest_status)):
+        tid = _thread_id(40 + i)
+        rollout_path = os.path.join(codex_home, "sessions",
+                                    "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
+        _write_rollout(rollout_path, [_session_meta(), _task_started(1, BASE_MS)])
+        threads.append((tid, rollout_path, "D:\\made-up\\proj", BASE_MS - i, "user",
+                        "codex-tui", 0, None))
+        turns.append((tid, "turn-1", status, BASE_MS, BASE_MS, 10))
+    _make_history_db(codex_home, 1, turns)
+    return threads
+
+
+def test_codex_rows_lists_nothing_alive_by_inference_when_only_the_app_server_runs(tmp_path):
+    # The user's case: two codex processes exist (the VS Code extension's
+    # daemon), no interactive session does -- so no idle thread is alive.
+    codex_home = str(tmp_path)
+    threads = _two_threads(codex_home, "completed", "completed")
+    _make_state_db(codex_home, 1, threads, sources={threads[0][0]: "vscode", threads[1][0]: "cli"})
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 2, 0)
+    assert rows == []
+
+
+def test_codex_rows_never_infers_a_vscode_thread_alive(tmp_path):
+    codex_home = str(tmp_path)
+    threads = _two_threads(codex_home, "completed", "completed")
+    _make_state_db(codex_home, 1, threads, sources={threads[0][0]: "vscode", threads[1][0]: "cli"})
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 3, 1)
+    assert [r["sessionId"] for r in rows] == [threads[1][0]]
+    assert rows[0]["aliveCertainty"] == "inferred"
+
+
+def test_codex_rows_lists_an_in_progress_vscode_thread_without_taking_a_session_slot(tmp_path):
+    codex_home = str(tmp_path)
+    threads = _two_threads(codex_home, "inProgress", "completed")
+    _make_state_db(codex_home, 1, threads, sources={threads[0][0]: "vscode", threads[1][0]: "cli"})
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 3, 1)
+    by_id = {r["sessionId"]: r["aliveCertainty"] for r in rows}
+    assert by_id == {threads[0][0]: "confirmed", threads[1][0]: "inferred"}
+
+
+def test_codex_rows_lists_every_in_progress_thread_regardless_of_process_count(tmp_path):
+    # The app-server runs any number of VS Code turns at once, so two
+    # in-progress threads must both show even with a single codex process.
+    codex_home = str(tmp_path)
+    threads = _two_threads(codex_home, "inProgress", "inProgress")
+    _make_state_db(codex_home, 1, threads,
+                   sources={threads[0][0]: "vscode", threads[1][0]: "vscode"})
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 1, 0)
+    assert sorted(r["sessionId"] for r in rows) == sorted(t[0] for t in threads)
+    assert all(r["aliveCertainty"] == "confirmed" for r in rows)
+
+
+def test_codex_rows_session_count_defaults_to_process_count(tmp_path):
+    codex_home = str(tmp_path)
+    threads = _two_threads(codex_home, "completed", "completed")
+    _make_state_db(codex_home, 1, threads)  # older schema: no source column
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 2)
+    assert len(rows) == 2
+
+
 def test_codex_rows_thread_with_no_turns_row_gets_turn_status_none(tmp_path):
     codex_home = str(tmp_path)
     tid = _thread_id(20)
@@ -555,6 +634,36 @@ def test_codex_rows_fallback_excludes_exec_and_subagent_originators(tmp_path):
     rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
     assert len(rows) == 1
     assert rows[0]["sessionId"] == tid_ok
+
+
+def test_codex_rows_fallback_never_infers_a_vscode_thread_alive(tmp_path):
+    codex_home = str(tmp_path)
+    paths = {}
+    for i, source in enumerate(("vscode", "cli")):
+        tid = _thread_id(50 + i)
+        path = os.path.join(codex_home, "sessions", "2026", "09", "24",
+                            "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
+        _write_rollout(path, [_session_meta(source=source), _task_started(1, BASE_MS),
+                              _task_complete(2, BASE_MS)], mtime_ms=BASE_MS - i)
+        paths[source] = tid
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 3, 1)
+    assert [r["sessionId"] for r in rows] == [paths["cli"]]
+
+
+def test_codex_rows_fallback_lists_every_in_progress_rollout_regardless_of_process_count(tmp_path):
+    codex_home = str(tmp_path)
+    tids = []
+    for i in range(2):
+        tid = _thread_id(60 + i)
+        path = os.path.join(codex_home, "sessions", "2026", "09", "24",
+                            "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
+        _write_rollout(path, [_session_meta(source="vscode"), _task_started(1, BASE_MS)],
+                       mtime_ms=BASE_MS - i)
+        tids.append(tid)
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 1, 0)
+    assert sorted(r["sessionId"] for r in rows) == sorted(tids)
 
 
 def test_codex_rows_fallback_skips_rollouts_older_than_24h(tmp_path):
