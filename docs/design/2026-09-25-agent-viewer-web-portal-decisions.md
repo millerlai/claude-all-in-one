@@ -195,7 +195,7 @@ flowchart LR
 
 ### D6 — Codex 列的「還活著」怎麼推斷？
 
-選：`thread_turns.status = inProgress` 的 thread 確定在跑（C9，唯讀讀 sqlite，C8）；其餘以 Windows 的 ctypes 依執行檔名數出 `codex` 行程數 K（C6），把最近更新（`threads.updated_at_ms`）、非封存、`codex-tui` 且 `thread_source=user` 的前 K 個 thread 標「活著（推斷）」。只看 rollout 修改時間會把等人的 session 判死（`intake.md:48`），sqlite 沒有 pid（`discover-evidence.md:44`），每 2 秒起 PowerShell 太重（`discover.md:26`），所以只剩這一個。**Found out when:** 多個 Codex 同開時出現殘影或漏列，要等使用者看到；stance 已接受（`stance.md:16`）。
+選：`thread_turns.status = inProgress` 的 thread 確定在跑（C9，唯讀讀 sqlite，C8）；其餘以 Windows 的 ctypes 依執行檔名數出 `codex` 行程數 K（C6），把最近更新（`threads.updated_at_ms`）、非封存、`codex-tui` 且 `thread_source=user` 的前 K 個 thread 標「活著（推斷）」。只看 rollout 修改時間會把等人的 session 判死（`intake.md:48`），sqlite 沒有 pid（`discover-evidence.md:44`），每 2 秒起 PowerShell 太重（`discover.md:26`），所以只剩這一個。**Found out when:** 多個 Codex 同開時出現殘影或漏列，要等使用者看到；stance 已接受（`stance.md:16`）。2026-09-26 看到了：Codex 0.157 的 VS Code 擴充套件用常駐的 app-server daemon（執行檔在 `packages/app-server-daemon/` 下），它的 `codex.exe` 永遠在，K 永遠 ≥ 2，兩個早已關掉的 VS Code thread 永遠列成「完成，等指示（存活：推斷）」。修正：推斷名額只數非 app-server 的行程（`count_processes(..., skip_app_server=True)`），`source = vscode` 的 thread 只在 `inProgress` 時列且不佔名額。
 
 ### D7 — 單一實例與 `stop` 怎麼做？
 
@@ -222,7 +222,7 @@ Windows 選 `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM
 | Decision | Chose | Instead of | Found out when |
 |---|---|---|---|
 | Claude `waiting` 的細分（C2 兩種讀法都要成立） | 「需要你」只看 `status=waiting`（確定）；提問或權限由 transcript 檔尾決定：最後一個沒有 result 的 tool_use 是 AskUserQuestion→提問，是其他工具→等你核准權限；兩者皆無→「等你處理」並附 `waitingFor` 原值。`waitingFor` 只在值是 `sandbox request`、`worker request`、`dialog open` 時改標籤；`permission prompt`、`input needed` 不覆蓋檔尾的判斷，所以不論登記檔對權限寫哪一個值都判得對（C2） | 照文件的值直接分（上一輪草稿）：登記檔若對權限也寫 `input needed`，權限會被標成提問 | fixture 測試，下一次測試 |
-| `idle`、`shell`、過時的 `busy` | `idle`→一輪做完；`shell`→一輪做完並標「背景 shell 執行中」；`busy` 但檔尾是 `turn_duration` 且 `statusUpdatedAt` 超過 60 秒→一輪做完（推斷）並標「登記檔可能過時」（`discover.md:20`） | 照 `status` 原樣顯示 | fixture 測試 |
+| `idle`、`shell`、過時的 `busy` | `idle`→一輪做完；`shell`→一輪做完並標「背景 shell 執行中」；`busy` 但檔尾是 `turn_duration`、其 `pendingBackgroundAgentCount` 是 0 或沒有、且 `statusUpdatedAt` 超過 60 秒→一輪做完（推斷）並標「登記檔可能過時」（`discover.md:20`）；任一 `pending*Count > 0` 是在等背景 subagent 或 Workflow，仍是執行中並列出它們（2026-09-26 修正） | 照 `status` 原樣顯示；或不看 `pending*Count`（修正前：等 subagent 的列全被標成「完成，等指示」） | fixture 測試 |
 | 登記檔目錄只讀哪些檔 | 只 glob `*.json`，不開 `*.key`（C1） | 讀整個目錄 | 單元測試 |
 | 哪些登記檔成列 | `kind` 不是 `interactive` 就不列；沒有 `kind` 欄位照列（C1） | 不看 `kind` | fixture 測試 |
 | `pidDomain` 與本機不符 | 冒號前的平台與本機不同，或 Windows 上冒號後的主機名（不分大小寫）與本機不同，就不做存活檢查、標「未知」（C1、V4）；Linux 主機名格式沒看過，只比平台 | 照常檢查 pid | fixture 測試 |

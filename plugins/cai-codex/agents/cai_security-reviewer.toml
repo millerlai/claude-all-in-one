@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.18
+# cai-codex-version: 0.2.19
 name = "cai_security-reviewer"
 description = "The security lens over one diff - shell execution, argv, secrets in logs, guard bypass - as the `verify` stage dispatches it. Read-only, findings only."
 model = "gpt-5.6-terra"

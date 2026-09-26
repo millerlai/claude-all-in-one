@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.18
+# cai-codex-version: 0.2.19
 name = "cai_designer"
 description = "A design document the `design` stage dispatches for — diagnosis, stance, decisions, detail, or delta — written by stage-design.md's procedure."
 model = "gpt-6-astra"

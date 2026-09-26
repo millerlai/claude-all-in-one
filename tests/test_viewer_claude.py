@@ -116,6 +116,36 @@ def _tool_result(tool_id):
         {"type": "tool_result", "tool_use_id": tool_id, "content": "ok"}]}}
 
 
+# A background Agent or Workflow call is answered at once: the tool_result
+# block plus a row-level toolUseResult saying "async_launched" and naming
+# the task (agentId for a subagent, taskId plus workflowName for a
+# workflow). Its finish is a later queue-operation row carrying a
+# <task-notification> for that id. Shapes confirmed read-only against real
+# local transcripts 2026-09-26; ids and text here are made up.
+def _async_launch_result(tool_id, **result):
+    row = _tool_result(tool_id)
+    row["toolUseResult"] = dict({"isAsync": True, "status": "async_launched"}, **result)
+    return row
+
+
+def _task_notification(task_id, status="completed"):
+    return {"type": "queue-operation", "operation": "enqueue",
+            "content": "<task-notification>\n<task-id>%s</task-id>\n"
+                       "<status>%s</status>\n</task-notification>" % (task_id, status)}
+
+
+def _turn_duration(**pending):
+    row = {"type": "system", "subtype": "turn_duration"}
+    row.update(pending)
+    return row
+
+
+def _workflow_launch(tool_id, task_id, name):
+    return [_tool_use(tool_id, "Workflow", {"script": "export const meta = {name: 'x'}"}),
+            _async_launch_result(tool_id, taskId=task_id, taskType="local_workflow",
+                                 workflowName=name)]
+
+
 def test_unknown_status_maps_to_unknown_state():
     reg = _reg("stopped")
     out = viewer.classify_claude(reg, [], 0)
@@ -213,6 +243,60 @@ def test_busy_with_no_unresolved_tool_use_has_no_current():
     out = viewer.classify_claude(reg, [], reg["statusUpdatedAt"])
     assert out["state"] == "working"
     assert out["current"] is None
+
+
+def test_busy_turn_duration_tail_with_pending_background_agents_is_working():
+    # The main turn ended but a background subagent is still running: Claude
+    # keeps the registry at busy on purpose, so this is not a stale registry.
+    reg = _reg("busy")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "做 build 階段", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _turn_duration(pendingBackgroundAgentCount=1)]
+    now_ms = reg["statusUpdatedAt"] + 61000
+    out = viewer.classify_claude(reg, tail, now_ms)
+    assert out["state"] == "working"
+    assert out["certainty"] == "confirmed"
+    assert out["notes"] == []
+    assert out["current"] == {"tool": "Agent", "input": "做 build 階段",
+                              "since": reg["statusUpdatedAt"]}
+
+
+def test_busy_turn_duration_tail_with_zero_pending_agents_is_still_inferred_done():
+    reg = _reg("busy")
+    tail = [_turn_duration(pendingBackgroundAgentCount=0)]
+    now_ms = reg["statusUpdatedAt"] + 61000
+    out = viewer.classify_claude(reg, tail, now_ms)
+    assert out["state"] == "done"
+    assert out["certainty"] == "inferred"
+
+
+def test_turn_still_pending_only_counts_positive_numbers():
+    assert viewer._turn_still_pending(_turn_duration(pendingBackgroundAgentCount=1))
+    assert viewer._turn_still_pending(_turn_duration(pendingWorkflowCount=2))
+    assert not viewer._turn_still_pending(_turn_duration(pendingBackgroundAgentCount=0))
+    assert not viewer._turn_still_pending(_turn_duration(pendingBackgroundAgentCount="0"))
+    assert not viewer._turn_still_pending(_turn_duration())
+
+
+def test_busy_turn_duration_tail_with_pending_workflow_is_working():
+    reg = _reg("busy")
+    tail = _workflow_launch("w1", "w-task-1", "made-up-sweep") + [
+        _turn_duration(pendingWorkflowCount=1)]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"] + 61000)
+    assert out["state"] == "working"
+    assert out["certainty"] == "confirmed"
+    assert out["current"]["tool"] == "Workflow"
+
+
+def test_busy_current_prefers_an_unresolved_tool_use_over_a_background_agent():
+    reg = _reg("busy")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _tool_use("t1", "Read", {"file_path": "D:\\made-up\\file.py"})]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
+    assert out["current"]["tool"] == "Read"
 
 
 def test_permission_input_is_truncated_to_500_chars():
@@ -327,6 +411,72 @@ def test_claude_subagents_ignores_non_subagent_tools():
 def test_claude_subagents_falls_back_to_tool_name_without_subagent_type():
     tail = [_tool_use("a1", "Agent", {"description": "d", "prompt": "p"})]
     assert viewer._claude_subagents(tail) == ["Agent"]
+
+
+def test_claude_subagents_lists_a_background_agent_until_its_task_notification():
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer", "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _turn_duration(pendingBackgroundAgentCount=1)]
+    assert viewer._claude_subagents(tail) == ["implementer"]
+
+
+def test_claude_subagents_drops_a_background_agent_after_its_task_notification():
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer", "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _tool_use("a2", "Agent", {"subagent_type": "reviewer", "description": "d", "prompt": "p"}),
+           _async_launch_result("a2", agentId="agent-bg-2"),
+           _task_notification("agent-bg-1"),
+           _task_notification("agent-bg-2", status="failed")]
+    assert viewer._claude_subagents(tail) == []
+
+
+def test_claude_subagents_keeps_background_agents_whose_notification_names_another_task():
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer", "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _task_notification("some-other-task")]
+    assert viewer._claude_subagents(tail) == ["implementer"]
+
+
+def test_claude_subagents_lists_sync_then_background_agents():
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer", "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _tool_use("a2", "Task", {"subagent_type": "explorer", "description": "d", "prompt": "p"})]
+    assert viewer._claude_subagents(tail) == ["explorer", "implementer"]
+
+
+def test_claude_subagents_lists_a_background_workflow_by_its_name():
+    tail = _workflow_launch("w1", "w-task-1", "made-up-sweep")
+    assert viewer._claude_subagents(tail) == ["Workflow made-up-sweep"]
+
+
+def test_claude_subagents_drops_a_background_workflow_after_its_task_notification():
+    tail = _workflow_launch("w1", "w-task-1", "made-up-sweep") + [_task_notification("w-task-1")]
+    assert viewer._claude_subagents(tail) == []
+
+
+def test_claude_subagents_does_not_guess_when_one_row_answers_two_launches():
+    two_results = _tool_result("a1")
+    two_results["message"]["content"].append(
+        {"type": "tool_result", "tool_use_id": "a2", "content": "ok"})
+    two_results["toolUseResult"] = {"isAsync": True, "status": "async_launched",
+                                    "agentId": "agent-bg-1"}
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer", "description": "d", "prompt": "p"}),
+           _tool_use("a2", "Agent", {"subagent_type": "reviewer", "description": "d", "prompt": "p"}),
+           two_results]
+    assert viewer._claude_subagents(tail) == []
+
+
+def test_claude_subagents_ignores_async_results_of_non_subagent_tools():
+    row = _async_launch_result("b1", agentId="bg-shell-1")
+    tail = [_tool_use("b1", "Bash", {"command": "sleep 100", "run_in_background": True}), row]
+    assert viewer._claude_subagents(tail) == []
+
+
+def test_recent_claude_actions_shows_an_agent_call_by_its_description():
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "做 build 階段", "prompt": "p"})]
+    recent = viewer._recent_claude_actions(tail)
+    assert recent[0]["input"] == "做 build 階段"
 
 
 # ========================================================= claude_rows ====

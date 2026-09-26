@@ -33,6 +33,9 @@ def test_no_os_kill_is_ever_called(monkeypatch):
     viewer.check_alive(os.getpid(), None, True)
     viewer.check_alive(999999999, "0", True)
     viewer.count_processes("definitely-not-a-real-process-name.exe")
+    # The skip_app_server path opens every matching process to read its
+    # image path (Windows) or command line (Linux): use a name that exists.
+    viewer.count_processes(os.path.basename(sys.executable), skip_app_server=True)
 
 
 def test_process_start_of_a_nonexistent_pid_is_none():
@@ -119,3 +122,50 @@ def test_count_processes_counts_a_spawned_child():
 
 def test_count_processes_never_raises_for_an_unknown_name():
     assert viewer.count_processes("") == 0 or viewer.count_processes("") >= 0
+
+
+def test_is_app_server_recognises_the_daemon_image_and_command_line():
+    daemon_image = "C:\\made-up\\.codex\\packages\\app-server-daemon\\releases\\1.0.0\\bin\\codex.exe"
+    assert viewer._is_app_server(daemon_image)
+    assert viewer._is_app_server("codex app-server --listen unix://made-up")
+    assert not viewer._is_app_server("C:\\made-up\\Programs\\OpenAI\\Codex\\bin\\codex.exe")
+    assert not viewer._is_app_server("codex resume made-up-thread")
+    assert not viewer._is_app_server(None)
+
+
+def test_count_processes_can_skip_an_app_server_process(tmp_path):
+    """A copy of a real executable run from under an app-server-daemon
+    directory: its image path (Windows) and command line (Linux) both say
+    app-server, so skip_app_server leaves it out while the plain count
+    still sees it."""
+    import shutil
+    if os.name == "nt":
+        # ping itself, not cmd.exe running ping: killing a cmd.exe would
+        # orphan the ping it started for the rest of its 30 seconds.
+        source = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "PING.EXE")
+        args, exe_name = ["-n", "30", "127.0.0.1"], "asrv-probe.exe"
+    else:
+        source, args = shutil.which("sleep") or "", ["30"]
+        exe_name = "asrv-probe"  # short enough for /proc/<pid>/comm's 15 chars
+    if not os.path.isfile(source):
+        pytest.skip("no executable to copy")
+    probe_dir = tmp_path / "app-server-daemon" / "bin"
+    probe_dir.mkdir(parents=True)
+    probe = str(probe_dir / exe_name)
+    shutil.copyfile(source, probe)
+    os.chmod(probe, 0o755)
+
+    child = subprocess.Popen([probe] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        deadline = time.time() + 5
+        seen = 0
+        while time.time() < deadline:
+            seen = viewer.count_processes(exe_name)
+            if seen >= 1:
+                break
+            time.sleep(0.05)
+        assert seen >= 1
+        assert viewer.count_processes(exe_name, skip_app_server=True) == 0
+    finally:
+        child.kill()
+        child.wait(timeout=5)
