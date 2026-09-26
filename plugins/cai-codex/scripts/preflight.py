@@ -74,6 +74,27 @@ def data_rows(text):
     return rows
 
 
+def left_open_items(state_text):
+    """(stage, item) for every 'Left open:' entry across state.md's rows, in
+    table order. The marker is fixed text in the note cell (state.md's 4th
+    column); everything from its first occurrence to the end of the cell is
+    split on '; ', trimmed, and empties dropped."""
+    MARKER = "Left open:"
+    out = []
+    for cells in data_rows(state_text):
+        stage = cells[0]
+        note = cells[3] if len(cells) > 3 else ""
+        idx = note.find(MARKER)
+        if idx == -1:
+            continue
+        rest = note[idx + len(MARKER):]
+        for item in rest.split("; "):
+            item = item.strip()
+            if item:
+                out.append((stage, item))
+    return out
+
+
 def state_row(track_dir, stage_id):
     """The stage table row in state.md, as a list of trimmed cells, or None
     when state.md is missing or names no such row. Not being able to read it

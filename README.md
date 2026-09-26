@@ -204,7 +204,10 @@ Then start a track from the issue itself — `/cai:track
 https://github.com/<owner>/<repo>/issues/123`. An argument containing `://`,
 or made only of digits, is read as a ticket rather than used as a directory
 name: the issue is read first, a name is proposed from its title for you to
-confirm, and the pointer is written before the first stage runs. The two-step
+confirm, and the pointer is written before the first stage runs. If another
+cai track already claims the issue, this read lists every claim first, as a
+claim menu, and offers to resume your own in-progress one instead of starting
+a second track on it. The two-step
 form (`ticket.py point --track-dir … --ref …`) still works when you want to
 choose the name yourself; both, and a worked example from an issue link to a
 merged PR, are in [`MANUAL.md`](MANUAL.md).
@@ -213,10 +216,12 @@ it tries to write a test that fails now and would pass if an existing promise
 held, and what comes out decides whether the design stage runs `diagnosis` or
 `stance`. The issue's own wording does not decide that — "add a retry" reads
 like a feature and is often a symptom. Then every passing stage row and every
-skip updates one comment on the issue — the six stage rows, not the local
-artifact paths — and `ship` asks separately, each on its own turn, whether to
-project its own row and, once its commands have run, whether to close the
-issue. It
+skip updates one comment on the issue — a status line (`status: in-progress`,
+then `status: done`), the six stage rows, not the local
+artifact paths — and `ship` asks, on its own turn, whether to
+project its own row. Closing the issue is not ship's job: `/cai:track done`
+rewrites the comment one last time after the track archives and, only if a
+ticket number resolves, asks its own close menu. It
 uses the `gh` CLI against the repo's own remote. A projection that fails is
 recorded in the track's `ticket.json` and never fails a stage or counts toward
 the retry cap.

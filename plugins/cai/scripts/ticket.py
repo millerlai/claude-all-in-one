@@ -24,6 +24,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +34,13 @@ import ticket_backend  # noqa: E402
 
 CONFIG_REL = os.path.join(".claude", "cai.json")
 POINTER_NAME = "ticket.json"
+
+# Claim listing (`read --ref`): a claim is a comment whose first line is
+# exactly one of this tree's own markers (marker_for()'s bracket format).
+MARKER_LINE_RE = re.compile(r"\[cai track: ([^\]\n]+)\]")
+TRACK_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+RESERVED_NAMES = ("current", "done")
+ISSUE_URL_RE = re.compile(r"/issues/(\d+)(?:[/?#].*)?$")
 
 # state.md's note column, truncated for the mirrored comment: a ticket has no
 # obligation to render a wall of text, and 200 keeps every row a glance-sized
@@ -123,7 +131,7 @@ def _truncate_note(note):
     return note[:NOTE_LIMIT] + ELLIPSIS
 
 
-def render_comment(track_dir, feature, now):
+def render_comment(track_dir, feature, now, final=False):
     """state.md's six stage rows, rendered as the body of the mirrored
     comment. None when there is nothing sane to render -- no state.md, or a
     table that does not have exactly six rows -- so the caller can skip the
@@ -131,7 +139,13 @@ def render_comment(track_dir, feature, now):
 
     `artifact` is deliberately left out of the table: it is a `docs/` path
     local to whoever ran the stage, and `docs/` is gitignored (./.gitignore:15),
-    so it names nothing a teammate reading the ticket could resolve."""
+    so it names nothing a teammate reading the ticket could resolve.
+
+    `final` selects between two bodies: an in-progress one (today's exact
+    shape, plus the status line) and a final one that also carries every
+    `preflight.left_open_items` pair -- the last thing a person sees on the
+    ticket before it closes, so it is where the track's leftovers surface
+    rather than only in state.md."""
     path = os.path.join(track_dir, "state.md")
     try:
         with open(path, encoding="utf-8") as fh:
@@ -147,6 +161,7 @@ def render_comment(track_dir, feature, now):
         return None
 
     lines = [marker_for(feature),
+             "status: %s" % ("done" if final else "in-progress"),
              "此留言由 cai 就地覆寫，請勿手動編輯",
              "| stage | status | note |",
              "| --- | --- | --- |"]
@@ -155,6 +170,18 @@ def render_comment(track_dir, feature, now):
         status = cells[1] if len(cells) > 1 else ""
         note = cells[3] if len(cells) > 3 else ""
         lines.append("| %s | %s | %s |" % (stage, status, _truncate_note(note)))
+
+    if final:
+        lines.append("")
+        items = preflight.left_open_items(text)
+        if items:
+            lines.append("left open:")
+            for stage, item in items:
+                lines.append("- [%s] %s" % (stage, _truncate_note(item)))
+        else:
+            lines.append("left open: none")
+        lines.append("")
+
     lines.append("updated %s" % now)
     return "\n".join(lines)
 
@@ -179,7 +206,7 @@ def _resend_hint(track_dir, project_dir):
             "once this clears" % (track_dir, project_dir))
 
 
-def project(track_dir, project_dir):
+def project(track_dir, project_dir, final=False):
     """Runs one projection: config -> pointer -> render -> backend -> record.
 
     Never raises and never returns anything a caller could mistake for a
@@ -225,7 +252,7 @@ def project(track_dir, project_dir):
         return None
 
     feature = _feature_from_track_dir(track_dir)
-    body = render_comment(track_dir, feature, _now())
+    body = render_comment(track_dir, feature, _now(), final)
     if body is None:
         return None  # render_comment already printed why; nothing to send
 
@@ -319,7 +346,7 @@ def read(track_dir, project_dir, ref=None):
             print("unknown ticket backend %r in %s"
                   % (cfg["backend"], CONFIG_REL))
             return None
-        return _print_ticket(backend, project_dir, ref)
+        return _print_ticket(backend, project_dir, ref, with_claims=True)
 
     pointer = read_pointer(track_dir)
     if pointer is None:
@@ -342,16 +369,89 @@ def read(track_dir, project_dir, ref=None):
     return _print_ticket(backend, project_dir, pointer.get("ref"))
 
 
-def _print_ticket(backend, project_dir, ref):
+def list_claims(comments):
+    """Turns raw `{"body", "login"}` comment pairs into claim dicts, newest
+    first -- a comment is a claim only when its first line is exactly one of
+    this tree's own markers (`marker_for`'s bracket format), which is what
+    keeps a marker quoted mid-text from counting."""
+    claims = []
+    for c in comments:
+        lines = (c.get("body") or "").splitlines()
+        if not lines:
+            continue
+        m = MARKER_LINE_RE.fullmatch(lines[0].strip())
+        if m is None:
+            continue
+        updated = "unknown"
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("updated "):
+                updated = stripped[len("updated "):].strip()
+        claims.append({"name": m.group(1), "login": c.get("login") or "unknown",
+                        "updated": updated})
+    return sorted(claims, key=lambda c: (c["updated"] != "unknown", c["updated"]),
+                  reverse=True)
+
+
+def _issue_number(ref):
+    """The bare issue number a claim or a local pointer's `ref` names, or
+    None when it names neither a digit string nor a GitHub issue URL."""
+    s = str(ref).strip()
+    if s.isdigit():
+        return s
+    m = ISSUE_URL_RE.search(s)
+    return m.group(1) if m else None
+
+
+def local_claim_state(project_dir, name, login, number):
+    """Whether this tree's own ticket.json (or its done/ counterpart) is the
+    claim named `name` -- "resumable", "finished", or "" when neither, when
+    `name` is not a valid track name, or when `number` is empty."""
+    if not number:
+        return ""
+    if TRACK_NAME_RE.fullmatch(name) is None or name in RESERVED_NAMES:
+        return ""
+
+    root = os.path.join(project_dir, ".claude", "track")
+
+    def matches(track_dir):
+        if not os.path.isdir(track_dir):
+            return False
+        pointer = read_pointer(track_dir)
+        if pointer is None:
+            return False
+        cached_login = pointer.get("login")
+        if not cached_login or cached_login != login:
+            return False
+        return _issue_number(pointer.get("ref")) == number
+
+    if matches(os.path.join(root, name)):
+        return "resumable"
+    if matches(os.path.join(root, "done", name)):
+        return "finished"
+    return ""
+
+
+def _print_ticket(backend, project_dir, ref, with_claims=False):
     """The half of `read` that is the same whether the ref came from a
     pointer or from `--ref`."""
-    value, category = backend.read(project_dir, ref)
+    value, category = backend.read(project_dir, ref, with_comments=with_claims)
     if category != "ok":
         print("read: %s" % category)
         return category
 
     print("number: %s" % value.get("number", ""))
     print("title: %s" % value.get("title", ""))
+    if with_claims:
+        number = value.get("number", "")
+        claims = list_claims(value.get("comments", []))
+        print("claims: %d" % len(claims))
+        for claim in claims:
+            local = local_claim_state(project_dir, claim["name"], claim["login"], number)
+            line = "- %s by %s, updated %s" % (claim["name"], claim["login"], claim["updated"])
+            if local:
+                line += ", local: %s" % local
+            print(line)
     print(value.get("body", ""))
     return "ok"
 
@@ -366,10 +466,11 @@ def transition(track_dir, project_dir, confirmed_by_user):
     machine can pass this flag. What it buys is DD8's guarantee -- there is
     exactly one place in this codebase an irreversible ticket close can
     originate from, and that place is reached only from `references/
-    ticket-mirror.md`'s ship confirmation, itself only ever read by the main
-    session (never a dispatched subagent, which has no interactive tools --
-    see `agents/shipper.md`). Refusing outright when the flag is missing is
-    what keeps that path singular; it is not what makes it authorized.
+    ticket-mirror.md`'s `/cai:track done` close menu, itself only ever read
+    by the main session (never a dispatched subagent, which has no
+    interactive tools -- see `references/pending-questions.md`). Refusing
+    outright when the flag is missing is what keeps that path singular; it
+    is not what makes it authorized.
 
     Never writes to the pointer -- `ticket.json`'s `projection` field is
     `project()`'s alone (DD2), and a transition result has nowhere else
@@ -378,8 +479,8 @@ def transition(track_dir, project_dir, confirmed_by_user):
         print("transition: refused -- missing --confirmed-by-user; no "
               "external call was made. This flag does not itself mean the "
               "user agreed -- it only marks that this call came from the "
-              "ship stage's own confirmation, the one place authorized to "
-              "make it")
+              "close menu `/cai:track done` asks, the one place authorized "
+              "to make it")
         return None
 
     cfg = read_config(project_dir)
@@ -450,6 +551,7 @@ def main():
     ap.add_argument("--backend")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--confirmed-by-user", action="store_true")
+    ap.add_argument("--final", action="store_true")
     args = ap.parse_args()
 
     if args.command != "read" and not args.track_dir:
@@ -468,7 +570,7 @@ def main():
     elif args.command == "transition":
         transition(args.track_dir, args.project_dir, args.confirmed_by_user)
     else:
-        project(args.track_dir, args.project_dir)
+        project(args.track_dir, args.project_dir, args.final)
 
     # Every path above already printed its own explanation; the exit code
     # itself is never the signal. 0 always, except the usage error

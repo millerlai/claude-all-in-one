@@ -1982,7 +1982,7 @@ GATE_POINTERS = {
     "skills/track/references/stage-intake.md": "the approval before anything is designed",
     "skills/track/references/stage-build.md": "Step 0.5's answers",
     "skills/track/references/pending-questions.md": "a gate handed up by a subagent",
-    "skills/track/references/ticket-mirror.md": "ship's separate ticket item",
+    "skills/track/references/ticket-mirror.md": "the claim menu, ship's ticket comment, and the close at done",
 }
 check(f"approval-gates reference ships ({APPROVAL_GATES})",
       os.path.isfile(APPROVAL_GATES))

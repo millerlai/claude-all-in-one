@@ -190,6 +190,22 @@ def _is_forbidden(stderr):
     return "403" in low or "forbidden" in low
 
 
+def _comment_pairs(comments):
+    """Squeezes a `--json comments` array down to just what a projection
+    needs to render -- body and author login -- guarding the same way
+    `upsert_comment`'s own comments list already does: a non-list becomes
+    [], and any element that is not a dict is dropped rather than raising."""
+    if not isinstance(comments, list):
+        return []
+    pairs = []
+    for c in comments:
+        if not isinstance(c, dict):
+            continue
+        pairs.append({"body": c.get("body") or "",
+                      "login": (c.get("author") or {}).get("login") or ""})
+    return pairs
+
+
 class Backend:
     """Four semantic capabilities a ticket system must offer. Every method
     returns (value, category) and never raises -- classify() is what turns
@@ -199,7 +215,7 @@ class Backend:
     def whoami(self, project_dir):
         raise NotImplementedError
 
-    def read(self, project_dir, ref):
+    def read(self, project_dir, ref, with_comments=False):
         raise NotImplementedError
 
     def upsert_comment(self, project_dir, ref, marker, body, login):
@@ -221,9 +237,10 @@ class GitHubBackend(Backend):
             return None, "unclassified"
         return login, "ok"
 
-    def read(self, project_dir, ref):
+    def read(self, project_dir, ref, with_comments=False):
+        fields = "number,title,body,comments" if with_comments else "number,title,body"
         done, category = run(
-            ["issue", "view", str(ref), "--json", "number,title,body"],
+            ["issue", "view", str(ref), "--json", fields],
             cwd=project_dir)
         if category != "ok":
             return None, category
@@ -233,6 +250,8 @@ class GitHubBackend(Backend):
         value = {"number": str(data.get("number", "")),
                  "title": data.get("title", ""),
                  "body": data.get("body", "")}
+        if with_comments:
+            value["comments"] = _comment_pairs(data.get("comments"))
         return value, "ok"
 
     def upsert_comment(self, project_dir, ref, marker, body, login):
@@ -331,8 +350,11 @@ class StubBackend(Backend):
     def whoami(self, project_dir):
         return "local-stub-user", "ok"
 
-    def read(self, project_dir, ref):
-        return {"number": str(ref), "title": "stub ticket %s" % ref, "body": ""}, "ok"
+    def read(self, project_dir, ref, with_comments=False):
+        value = {"number": str(ref), "title": "stub ticket %s" % ref, "body": ""}
+        if with_comments:
+            value["comments"] = []
+        return value, "ok"
 
     def upsert_comment(self, project_dir, ref, marker, body, login):
         return "local-stub://%s/comment" % ref, "ok"

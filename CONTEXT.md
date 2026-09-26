@@ -21,3 +21,16 @@ or specs, and only concepts specific to this project.
 **unanswered**: The state of a stop whose menu timed out with no defined outcome for silence.
 **執行中（背景）**: Agent Viewer 上 Claude 列的一種顯示：主 session 這一輪已結束，只剩背景子代理或 Workflow 在跑，確定度標推斷、不閃不響。
 **存活確定度**: Agent Viewer 每一列「存活：確定／推斷」的依據強弱；Codex 列只憑鎖檔檔名判斷，一律標推斷。
+**Mirror comment**: The one issue comment a track owns, found back by marker plus cached login and edited in place.
+**Marker**: The first line of a mirror comment, `[cai track: <name>]`.
+**Status line**: The mirror comment's second line, `status: in-progress` or `status: done`.
+**Claim**: Any comment on the issue whose first line is a marker, whoever wrote it.
+**Claim listing**: The `claims: <n>` line and its `<n>` claim lines that `read --ref` prints between title and body.
+**Resumable claim**: A claim whose name has a directory under `.claude/track/` here, whose `ticket.json` caches the claim's author as login and points at this same issue number.
+**Finished claim**: A claim meeting the same pointer test against `.claude/track/done/<name>/` instead.
+**Claim menu**: The menu asked when the claim listing is non-empty, before the name menu.
+**Claim projection**: The `ticket.py project` run right after intake's ticket read, which posts the claim.
+**Final projection**: `ticket.py project --final`, run by `done` before the move.
+**Close menu**: The menu `done` asks after the move: "Close #<number>" or "Leave it open".
+**Pointer**: A track's `ticket.json`: backend, ref, cached login, last projection.
+**Timeout table**: approval-gates' "what each stop does about a menu that closed on its own".

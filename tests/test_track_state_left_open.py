@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 
+import preflight
 import track_state
 
 SCRIPTS = os.path.dirname(track_state.__file__)
@@ -84,7 +85,7 @@ def test_left_open_items_splits_on_semicolon_and_strips():
         "| ship | done | — | Shipped. Left open: tag v1.2 waiting on the person |",
         "| build | done | — | nothing left open here |",
     ])
-    assert track_state.left_open_items(text) == [
+    assert preflight.left_open_items(text) == [
         ("verify", "Minor A in foo.py"),
         ("verify", "parked proposal B"),
         ("ship", "tag v1.2 waiting on the person"),

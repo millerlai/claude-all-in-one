@@ -100,7 +100,10 @@ unhelpful. A gate is not that: what is being signed off is your own output,
 so a recommendation here is you grading your own work and putting a thumb on
 the scale at the one moment the person is being asked to be sceptical. The
 stops in the last section are ordinary choices and do carry a recommendation
-— the carve-out is the two gates, not the file.
+— the carve-out is the two gates, not the file. One stop that is not a gate
+takes it too: the close menu at `$track done`, listed below, because its
+yes runs the one irreversible call ticket mirroring makes, and a
+recommendation there would be the model choosing it.
 
 ## Gate 2 — before `ship`'s irreversible operations
 
@@ -139,18 +142,14 @@ these two.
 quoted, and you say in one line that the merge with the base branch was not
 checked.
 
-Three more confirmations sit beside this one and are asked on their own
-turns, because a yes to publishing is not a yes to any of them:
+Two more confirmations sit beside this one and are asked on their own
+turns, because a yes to publishing is not a yes to either of them:
 
 - **The squash**, `stage-ship.md` Step 4 — show the drafted commit message
   and ask before rewriting history.
 - **The ticket comment**, `references/ticket-mirror.md`'s ship section —
   whether to run `ticket.py project` once more for ship's own row, only when
   mirroring is on.
-- **Closing the ticket**, the same section — only when mirroring is on, and
-  only after "Run them" above has run. Offer "Close #<number>" and "Leave it
-  open", no `(recommended)`: this is part of the gate. Only the first runs
-  `ticket.py transition --confirmed-by-user`; the second runs nothing.
 
 ## The other stops, which are not gates
 
@@ -180,6 +179,15 @@ is only the shape — a menu, never a sentence to type a word back into:
 - `stage-build.md` Step 0.5 — commit per unit, the parallel lane, and, for a
   detail design whose glossary has project terms, which of them join
   `CONTEXT.md`. Up to three decisions, so up to three turns.
+- `ticket-mirror.md`'s claim menu, when `$track <ticket>` finds other cai
+  claims on the ticket, before any directory exists. An ordinary choice: it
+  recommends the first "Resume <name>" when one is offered, otherwise Stop.
+- `ticket-mirror.md`'s close menu at `$track done` — asked only after
+  `done`'s refusal check passed and the directory moved, so the track has
+  already finished, and its answer writes nothing to `state.md` or the
+  ledger. "Close #<number>" and "Leave it open", no `(recommended)` (the
+  carve-out above). Only the first runs `ticket.py transition
+  --confirmed-by-user`; the second runs nothing.
 
 Their options are whatever that stage's own text already offers. The rule
 here is the shape and the free-text slot, not a vocabulary.
@@ -197,11 +205,13 @@ in this file does about one:
 | Stop | On timeout |
 | --- | --- |
 | Gate 1 | Nothing is written. No `approved`, no `--gate human` row. `build` does not start. |
-| Gate 2, the squash, the ticket comment, closing the ticket | None of it runs. |
+| Gate 2, the squash, the ticket comment | None of it runs. |
 | Step 0.5 commit per unit | Treated as no, so the parallel lane stays off. |
 | Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
 | Step 0.5 glossary | No project term joins `CONTEXT.md`; the file is left untouched. |
 | The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |
+| The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.claude/track/current` is not written. Left unanswered. |
+| Closing the ticket at `$track done` (`ticket-mirror.md`) | `transition` does not run. Left unanswered: asked again when the person next writes in this session; a new session never asks it, since the track is already under `done/` and `current` is cleared. |
 | Every other stop in this file's list, or handed up under `pending-questions.md` | Left unanswered. |
 
 A timed-out menu left unanswered above is not skipped — it is not an answer,

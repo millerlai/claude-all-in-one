@@ -190,6 +190,130 @@ def test_read_not_found(tmp_path, monkeypatch):
     assert category == "ticket-not-found"
 
 
+# --- read() with_comments: default stays byte-for-byte today's dict --------
+
+def test_read_default_has_no_comments_key_and_requests_no_comments_field(
+        tmp_path, monkeypatch):
+    log = tmp_path / "calls.log"
+    script = (
+        "import json, sys\n"
+        "argv = sys.argv[1:]\n"
+        "with open(%r, 'a', encoding='utf-8') as fh:\n"
+        "    fh.write(' '.join(argv) + '\\n')\n"
+        "print(json.dumps({'number': 48, 'title': 'a title', 'body': 'the body'}))\n"
+    ) % str(log)
+    set_cli(monkeypatch, fake_cli(tmp_path, script))
+    backend = tb.GitHubBackend()
+    value, category = backend.read(str(tmp_path), "48")
+    assert category == "ok"
+    assert value == {"number": "48", "title": "a title", "body": "the body"}
+    assert "comments" not in value
+    calls = log.read_text(encoding="utf-8").splitlines()
+    assert "--json number,title,body" in calls[0]
+    assert "comments" not in calls[0]
+
+
+def test_read_with_comments_true_requests_the_comments_field_and_parses_pairs(
+        tmp_path, monkeypatch):
+    log = tmp_path / "calls.log"
+    script = (
+        "import json, sys\n"
+        "argv = sys.argv[1:]\n"
+        "with open(%r, 'a', encoding='utf-8') as fh:\n"
+        "    fh.write(' '.join(argv) + '\\n')\n"
+        "print(json.dumps({'number': 48, 'title': 'a title', 'body': 'the body',\n"
+        "    'comments': [\n"
+        "        {'body': 'first', 'author': {'login': 'octocat'}},\n"
+        "        {'body': None, 'author': None},\n"
+        "        {'author': {'login': 'other'}},\n"
+        "        'not a dict',\n"
+        "    ]}))\n"
+    ) % str(log)
+    set_cli(monkeypatch, fake_cli(tmp_path, script))
+    backend = tb.GitHubBackend()
+    value, category = backend.read(str(tmp_path), "48", with_comments=True)
+    assert category == "ok"
+    assert value["number"] == "48"
+    assert value["comments"] == [
+        {"body": "first", "login": "octocat"},
+        {"body": "", "login": ""},
+        {"body": "", "login": "other"},
+    ]
+    calls = log.read_text(encoding="utf-8").splitlines()
+    assert "--json number,title,body,comments" in calls[0]
+
+
+def test_read_with_comments_true_non_list_comments_becomes_empty(
+        tmp_path, monkeypatch):
+    script = (
+        "import json, sys\n"
+        "print(json.dumps({'number': 1, 'title': 't', 'body': 'b', "
+        "'comments': 'not a list'}))\n"
+    )
+    set_cli(monkeypatch, fake_cli(tmp_path, script))
+    backend = tb.GitHubBackend()
+    value, category = backend.read(str(tmp_path), "1", with_comments=True)
+    assert category == "ok"
+    assert value["comments"] == []
+
+
+# --- _comment_pairs() directly -----------------------------------------------
+
+def test_comment_pairs_non_list_input_is_empty():
+    assert tb._comment_pairs("not a list") == []
+    assert tb._comment_pairs(None) == []
+    assert tb._comment_pairs({}) == []
+
+
+def test_comment_pairs_empty_list_is_empty():
+    assert tb._comment_pairs([]) == []
+
+
+def test_comment_pairs_dict_elements_become_body_login_pairs():
+    comments = [
+        {"body": "hello", "author": {"login": "octocat"}},
+        {"body": "missing author"},
+        {"author": {"login": "no-body"}},
+        {"body": "empty author dict", "author": {}},
+    ]
+    assert tb._comment_pairs(comments) == [
+        {"body": "hello", "login": "octocat"},
+        {"body": "missing author", "login": ""},
+        {"body": "", "login": "no-body"},
+        {"body": "empty author dict", "login": ""},
+    ]
+
+
+def test_comment_pairs_drops_non_dict_elements_and_keeps_order():
+    comments = [
+        {"body": "one", "author": {"login": "a"}},
+        "not a dict",
+        123,
+        None,
+        {"body": "two", "author": {"login": "b"}},
+    ]
+    assert tb._comment_pairs(comments) == [
+        {"body": "one", "login": "a"},
+        {"body": "two", "login": "b"},
+    ]
+
+
+# --- StubBackend.read() with_comments ---------------------------------------
+
+def test_stub_backend_read_default_has_no_comments_key():
+    stub = tb.StubBackend()
+    value, category = stub.read(".", "1")
+    assert category == "ok"
+    assert "comments" not in value
+
+
+def test_stub_backend_read_with_comments_true_has_empty_comments_list():
+    stub = tb.StubBackend()
+    value, category = stub.read(".", "1", with_comments=True)
+    assert category == "ok"
+    assert value["comments"] == []
+
+
 # --- upsert_comment: cache hit updates in place, no create ------------------
 
 def test_upsert_comment_updates_the_matching_comment_in_place(tmp_path, monkeypatch):
