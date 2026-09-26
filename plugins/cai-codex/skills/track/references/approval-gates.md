@@ -1,3 +1,5 @@
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
 # approval-gates — every stop for a person is a menu, never a typed word
 
 This file is read by the main session directly, never handed to a dispatched
@@ -108,8 +110,34 @@ this question; the commands are.
 
 | Option | What it does |
 |---|---|
-| Run them | They run, in the order quoted. |
+| Run them | Checked once more first, then they run, in the order quoted — see below. |
 | Stop — hand me the commands | Nothing runs. Report them for the person to run themselves. |
+
+**Before "Run them" runs anything, inside a track**, the base branch may have
+moved since `ship`'s preflight read it, and a branch that no longer merges
+cleanly opens a PR that GitHub marks conflicting and runs no CI on. So you —
+the main session, before dispatching anything — run these two, in order:
+
+```
+git fetch origin
+<cai> preflight ship --track-dir .claude/track/<feature> --project-dir <project root>
+```
+
+- **Exit 0** → the quoted commands run. If the fetch failed, say so with the
+  first line of its error: the check then used what the last fetch saw.
+- **Exit 2** → none of the quoted commands runs. Report every `FAIL` line to
+  the person, and record `ship` as `blocked` (`--gate auto`) with `--note`
+  quoting them, the way `SKILL.md`'s "Running a stage" step 3 records a
+  preflight exit 2 — unless a line is `FAIL ledger_attempts`, which is
+  reported without appending. `state.md`'s ship row does not change.
+
+"Stop — hand me the commands" hands over the quoted commands only, not
+these two.
+
+**Standing alone** (`$ship`, no track), there is no `state.md` for
+`preflight.py ship` to read, so neither runs: the quoted commands run as
+quoted, and you say in one line that the merge with the base branch was not
+checked.
 
 Three more confirmations sit beside this one and are asked on their own
 turns, because a yes to publishing is not a yes to any of them:

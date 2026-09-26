@@ -33,6 +33,10 @@ import options_lint  # noqa: E402
 DEFAULT_MAX_ATTEMPTS = 5
 MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
 
+MERGE_TREE_MIN_VERSION = (2, 38)
+BASE_REF_CANDIDATES = ("refs/remotes/origin/main", "refs/remotes/origin/master")
+MAX_CONFLICTS_SHOWN = 10
+
 # The three suffixes the $design-*-doc commands already write. state.md
 # carries no separate field for this -- the filename is the convention.
 SUFFIX_KIND = {"-diagnosis.md": "diagnosis", "-stance.md": "stance",
@@ -275,13 +279,20 @@ def design_signed_off(track_dir, project_dir):
         % (", ".join(r.get("artifact") or "?" for r in fingerprinted), artifact, artifact))
 
 
-def git(cwd, *args):
+def git(cwd, *args, encoding=None):
     """Same shape as bash_guard.py's own git() helper -- duplicated rather
     than imported, since bash_guard is out of scope for this change and the
-    two would otherwise couple two independently-versioned CLI surfaces."""
+    two would otherwise couple two independently-versioned CLI surfaces.
+
+    `encoding` exists because `text=True` decodes with the console locale,
+    and non-ASCII filenames under cp950 turn stdout into `None`."""
     try:
+        if encoding is None:
+            return subprocess.run(["git", *args], cwd=cwd or None,
+                                  capture_output=True, text=True, timeout=5)
         return subprocess.run(["git", *args], cwd=cwd or None,
-                              capture_output=True, text=True, timeout=5)
+                              capture_output=True, encoding=encoding,
+                              errors="replace", timeout=5)
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -558,6 +569,119 @@ def find_base_ref(cwd):
     return None
 
 
+def parse_git_version(text):
+    """`(major, minor)` out of `git --version`'s own output, or `None` when it
+    doesn't look like one at all -- an old or unrecognised git blocks nothing
+    here, it only forgoes the version-gated merge-tree check below."""
+    match = re.match(r"git version (\d+)\.(\d+)", text.strip())
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def resolve_commit(cwd, ref):
+    """A ref's full commit SHA, or `None` when it does not resolve to one."""
+    done = git(cwd, "rev-parse", "--verify", "--quiet", ref + "^{commit}")
+    if done is not None and done.returncode == 0 and done.stdout.strip():
+        return done.stdout.strip()
+    return None
+
+
+def remote_base_ref(cwd):
+    """The first candidate base ref that resolves to a commit, as
+    `(short_name, sha)` -- `origin/HEAD`'s own target first, then the two
+    `BASE_REF_CANDIDATES`, so a dangling or absent `origin/HEAD` falls
+    through to the plain branch names instead of reading as a conflict."""
+    candidates = []
+    done = git(cwd, "symbolic-ref", "refs/remotes/origin/HEAD")
+    if done and done.returncode == 0:
+        candidates.append(done.stdout.strip())
+    candidates.extend(BASE_REF_CANDIDATES)
+
+    for candidate in candidates:
+        sha = resolve_commit(cwd, candidate)
+        if sha is not None:
+            name = candidate[len("refs/remotes/"):] if candidate.startswith(
+                "refs/remotes/") else candidate
+            return name, sha
+    return None
+
+
+def conflicted_paths(stdout):
+    """The filenames `git merge-tree --write-tree --name-only -z` reports as
+    conflicted: `<tree OID>\\0<name>\\0<name>\\0...`, so the first field is
+    dropped along with the trailing empty string the final `\\0` leaves."""
+    return [p for p in stdout.split("\0")[1:] if p]
+
+
+def _escape_control_chars(name):
+    """A conflicted path is a git tree-entry name, not a ref name -- it can
+    carry control characters (an embedded newline, say) that a ref name
+    cannot. Escaping them here keeps a crafted filename from forging extra
+    lines inside this script's own PASS/FAIL output, which Gate 2 quotes
+    verbatim into the ledger's `--note`."""
+    return "".join(c if c.isprintable() else
+                   ("\\x%02x" % ord(c) if ord(c) < 0x100 else "\\u%04x" % ord(c))
+                   for c in name)
+
+
+def merges_cleanly(cwd):
+    """Whether this branch would merge cleanly into the remote's default
+    branch, using `git merge-tree --write-tree` -- a trial merge that reads
+    only the object database and never touches the working tree, the index,
+    or HEAD. Caller guarantees `cwd` is a git repository already.
+
+    Anything short of a real conflict is reported, never blocked on: no
+    remote, an unborn HEAD, an old git, or merge-tree itself not answering
+    all mean the same thing -- this could not be checked -- and ship must
+    not fail a track over a question it could not put to git."""
+    done = git(cwd, "--version")
+    if done is None:
+        return True, "merges_cleanly (not checked: git did not answer)"
+    version = parse_git_version(done.stdout or "")
+    if version is not None and version < MERGE_TREE_MIN_VERSION:
+        return True, ("merges_cleanly (not checked: git %d.%d has no "
+                       "merge-tree --write-tree, needs 2.38+)" % version)
+
+    base = remote_base_ref(cwd)
+    if base is None:
+        return True, ("merges_cleanly (not checked: none of origin/HEAD, "
+                       "origin/main, origin/master resolves to a commit)")
+
+    head = resolve_commit(cwd, "HEAD")
+    if head is None:
+        return True, "merges_cleanly (not checked: HEAD has no commit yet)"
+
+    done = git(cwd, "merge-tree", "--write-tree", "--name-only",
+               "--no-messages", "-z", base[1], head, encoding="utf-8")
+    if done is None:
+        return True, "merges_cleanly (not checked: git merge-tree did not answer)"
+
+    if done.returncode == 0:
+        return True, "merges_cleanly (%s at %s -- merges cleanly)" % (base[0], base[1][:7])
+
+    if done.returncode == 1:
+        files = conflicted_paths(done.stdout)
+        if not files:
+            return False, ("merges_cleanly (conflicts with %s at %s, git named "
+                           "no file -- git fetch origin, merge %s into this "
+                           "branch, resolve the conflicts, then run verify "
+                           "again)" % (base[0], base[1][:7], base[0]))
+        n = len(files)
+        shown = ", ".join(_escape_control_chars(f) for f in files[:MAX_CONFLICTS_SHOWN])
+        if n > MAX_CONFLICTS_SHOWN:
+            shown += " and %d more" % (n - MAX_CONFLICTS_SHOWN)
+        return False, ("merges_cleanly (conflicts with %s at %s in %d file(s): "
+                       "%s -- git fetch origin, merge %s into this branch, "
+                       "resolve the conflicts, then run verify again)"
+                       % (base[0], base[1][:7], n, shown, base[0]))
+
+    msg = ((done.stderr or "").strip().splitlines()[0]
+           if (done.stderr or "").strip() else "no message")
+    return True, ("merges_cleanly (not checked: git merge-tree exited %d: %s)"
+                  % (done.returncode, msg))
+
+
 def change_size(cwd, *rev):
     """How big a diff is: `(files, lines)`, or `None` when git could not say.
 
@@ -616,6 +740,8 @@ def ship(track_dir, project_dir):
     if not is_git_repo(project_dir):
         clean_check = (False, "clean_tree (%s is not a git repository)" % project_dir)
         branch_check = (False, "not_main_branch (%s is not a git repository)" % project_dir)
+        merge_check = (True, "merges_cleanly (not checked: %s is not a git repository)"
+                       % project_dir)
     else:
         working = git(project_dir, "status", "--porcelain")
         clean = bool(working and not working.stdout.strip())
@@ -626,8 +752,9 @@ def ship(track_dir, project_dir):
                          "not_main_branch (branch is %s)" % (
                              "unknown -- git did not answer" if branch is UNKNOWN_BRANCH
                              else branch or "detached HEAD"))
+        merge_check = merges_cleanly(project_dir)
 
-    return [status_check, clean_check, branch_check]
+    return [status_check, clean_check, branch_check, merge_check]
 
 
 STAGES = {"design": design, "intake": intake, "discover": discover,

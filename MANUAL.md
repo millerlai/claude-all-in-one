@@ -293,6 +293,7 @@ names one of these:
 | `has_changes` | Nothing to review — clean tree, no diff from base | Commit something first |
 | `verify_status` | `ship` asked to run before `verify` finished | Run verify, or skip it with a reason you'd be willing to read back |
 | `clean_tree` | Uncommitted changes at ship time | Commit or stash. Ship rewrites history and won't do it over a dirty tree. If the dirty files are the track's own, ignore `.claude/track/` |
+| `merges_cleanly` | `ship`: your branch conflicts with the remote's default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Checked when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |
 | `ledger_attempts` | Any stage: five failed or blocked attempts since it last passed or was skipped | The message lists every attempt's note and the three ways out: `/cai:track skip <stage> --reason "<why>"`, `CAI_TRACK_MAX_ATTEMPTS` set higher (or `0` for no cap), or deleting the track's `ledger.jsonl` |
 
 Two more lines always print as `PASS` and are still worth reading:
