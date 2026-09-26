@@ -56,6 +56,11 @@ and got nothing back", which is a different and much worse claim.
 1. **Ask one decision per turn.** `AskUserQuestion`, biggest blast radius
    first, the rest queued. A turn carrying two questions carries none — the
    second gets answered against a guess about the first.
+
+   A menu that closes on its own is not one of these three rounds:
+   `references/approval-gates.md`'s "A menu that closes on its own" section
+   says no round of this file's list runs against it, and whatever else is
+   queued behind it waits, in the same order, until it is answered.
 2. **Re-dispatch the same stage's agent**, quoting both the question and the
    answer verbatim in the brief. The agent that comes back has no memory of
    the one that asked, and a paraphrase of an answer is not the answer.

@@ -177,3 +177,52 @@ is only the shape — a menu, never a sentence to type a word back into:
 
 Their options are whatever that stage's own text already offers. The rule
 here is the shape and the free-text slot, not a vocabulary.
+
+## A menu that closes on its own
+
+Question auto-continue is the person's own setting, not the track's — turned
+on via `/config`'s "Question auto-continue timeout" row (or
+`askUserQuestionTimeout` in `settings.json`), to `60s`, `5m` or `10m`, and off
+by default. When it fires, the question tool's own result tells Claude you
+may be away from your keyboard — that sentence, and nothing else, is what
+this section calls a timed-out menu. `(No answer provided)` is a different,
+ordinary rejection the platform uses when a person declines to answer a
+clarifying question rather than picking anything; it carries no timeout
+signal and is handled like any other answer, never like the outcomes below.
+
+A timed-out menu never becomes the person's answer by default. What each stop
+in this file does about one:
+
+| Stop | On timeout |
+| --- | --- |
+| Gate 1 | Nothing is written. No `approved`, no `--gate human` row. `build` does not start. |
+| Gate 2, the squash, the ticket comment, closing the ticket | None of it runs. |
+| Step 0.5 commit per unit | Treated as no, so the parallel lane stays off. |
+| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
+| Step 0.5 glossary | No project term joins `CONTEXT.md`; the file is left untouched. |
+| The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |
+| Every other stop in this file's list, or handed up under `pending-questions.md` | Left unanswered. |
+
+A timed-out menu left unanswered above is not skipped — it is not an answer,
+and nothing downstream may treat it as one. Nothing about it is acted on or
+written, nothing is re-dispatched because of it, and it does not spend a
+round of `pending-questions.md` — no round runs against a menu that closed on
+its own. Any question queued behind it waits with it, in the same order it
+was already in. The menu is asked again only after the person next writes,
+never inside the same turn the timeout arrived in. Text typed into the
+free-text entry before the clock ran out still counts as nothing selected,
+the same as if the person had never touched the menu — a partial draft is not
+a pick. When a result reports nothing selected, Claude never substitutes the
+`(recommended)` option as if the person had chosen it — a recommendation is a
+suggestion for a person to accept, not a default Claude reaches for on a
+timeout's behalf. That is not the same as the two rows above that already use
+whichever option a timeout does report selected, recommended label or not.
+
+Because a timed-out menu can pass silently otherwise, the run says one line
+per menu that timed out, naming the stop and the outcome applied above. At
+the two stops where a selected option is used rather than left unanswered —
+the parallel lane and the track-directory name — that line also names the
+option used, since the result reporting an option "selected" may just be
+reporting wherever the cursor happened to be resting, not a real choice.
+Nothing here turns the setting on, and the track does not need it on to run;
+it only has to know what to do the day it happens to be.

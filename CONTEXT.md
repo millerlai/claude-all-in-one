@@ -17,3 +17,5 @@ or specs, and only concepts specific to this project.
 **審查基準量測程序（review-benchmark procedure）**: 把一筆 case 變成可計分紀錄的九個步驟（`scripts/review-benchmark-procedure.md`）。
 **合規審查鏡（conformance lens）**: verify 階段四個審查 agent 之一，比對改動有沒有符合書面需求和慣例檔。
 **慣例檔（convention file）**: `<top>/CLAUDE.md` 和 `<top>/.claude/CLAUDE.md` 當中實際存在的那些檔案。
+**timed-out menu**: A menu result carrying the platform's own "away from your keyboard" sentence.
+**unanswered**: The state of a stop whose menu timed out with no defined outcome for silence.
