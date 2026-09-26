@@ -228,6 +228,91 @@ def test_diagnosis_then_stance_still_traces_the_stance(tmp_path):
     assert "UC1" in label
 
 
+HYBRID_STANCE_AND_DIAGNOSIS = STANCE_MIN + (
+    "\n## Failing test\n\n"
+    "`tests/test_x.py::test_y` fails now -- the same file also numbers UC1\n"
+    "above, so :528 has to pick a side before :543 ever runs.\n")
+
+
+def test_a_document_with_both_headings_is_traced_as_a_stance(tmp_path):
+    """AC1: a single document carrying both `## Use cases / Issues` and `##
+    Failing test` must not fall through to the diagnosis branch and pass as
+    "not applicable" -- `:528` has to find its `## Use cases / Issues` first.
+    The failing half is the one that matters: reversing the priority (`:528`
+    vs `:543`) would let this pass as not applicable instead."""
+    hybrid_path = tmp_path / "t-hybrid.md"
+    hybrid_path.write_text(HYBRID_STANCE_AND_DIAGNOSIS, encoding="utf-8")
+    reference = "## Reference\n\nt-hybrid.md\n"
+
+    ok, label = traceability_verdict(reference + "\nNothing here reaches it.\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert "UC1" in label
+    assert "not applicable" not in label
+
+    ok, label = traceability_verdict(reference + "\nUC1 is satisfied here.\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is True
+
+
+def test_traceability_wording_is_singular_for_one_diagnosis(tmp_path):
+    """AC2: `:545-552`'s two wordings, pinned by their words rather than just
+    PASS and a path being present -- swapping which branch handles which
+    count would still pass a check that only looked for those."""
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(approved_diagnosis(), encoding="utf-8")
+    detail_text = "## Reference\n\nt-diagnosis.md\n"
+    ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
+    assert ok is True
+    assert "is a diagnosis" in label and "its ## Failing test" in label
+    assert "are diagnoses" not in label
+
+
+def test_traceability_wording_is_plural_for_two_diagnoses(tmp_path):
+    """AC2's other half: two diagnoses take the plural wording, not the
+    singular one."""
+    diag1 = tmp_path / "a-diagnosis.md"
+    diag2 = tmp_path / "b-diagnosis.md"
+    diag1.write_text(approved_diagnosis(), encoding="utf-8")
+    diag2.write_text(approved_diagnosis(), encoding="utf-8")
+    detail_text = "## Reference\n\na-diagnosis.md\nb-diagnosis.md\n"
+    ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
+    assert ok is True
+    assert "are diagnoses" in label and "their ## Failing test" in label
+    assert "is a diagnosis" not in label
+
+
+def probe_label(name, text, roots):
+    """(ok, label) for one named probe under `detail_probes` -- generalizes
+    `traceability_verdict` to any probe by name, for AC3's `reference_resolves`
+    check alongside `traceability`."""
+    secs = design_probe.sections(text)
+    return next((ok, label) for ok, label in design_probe.PROBES["detail"](secs, text, roots)
+                if label.startswith(name + " "))
+
+
+def test_reference_resolves_and_traceability_name_different_files(tmp_path):
+    """AC3: `## Reference` lists decisions before diagnosis. `reference_resolves`
+    names whichever resolves first (decisions, per `:510-514`'s loop order),
+    while `traceability`'s source is the diagnosis that follows -- decisions
+    has neither `## Use cases / Issues` nor `## Failing test` either. Only
+    this order writes a path into both labels: tracing a stance instead would
+    write none."""
+    decisions_path = tmp_path / "t-decisions.md"
+    decisions_path.write_text(DECISIONS_MIN, encoding="utf-8")
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(approved_diagnosis(), encoding="utf-8")
+    reference = "## Reference\n\nt-decisions.md\nt-diagnosis.md\n"
+
+    _, ref_label = probe_label("reference_resolves", reference, (str(tmp_path), str(tmp_path)))
+    assert str(decisions_path) in ref_label
+    assert str(diag_path) not in ref_label
+
+    _, trace_label = traceability_verdict(reference, (str(tmp_path), str(tmp_path)))
+    assert str(diag_path) in trace_label
+    assert str(decisions_path) not in trace_label
+
+
 def test_decisions_first_then_stance_still_traces_the_stance(tmp_path):
     """The fix's side effect the diagnosis calls out: a `## Reference` that
     lists the decisions document first used to FAIL for the same root cause
