@@ -253,6 +253,41 @@ def test_the_gap_count_is_reported_and_never_fails(tmp_path):
     assert "2 this round" in detail("decisions", doc, "requirement_gaps", roots)
 
 
+NOT_A_STANCE = "# t - intake\n\n## Status\n\n%s\n\n## Problem\n\nSomething is broken.\n"
+
+
+def stance_listed_second(tmp_path, first_status):
+    """## Reference naming a document that is not a stance ahead of the one
+    that is -- the order #169 reports the probe reading by position."""
+    (tmp_path / "intake.md").write_text(NOT_A_STANCE % first_status,
+                                        encoding="utf-8")
+    return replace_section(decisions_doc(), "Reference",
+                           "- Intake: `intake.md`\n- Stance: `stance.md`")
+
+
+def test_an_approved_non_stance_listed_first_does_not_pass_a_draft_stance(tmp_path):
+    doc, roots = written(tmp_path, stance_listed_second(tmp_path, "approved 2026-09-16"),
+                         stance=STANCE)
+    assert verdicts("decisions", doc, roots)["stance_is_approved"] is False
+
+
+def test_a_draft_non_stance_listed_first_does_not_block_an_approved_stance(tmp_path):
+    doc, roots = written(tmp_path, stance_listed_second(tmp_path, "draft"))
+    assert verdicts("decisions", doc, roots)["stance_is_approved"] is True
+
+
+def test_reference_with_no_stance_at_all_fails_with_a_named_reason(tmp_path):
+    """`## Reference` resolves a `.md`, but none of them carry `## Optimises
+    for` -- AC3 wants this told apart from a stance that is merely draft."""
+    (tmp_path / "intake.md").write_text(NOT_A_STANCE % "approved 2026-09-16",
+                                        encoding="utf-8")
+    doc = replace_section(decisions_doc(), "Reference", "- Intake: `intake.md`")
+    got = verdicts("decisions", doc, (str(tmp_path), str(tmp_path)))
+    assert got["stance_is_approved"] is False
+    label = detail("decisions", doc, "stance_is_approved", (str(tmp_path), str(tmp_path)))
+    assert "no referenced .md is a stance" in label
+
+
 # --- the legacy kind --------------------------------------------------------
 
 def test_a_high_level_design_carrying_build_spec_headings_fails():

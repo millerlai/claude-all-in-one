@@ -388,25 +388,38 @@ def diagnosis_probes(secs, text, roots):
 def decisions_probes(secs, text, roots):
     yield probe_headings(secs, DECISIONS_HEADINGS)
 
-    ref = None
+    resolved = []
     for cand in re.findall(r"[\w./\\-]+\.md",
                            COMMENT.sub("", secs.get("Reference", ""))):
         # A sibling of this document is the likely shape, so look there first.
-        ref = resolve(cand, *reversed(roots))
-        if ref:
-            break
+        p = resolve(cand, *reversed(roots))
+        if p:
+            resolved.append(p)
+    ref = resolved[0] if resolved else None
     yield ref is not None, "reference_resolves (%s)" % (
         ref or "## Reference names no readable .md")
 
-    if ref:
-        with open(ref, encoding="utf-8") as fh:
-            status = COMMENT.sub("", sections(fh.read()).get("Status", ""))
-        ok = bool(re.search(r"^approved\s+\d{4}-\d{2}-\d{2}", status.strip(),
-                            re.I | re.M))
-        # Weighing options against a trade nobody has agreed to is how a
-        # stance gets decided one implementation detail at a time.
-        yield ok, "stance_is_approved (%s)" % (
-            "approved" if ok else "the stance it serves is still draft")
+    if resolved:
+        parsed = []
+        for p in resolved:
+            with open(p, encoding="utf-8") as fh:
+                parsed.append((p, sections(fh.read())))
+        # The stance is whichever referenced file actually carries the stance
+        # template's own section, not whichever is listed first -- a
+        # diagnosis or an intake ahead of it in that list is not a stance,
+        # and picking it by position alone read the wrong ## Status.
+        stance = next((s for _, s in parsed if "Optimises for" in s), None)
+        if stance is None:
+            yield False, ("stance_is_approved (no referenced .md is a stance -- "
+                          "none of %d carries ## Optimises for)" % len(resolved))
+        else:
+            status = COMMENT.sub("", stance.get("Status", ""))
+            ok = bool(re.search(r"^approved\s+\d{4}-\d{2}-\d{2}", status.strip(),
+                                re.I | re.M))
+            # Weighing options against a trade nobody has agreed to is how a
+            # stance gets decided one implementation detail at a time.
+            yield ok, "stance_is_approved (%s)" % (
+                "approved" if ok else "the stance it serves is still draft")
 
     checks, verdicts = feasibility_checks(secs)
     for check in checks:
