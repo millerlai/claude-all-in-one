@@ -30,6 +30,7 @@ LOAD_BEARING_STRINGS = {
     "stale-guard-citation": "tests/test_track_state_status_vocabulary.py:51",
     "illegal-rows-order-untested":
         "def test_two_illegal_rows_each_print_their_own_line_in_stage_order(tmp_path):",
+    "repo-only-script-in-plugin": "+++ b/plugins/cai/scripts/review_benchmark_cases.py",
 }
 
 # AC3's "no bare SHA" scan is mechanical: 7-40 hex chars, word-bounded.
@@ -305,3 +306,55 @@ def test_address_rate_pb06_row_is_marked_unverified_not_guessed():
     assert pb06["left_minor"] == _UNVERIFIED
     assert pb06["fixed"] == 3
     assert pb06["triaged"] == 0
+
+
+# ---------------------------------------------------------------------------
+# convention-benchmark-case (#152) -- procedure step 3 cites stage-verify.md
+# by file:line; a citation that drifts from the paragraph it names must fail.
+# ---------------------------------------------------------------------------
+
+PROCEDURE = os.path.join(REPO_ROOT, "scripts", "review-benchmark-procedure.md")
+STAGE_VERIFY = os.path.join(
+    REPO_ROOT, "plugins", "cai", "skills", "track", "references", "stage-verify.md"
+)
+
+STEP3_ANCHORS = [
+    ("Four agents, in parallel", "caps parallel subagents at 2"),
+    ("Give each agent the base ref", "With both, compare against both"),
+    ("The three severity words Step 2 ranks by", "lens it is reviewing against"),
+]
+
+# Named ("stage-verify.md:44-48") or the old filename-omitted form
+# ("`:64-66`") -- both are a citation into that file.
+_CITE = re.compile(r"(?:[\w./-]*stage-verify\.md)?:(\d+)-(\d+)")
+
+
+def _procedure_step3():
+    with open(PROCEDURE, encoding="utf-8") as fh:
+        text = fh.read()
+    start = text.index("\n3. ") + 1
+    end = text.index("\n4. ", start) + 1
+    return text[start:end]
+
+
+def _stage_verify_span(a, b):
+    with open(STAGE_VERIFY, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    span = " ".join(line.strip() for line in lines[a - 1:b])
+    return re.sub(r"\s+", " ", span)
+
+
+def test_procedure_step3_cites_resolve_to_their_paragraphs():
+    step3 = _procedure_step3()
+    matches = [(int(a), int(b)) for a, b in _CITE.findall(step3)]
+    assert len(matches) == 3, matches
+    for (a, b), (head, tail) in zip(matches, STEP3_ANCHORS):
+        span = _stage_verify_span(a, b)
+        assert head in span, f"stage-verify.md:{a}-{b} lacks {head!r}"
+        assert tail in span, f"stage-verify.md:{a}-{b} lacks {tail!r}"
+
+
+def test_procedure_step3_gives_conformance_the_convention_files():
+    step3 = _procedure_step3()
+    assert "useless without" not in step3
+    assert "CLAUDE.md" in step3

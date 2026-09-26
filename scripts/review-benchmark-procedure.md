@@ -30,12 +30,14 @@ record, not part of the collection, and lives in the scratchpad.
 3. In one message, dispatch four subagents: three `reviewer` agents, one
    lens each (`correctness`, `conformance`, `coverage`), plus one
    `security-reviewer` for the fourth
-   (`plugins/cai/skills/track/references/stage-verify.md:44-48`). Each
-   dispatch message carries three things: this case's diff, the lens it is
-   reviewing with, and the requirement it is checking against -- the
-   `conformance` lens is useless without that last one
-   (`stage-verify.md:57-60`). Give `security-reviewer` the four hunt items
-   from `finding-severity.md` instead (`:64-66`).
+   (`plugins/cai/skills/track/references/stage-verify.md:46-50`). Each
+   dispatch message carries this case's diff, the lens it is reviewing with,
+   and what it is checking against. For `conformance` that is the case's
+   written requirement, if one exists, and the paths of whichever of
+   `<top>/CLAUDE.md` and `<top>/.claude/CLAUDE.md` exist in the tree step 2
+   checked out; with neither, `conformance` is skipped and the other three
+   still run (`stage-verify.md:59-72`). Give `security-reviewer` the four
+   hunt items from `finding-severity.md` instead (`stage-verify.md:74-78`).
 
 4. In that same dispatch message, additionally ask each lens to append a
    fenced JSON block, with the same fields as a `findings` record, after its

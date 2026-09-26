@@ -123,3 +123,82 @@ run 1 的那一個 FP 是 `security` 鏡自己另一條 Minor（`ref` 引數注�
 `.claude/track/` 不在 git 裡（`.gitignore:11`），所以上面 address-rate 表格
 `source` 欄的每一條引用，在一份新 clone 上都指不到檔——想核對的人要在自己
 的機器上留著那些 track 目錄才查得到（F11）。
+
+## 慣例檔輸入 case（#152，2026-09-25）
+
+Case 名 `repo-only-script-in-plugin`（`base_sha` `e6e81cd8d60f126f397a1f2d99b8b8d1dea7a78f`，
+`base_ref` `origin/backup/bench-convention-case`）。跑之前已依診斷文件 `## Fix`
+改寫程序第 3 步（build 單元 1、2；`git diff --stat scripts/review-benchmark-procedure.md`
+只落在原 `:30-38` 範圍），第 1-9 步照改寫後的文字跑兩次，兩份 `findings.json`
+都落在 scratchpad（不進 git）。
+
+`python scripts/review_benchmark_score.py --collection tests/review-benchmark
+--findings <run1> --findings <run2>` 的輸出，照貼：
+
+| case | run | tp | fp | fn | precision | recall | f1 | f1_delta | unscored | duplicate | failed_lenses |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| argv-echo-in-run | - | - | - | - | - | - | - | - | - | - | no run for this case |
+| cp950-decode-guard | - | - | - | - | - | - | - | - | - | - | no run for this case |
+| illegal-rows-order-untested | - | - | - | - | - | - | - | - | - | - | no run for this case |
+| quoted-grader-type | - | - | - | - | - | - | - | - | - | - | no run for this case |
+| repo-only-script-in-plugin | 1 | 1 | 0 | 0 | 1.0000 | 1.0000 | 1.0000 | - | 2 | 0 | |
+| repo-only-script-in-plugin | 2 | 1 | 0 | 0 | 1.0000 | 1.0000 | 1.0000 | +0.0000 | 2 | 1 | |
+| stale-guard-citation | - | - | - | - | - | - | - | - | - | - | no run for this case |
+
+（另外五筆印成 `no run for this case`，因為本輪只跑了 `repo-only-script-in-plugin`
+這一筆，符合 `score_all()` 的規則。）
+
+**conformance 每筆 finding 的 `file:line`、severity 與引用紀錄，逐字記下：**
+run 1 是 Blocker at `plugins/cai/scripts/review_benchmark_cases.py:1`（散文範圍
+1-13；標註的 severity 是 Major，兩者不一致）。引用 `CLAUDE.md:41-45`（落在 AC7
+判準 `:41-48` 內 → 是否引用：是）與 `CLAUDE.md:25`（同義、AC7 範圍外）；未涵蓋
+說明裡另外點名 `CLAUDE.md` 第 57-65 行（"Shipped but not theirs" 那段），但那不
+是這筆 finding 引用的行。run 2 是 Major at `:13`（與標註一致），外加一筆 Minor
+at `:18`（與 `scripts/review_benchmark_score.py` 的 `load_cases()` 重複，計分器
+算 `duplicate 1`）。**run 2 沒有任何 `CLAUDE.md:<行>` 引用**——它點名段落
+「Who a file is for」，逐字引了 `:41-48` 的 Theirs／Ours 兩段，但沒有寫行號。
+依 `stage-verify.md:62-65`，一筆慣例 finding 需要 `file:line`，所以 AC7「是否
+引用 `CLAUDE.md:<行>`」對 run 2 記**否**（引對了句子，沒有行號）。
+
+**花費（D19）：** 同 2026-09-14 走同一條路徑——四鏡在本 session 內派工
+（approach A），單次呼叫的美金花費沒有暴露給這個 session，本節的美金一樣
+「取不到」，理由同本檔 `:11-16`；能量到的只有每個 lens 完成通知自帶的
+token／tool-use／耗時：
+
+| run | lens | tokens | tool uses | duration |
+|---|---|---|---|---|
+| 1 | conformance | 49393 | 14 | 99667 ms |
+| 1 | correctness | 52156 | 20 | 222418 ms |
+| 1 | coverage | 66526 | 25 | 289593 ms |
+| 1 | security | 43450 | 4 | 39258 ms |
+| 1 | 小計 | 211525 | 63 | 650936 ms |
+| 2 | conformance | 57021 | 10 | 122302 ms |
+| 2 | correctness | 47327 | 10 | 183466 ms |
+| 2 | coverage | 62777 | 23 | 164697 ms |
+| 2 | security | 40881 | 4 | 39370 ms |
+| 2 | 小計 | 208006 | 47 | 509835 ms |
+
+與 US$3.25（2026-09-13 首次四鏡 verify，`usage_report.py track` 的
+`spend_equiv`）與 US$0.4396（單次 headless `security-reviewer`，本檔上面的
+C probe）並列——本次數字走的是 approach A（session 內派工），跟 US$3.25 同一條
+路徑；跟 US$0.4396 的 approach C（`claude -p` headless）不同路徑，兩個對照數字
+都不是本次跑的單價。
+
+**但書：**
+
+1. 本 case 是刻意做得明顯的自造樣本，不代表邊界模糊的真實違規。
+2. 程序第 3 步修正後，既有五筆若重跑，與 2026-09-14 的數字不能直接比。
+3. 程序第 2 步「(none exist this round)」在本案之後不準。
+4. 備份分支名 `backup/bench-convention-case`、量測樹路徑
+   `.claude/worktrees/bench-convention-run` 都含 `bench`；lens 用 `git log`
+   （C4）或讀路徑看得到，是否看了無從得知。
+5. 只有一筆樣本，不是基線。
+6. run 2 的 coverage 鏡沒有在散文後面附第 4 步要求的 fenced JSON 區塊（回報
+   「已在分析裡給過」），本輪是從散文轉錄的；其餘七次 lens 回報都附了一塊。
+7. 部分 `reviewer` 鏡在量測樹裡跑了 `git diff`／`log`／`show` 以外的命令：
+   run 1 correctness 跑了違規 script 本身、`gen-codex.py --check`、
+   `pytest tests/test_gen_codex.py`、`validate.py`；run 1 coverage 跑了 script、
+   `gen-codex.py --check`、`pytest tests/test_review_benchmark.py`；run 2
+   correctness 跑了 script、`validate.py`——`plugins/cai/agents/reviewer.md:6`
+   列出的工具集只有 `Read, Grep, Glob, Bash(git diff:*), Bash(git log:*),
+   Bash(git show:*)`。只記觀察，不猜原因。
