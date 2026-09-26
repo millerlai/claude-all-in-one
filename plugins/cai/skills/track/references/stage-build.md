@@ -169,7 +169,10 @@ For each unit, in schedule order:
    the code that makes it pass — a test you did not watch fail proves
    nothing, because a test that would pass against the old code too is not
    testing the change. Tell `implementer` to stop and report rather than
-   guess when the spec is ambiguous.
+   guess when the spec is ambiguous. On the diagnosis path, the unit that
+   carries the fix starts from the test its diagnosis's `## Failing test`
+   names — that is the first failing test, before any other; run it, and
+   keep the red output, because Step 6.1 needs it.
 4. **Verify.** Dispatch `test-runner` with the unit's `Verify with`
    command. Read the real output.
    - Green → continue.
@@ -293,6 +296,31 @@ Units all green is not done:
    that now satisfies it. A row you cannot point at is unimplemented. It goes
    in `implementation-notes.md` and the report, never back into the design
    document's own `### Traceability`, for the reason Step 1 gives.
+
+   On the diagnosis path — the design row is itself a diagnosis (it carries
+   a `## Failing test` heading, judged the same way `design_probe.py`'s
+   not-applicable branch does, not by filename) or a detail design whose
+   `## Reference` resolves to at least one diagnosis and no resolved
+   document carries a `## Use cases / Issues` heading (the same condition
+   that branch checks) — there are no `UC`/`R` ids to fill in. Write one row
+   per test or check the diagnosis's `## Failing test` names instead; more
+   than one diagnosis named in `## Reference` means doing this for each
+   diagnosis in turn, not capping at one row per diagnosis. Each row carries
+   three things: the red output build itself saw before the fix (only the
+   failing lines, not the whole run), the same lines green after the fix,
+   and the `file:line` of the fix — never the diagnosis's own red, which may
+   predate build's run or be a stale rerun of it. These rows live in the
+   same table. Example, going straight to build:
+
+   | Failing test | Red before the fix | Green after | Fix at |
+   |---|---|---|---|
+   | `scripts/validate.py` Step 6.1 check | ``FAIL …Step 6.1 names the diagnosis path's `## Failing test` `` | `PASS …` | `stage-build.md:<line>` |
+
+   This table never goes back into the diagnosis document either: going
+   straight to build, the diagnosis is the design row's own document and
+   Gate 1 already left a sign-off fingerprint on it; through a detail
+   design, it is not the fingerprinted file, but is still the human-approved
+   root cause.
 2. **Write the merged terms into `<top>/CONTEXT.md`**, before verify. Skip
    entirely — no file created, nothing said about it in the report — when no
    glossary term ended up merged (the third menu was never asked, was

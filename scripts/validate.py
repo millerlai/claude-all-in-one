@@ -1827,9 +1827,25 @@ if os.path.isfile(STAGES_JSON):
                 ("Step 1", "## Step 1",
                  "never in the design document itself"),
                 ("Step 6.1", "## Step 6",
-                 "never back into the design document's own `### Traceability`")):
+                 "never back into the design document's own `### Traceability`"),
+                ("Step 6.1 diagnosis", "## Step 6",
+                 "never goes back into the diagnosis document either")):
             check(f"{build_ref}'s {label} keeps build out of the signed-off "
                   f"design ({phrase})", phrase in build_step(heading))
+
+        # The diagnosis path's own promise -- four documents say "build
+        # starts from its `## Failing test`" (stage-design.md,
+        # design-diagnosis.md.tpl, design-detail.md.tpl, design_probe.py's
+        # not-applicable label) -- names Step 3.3 as the starting point and
+        # Step 6.1 as where that test's red/green gets recorded. This is a
+        # prose guard with no behaviour test behind it: build is a
+        # model-run stage, so there is no behaviour to assert here, only
+        # the instruction's own words.
+        for label, heading, phrase in (
+                ("Step 3.3", "## Step 3", "`## Failing test`"),
+                ("Step 6.1", "## Step 6", "`## Failing test`")):
+            check(f"{build_ref}'s {label} names the diagnosis path's "
+                  f"`## Failing test`", phrase in build_step(heading))
 
     # The original mis-assignment picked a stage's agent by tier alone --
     # design pointed at architect (Read-only), ship at explorer (no git) --

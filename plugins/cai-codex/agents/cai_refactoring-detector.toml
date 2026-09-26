@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.23
+# cai-codex-version: 0.2.24
 name = "cai_refactoring-detector"
 description = "A file, module or package to survey for code smells, read-only — several modules in parallel, or a scan that would flood the main conversation with file contents."
 model = "gpt-5.6-terra"

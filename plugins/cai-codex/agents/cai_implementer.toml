@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.23
+# cai-codex-version: 0.2.24
 name = "cai_implementer"
 description = "A well-specified feature or fix, with requirements clear and scoped to a few files."
 model = "gpt-5.6-terra"
