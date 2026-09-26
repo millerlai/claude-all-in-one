@@ -36,14 +36,12 @@ def test_build_snapshot_assembles_rows_and_problems(monkeypatch):
 
     monkeypatch.setattr(viewer, "claude_rows",
                         lambda config_root, now_ms: ([claude_row], ["claude problem"]))
-    # Three codex processes, one of them interactive: build_snapshot() must
-    # hand codex_rows() both counts, in that order.
-    monkeypatch.setattr(viewer, "count_processes",
-                        lambda name, skip_app_server=False: 1 if skip_app_server else 3)
-    seen_counts = []
+    locked_ids = {"thread-1"}
+    monkeypatch.setattr(viewer, "codex_locked_thread_ids", lambda codex_home: locked_ids)
+    seen_locked_ids = []
 
-    def fake_codex_rows(codex_home, now_ms, process_count, session_count):
-        seen_counts.append((process_count, session_count))
+    def fake_codex_rows(codex_home, now_ms, ids):
+        seen_locked_ids.append(ids)
         return [codex_row], ["codex problem"]
 
     monkeypatch.setattr(viewer, "codex_rows", fake_codex_rows)
@@ -68,7 +66,8 @@ def test_build_snapshot_assembles_rows_and_problems(monkeypatch):
         assert row["track"]["name"] == "t"
     assert snap["rows"][0]["summary"] == "做完了"
     assert snap["rows"][1]["subagents"] == ["reviewer"]
-    assert seen_counts == [(3, 1)]
+    assert seen_locked_ids == [locked_ids]
+    assert snap["codexLockDirMissing"] is False
 
     # Claude rows are matched by their real sessionId; Codex rows never pass
     # their thread id as though it were a Claude ledger session_id.
@@ -78,8 +77,8 @@ def test_build_snapshot_assembles_rows_and_problems(monkeypatch):
 def test_build_snapshot_track_is_none_when_cwd_missing(monkeypatch):
     row = {"key": "claude:1:2", "platform": "claude", "cwd": None, "sessionId": "s"}
     monkeypatch.setattr(viewer, "claude_rows", lambda config_root, now_ms: ([row], []))
-    monkeypatch.setattr(viewer, "count_processes", lambda name, skip_app_server=False: 0)
-    monkeypatch.setattr(viewer, "codex_rows", lambda codex_home, now_ms, k, s: ([], []))
+    monkeypatch.setattr(viewer, "codex_locked_thread_ids", lambda codex_home: None)
+    monkeypatch.setattr(viewer, "codex_rows", lambda codex_home, now_ms, ids: ([], []))
 
     def boom(*a, **k):
         raise AssertionError("find_track must not be called for a cwd-less row")
@@ -88,6 +87,35 @@ def test_build_snapshot_track_is_none_when_cwd_missing(monkeypatch):
 
     snap = viewer.build_snapshot("/config", "/codex-home", 1)
     assert snap["rows"][0]["track"] is None
+
+
+def test_build_snapshot_flags_a_missing_lock_dir_when_codex_home_exists(tmp_path):
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_root = tmp_path / "claude-config"
+    config_root.mkdir()
+
+    snap = viewer.build_snapshot(str(config_root), str(codex_home), 1)
+    assert snap["codexLockDirMissing"] is True
+
+
+def test_build_snapshot_does_not_flag_when_codex_home_is_absent(tmp_path):
+    codex_home = tmp_path / "no-such-codex-home"
+    config_root = tmp_path / "claude-config"
+    config_root.mkdir()
+
+    snap = viewer.build_snapshot(str(config_root), str(codex_home), 1)
+    assert snap["codexLockDirMissing"] is False
+
+
+def test_build_snapshot_does_not_flag_when_the_lock_dir_exists(tmp_path):
+    codex_home = tmp_path / "codex-home"
+    (codex_home / "thread-writer-locks").mkdir(parents=True)
+    config_root = tmp_path / "claude-config"
+    config_root.mkdir()
+
+    snap = viewer.build_snapshot(str(config_root), str(codex_home), 1)
+    assert snap["codexLockDirMissing"] is False
 
 
 def test_branch_for_cwd_plain_ref(tmp_path):

@@ -201,6 +201,51 @@ def test_idle_is_done():
     assert out["state"] == "done"
     assert out["certainty"] == "confirmed"
     assert out["notes"] == []
+    assert out["background"] is False
+
+
+def test_idle_with_an_unpaired_background_agent_is_background_working():
+    # AC5: idle only means "done" when no background work is left -- V8's
+    # background check runs even on idle (main does not, #162's gap).
+    reg = _reg("idle")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "做 build 階段", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1")]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
+    assert out["state"] == "working"
+    assert out["certainty"] == "inferred"
+    assert out["background"] is True
+    assert out["notes"] == []
+    assert out["current"]["tool"] == "Agent"
+
+
+def test_idle_after_every_background_task_ended_is_done():
+    reg = _reg("idle")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _turn_duration(pendingBackgroundAgentCount=1),
+           _task_notification("agent-bg-1"),
+           {"type": "user", "message": {"content": [{"type": "text", "text": "continue"}]}},
+           {"type": "assistant", "message": {"content": [{"type": "text", "text": "ok"}]}},
+           _turn_duration(pendingBackgroundAgentCount=0)]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
+    assert out["state"] == "done"
+    assert out["certainty"] == "confirmed"
+    assert out["background"] is False
+
+
+def test_idle_with_only_a_pending_count_is_background_without_names():
+    # AC6: the launch itself fell out of the tail (接續 or pushed out) --
+    # still background, just with no name to show (decisions D4).
+    reg = _reg("idle")
+    tail = [_turn_duration(pendingBackgroundAgentCount=1)]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
+    assert out["state"] == "working"
+    assert out["certainty"] == "inferred"
+    assert out["background"] is True
+    assert out["current"] is None
+    assert viewer._claude_subagents(tail) == []
 
 
 def test_shell_is_working_with_note():
@@ -276,6 +321,20 @@ def test_shell_current_picks_the_newest_still_running_background_bash():
     assert out["current"]["input"] == "第二個"
 
 
+def test_shell_with_a_background_agent_is_plain_working_with_note():
+    # decisions: shell never runs the background check; #172 made shell
+    # itself "working", so a background agent alongside changes nothing.
+    reg = _reg("shell")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1")]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
+    assert out["state"] == "working"
+    assert out["certainty"] == "confirmed"
+    assert out["notes"] == ["背景 shell 執行中"]
+    assert out["background"] is False
+
+
 def test_busy_with_stale_turn_duration_tail_is_inferred_done():
     reg = _reg("busy")
     tail = [{"type": "system", "subtype": "turn_duration"}]
@@ -311,9 +370,10 @@ def test_busy_with_no_unresolved_tool_use_has_no_current():
     assert out["current"] is None
 
 
-def test_busy_turn_duration_tail_with_pending_background_agents_is_working():
-    # The main turn ended but a background subagent is still running: Claude
-    # keeps the registry at busy on purpose, so this is not a stale registry.
+def test_busy_turn_end_with_pending_agents_is_background_working():
+    # The main turn ended but a background subagent is still running: this
+    # is 「執行中（背景）」, inferred, not the stale-registry "done" branch --
+    # and not "working"/"confirmed" either (#162's behaviour before this fix).
     reg = _reg("busy")
     tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
                                       "description": "做 build 階段", "prompt": "p"}),
@@ -322,7 +382,8 @@ def test_busy_turn_duration_tail_with_pending_background_agents_is_working():
     now_ms = reg["statusUpdatedAt"] + 61000
     out = viewer.classify_claude(reg, tail, now_ms)
     assert out["state"] == "working"
-    assert out["certainty"] == "confirmed"
+    assert out["certainty"] == "inferred"
+    assert out["background"] is True
     assert out["notes"] == []
     assert out["current"] == {"tool": "Agent", "input": "做 build 階段",
                               "since": reg["statusUpdatedAt"]}
@@ -343,15 +404,97 @@ def test_turn_still_pending_only_counts_positive_numbers():
     assert not viewer._turn_still_pending(_turn_duration(pendingBackgroundAgentCount=0))
     assert not viewer._turn_still_pending(_turn_duration(pendingBackgroundAgentCount="0"))
     assert not viewer._turn_still_pending(_turn_duration())
+    # V8/Ruled out: only the two named keys count -- a future pending key
+    # (here a made-up pendingShellCount) is not background work.
+    assert not viewer._turn_still_pending(_turn_duration(pendingShellCount=1))
 
 
-def test_busy_turn_duration_tail_with_pending_workflow_is_working():
+def test_busy_turn_end_behind_bookkeeping_rows_is_still_background():
+    # decisions D2: a bookkeeping row after the turn_duration (last-prompt,
+    # mode, pr-link -- Claude Code's own between-turn notes) must not read
+    # as "a newer turn already started".
+    reg = _reg("busy")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _turn_duration(pendingBackgroundAgentCount=1),
+           {"type": "last-prompt"}, {"type": "mode"}, {"type": "pr-link"}]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"] + 61000)
+    assert out["state"] == "working"
+    assert out["certainty"] == "inferred"
+    assert out["background"] is True
+
+
+def test_busy_new_turn_after_pending_turn_duration_is_not_background():
+    # decisions D2, the other half of the bookkeeping test above: a genuine
+    # user/assistant row (not a bookkeeping one) after the turn_duration
+    # does mean a newer turn has started, so a stale pendingBackgroundAgent-
+    # Count from the earlier turn must not resurface as background. Neither
+    # test_busy_turn_end_with_pending_agents_is_background_working (tail
+    # ends on the turn_duration itself) nor
+    # test_busy_turn_end_behind_bookkeeping_rows_is_still_background (tail
+    # ends on bookkeeping rows) reaches this branch of _last_turn_end.
+    reg = _reg("busy")
+    tail = [_turn_duration(pendingBackgroundAgentCount=1),
+           {"type": "user", "message": {"content": [{"type": "text", "text": "next"}]}},
+           {"type": "assistant", "message": {"content": [{"type": "text", "text": "ok"}]}}]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"] + 61000)
+    assert out["state"] == "working"
+    assert out["certainty"] == "confirmed"
+    assert out["background"] is False
+
+
+def test_busy_after_a_completion_notice_is_plain_working():
+    reg = _reg("busy")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="agent-bg-1"),
+           _turn_duration(pendingBackgroundAgentCount=1),
+           _task_notification("agent-bg-1")]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"] + 61000)
+    assert out["state"] == "working"
+    assert out["certainty"] == "confirmed"
+    assert out["background"] is False
+
+
+def test_busy_turn_end_then_a_foreign_notice_is_still_background():
+    # verify's AC8 live check: a completion notice whose task id was never
+    # launched in THIS tail (e.g. a nested subagent's own lens calls,
+    # interleaved into the parent session's transcript) must not read as
+    # "this session's turn moved on" -- only a notice for a task
+    # _launched_task_ids() says this tail itself launched may do that
+    # (see test_busy_after_a_completion_notice_is_plain_working above).
+    reg = _reg("busy")
+    tail = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                      "description": "d", "prompt": "p"}),
+           _async_launch_result("a1", agentId="own-agent"),
+           _turn_duration(pendingBackgroundAgentCount=1),
+           _task_notification("nested-agent")]
+    out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"] + 61000)
+    assert out["state"] == "working"
+    assert out["certainty"] == "inferred"
+    assert out["background"] is True
+
+
+def test_a_notice_with_another_status_does_not_end_a_launch():
+    launch = [_tool_use("a1", "Agent", {"subagent_type": "implementer",
+                                        "description": "d", "prompt": "p"}),
+             _async_launch_result("a1", agentId="agent-bg-1")]
+    still_running = launch + [_task_notification("agent-bg-1", status="progress")]
+    assert [name for name, _ in viewer._async_subagents(still_running)] == ["implementer"]
+
+    ended = launch + [_task_notification("agent-bg-1", status="stopped")]
+    assert viewer._async_subagents(ended) == []
+
+
+def test_busy_turn_end_with_pending_workflow_is_background_working():
     reg = _reg("busy")
     tail = _workflow_launch("w1", "w-task-1", "made-up-sweep") + [
         _turn_duration(pendingWorkflowCount=1)]
     out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"] + 61000)
     assert out["state"] == "working"
-    assert out["certainty"] == "confirmed"
+    assert out["certainty"] == "inferred"
+    assert out["background"] is True
     assert out["current"]["tool"] == "Workflow"
 
 

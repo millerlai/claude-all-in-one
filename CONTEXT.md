@@ -19,3 +19,5 @@ or specs, and only concepts specific to this project.
 **慣例檔（convention file）**: `<top>/CLAUDE.md` 和 `<top>/.claude/CLAUDE.md` 當中實際存在的那些檔案。
 **timed-out menu**: A menu result carrying the platform's own "away from your keyboard" sentence.
 **unanswered**: The state of a stop whose menu timed out with no defined outcome for silence.
+**執行中（背景）**: Agent Viewer 上 Claude 列的一種顯示：主 session 這一輪已結束，只剩背景子代理或 Workflow 在跑，確定度標推斷、不閃不響。
+**存活確定度**: Agent Viewer 每一列「存活：確定／推斷」的依據強弱；Codex 列只憑鎖檔檔名判斷，一律標推斷。
