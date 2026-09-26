@@ -298,8 +298,10 @@ Units all green is not done:
    document's own `### Traceability`, for the reason Step 1 gives.
 
    On the diagnosis path — the design row is itself a diagnosis (it carries
-   a `## Failing test` heading, judged the same way `design_probe.py`'s
-   not-applicable branch does, not by filename) or a detail design whose
+   every heading of the diagnosis template, `design_probe.py`'s
+   `DIAGNOSIS_HEADINGS`, not only a `## Failing test` heading — the one
+   the probe's not-applicable branch used to check alone — and is still
+   not judged by filename) or a detail design whose
    `## Reference` resolves to at least one diagnosis and no resolved
    document carries a `## Use cases / Issues` heading (the same condition
    that branch checks) — there are no `UC`/`R` ids to fill in. Write one row

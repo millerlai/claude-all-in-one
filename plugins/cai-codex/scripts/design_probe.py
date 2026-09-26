@@ -539,8 +539,13 @@ def detail_probes(secs, text, roots):
         else:
             # No upstream numbers use cases -- if one is a diagnosis, that is
             # by design: its promise is the failing test named in the
-            # diagnosis, not a UC/R id, so this is not a gap.
-            diagnoses = [p for p, s in parsed if "Failing test" in s]
+            # diagnosis, not a UC/R id, so this is not a gap. `## Failing
+            # test` alone does not tell a diagnosis apart from any other
+            # document that happens to carry that one heading (decisions, a
+            # stance); only every heading of the template together is the
+            # shape a diagnosis is written from.
+            diagnoses = [p for p, s in parsed
+                         if all(h in s for h in DIAGNOSIS_HEADINGS)]
             if diagnoses:
                 if len(diagnoses) == 1:
                     note = ("not applicable -- %s is a diagnosis and numbers "
