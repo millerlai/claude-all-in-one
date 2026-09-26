@@ -272,7 +272,8 @@ flowchart TD
   Q -->|"AskUserQuestion"| QU
   Q -->|"其他工具"| PE
   Q -->|"沒有"| AT
-  ST -->|"idle 或 shell"| DN
+  ST -->|"idle"| DN
+  ST -->|"shell"| WK
   ST -->|"busy"| BZ
   BZ -->|"是"| DI
   BZ -->|"否"| WK
@@ -515,10 +516,10 @@ sequenceDiagram
 - **分類規則（依序，第一個成立的算）：**
   1. `status` 不在 `busy`、`idle`、`waiting`、`shell` → `unknown`。
   2. `waiting`：`waitingFor` 是 `sandbox request`、`worker request`、`dialog open` → `attention`（確定，標籤附原值）；否則看最後一個沒有對應 tool_result 的 tool_use：`name == "AskUserQuestion"` → `question`（確定，`input.questions[*].question` 與 `options[*].label`）；其他工具 → `permission`（確定，工具名與參數摘要）；沒有 → `attention`（確定，附 `waitingFor` 原值或「原因未知」）。
-  3. `idle` → `done`（確定）；`shell` → `done`（確定），notes 加「背景 shell 執行中」。
+  3. `idle` → `done`（確定）；`shell` → `working`（確定），`entryId` 用 `working:<statusUpdatedAt>`，notes 保留「背景 shell 執行中」；`current` 是最新一個還在跑的背景 Bash：`name == "Bash"` 且 `input.run_in_background` 為 true 的 tool_use，它的 tool_result 列帶 `toolUseResult.backgroundTaskId`，而檔尾沒有含這個 `<task-id>` 的 `<task-notification>`（`queue-operation` 列，形狀同下面背景 subagent 那條）。`current` 是 `{"tool": "Bash", "input": 參數摘要, "since": statusUpdatedAt}`（`since` 同規則 4），參數摘要取 `input.description`，沒有才取 `command`，依 Budgets 截斷；幾個同時在跑，取檔尾中 tool_use 最後出現的那個；一個都找不到（例如呼叫已捲出檔尾）`current` 為空，仍是 `working`。`shell` 是 Claude 在一輪結束、但還有背景 Bash 沒結束時寫的；那個 shell 結束後 Claude 排入 `<task-notification>`，模型自己接續，不需要人（2026-09-26 修正；Claude Code 2.1.283 的寫法是 `idle` 且有未結束的 `local_bash` task 就寫 `shell`，本機 transcript 核對）。代價：永不結束的背景 shell（例如 dev server）讓列一直是 `working`，登記檔分不出來，靠顯示的 description 讓人判斷（decisions Tier 3）。
   4. `busy`：檔尾最後一項是 `turn_duration`、它沒有任何大於 0 的 `pending*Count`（目前見到 `pendingBackgroundAgentCount`、`pendingWorkflowCount`）、且 `now_ms - statusUpdatedAt > 60000` → `done`（推斷），notes 加「登記檔可能過時」；否則 `working`（確定），`current` 是最後一個沒有 result 的 tool_use，沒有的話是最後一個還在跑的背景 subagent／Workflow 的那個呼叫。`pending*Count > 0` 是一輪在背景 subagent 或 Workflow 還在跑時結束，Claude 刻意讓登記檔停在 `busy`，不是過時（2026-09-26 修正；本機 transcript 核對）。
   - 背景 subagent／Workflow：Claude 對 `Agent`／`Task`／`Workflow` 呼叫立刻回一個 tool_result，該列的 `toolUseResult.status` 是 `async_launched`，id 在 `agentId`（subagent）或 `taskId`（Workflow，另有 `workflowName`）；跑完時檔尾多一列 `type` 為 `queue-operation`、`content` 含 `<task-notification>` 與 `<task-id>` 的項目（`<status>` 是 `completed`、`failed`、`killed` 或 `stopped`，都算不在跑）。「還在跑」= 有 `async_launched` 而尾端沒有它的 `<task-id>`；`subagents` 列的是前景沒 result 的呼叫加上這些，subagent 名稱讀 `subagent_type`，Workflow 顯示成 `Workflow <workflowName>`。
-  - 參數摘要：`file_path`、`path`、`pattern`、`command`、`url`、`description` 依序取第一個存在的，否則 `json.dumps(input)`；依 Budgets 截斷。`description` 排最後，只有 `Agent` 這類沒有前面幾個鍵的呼叫會用到。
+  - 參數摘要：`file_path`、`path`、`pattern`、`command`、`url`、`description` 依序取第一個存在的，否則 `json.dumps(input)`；依 Budgets 截斷。`description` 排最後，只有 `Agent` 這類沒有前面幾個鍵的呼叫會用到。例外：規則 3 `shell` 的 `current`（背景 Bash）先取 `description`、沒有才取 `command`，要讓人看出那個背景 shell 在做什麼（2026-09-26 修正）。
   - `entryId`：`question`／`permission` 用那個 tool_use 的 `id`；其他用 `<state>:<statusUpdatedAt>`。`since` 用 `statusUpdatedAt`。
 - **claude_rows 規則：** glob `<config_root>/sessions/*.json`（不開 `*.key`）；`kind` 存在且不是 `interactive` → 略過；`pidDomain` 平台不符（或 Windows 上主機名不分大小寫不符）→ `unknown` 列、不做存活檢查；`check_alive(pid, procStart, exact=False)`：`gone` → 略過，`alive-unverified` → notes 加「存活：推斷」；transcript 用 `usage_collector.session_transcript(os.path.join(config_root, "projects"), cwd, sessionId)`，None 時檔尾是 `[]`（所以 `waiting` 會落在 `attention`）。
 - **Errors:** 單一登記檔讀不了或 JSON 壞 → 略過並在 problems 加一行；絕不讓一個檔的錯誤中斷整輪。
@@ -741,7 +742,7 @@ sequenceDiagram
 | 兩個實例同時啟動會收斂成一個 | integration | 兩個 `serve` 指向同一 TMPDIR、不同 port，等 3 次輪詢 | unit 5 合併 |
 | V3：Host 不符 403、token 缺或錯 403、沒有 CORS 標頭、HTML 帶 CSP | unit | 以 `http.client` 對測試 port 送請求 | unit 5 合併 |
 | XSS：`PAGE_HTML` 的每一個 `${...}` 插值都以 `esc(` 開頭或在 `SAFE_INTERPOLATIONS` 裡；`SAFE_INTERPOLATIONS` 不含任何快照裡的字串欄位名 | unit | 以正規式掃 `PAGE_HTML`（`tests/test_viewer_page.py`） | unit 5 合併 |
-| AC4 Claude：執行中、提問未答、等權限（`waitingFor` 分別是 `permission prompt` 與 `input needed` 兩種讀法都判成權限）、`idle`、`shell`、過時 `busy`、`attention`、resume 換 sessionId、未知 `status` | unit | 合成的登記檔與 transcript fixture（形狀依 unit 2 第一步核對的鍵名） | unit 2 合併 |
+| AC4 Claude：執行中、提問未答、等權限（`waitingFor` 分別是 `permission prompt` 與 `input needed` 兩種讀法都判成權限）、`idle`、`shell`（執行中；`current` 取有 description 的背景 Bash、只有 command 的取 command、已收到 task-notification 的不算、找不到為空）、過時 `busy`、`attention`、resume 換 sessionId、未知 `status` | unit | 合成的登記檔與 transcript fixture（形狀依 unit 2 第一步核對的鍵名） | unit 2 合併 |
 | AC2：`kind` 非 interactive 不列、已結束不列、`pidDomain` 不符為未知 | unit | 同上加假的 `check_alive` | unit 2 合併 |
 | AC4 Codex：執行中、同步提問、非同步提問、一輪做完、`failed`、推斷的等權限（29 秒不是、31 秒是）、subagent 排除、`codex_exec` 排除（G3） | unit | 合成的 sqlite（以 `sqlite3` 在 tmp_path 建）與 rollout fixture | unit 3 合併 |
 | D6：K 為 0 時沒有 Codex 列；K 個名額先給 `inProgress` | unit | 同上，`process_count` 直接傳 | unit 3 合併 |
