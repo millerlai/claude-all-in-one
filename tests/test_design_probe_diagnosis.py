@@ -134,3 +134,120 @@ def test_the_ceiling_is_higher_than_a_stance():
     keeps the reason: a diagnosis carries reproduction steps and the evidence
     behind the cause, and a stance carries neither."""
     assert design_probe.DIAGNOSIS_MAX_LINES > design_probe.STANCE_MAX_LINES
+
+
+# A detail design whose sole upstream is an approved diagnosis: `## Reference`
+# names it and nothing else. The diagnosis fixture above is written once and
+# reused with its `## Status` promoted to `approved`, exactly as `build`
+# would find one signed off at Gate 1.
+STANCE_MIN = """# t - stance
+
+## Use cases / Issues
+
+- UC1 - the operator sees which run failed, without opening the log by hand.
+"""
+
+DECISIONS_MIN = """# t - decisions
+
+## Reference
+
+Stance doc: t-stance.md
+
+## Tier 1
+
+- nothing decided here yet
+"""
+
+
+def traceability_verdict(text, roots):
+    """(passed, label) for just the `traceability` probe -- the generator is
+    lazy, so this never requires the rest of the document to be complete."""
+    secs = design_probe.sections(text)
+    return next((ok, label) for ok, label in design_probe.PROBES["detail"](secs, text, roots)
+                if label.startswith("traceability "))
+
+
+def approved_diagnosis():
+    return DIAGNOSIS.replace("draft", "approved 2026-09-25", 1)
+
+
+def test_a_detail_after_a_diagnosis_passes_traceability(tmp_path):
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(approved_diagnosis(), encoding="utf-8")
+    detail_text = "## Reference\n\nDiagnosis doc: t-diagnosis.md\n"
+    ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
+    assert ok is True
+    assert str(diag_path) in label
+
+
+def test_two_diagnoses_referenced_both_named(tmp_path):
+    """AC3: more than one diagnosis in `## Reference` is a defined case, not
+    an accident of which one happened to resolve first -- both paths show up
+    in the label so a reader can check either."""
+    diag1 = tmp_path / "a-diagnosis.md"
+    diag2 = tmp_path / "b-diagnosis.md"
+    diag1.write_text(approved_diagnosis(), encoding="utf-8")
+    diag2.write_text(approved_diagnosis(), encoding="utf-8")
+    detail_text = "## Reference\n\na-diagnosis.md\nb-diagnosis.md\n"
+    ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
+    assert ok is True
+    assert str(diag1) in label and str(diag2) in label
+
+
+def test_a_stance_with_heading_but_no_ids_still_fails(tmp_path):
+    """AC4: no regression for the shape this probe already caught -- a
+    heading present with nothing under it is still a gap, not "not
+    applicable"."""
+    stance_path = tmp_path / "t-stance.md"
+    stance_path.write_text("# t - stance\n\n## Use cases / Issues\n\n"
+                            "Nothing numbered here yet.\n", encoding="utf-8")
+    detail_text = "## Reference\n\nStance doc: t-stance.md\n"
+    ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert "numbers no use cases" in label
+
+
+def test_diagnosis_then_stance_still_traces_the_stance(tmp_path):
+    """AC4: `[diagnosis, stance]` order skips the diagnosis (it has no `##
+    Use cases / Issues` at all) and traces the stance that follows it --
+    reaching UC1 passes, missing it still FAILs."""
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(approved_diagnosis(), encoding="utf-8")
+    stance_path = tmp_path / "t-stance.md"
+    stance_path.write_text(STANCE_MIN, encoding="utf-8")
+    reference = "## Reference\n\nt-diagnosis.md\nt-stance.md\n"
+
+    ok, label = traceability_verdict(reference + "\nUC1 is satisfied here.\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is True
+    assert "all 1 use case(s) reached" in label
+
+    ok, label = traceability_verdict(reference + "\nNothing in this detail traces it.\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert "UC1" in label
+
+
+def test_decisions_first_then_stance_still_traces_the_stance(tmp_path):
+    """The fix's side effect the diagnosis calls out: a `## Reference` that
+    lists the decisions document first used to FAIL for the same root cause
+    as the diagnosis path, since decisions has no `## Use cases / Issues`
+    either. It now traces the stance that follows -- reaching UC1 passes,
+    missing it still FAILs, the same pair `test_diagnosis_then_stance_still_
+    traces_the_stance` checks for the diagnosis-first order, so a fix that
+    only handled the passing half of this path would not go unnoticed."""
+    decisions_path = tmp_path / "t-decisions.md"
+    decisions_path.write_text(DECISIONS_MIN, encoding="utf-8")
+    stance_path = tmp_path / "t-stance.md"
+    stance_path.write_text(STANCE_MIN, encoding="utf-8")
+    reference = "## Reference\n\nt-decisions.md\nt-stance.md\n"
+
+    ok, label = traceability_verdict(reference + "\nUC1 is satisfied here.\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is True
+    assert "all 1 use case(s) reached" in label
+
+    ok, label = traceability_verdict(reference + "\nNothing in this detail traces it.\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert "UC1" in label
