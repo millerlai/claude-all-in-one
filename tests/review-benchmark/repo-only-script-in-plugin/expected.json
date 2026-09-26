@@ -1,0 +1,16 @@
+{
+  "base_sha": "e6e81cd",
+  "base_ref": "origin/backup/bench-convention-case",
+  "expected": [
+    {
+      "lens": "conformance",
+      "file": "plugins/cai/scripts/review_benchmark_cases.py",
+      "line_start": 1,
+      "line_end": 40,
+      "severity": "Major",
+      "cause": "A maintainer-only script that lists this repo's tests/review-benchmark/ cases sits in plugins/cai/scripts/, invoked by no shipped component and computing the repo root from its own path -- against CLAUDE.md:47-48 (Ours stays out of plugins/cai/) and CLAUDE.md:41-45 (Theirs may not assume this repo's layout)"
+    }
+  ],
+  "expected_absent": [],
+  "notes": "Constructed sample for issue 152, not a historical defect: the script exists only on origin/backup/bench-convention-case and never reached main. Measures the conformance lens given CLAUDE.md and no written requirement (stage-verify.md:67-72). diff.patch is stored without the commit message. Procedure step 2's '(none exist this round)' predates this case; no apply step is needed because base_sha already carries the defect."
+}
