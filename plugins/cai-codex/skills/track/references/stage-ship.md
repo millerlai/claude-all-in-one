@@ -5,15 +5,15 @@ stage, and by `$ship` when someone runs the stage standing alone, with
 no track underneath it. The procedure below is the same either way.
 
 **On Codex, this stage prepares only and never runs the irreversible
-operations below** — merging, tagging, publishing, and closing the linked
-ticket. No subagent runs an irreversible git/gh operation here: after
+operations below** — merging, tagging, publishing. No subagent runs an irreversible git/gh operation here: after
 the person confirms, the main session runs them itself. That confirmation
 is one of the two human gates the track never skips; running this stage
-standing alone does not remove it. Closing the ticket joins this same gate
-rather than adding a third — see `references/ticket-mirror.md`'s ship
-section for that confirmation's own separate item. The sandbox's own push
-approval prompt is untested through release — do not treat it as a
-second safety net; Gate 2 is the only confirmation you can rely on.
+standing alone does not remove it. With ticket mirroring on,
+`references/ticket-mirror.md`'s ship section adds one separate item, the
+ticket comment. Closing the ticket is not one of this stage's operations:
+`$track done` offers it instead. The sandbox's own push approval
+prompt is untested through release — do not treat it as a second safety
+net; Gate 2 is the only confirmation you can rely on.
 
 **Every confirmation here is a menu**, quoting the exact commands about to
 run — never a sentence the person types a word back into.

@@ -102,8 +102,26 @@ def test_gate_2_and_ship_items_grant_nothing_on_timeout(plugin_root):
     assert "Gate 2" in section
     assert "the squash" in section
     assert "the ticket comment" in section
-    assert "closing the ticket" in section
     assert "None of it runs" in section
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_claim_menu_grants_nothing_on_timeout(plugin_root):
+    section = _section(plugin_root)
+    assert "The claim menu (`ticket-mirror.md`)" in section
+    assert "Nothing is created, pointed or resumed" in section
+    assert ".claude/track/current` is not written" in section
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_close_at_done_grants_nothing_on_timeout(plugin_root):
+    # `/cai:track` becomes `$track` on the Codex tree (gen-codex.py's
+    # `/cai:` -> `$` rewrite), so match on what survives the rewrite.
+    section = _section(plugin_root)
+    assert "Closing the ticket at" in section
+    assert "track done` (`ticket-mirror.md`)" in section
+    assert "`transition` does not run" in section
+    assert "a new session never asks it" in section
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])

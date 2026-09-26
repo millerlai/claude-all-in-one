@@ -137,8 +137,9 @@ def test_skill_md_body_is_128_lines():
 def test_human_gates_still_names_exactly_two_and_no_more():
     """The rule this feature had to fit inside, asserted by content.
 
-    Closing a ticket joins ship's existing list of irreversible operations;
-    it does not become a third gate. This was originally written as
+    Closing a ticket is no longer one of ship's irreversible operations at
+    all -- `/cai:track done`'s close menu offers it instead -- and neither
+    move ever added a third gate. This was originally written as
     "byte-identical to HEAD", which stops meaning anything the moment the
     change is committed -- HEAD then contains the very text being compared,
     so it passes no matter what happened to it. Asserting the sentences

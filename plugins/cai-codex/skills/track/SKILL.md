@@ -99,9 +99,9 @@ Exactly two stages stop for a person, never more:
 - **After `design`** — before any code exists, a person signs off on the
   design artifact. Do not start `build` without that sign-off.
 - **Before the irreversible operations in `ship`** — merging, tagging,
-  publishing, and closing the linked ticket. Confirm with the person before
-  running them, then run them yourself: no subagent runs an irreversible
-  git/gh operation here, so `ship`'s own dispatched stage only prepares.
+  publishing. Confirm with the person before running them, then run them
+  yourself: no subagent runs an irreversible git/gh operation here, so
+  `ship`'s own dispatched stage only prepares.
 
 Both are asked with `request_user_input` if it is in your tool list — a
 menu, labelled options; only when it is not in your tool list, ask with
@@ -136,6 +136,6 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 
 ## `$track done`
 
-First run `<cai> track_state left-open` and relay its output verbatim — skipped when the refusal below fires.
+First run `<cai> track_state left-open` and relay its output verbatim, then follow `<cai-root>/skills/track/references/ticket-mirror.md`'s `$track done` section, which says what runs after the move too — all skipped when the refusal below fires.
 Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.

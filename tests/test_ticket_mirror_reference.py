@@ -138,3 +138,58 @@ def test_warns_that_pointing_late_is_silent():
     text = _flat()
     assert "before the" in text and "first stage runs" in text
     assert "quietly unlinked" in text
+
+
+# --- Unit 6: the claim menu, the naming-collision rule, the claim -----------
+# --- projection before intake's dispatch ------------------------------------
+
+
+def test_states_claims_line_and_claim_menu():
+    text = _flat()
+    assert "claims: <n>" in text
+    assert "[cai track: <name>]" in text
+    assert "A claim is a notice, not a lock" in text
+    assert "Continue — name a new track" in text
+    assert "with Stop recommended" in text
+
+
+def test_states_resume_offer_and_naming_of_further_claims():
+    text = _flat()
+    assert "local: resumable" in text
+    assert 'offer "Resume <name>" for each of the first two such lines' in text
+    assert "the first of them recommended in place of Stop" in text
+    assert "name any further one in the message for `/cai:track <name>`" in text
+    assert "local: finished" in text
+
+
+def test_states_resume_writes_current_and_carries_on():
+    text = _flat()
+    assert "Resume writes `<name>` alone into `.claude/track/current`" in text
+    assert "carries on exactly as `/cai:track <name>` does" in text
+
+
+def test_states_claim_check_failure_category():
+    text = _flat()
+    assert "read: <category>" in text
+    assert 'never as "no claims"' in text
+
+
+def test_states_naming_collision_rule():
+    text = _flat()
+    assert "Never a name a listed claim carries" in text
+    assert "add `-2`, then `-3`" in text
+    assert "edit that claim's comment in place" in text
+
+
+def test_states_free_text_refusal_rule():
+    text = _flat()
+    assert "exactly matches a listed claim's name is refused" in text
+    assert "say which claim carries it, and ask again" in text
+
+
+def test_states_claim_projection_before_intake_dispatch():
+    text = _flat()
+    assert "Right after that read, run `ticket.py project" in text
+    assert "unless the read said this track has no ticket pointer" in text
+    assert "status: in-progress` over six still-empty rows" in text
+    assert "A failed projection prints one line; dispatch intake anyway" in text

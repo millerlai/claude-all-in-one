@@ -504,3 +504,72 @@ def test_show_command_via_main_exits_0(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["ticket.py", "show", "--track-dir", str(tmp_path)])
     rc = ticket.main()
     assert rc == 0
+
+
+# --- Unit 5: `final` threads through project() into the rendered body ------
+
+def test_project_final_true_renders_status_done_in_the_sent_body(tmp_path, monkeypatch):
+    track = tmp_path / "track"
+    track.mkdir()
+    make_state_md(track)
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    set_pointer(track, "recording-stub", "48")
+    backend = RecordingBackend()
+    register(monkeypatch, backend)
+
+    rc = ticket.project(str(track), str(project_dir), final=True)
+    assert rc == "ok"
+    assert len(backend.comments) == 1
+    assert "status: done" in backend.comments[0]["body"]
+
+
+def test_project_final_default_false_renders_status_in_progress(tmp_path, monkeypatch):
+    track = tmp_path / "track"
+    track.mkdir()
+    make_state_md(track)
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    set_pointer(track, "recording-stub", "48")
+    backend = RecordingBackend()
+    register(monkeypatch, backend)
+
+    rc = ticket.project(str(track), str(project_dir))
+    assert rc == "ok"
+    assert "status: in-progress" in backend.comments[0]["body"]
+
+
+def test_main_final_flag_reaches_project(tmp_path, monkeypatch):
+    track = tmp_path / "track"
+    track.mkdir()
+    make_state_md(track)
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    set_pointer(track, "recording-stub", "48")
+    backend = RecordingBackend()
+    register(monkeypatch, backend)
+
+    monkeypatch.setattr(sys, "argv",
+                        ["ticket.py", "project", "--track-dir", str(track),
+                         "--project-dir", str(project_dir), "--final"])
+    rc = ticket.main()
+    assert rc == 0
+    assert "status: done" in backend.comments[0]["body"]
+
+
+def test_main_without_final_flag_defaults_to_in_progress(tmp_path, monkeypatch):
+    track = tmp_path / "track"
+    track.mkdir()
+    make_state_md(track)
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    set_pointer(track, "recording-stub", "48")
+    backend = RecordingBackend()
+    register(monkeypatch, backend)
+
+    monkeypatch.setattr(sys, "argv",
+                        ["ticket.py", "project", "--track-dir", str(track),
+                         "--project-dir", str(project_dir)])
+    rc = ticket.main()
+    assert rc == 0
+    assert "status: in-progress" in backend.comments[0]["body"]
