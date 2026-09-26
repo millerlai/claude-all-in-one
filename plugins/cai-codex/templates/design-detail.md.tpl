@@ -28,10 +28,16 @@
   has its options draft. A legacy
   high-level design works too -- the probe reads `## Use cases / Issues` from
   whichever it is pointed at.
+
+  Elaborating an approved diagnosis instead: name it below and drop the
+  traceability table -- a diagnosis numbers no use cases, so the probe
+  passes this check as not applicable; build starts from its
+  `## Failing test`.
 -->
 
 Stance doc: docs/design/<YYYY-MM-DD>-<topic>-stance.md
 Decisions doc: docs/design/<YYYY-MM-DD>-<topic>-decisions.md
+Diagnosis doc: docs/design/<YYYY-MM-DD>-<topic>-diagnosis.md
 Status: approved <YYYY-MM-DD>
 
 ### Traceability
@@ -42,7 +48,7 @@ Status: approved <YYYY-MM-DD>
   build — report it, never quietly drop the row.
 -->
 
-| From the high-level design | Satisfied by | Status |
+| From the referenced document | Satisfied by | Status |
 |---|---|---|
 | UC1 | … | covered |
 

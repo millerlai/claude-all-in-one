@@ -493,27 +493,53 @@ def citation_problem(row, roots):
 def detail_probes(secs, text, roots):
     yield probe_headings(secs, DETAIL_HEADINGS)
 
-    hld = None
+    resolved = []
     for cand in re.findall(r"[\w./\\-]+\.md", COMMENT.sub("", secs.get("Reference", ""))):
         # A sibling of this document is the likely shape, so look there first.
-        hld = resolve(cand, *reversed(roots))
-        if hld:
-            break
+        p = resolve(cand, *reversed(roots))
+        if p:
+            resolved.append(p)
+    hld = resolved[0] if resolved else None
     yield hld is not None, "reference_resolves (%s)" % (
         hld or "## Reference names no readable .md")
 
-    if hld:
-        with open(hld, encoding="utf-8") as fh:
-            hsecs = sections(fh.read())
-        want = set(UC_ID.findall(hsecs.get("Use cases / Issues", "")))
-        missing = sorted(want - set(UC_ID.findall(text)))
-        if not want:
-            note, ok = "the high-level design numbers no use cases", False
-        elif missing:
-            note, ok = "%d unreferenced: %s" % (
-                len(missing), ", ".join(missing[:5])), False
+    if resolved:
+        parsed = []
+        for p in resolved:
+            with open(p, encoding="utf-8") as fh:
+                parsed.append((p, sections(fh.read())))
+        # The traceability source is the first upstream that actually numbers
+        # use cases, not whichever the ## Reference lists first -- a diagnosis
+        # or a decisions document ahead of it in that list numbers nothing on
+        # its own, and picking it by position alone FAILed every time.
+        source = next((s for _, s in parsed if "Use cases / Issues" in s), None)
+        if source is not None:
+            want = set(UC_ID.findall(source.get("Use cases / Issues", "")))
+            missing = sorted(want - set(UC_ID.findall(text)))
+            if not want:
+                note, ok = "the high-level design numbers no use cases", False
+            elif missing:
+                note, ok = "%d unreferenced: %s" % (
+                    len(missing), ", ".join(missing[:5])), False
+            else:
+                note, ok = "all %d use case(s) reached" % len(want), True
         else:
-            note, ok = "all %d use case(s) reached" % len(want), True
+            # No upstream numbers use cases -- if one is a diagnosis, that is
+            # by design: its promise is the failing test named in the
+            # diagnosis, not a UC/R id, so this is not a gap.
+            diagnoses = [p for p, s in parsed if "Failing test" in s]
+            if diagnoses:
+                if len(diagnoses) == 1:
+                    note = ("not applicable -- %s is a diagnosis and numbers "
+                             "no use cases; build starts from its ## Failing "
+                             "test") % diagnoses[0]
+                else:
+                    note = ("not applicable -- %s are diagnoses and number "
+                             "no use cases; build starts from their ## "
+                             "Failing test") % ", ".join(diagnoses)
+                ok = True
+            else:
+                note, ok = "the high-level design numbers no use cases", False
         yield ok, "traceability (%s)" % note
 
     glo = items(secs.get("Glossary", ""))
