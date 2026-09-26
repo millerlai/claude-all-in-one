@@ -68,6 +68,7 @@ EXCLUDE_FILES = {
     "scripts/gen-models.py",
     "scripts/gen-commands.py",
     "scripts/model_choice.py",  # rewrites an installed Claude Code copy; Codex has install_codex.py
+    "scripts/review_benchmark_cases.py",
 }
 
 # The hand-written files (D18) -- the generator never writes or deletes
