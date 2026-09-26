@@ -442,13 +442,16 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    `## Tier 1` entries each carry a `Decided:` line. Any failing, stop and say
    which. (A legacy high-level design instead: `## Status` approved,
    `## Open questions` empty or every entry answered, use cases numbered.)
+   (An approved diagnosis instead: `## Status` approved with a date. It
+   numbers no use cases, so the probe passes traceability as not applicable;
+   build starts from its `## Failing test`.)
 
    An unanswered Tier 1 entry is an architecture question this document would
    otherwise settle by accident, one implementation detail at a time.
 1. **Ground it in the real directory.** Read the target project directory;
    every claim about existing code resolves to a real `file:line` you have
    opened. Write to `docs/design/<YYYY-MM-DD>-<topic>-detail.md`, same
-   `<topic>` as the stance. Copy
+   `<topic>` as the stance, or the diagnosis. Copy
    `${CLAUDE_PLUGIN_ROOT}/templates/design-detail.md.tpl`, fill it in, same
    heading discipline as the modes above.
 2. **Four tables before any prose:** the `## Reference` block (path + status
@@ -552,7 +555,8 @@ enough to sign again** after it changes.
 **Which path goes in the track's `design` row:** the document `build` reads —
 the detail design when Detail mode ran, otherwise the last document this
 stage wrote. A detail design's `## Reference` names the stance and the
-decisions it elaborates, so a reader who starts there reaches all three.
+decisions it elaborates, so a reader who starts there reaches all three. On
+the diagnosis path it names the diagnosis instead, and reaches that one.
 `preflight.py` reads that cell, picks the kind off the suffix, and runs the
 matching probe; Gate 1's Approve fingerprints the same file. Not because the
 person reads the build spec line by line — they sign the entrance's
