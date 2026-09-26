@@ -158,6 +158,28 @@ def test_timeline_css_is_restored():
     assert ".timeline{" in viewer.PAGE_HTML or ".timeline {" in viewer.PAGE_HTML
 
 
+# =============================== AC4/AC5: Codex lock note, 執行中（背景） ====
+
+def test_footer_has_the_codex_lock_note_hidden_by_default():
+    match = re.search(r'<span id="codexLockNote" hidden>(.*?)</span>', viewer.PAGE_HTML)
+    assert match, "expected a hidden #codexLockNote span in the footer"
+    assert "thread-writer-locks" in match.group(1)
+
+
+def test_poll_toggles_the_codex_lock_note():
+    js_text = _script_body(viewer.PAGE_HTML)
+    assert ("document.getElementById('codexLockNote').hidden = "
+           "data.codexLockDirMissing !== true;") in js_text
+
+
+def test_state_label_shows_background_working():
+    js_text = _script_body(viewer.PAGE_HTML)
+    assert "執行中（背景）" in js_text
+    match = re.search(r"if \(row\.state === 'working'\) return (\{.*?\});", js_text)
+    assert match, "expected stateLabel()'s working-state return"
+    assert "row.background === true" in match.group(1)
+
+
 def test_timeline_lives_inside_the_row_article():
     """The mockup's own `${tl}` placement is a sibling *after* `</article>`,
     which the render() DOM-parse (`tmp.firstElementChild`) then silently

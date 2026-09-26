@@ -63,48 +63,21 @@ USAGE = ("usage: viewer.py [start [--port N]] | stop | serve --port N")
 
 
 # =========================================================== liveness ====
-# Answers "is this pid still the process I started" and "how many codex
-# processes are running" without ever sending a signal -- os.kill(pid, 0)
-# would "work" but a pid can be reused the instant the original process
-# exits, so a signal-based check can true-positive against a stranger that
-# happens to reuse the number. This is invariant V2 and has its own test
-# (test_no_os_kill_is_ever_called in tests/test_viewer_liveness.py).
-
-CODEX_APP_SERVER_MARKER = "app-server"
-
-
-def _is_app_server(text):
-    """True for a codex process that is the app-server -- the VS Code
-    extension's managed daemon (its image lives under
-    packages/app-server-daemon/) or a `codex app-server` -- which serves
-    threads but is not an interactive session, so it must not count as
-    one. Windows judges by the image path, Linux by the command line."""
-    return isinstance(text, str) and CODEX_APP_SERVER_MARKER in text.lower()
-
+# Answers "is this pid still the process I started" without ever sending a
+# signal -- os.kill(pid, 0) would "work" but a pid can be reused the instant
+# the original process exits, so a signal-based check can true-positive
+# against a stranger that happens to reuse the number. This is invariant V2
+# and has its own test (test_no_os_kill_is_ever_called in
+# tests/test_viewer_liveness.py).
 
 if os.name == "nt":
     class _FILETIME(ctypes.Structure):
         _fields_ = [("dwLowDateTime", ctypes.c_uint32),
                     ("dwHighDateTime", ctypes.c_uint32)]
 
-    class _PROCESSENTRY32W(ctypes.Structure):
-        _fields_ = [
-            ("dwSize", ctypes.c_uint32),
-            ("cntUsage", ctypes.c_uint32),
-            ("th32ProcessID", ctypes.c_uint32),
-            ("th32DefaultHeapID", ctypes.c_void_p),
-            ("th32ModuleID", ctypes.c_uint32),
-            ("cntThreads", ctypes.c_uint32),
-            ("th32ParentProcessID", ctypes.c_uint32),
-            ("pcPriClassBase", ctypes.c_long),
-            ("dwFlags", ctypes.c_uint32),
-            ("szExeFile", ctypes.c_wchar * 260),
-        ]
-
     _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
     _ERROR_ACCESS_DENIED = 5
     _STILL_ACTIVE = 259
-    _TH32CS_SNAPPROCESS = 0x2
 
     def _win_kernel32():
         k = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -115,31 +88,7 @@ if os.name == "nt":
         k.GetProcessTimes.argtypes = [ctypes.c_void_p, ctypes.POINTER(_FILETIME),
                                       ctypes.POINTER(_FILETIME), ctypes.POINTER(_FILETIME),
                                       ctypes.POINTER(_FILETIME)]
-        k.CreateToolhelp32Snapshot.restype = ctypes.c_void_p
-        k.CreateToolhelp32Snapshot.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
-        k.Process32FirstW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_PROCESSENTRY32W)]
-        k.Process32NextW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_PROCESSENTRY32W)]
-        k.QueryFullProcessImageNameW.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
-                                                  ctypes.c_wchar_p,
-                                                  ctypes.POINTER(ctypes.c_uint32)]
         return k
-
-    def _process_image_path_windows(pid):
-        try:
-            kernel32 = _win_kernel32()
-            handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-            if handle is None:
-                return None
-            try:
-                size = ctypes.c_uint32(1024)
-                buf = ctypes.create_unicode_buffer(size.value)
-                if not kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
-                    return None
-                return buf.value
-            finally:
-                kernel32.CloseHandle(handle)
-        except Exception:
-            return None
 
     def _process_start_windows(pid):
         try:
@@ -190,30 +139,6 @@ if os.name == "nt":
         finally:
             kernel32.CloseHandle(handle)
 
-    def _count_processes_windows(name, skip_app_server=False):
-        try:
-            kernel32 = _win_kernel32()
-            snap = kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPPROCESS, 0)
-            invalid = ctypes.c_void_p(-1).value
-            if snap is None or snap == invalid:
-                return 0
-            try:
-                entry = _PROCESSENTRY32W()
-                entry.dwSize = ctypes.sizeof(_PROCESSENTRY32W)
-                count = 0
-                found = kernel32.Process32FirstW(snap, ctypes.byref(entry))
-                while found:
-                    if (entry.szExeFile.lower() == name.lower()
-                            and not (skip_app_server and _is_app_server(
-                                _process_image_path_windows(entry.th32ProcessID)))):
-                        count += 1
-                    found = kernel32.Process32NextW(snap, ctypes.byref(entry))
-                return count
-            finally:
-                kernel32.CloseHandle(snap)
-        except Exception:
-            return 0
-
 else:
     def _read_proc_stat_fields(pid):
         """Fields after the last ')' in /proc/<pid>/stat, index 0 == whole
@@ -256,34 +181,6 @@ else:
             return "alive"
         return "gone" if exact else "alive-unverified"
 
-    def _count_processes_linux(name, skip_app_server=False):
-        try:
-            count = 0
-            for entry in os.listdir("/proc"):
-                if not entry.isdigit():
-                    continue
-                try:
-                    with open("/proc/%s/comm" % entry, encoding="utf-8") as fh:
-                        if fh.read().strip() != name:
-                            continue
-                except OSError:
-                    continue
-                if skip_app_server:
-                    # An unreadable command line counts as interactive, the
-                    # same as an unreadable image path on Windows.
-                    try:
-                        with open("/proc/%s/cmdline" % entry, "rb") as fh:
-                            cmdline = fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
-                    except OSError:
-                        cmdline = None
-                    if _is_app_server(cmdline):
-                        continue
-                count += 1
-            return count
-        except Exception:
-            return 0
-
-
 def process_start(pid):
     if os.name == "nt":
         return _process_start_windows(pid)
@@ -294,15 +191,6 @@ def check_alive(pid, expected_start, exact):
     if os.name == "nt":
         return _check_alive_windows(pid, expected_start, exact)
     return _check_alive_linux(pid, expected_start, exact)
-
-
-def count_processes(name, skip_app_server=False):
-    """How many processes are named `name`; with skip_app_server, minus the
-    ones _is_app_server() recognises -- the number of interactive Codex
-    sessions rather than of codex processes."""
-    if os.name == "nt":
-        return _count_processes_windows(name, skip_app_server)
-    return _count_processes_linux(name, skip_app_server)
 
 
 # ========================================================= state-file ====
@@ -638,6 +526,7 @@ footer code{background:var(--panel2);border:1px solid var(--border);padding:1px 
 <main id="list"></main>
 
 <footer>
+  <span id="codexLockNote" hidden>Codex：找不到 thread-writer-locks，無法判斷哪個 session 開著<br></span>
   回答問題、核准權限、簽核仍然在終端機做；這一頁只負責讓你<b>看見</b>誰在等你。<br>
   同一張表列出 Claude Code 與 Codex 的主 session。「可能在等權限」只出現在 Codex 的列上，是推斷出來的：
   一次工具呼叫超過 30 秒還沒有結果就算，只是跑得比較久的呼叫看起來會一樣；
@@ -738,7 +627,7 @@ function stateLabel(row){
   }
   if (row.state === 'attention') return {label:'等你處理', icon:'⚠️'};
   if (row.state === 'done') return {label:'完成，等指示', icon:'✅'};
-  if (row.state === 'working') return {label:'執行中', icon:''};
+  if (row.state === 'working') return {label: row.background === true ? '執行中（背景）' : '執行中', icon:''};
   return {label:'未知', icon:''};
 }
 
@@ -1012,6 +901,7 @@ async function poll(){
   ringForRows(data.rows);
   rows = data.rows;
   lastGeneratedAt = data.generatedAt;
+  document.getElementById('codexLockNote').hidden = data.codexLockDirMissing !== true;
   render();
 }
 
@@ -1395,6 +1285,13 @@ CLAUDE_SUBAGENT_TOOLS = ("Agent", "Task")
 CLAUDE_BACKGROUND_TOOLS = CLAUDE_SUBAGENT_TOOLS + ("Workflow",)
 ASYNC_LAUNCHED_STATUS = "async_launched"
 TASK_NOTIFICATION_TAG = "<task-notification>"
+# V8 (docs/design/2026-09-26-viewer-live-status-stance.md:29): the pending
+# counts a turn_duration row may carry, and the <task-notification> statuses
+# that count as a background launch having finished. Both lists are closed
+# on purpose (decisions Ruled out) -- a key or status not named here is not
+# background work, even if a future Claude Code adds one.
+CLAUDE_PENDING_COUNT_KEYS = ("pendingBackgroundAgentCount", "pendingWorkflowCount")
+TASK_END_STATUSES = ("completed", "failed", "killed", "stopped")
 
 
 def _subagent_name(block):
@@ -1404,6 +1301,29 @@ def _subagent_name(block):
     tool_input = tool_input if isinstance(tool_input, dict) else {}
     name = tool_input.get("subagent_type")
     return name if isinstance(name, str) and name else block.get("name")
+
+
+def _task_end(row):
+    """The <task-id> of a queue-operation row that ends a background launch
+    (its <status> is one of TASK_END_STATUSES), or None -- for any other
+    row, or a queue-operation whose status isn't a closing one. Used by
+    _async_subagents() (pairing -- popping an id this tail never launched
+    is a harmless no-op) and by _last_turn_end() ("does anything after the
+    last turn_duration count as the turn having moved on"), which also
+    checks _launched_task_ids() before trusting a notice: one for some
+    other tail's task -- e.g. a nested subagent's own lens calls, whose
+    notification can land in this transcript instead of theirs -- must not
+    read as this session's turn having moved on (verify 2026-09-26)."""
+    if row.get("type") != "queue-operation":
+        return None
+    content = row.get("content")
+    if not (isinstance(content, str) and TASK_NOTIFICATION_TAG in content):
+        return None
+    status = content.partition("<status>")[2].partition("</status>")[0]
+    if status not in TASK_END_STATUSES:
+        return None
+    task_id = content.partition("<task-id>")[2].partition("</task-id>")[0]
+    return task_id or None
 
 
 def _async_subagents(tail):
@@ -1425,9 +1345,8 @@ def _async_subagents(tail):
     for row in tail:
         row_type = row.get("type")
         if row_type == "queue-operation":
-            content = row.get("content")
-            if isinstance(content, str) and TASK_NOTIFICATION_TAG in content:
-                task_id = content.partition("<task-id>")[2].partition("</task-id>")[0]
+            task_id = _task_end(row)
+            if task_id is not None:
                 running.pop(task_id, None)
             continue
         message = row.get("message")
@@ -1525,11 +1444,103 @@ def _claude_subagents(tail):
 
 def _turn_still_pending(row):
     """True when a turn_duration row says the turn ended with background
-    work still running -- any pending*Count above zero
-    (pendingBackgroundAgentCount, pendingWorkflowCount seen so far)."""
-    return any(key.startswith("pending") and key.endswith("Count")
-               and isinstance(row[key], (int, float)) and row[key] > 0
-               for key in row)
+    work still running -- either of CLAUDE_PENDING_COUNT_KEYS above zero."""
+    return any(isinstance(row.get(key), (int, float)) and row[key] > 0
+               for key in CLAUDE_PENDING_COUNT_KEYS)
+
+
+def _launched_task_ids(tail):
+    """The task ids (agentId/taskId) of every background Agent/Task/Workflow
+    call this tail itself launched, whether or not it has since ended.
+    _last_turn_end() needs this to tell "our own background task ended"
+    from "some other tail's task notification landed in this one" -- four
+    of this session's own nested review-lens subagents' completion notices
+    were seen interleaved into the parent session's transcript instead of
+    staying in the lens's own (verify 2026-09-26, AC8 live check). Scans
+    the same rows _async_subagents() does, but keeps every id it ever saw
+    launched instead of dropping the ones a later notification removed."""
+    calls = {}
+    ids = set()
+    for row in tail:
+        row_type = row.get("type")
+        message = row.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        if row_type == "assistant":
+            for block in content:
+                if (isinstance(block, dict) and block.get("type") == "tool_use"
+                        and block.get("name") in CLAUDE_BACKGROUND_TOOLS):
+                    calls[block.get("id")] = block
+        elif row_type == "user":
+            result = row.get("toolUseResult")
+            if not (isinstance(result, dict)
+                    and result.get("status") == ASYNC_LAUNCHED_STATUS):
+                continue
+            task_id = result.get("agentId") or result.get("taskId")
+            if not isinstance(task_id, str):
+                continue
+            answered = [block for block in content
+                        if isinstance(block, dict) and block.get("type") == "tool_result"
+                        and block.get("tool_use_id") in calls]
+            if len(answered) != 1:
+                continue
+            ids.add(task_id)
+    return ids
+
+
+def _last_turn_end(tail):
+    """The tail's last turn_duration row, but only if the turn it ended is
+    still the current one -- walking from the tail backwards, a user/
+    assistant row or one of this tail's own background launches ending
+    (_task_end, but only for a task id _launched_task_ids() says this tail
+    launched) means a newer turn has already started, so None. A
+    bookkeeping row, and a completion notice for a task this tail never
+    launched, do not end the search -- Claude Code can write a bookkeeping
+    row (last-prompt, mode, pr-link, cost-state, ...) between a turn_duration
+    and the next user/assistant row without that meaning the turn moved on
+    (decisions D2), and a foreign notice is not evidence of anything this
+    session did (verify 2026-09-26). Known consequence, not coded around: if
+    our own launch fell outside the tail, its notice looks foreign too --
+    harmless, because the main session's own next turn (a user/assistant
+    row) ends the search anyway."""
+    launched_ids = _launched_task_ids(tail)
+    for row in reversed(tail):
+        row_type = row.get("type")
+        if row_type == "system" and row.get("subtype") == "turn_duration":
+            return row
+        if row_type in ("user", "assistant"):
+            return None
+        task_id = _task_end(row)
+        if task_id is not None and task_id in launched_ids:
+            return None
+    return None
+
+
+def _background_pending(tail):
+    """V8: only background work counts. Either signal is enough -- the last
+    turn_duration still counting pending work, or a background launch
+    _async_subagents() has not yet paired with its end."""
+    turn_end = _last_turn_end(tail)
+    return (turn_end is not None and _turn_still_pending(turn_end)) or bool(_async_subagents(tail))
+
+
+def _as_background(result, tail, since):
+    """Mutates `result` into 「執行中（背景）」: `working`/`inferred` with
+    `background: True`, `current` taken from the newest unpaired background
+    launch (None if pairing found none, e.g. the launch itself fell out of
+    the tail -- decisions D4)."""
+    background = _async_subagents(tail)
+    current = None
+    if background:
+        _name, block = background[-1]
+        current = {"tool": block.get("name"),
+                   "input": _param_summary(block.get("input"), ACTION_INPUT_MAX),
+                   "since": since}
+    result["current"] = current
+    result.update(state="working", certainty="inferred",
+                  entryId="working:%s" % since, notes=[], background=True)
+    return result
 
 
 def classify_claude(reg, tail, now_ms):
@@ -1539,7 +1550,8 @@ def classify_claude(reg, tail, now_ms):
     an `in`-check to read one."""
     since = reg["statusUpdatedAt"]
     status = reg.get("status")
-    result = {"since": since, "question": None, "permission": None, "current": None}
+    result = {"since": since, "question": None, "permission": None, "current": None,
+             "background": False}
 
     if status not in KNOWN_CLAUDE_STATUSES:
         result.update(state="unknown", certainty="confirmed",
@@ -1574,6 +1586,8 @@ def classify_claude(reg, tail, now_ms):
         return result
 
     if status == "idle":
+        if _background_pending(tail):
+            return _as_background(result, tail, since)
         result.update(state="done", certainty="confirmed",
                       entryId="done:%s" % since, notes=[])
         return result
@@ -1595,6 +1609,9 @@ def classify_claude(reg, tail, now_ms):
         return result
 
     # status == "busy"
+    if _last_turn_end(tail) is not None and _background_pending(tail):
+        return _as_background(result, tail, since)
+
     last = tail[-1] if tail else None
     # A turn_duration at the tail that still counts pending background work
     # is a turn that ended while a subagent or workflow kept running --
@@ -1722,23 +1739,12 @@ def claude_rows(config_root, now_ms):
 
 CODEX_ROLLOUT_TAIL_MAX = 262144
 CODEX_ROLLOUT_FIRST_LINE_MAX = 65536
-CODEX_RECENT_THREADS_LIMIT = 50
 CODEX_PERMISSION_THRESHOLD_MS = 30000
 CODEX_FALLBACK_MAX_AGE_MS = 24 * 3600 * 1000
 CODEX_FALLBACK_MAX_FILES = 200
-# threads.source / session_meta.source of a thread the VS Code extension
-# opened. The app-server serves it, no codex process of its own exists, so
-# nothing says whether its panel is still open: such a thread is listed
-# only while a turn is in progress and never takes a session slot (the
-# slots count interactive codex processes, see count_processes()).
-CODEX_VSCODE_SOURCE = "vscode"
-
-
-def _codex_session_slots(session_count, confirmed_sources):
-    """Slots left for threads alive by inference: the interactive process
-    count minus the in-progress threads that already occupy one (a VS Code
-    thread occupies none)."""
-    return session_count - len([s for s in confirmed_sources if s != CODEX_VSCODE_SOURCE])
+CODEX_LOCK_DIR = "thread-writer-locks"
+CODEX_LOCK_SUFFIX = ".lock"
+CODEX_THREAD_ID_LENGTH = 36
 
 
 def _codex_event_time_ms(item, tail_mtime_ms):
@@ -1971,6 +1977,31 @@ def _codex_tail_subagents(tail):
     return names
 
 
+# ---- Codex aliveness by lock filename (V9, diagnosis's Fix): a Codex TUI
+# holds a writer lock on its own thread for as long as it's open, so the
+# lock directory's filenames are the set of thread ids actually alive right
+# now -- no process count, no "most recently updated" guess. Only the
+# directory is listed, never a lock file's contents (V1, V9).
+
+def codex_locked_thread_ids(codex_home):
+    """The set of thread ids with an open writer lock under
+    `codex_home`/thread-writer-locks/, or None if that directory cannot be
+    listed (missing, not a directory, no permission)."""
+    lock_dir = os.path.join(codex_home, CODEX_LOCK_DIR)
+    try:
+        names = os.listdir(lock_dir)
+    except OSError:
+        return None
+    ids = set()
+    for name in names:
+        if name.startswith(".") or not name.endswith(CODEX_LOCK_SUFFIX):
+            continue
+        stem = name[:-len(CODEX_LOCK_SUFFIX)]
+        if len(stem) == CODEX_THREAD_ID_LENGTH:
+            ids.add(stem)
+    return ids
+
+
 def _codex_row(thread_id, cwd, name, alive_certainty, turn_status, rollout_path, now_ms):
     tail = read_tail(rollout_path, CODEX_ROLLOUT_TAIL_MAX)
     try:
@@ -2023,18 +2054,15 @@ def _codex_subagents_by_parent(state_conn, thread_ids):
     return result
 
 
-def _codex_rows_primary(state_db, history_db, now_ms, process_count, session_count):
+def _codex_rows_primary(state_db, history_db, now_ms, locked_ids):
     state_conn = sqlite3.connect(_sqlite_uri(state_db), uri=True)
     try:
-        # threads.source arrived with a later Codex than the other columns
-        # here; an older schema without it reads every thread as not VS Code.
-        columns = {row[1] for row in state_conn.execute("PRAGMA table_info(threads)")}
+        placeholders = ",".join("?" * len(locked_ids))
         threads = state_conn.execute(
-            "SELECT id, rollout_path, cwd, updated_at_ms, name, %s FROM threads "
+            "SELECT id, rollout_path, cwd, updated_at_ms, name FROM threads "
             "WHERE archived = 0 AND originator = 'codex-tui' AND thread_source = 'user' "
-            "ORDER BY updated_at_ms DESC LIMIT ?"
-            % ("source" if "source" in columns else "NULL"),
-            (CODEX_RECENT_THREADS_LIMIT,)).fetchall()
+            "AND id IN (%s) ORDER BY updated_at_ms DESC" % placeholders,
+            sorted(locked_ids)).fetchall()
         subagents_by_parent = _codex_subagents_by_parent(state_conn, [t[0] for t in threads])
     finally:
         state_conn.close()
@@ -2042,7 +2070,7 @@ def _codex_rows_primary(state_db, history_db, now_ms, process_count, session_cou
     history_conn = sqlite3.connect(_sqlite_uri(history_db), uri=True)
     try:
         turn_status_by_thread = {}
-        for thread_id, _rollout_path, _cwd, _updated_at_ms, _name, _source in threads:
+        for thread_id, _rollout_path, _cwd, _updated_at_ms, _name in threads:
             row = history_conn.execute(
                 "SELECT status FROM thread_turns WHERE thread_id = ? "
                 "ORDER BY started_at DESC LIMIT 1", (thread_id,)).fetchone()
@@ -2050,26 +2078,9 @@ def _codex_rows_primary(state_db, history_db, now_ms, process_count, session_cou
     finally:
         history_conn.close()
 
-    # Every in-progress thread is listed: the app-server runs any number of
-    # VS Code turns at once, so process_count says nothing about how many
-    # there are (it only had to be non-zero, see codex_rows()).
-    confirmed = [t for t in threads if turn_status_by_thread[t[0]] == "inProgress"]
-    confirmed_ids = {t[0] for t in confirmed}
-    inferred = []
-    remaining_slots = _codex_session_slots(session_count, [t[5] for t in confirmed])
-    if remaining_slots > 0:
-        for t in threads:  # already ordered by updated_at_ms desc
-            if t[0] in confirmed_ids or t[5] == CODEX_VSCODE_SOURCE:
-                continue
-            inferred.append(t)
-            if len(inferred) >= remaining_slots:
-                break
-
-    selected = [(t, "confirmed") for t in confirmed] + [(t, "inferred") for t in inferred]
-
     rows = []
-    for (thread_id, rollout_path, cwd, _updated_at_ms, name, _source), alive_certainty in selected:
-        row = _codex_row(thread_id, cwd, name, alive_certainty,
+    for thread_id, rollout_path, cwd, _updated_at_ms, name in threads:
+        row = _codex_row(thread_id, cwd, name, "inferred",
                          turn_status_by_thread.get(thread_id), rollout_path, now_ms)
         # sqlite is authoritative here, same as turn_status above -- replace
         # the tail-derived fallback subagents list with the real one.
@@ -2078,7 +2089,7 @@ def _codex_rows_primary(state_db, history_db, now_ms, process_count, session_cou
     return rows, []
 
 
-def _codex_rows_fallback(codex_home, now_ms, process_count, session_count):
+def _codex_rows_fallback(codex_home, now_ms, locked_ids):
     rows, problems = [], []
     cutoff_ms = now_ms - CODEX_FALLBACK_MAX_AGE_MS
 
@@ -2092,12 +2103,17 @@ def _codex_rows_fallback(codex_home, now_ms, process_count, session_count):
             continue
         if mtime_ms < cutoff_ms:
             continue
-        candidates.append((path, mtime_ms))
-    candidates.sort(key=lambda pair: pair[1], reverse=True)
+        stem = os.path.basename(path)
+        if stem.endswith(".jsonl"):
+            stem = stem[:-len(".jsonl")]
+        thread_id = stem[-36:]
+        if thread_id not in locked_ids:
+            continue
+        candidates.append((path, mtime_ms, thread_id))
+    candidates.sort(key=lambda entry: entry[1], reverse=True)
     candidates = candidates[:CODEX_FALLBACK_MAX_FILES]
 
-    entries = []  # (path, mtime_ms, thread_id, cwd, source)
-    for path, mtime_ms in candidates:
+    for path, _mtime_ms, thread_id in candidates:
         meta = read_first_line(path, CODEX_ROLLOUT_FIRST_LINE_MAX)
         if meta is None:
             problems.append("unparseable rollout %s" % path)
@@ -2106,41 +2122,18 @@ def _codex_rows_fallback(codex_home, now_ms, process_count, session_count):
         payload = payload if isinstance(payload, dict) else {}
         if payload.get("originator") != "codex-tui" or payload.get("thread_source") != "user":
             continue
-        stem = os.path.basename(path)
-        if stem.endswith(".jsonl"):
-            stem = stem[:-len(".jsonl")]
-        thread_id = stem[-36:]
-        entries.append((path, mtime_ms, thread_id, payload.get("cwd"), payload.get("source")))
-
-    in_progress_entries, other_entries = [], []
-    for entry in entries:
-        path = entry[0]
-        tail = read_tail(path, CODEX_ROLLOUT_TAIL_MAX)
-        in_progress, _certainty = _codex_in_progress(None, tail)
-        (in_progress_entries if in_progress else other_entries).append(entry)
-
-    selected = list(in_progress_entries)  # all of them, as in the sqlite path
-    remaining_slots = _codex_session_slots(session_count, [e[4] for e in selected])
-    if remaining_slots > 0:
-        selected += [e for e in other_entries if e[4] != CODEX_VSCODE_SOURCE][:remaining_slots]
-
-    for path, mtime_ms, thread_id, cwd, _source in selected:
-        row = _codex_row(thread_id, cwd, None, "inferred", None, path, now_ms)
+        row = _codex_row(thread_id, payload.get("cwd"), None, "inferred", None, path, now_ms)
         row["certainty"] = "inferred"
         rows.append(row)
 
     return rows, problems
 
 
-def codex_rows(codex_home, now_ms, process_count, session_count=None):
-    """process_count is every codex process (an in-progress turn needs one,
-    the app-server included, so zero means no Codex row at all);
-    session_count is the interactive ones only, the slots for threads alive
-    by inference. It defaults to process_count for a caller that does not
-    tell them apart."""
-    if session_count is None:
-        session_count = process_count
-    if process_count == 0:
+def codex_rows(codex_home, now_ms, locked_ids):
+    """locked_ids (codex_locked_thread_ids()'s return) is the set of thread
+    ids with an open writer lock right now -- None or empty means no Codex
+    row at all, without opening any sqlite file."""
+    if not locked_ids:
         return [], []
 
     state_db = _highest_numbered_sqlite(codex_home, "state")
@@ -2148,12 +2141,11 @@ def codex_rows(codex_home, now_ms, process_count, session_count=None):
 
     if state_db is not None and history_db is not None:
         try:
-            return _codex_rows_primary(state_db, history_db, now_ms, process_count,
-                                       session_count)
+            return _codex_rows_primary(state_db, history_db, now_ms, locked_ids)
         except sqlite3.Error:
             pass
 
-    rows, problems = _codex_rows_fallback(codex_home, now_ms, process_count, session_count)
+    rows, problems = _codex_rows_fallback(codex_home, now_ms, locked_ids)
     return rows, ["Codex 資料庫讀不了，改看紀錄檔"] + problems
 
 
@@ -2317,10 +2309,8 @@ def build_snapshot(config_root, codex_home, now_ms):
     is the safety net that keeps the previous snapshot on failure, not this
     function."""
     claude_list, claude_problems = claude_rows(config_root, now_ms)
-    codex_exe = "codex.exe" if os.name == "nt" else "codex"
-    process_count = count_processes(codex_exe)
-    session_count = count_processes(codex_exe, skip_app_server=True)
-    codex_list, codex_problems = codex_rows(codex_home, now_ms, process_count, session_count)
+    locked_ids = codex_locked_thread_ids(codex_home)
+    codex_list, codex_problems = codex_rows(codex_home, now_ms, locked_ids)
     problems = claude_problems + codex_problems
 
     rows = claude_list + codex_list
@@ -2337,7 +2327,9 @@ def build_snapshot(config_root, codex_home, now_ms):
         else:
             row["track"] = find_track(cwd, None)
 
-    return {"format": 1, "generatedAt": now_ms, "rows": rows, "problems": problems}
+    codex_lock_dir_missing = locked_ids is None and os.path.isdir(codex_home)
+    return {"format": 1, "generatedAt": now_ms, "rows": rows, "problems": problems,
+           "codexLockDirMissing": codex_lock_dir_missing}
 
 
 class Poller(threading.Thread):

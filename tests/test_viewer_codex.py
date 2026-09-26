@@ -128,6 +128,18 @@ def _thread_id(n):
     return prefix + str(n).zfill(36 - len(prefix))  # 36 chars total
 
 
+def _lock_dir(codex_home, ids):
+    """thread-writer-locks/ with one empty `<id>.lock` per id in `ids`, plus a
+    `.coordination.lock` that must never count as a thread id."""
+    lock_dir = os.path.join(codex_home, "thread-writer-locks")
+    os.makedirs(lock_dir, exist_ok=True)
+    with open(os.path.join(lock_dir, ".coordination.lock"), "w", encoding="utf-8"):
+        pass
+    for tid in ids:
+        with open(os.path.join(lock_dir, tid + ".lock"), "w", encoding="utf-8"):
+            pass
+
+
 # ==================================================== classify_codex ====
 
 def test_empty_tail_is_unknown():
@@ -308,10 +320,150 @@ def test_codex_tail_subagents_excludes_resolved_calls():
     assert viewer._codex_tail_subagents(tail) == []
 
 
+# ============================================ diagnosis's failing tests ====
+# docs/design/2026-09-26-viewer-live-status-diagnosis.md's "Failing test":
+# written first and confirmed to fail on main d514f6b before any fix. Codex
+# aliveness must come from thread-writer-locks' filenames, not from guessing
+# which of the most-recently-updated threads fill a process-counted quota.
+
+def test_build_snapshot_lists_the_locked_thread_whatever_its_source(tmp_path, monkeypatch):
+    codex_home = str(tmp_path)
+    config_root = str(tmp_path / "claude-config")
+    os.makedirs(config_root, exist_ok=True)
+    older_cli = _thread_id(1)  # another project, no lock file
+    newer_vscode = _thread_id(2)  # has a lock file
+    rollout_older = os.path.join(codex_home, "sessions", "rollout-older-%s.jsonl" % older_cli)
+    rollout_newer = os.path.join(codex_home, "sessions", "rollout-newer-%s.jsonl" % newer_vscode)
+    _write_rollout(rollout_older, [_session_meta(source="cli")])
+    _write_rollout(rollout_newer, [_session_meta(source="vscode")])
+    _make_state_db(
+        codex_home, 1,
+        [(older_cli, rollout_older, "D:\\made-up\\other-proj", BASE_MS - 1000, "user",
+          "codex-tui", 0, None),
+         (newer_vscode, rollout_newer, "D:\\made-up\\proj", BASE_MS, "user", "codex-tui", 0, None)],
+        sources={older_cli: "cli", newer_vscode: "vscode"})
+    _make_history_db(codex_home, 1, [(older_cli, "turn-1", "completed", BASE_MS, BASE_MS, 10),
+                                     (newer_vscode, "turn-1", "completed", BASE_MS, BASE_MS, 10)])
+    _lock_dir(codex_home, [newer_vscode])
+
+    # raising=False: the fix removes count_processes entirely, so this stub
+    # is never read -- kept only because the diagnosis's shared setup names
+    # it as part of the common fixture.
+    monkeypatch.setattr(viewer, "count_processes",
+                        lambda name, skip_app_server=False: 1 if skip_app_server else 3,
+                        raising=False)
+    snap = viewer.build_snapshot(config_root, codex_home, BASE_MS)
+    codex_rows_seen = [r for r in snap["rows"] if r["platform"] == "codex"]
+    assert [r["sessionId"] for r in codex_rows_seen] == [newer_vscode]
+
+
+def test_build_snapshot_lists_no_codex_row_before_the_first_message(tmp_path, monkeypatch):
+    codex_home = str(tmp_path)
+    config_root = str(tmp_path / "claude-config")
+    os.makedirs(config_root, exist_ok=True)
+    cli_thread = _thread_id(3)  # no lock file
+    not_yet_sent = _thread_id(4)  # lock file, but no `threads` row
+    rollout_path = os.path.join(codex_home, "sessions", "rollout-%s.jsonl" % cli_thread)
+    _write_rollout(rollout_path, [_session_meta(source="cli")])
+    _make_state_db(codex_home, 1,
+                   [(cli_thread, rollout_path, "D:\\made-up\\proj", BASE_MS, "user",
+                     "codex-tui", 0, None)],
+                   sources={cli_thread: "cli"})
+    _make_history_db(codex_home, 1, [(cli_thread, "turn-1", "completed", BASE_MS, BASE_MS, 10)])
+    _lock_dir(codex_home, [not_yet_sent])
+
+    monkeypatch.setattr(viewer, "count_processes",
+                        lambda name, skip_app_server=False: 1 if skip_app_server else 3,
+                        raising=False)
+    snap = viewer.build_snapshot(config_root, codex_home, BASE_MS)
+    codex_rows_seen = [r for r in snap["rows"] if r["platform"] == "codex"]
+    assert codex_rows_seen == []
+
+
+def test_build_snapshot_lists_only_the_resumed_older_thread(tmp_path, monkeypatch):
+    codex_home = str(tmp_path)
+    config_root = str(tmp_path / "claude-config")
+    os.makedirs(config_root, exist_ok=True)
+    older_resumed = _thread_id(5)  # has the lock file
+    newer_idle = _thread_id(6)  # no lock file
+    rollout_older = os.path.join(codex_home, "sessions", "rollout-older-%s.jsonl" % older_resumed)
+    rollout_newer = os.path.join(codex_home, "sessions", "rollout-newer-%s.jsonl" % newer_idle)
+    _write_rollout(rollout_older, [_session_meta(source="cli")])
+    _write_rollout(rollout_newer, [_session_meta(source="cli")])
+    _make_state_db(
+        codex_home, 1,
+        [(older_resumed, rollout_older, "D:\\made-up\\proj", BASE_MS - 1000, "user",
+          "codex-tui", 0, None),
+         (newer_idle, rollout_newer, "D:\\made-up\\proj", BASE_MS, "user", "codex-tui", 0, None)],
+        sources={older_resumed: "cli", newer_idle: "cli"})
+    _make_history_db(codex_home, 1, [(older_resumed, "turn-1", "completed", BASE_MS, BASE_MS, 10),
+                                     (newer_idle, "turn-1", "completed", BASE_MS, BASE_MS, 10)])
+    _lock_dir(codex_home, [older_resumed])
+
+    monkeypatch.setattr(viewer, "count_processes",
+                        lambda name, skip_app_server=False: 1 if skip_app_server else 3,
+                        raising=False)
+    snap = viewer.build_snapshot(config_root, codex_home, BASE_MS)
+    codex_rows_seen = [r for r in snap["rows"] if r["platform"] == "codex"]
+    assert [r["sessionId"] for r in codex_rows_seen] == [older_resumed]
+
+
+# =============================================== codex_locked_thread_ids ====
+
+def test_codex_locked_thread_ids_reads_only_thread_lock_names(tmp_path):
+    codex_home = str(tmp_path)
+    good_id = _thread_id(70)
+    lock_dir = os.path.join(codex_home, "thread-writer-locks")
+    os.makedirs(lock_dir, exist_ok=True)
+    for name in (".coordination.lock", good_id + ".lock.tmp", "short.lock", good_id):
+        with open(os.path.join(lock_dir, name), "w", encoding="utf-8"):
+            pass
+    with open(os.path.join(lock_dir, good_id + ".lock"), "w", encoding="utf-8"):
+        pass
+
+    assert viewer.codex_locked_thread_ids(codex_home) == {good_id}
+
+
+def test_codex_locked_thread_ids_never_opens_a_lock_file(tmp_path, monkeypatch):
+    codex_home = str(tmp_path)
+    tid = _thread_id(71)
+    _lock_dir(codex_home, [tid])
+    lock_dir = os.path.join(codex_home, "thread-writer-locks")
+    real_open = open
+    real_os_open = os.open
+
+    def boom_if_under_lock_dir(path, *_a, **_k):
+        if os.path.abspath(os.path.dirname(path)) == os.path.abspath(lock_dir):
+            raise AssertionError("must not open a file under thread-writer-locks")
+
+    def guarded_open(path, *a, **k):
+        boom_if_under_lock_dir(path)
+        return real_open(path, *a, **k)
+
+    def guarded_os_open(path, *a, **k):
+        boom_if_under_lock_dir(path)
+        return real_os_open(path, *a, **k)
+
+    monkeypatch.setattr("builtins.open", guarded_open)
+    monkeypatch.setattr(os, "open", guarded_os_open)
+    assert viewer.codex_locked_thread_ids(codex_home) == {tid}
+
+
+def test_codex_locked_thread_ids_is_none_when_the_dir_cannot_be_listed(tmp_path):
+    missing_home = str(tmp_path / "no-such-codex-home")
+    assert viewer.codex_locked_thread_ids(missing_home) is None
+
+    file_in_place_of_dir = tmp_path / "not-a-dir-codex-home"
+    file_in_place_of_dir.mkdir()
+    lock_path = file_in_place_of_dir / "thread-writer-locks"
+    lock_path.write_text("not a directory", encoding="utf-8")
+    assert viewer.codex_locked_thread_ids(str(file_in_place_of_dir)) is None
+
+
 # ======================================================= codex_rows ====
 # primary (sqlite) path
 
-def test_codex_rows_returns_empty_when_process_count_is_zero(tmp_path):
+def test_codex_rows_returns_empty_without_locked_threads(tmp_path):
     codex_home = str(tmp_path)
     tid = _thread_id(1)
     rollout_path = os.path.join(codex_home, "sessions", "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
@@ -320,9 +472,10 @@ def test_codex_rows_returns_empty_when_process_count_is_zero(tmp_path):
                                     "user", "codex-tui", 0, "made-up-name")])
     _make_history_db(codex_home, 1, [(tid, "turn-1", "inProgress", BASE_MS, None, None)])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 0)
-    assert rows == []
-    assert problems == []
+    for locked_ids in (None, set()):
+        rows, problems = viewer.codex_rows(codex_home, BASE_MS, locked_ids)
+        assert rows == []
+        assert problems == []
 
 
 def test_codex_rows_builds_a_row_with_identifying_fields(tmp_path):
@@ -335,7 +488,7 @@ def test_codex_rows_builds_a_row_with_identifying_fields(tmp_path):
                                     "user", "codex-tui", 0, "made-up-name")])
     _make_history_db(codex_home, 1, [(tid, "turn-1", "completed", BASE_MS, BASE_MS, 10)])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid})
     assert problems == []
     assert len(rows) == 1
     row = rows[0]
@@ -351,9 +504,11 @@ def test_codex_rows_builds_a_row_with_identifying_fields(tmp_path):
 def test_codex_rows_excludes_archived_exec_and_subagent_threads(tmp_path):
     codex_home = str(tmp_path)
     rows_data = []
+    ids = []
     for i, (archived, originator, source) in enumerate(
             [(1, "codex-tui", "user"), (0, "codex_exec", "user"), (0, "codex-tui", "subagent")], start=3):
         tid = _thread_id(i)
+        ids.append(tid)
         rollout_path = os.path.join(codex_home, "sessions",
                                     "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
         _write_rollout(rollout_path, [_session_meta()])
@@ -362,100 +517,51 @@ def test_codex_rows_excludes_archived_exec_and_subagent_threads(tmp_path):
     _make_state_db(codex_home, 1, rows_data)
     _make_history_db(codex_home, 1, [])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, set(ids))
     assert rows == []
 
 
-def test_codex_rows_caps_at_process_count_prioritizing_in_progress(tmp_path):
+def test_codex_rows_keeps_the_turn_classification_of_a_locked_thread(tmp_path):
     codex_home = str(tmp_path)
-    threads, turns = [], []
+    tid_working = _thread_id(10)
+    tid_done = _thread_id(11)
+    rollout_working = os.path.join(codex_home, "sessions", "rollout-w-%s.jsonl" % tid_working)
+    rollout_done = os.path.join(codex_home, "sessions", "rollout-d-%s.jsonl" % tid_done)
+    _write_rollout(rollout_working, [_session_meta(), _task_started(1, BASE_MS)])
+    _write_rollout(rollout_done, [_session_meta(), _task_started(1, BASE_MS - 5000),
+                                  _task_complete(2, BASE_MS)])
+    _make_state_db(codex_home, 1,
+                   [(tid_working, rollout_working, "D:\\made-up\\proj", BASE_MS, "user", "codex-tui", 0, None),
+                    (tid_done, rollout_done, "D:\\made-up\\proj", BASE_MS, "user", "codex-tui", 0, None)])
+    _make_history_db(codex_home, 1, [(tid_working, "turn-1", "inProgress", BASE_MS, None, None),
+                                     (tid_done, "turn-1", "completed", BASE_MS, BASE_MS, 10)])
+
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid_working, tid_done})
+    by_id = {r["sessionId"]: r for r in rows}
+    assert by_id[tid_working]["state"] == "working"
+    assert by_id[tid_working]["certainty"] == "confirmed"
+    assert by_id[tid_working]["aliveCertainty"] == "inferred"
+    assert by_id[tid_done]["state"] == "done"
+    assert by_id[tid_done]["aliveCertainty"] == "inferred"
+
+
+def test_codex_rows_lists_every_locked_thread_as_inferred(tmp_path):
+    codex_home = str(tmp_path)
+    threads, ids = [], []
     for i in range(4):
-        tid = _thread_id(10 + i)
+        tid = _thread_id(12 + i)
+        ids.append(tid)
         rollout_path = os.path.join(codex_home, "sessions",
                                     "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
-        status = "inProgress" if i in (0, 1) else "completed"
-        _write_rollout(rollout_path, [_session_meta(), _task_started(1, BASE_MS)])
+        _write_rollout(rollout_path, [_session_meta()])
         threads.append((tid, rollout_path, "D:\\made-up\\proj", BASE_MS - i, "user",
                         "codex-tui", 0, None))
-        turns.append((tid, "turn-1", status, BASE_MS, BASE_MS, 10))
     _make_state_db(codex_home, 1, threads)
-    _make_history_db(codex_home, 1, turns)
+    _make_history_db(codex_home, 1, [(tid, "turn-1", "completed", BASE_MS, BASE_MS, 10) for tid in ids])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 3)
-    assert len(rows) == 3
-    confirmed = [r for r in rows if r["aliveCertainty"] == "confirmed"]
-    inferred = [r for r in rows if r["aliveCertainty"] == "inferred"]
-    assert len(confirmed) == 2
-    assert len(inferred) == 1
-
-
-def _two_threads(codex_home, newest_status, oldest_status):
-    """A newer thread (id 40) and an older one (id 41) with the given turn
-    statuses; returns their ids."""
-    threads, turns = [], []
-    for i, status in enumerate((newest_status, oldest_status)):
-        tid = _thread_id(40 + i)
-        rollout_path = os.path.join(codex_home, "sessions",
-                                    "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
-        _write_rollout(rollout_path, [_session_meta(), _task_started(1, BASE_MS)])
-        threads.append((tid, rollout_path, "D:\\made-up\\proj", BASE_MS - i, "user",
-                        "codex-tui", 0, None))
-        turns.append((tid, "turn-1", status, BASE_MS, BASE_MS, 10))
-    _make_history_db(codex_home, 1, turns)
-    return threads
-
-
-def test_codex_rows_lists_nothing_alive_by_inference_when_only_the_app_server_runs(tmp_path):
-    # The user's case: two codex processes exist (the VS Code extension's
-    # daemon), no interactive session does -- so no idle thread is alive.
-    codex_home = str(tmp_path)
-    threads = _two_threads(codex_home, "completed", "completed")
-    _make_state_db(codex_home, 1, threads, sources={threads[0][0]: "vscode", threads[1][0]: "cli"})
-
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 2, 0)
-    assert rows == []
-
-
-def test_codex_rows_never_infers_a_vscode_thread_alive(tmp_path):
-    codex_home = str(tmp_path)
-    threads = _two_threads(codex_home, "completed", "completed")
-    _make_state_db(codex_home, 1, threads, sources={threads[0][0]: "vscode", threads[1][0]: "cli"})
-
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 3, 1)
-    assert [r["sessionId"] for r in rows] == [threads[1][0]]
-    assert rows[0]["aliveCertainty"] == "inferred"
-
-
-def test_codex_rows_lists_an_in_progress_vscode_thread_without_taking_a_session_slot(tmp_path):
-    codex_home = str(tmp_path)
-    threads = _two_threads(codex_home, "inProgress", "completed")
-    _make_state_db(codex_home, 1, threads, sources={threads[0][0]: "vscode", threads[1][0]: "cli"})
-
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 3, 1)
-    by_id = {r["sessionId"]: r["aliveCertainty"] for r in rows}
-    assert by_id == {threads[0][0]: "confirmed", threads[1][0]: "inferred"}
-
-
-def test_codex_rows_lists_every_in_progress_thread_regardless_of_process_count(tmp_path):
-    # The app-server runs any number of VS Code turns at once, so two
-    # in-progress threads must both show even with a single codex process.
-    codex_home = str(tmp_path)
-    threads = _two_threads(codex_home, "inProgress", "inProgress")
-    _make_state_db(codex_home, 1, threads,
-                   sources={threads[0][0]: "vscode", threads[1][0]: "vscode"})
-
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 1, 0)
-    assert sorted(r["sessionId"] for r in rows) == sorted(t[0] for t in threads)
-    assert all(r["aliveCertainty"] == "confirmed" for r in rows)
-
-
-def test_codex_rows_session_count_defaults_to_process_count(tmp_path):
-    codex_home = str(tmp_path)
-    threads = _two_threads(codex_home, "completed", "completed")
-    _make_state_db(codex_home, 1, threads)  # older schema: no source column
-
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 2)
-    assert len(rows) == 2
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, set(ids))
+    assert len(rows) == 4
+    assert all(r["aliveCertainty"] == "inferred" for r in rows)
 
 
 def test_codex_rows_thread_with_no_turns_row_gets_turn_status_none(tmp_path):
@@ -467,7 +573,7 @@ def test_codex_rows_thread_with_no_turns_row_gets_turn_status_none(tmp_path):
                                     "codex-tui", 0, None)])
     _make_history_db(codex_home, 1, [])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid})
     assert len(rows) == 1
     # No thread_turns row -> turn_status None; tail has only session_meta,
     # no task_started/task_complete/dangling-question signal -> done.
@@ -489,7 +595,7 @@ def test_codex_rows_uses_the_highest_numbered_sqlite_files(tmp_path):
                                     "codex-tui", 0, None)])
     _make_history_db(codex_home, 2, [])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid_old, tid_new})
     assert len(rows) == 1
     assert rows[0]["sessionId"] == tid_new
 
@@ -510,7 +616,7 @@ def test_codex_rows_populates_summary_recent_and_fallback_subagents(tmp_path):
                                     "user", "codex-tui", 0, None)])
     _make_history_db(codex_home, 1, [(tid, "turn-1", "completed", BASE_MS, BASE_MS, 10)])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid})
     assert len(rows) == 1
     row = rows[0]
     assert row["summary"] == "做完了"
@@ -531,7 +637,7 @@ def test_codex_rows_primary_reports_open_child_threads_as_subagents(tmp_path):
         spawn_edges=[(parent_id, child_id, "open")])
     _make_history_db(codex_home, 1, [])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {parent_id, child_id})
     # the child thread itself is filtered out (thread_source == "subagent"),
     # so only the parent's row comes back, carrying the child's name.
     assert len(rows) == 1
@@ -549,7 +655,7 @@ def test_codex_rows_primary_ignores_closed_spawn_edges(tmp_path):
                    spawn_edges=[(parent_id, child_id, "closed")])
     _make_history_db(codex_home, 1, [])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {parent_id})
     assert rows[0]["subagents"] == []
 
 
@@ -572,7 +678,7 @@ def test_codex_rows_primary_tolerates_a_missing_thread_spawn_edges_table(tmp_pat
     conn.close()
     _make_history_db(codex_home, 1, [])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid})
     assert problems == []  # still the primary path, not the fallback
     assert len(rows) == 1
     assert rows[0]["subagents"] == []
@@ -588,7 +694,7 @@ def test_codex_rows_falls_back_when_no_sqlite_files_present(tmp_path):
     _write_rollout(rollout_path, [_session_meta(cwd=os.path.join(os.sep, "made-up", "fallback-proj")),
                                   _task_started(1, BASE_MS), _task_complete(2, BASE_MS)])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid})
     assert len(rows) == 1
     row = rows[0]
     assert row["sessionId"] == tid
@@ -610,7 +716,7 @@ def test_codex_rows_falls_back_when_sqlite_is_corrupt(tmp_path):
                                 "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
     _write_rollout(rollout_path, [_session_meta(), _task_started(1, BASE_MS)])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid})
     assert len(rows) == 1
     assert rows[0]["certainty"] == "inferred"
     assert any("Codex" in p for p in problems)
@@ -631,39 +737,27 @@ def test_codex_rows_fallback_excludes_exec_and_subagent_originators(tmp_path):
     _write_rollout(rollout_subagent, [_session_meta(thread_source="subagent")])
     _write_rollout(rollout_ok, [_session_meta()])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid_exec, tid_subagent, tid_ok})
     assert len(rows) == 1
     assert rows[0]["sessionId"] == tid_ok
 
 
-def test_codex_rows_fallback_never_infers_a_vscode_thread_alive(tmp_path):
+def test_codex_rows_fallback_lists_only_locked_rollouts(tmp_path):
     codex_home = str(tmp_path)
-    paths = {}
-    for i, source in enumerate(("vscode", "cli")):
-        tid = _thread_id(50 + i)
-        path = os.path.join(codex_home, "sessions", "2026", "09", "24",
-                            "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
-        _write_rollout(path, [_session_meta(source=source), _task_started(1, BASE_MS),
-                              _task_complete(2, BASE_MS)], mtime_ms=BASE_MS - i)
-        paths[source] = tid
+    locked = _thread_id(50)
+    unlocked = _thread_id(51)
+    locked_path = os.path.join(codex_home, "sessions", "2026", "09", "24",
+                               "rollout-2026-09-24T00-00-00-%s.jsonl" % locked)
+    unlocked_path = os.path.join(codex_home, "sessions", "2026", "09", "24",
+                                 "rollout-2026-09-24T00-00-00-%s.jsonl" % unlocked)
+    _write_rollout(locked_path, [_session_meta(), _task_started(1, BASE_MS),
+                                _task_complete(2, BASE_MS)], mtime_ms=BASE_MS)
+    _write_rollout(unlocked_path, [_session_meta(), _task_started(1, BASE_MS),
+                                   _task_complete(2, BASE_MS)], mtime_ms=BASE_MS - 1)
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 3, 1)
-    assert [r["sessionId"] for r in rows] == [paths["cli"]]
-
-
-def test_codex_rows_fallback_lists_every_in_progress_rollout_regardless_of_process_count(tmp_path):
-    codex_home = str(tmp_path)
-    tids = []
-    for i in range(2):
-        tid = _thread_id(60 + i)
-        path = os.path.join(codex_home, "sessions", "2026", "09", "24",
-                            "rollout-2026-09-24T00-00-00-%s.jsonl" % tid)
-        _write_rollout(path, [_session_meta(source="vscode"), _task_started(1, BASE_MS)],
-                       mtime_ms=BASE_MS - i)
-        tids.append(tid)
-
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 1, 0)
-    assert sorted(r["sessionId"] for r in rows) == sorted(tids)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {locked})
+    assert [r["sessionId"] for r in rows] == [locked]
+    assert rows[0]["aliveCertainty"] == "inferred"
 
 
 def test_codex_rows_fallback_skips_rollouts_older_than_24h(tmp_path):
@@ -677,6 +771,6 @@ def test_codex_rows_fallback_skips_rollouts_older_than_24h(tmp_path):
     _write_rollout(rollout_old, [_session_meta()], mtime_ms=BASE_MS - 25 * 3600 * 1000)
     _write_rollout(rollout_new, [_session_meta()])
 
-    rows, problems = viewer.codex_rows(codex_home, BASE_MS, 5)
+    rows, problems = viewer.codex_rows(codex_home, BASE_MS, {tid_old, tid_new})
     assert len(rows) == 1
     assert rows[0]["sessionId"] == tid_new
