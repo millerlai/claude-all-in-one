@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.22
+# cai-codex-version: 0.2.23
 name = "cai_test-runner"
 description = "After any code change — the test suite run, failures reported, nothing fixed. Use PROACTIVELY."
 model = "gpt-5.6-luna"
