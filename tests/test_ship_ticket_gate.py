@@ -1,21 +1,22 @@
-"""Unit 5: the pieces of AC17/AC18/AC20 that are this unit's own job --
-closing the ticket joins the existing ship gate instead of adding a third,
-and the confirmation for it can only ever originate from the main session.
+"""Unit 5's original AC17/AC18/AC20 text-level checks, updated for
+track-issue-status-sync Unit 1: closing the ticket no longer joins the ship
+gate at all -- it moved to `/cai:track done`'s close menu
+(`tests/test_ticket_done.py`), so ship's own text and Gate 2 now carry no
+close.
 
 AC16 lives in test_ticket_transition.py; AC19 was Unit 4's. What is left
-here is text-level: `stage-ship.md`'s irreversible-operations list and "two
-gates" claim, `SKILL.md`'s own "## Human gates" section still listing those
-two and gaining no ticket-closing step, `agents/shipper.md` carrying no
-interactive tool and handing the confirmation up rather than taking it,
-`ticket-mirror.md`'s ship section naming the commit message and PR body, and
-that same section -- with approval-gates.md's Gate 2 -- actually running
-`ticket.py transition --confirmed-by-user`, the one place that flag is passed.
+here is text-level: `stage-ship.md`'s irreversible-operations list no longer
+names closing the ticket, still says "two human gates", `SKILL.md`'s own
+"## Human gates" section still listing those two and gaining no
+ticket-closing step, `agents/shipper.md` carrying no interactive tool and
+handing the confirmation up rather than taking it (and never closing the
+ticket itself), and `ticket-mirror.md`'s ship section naming the commit
+message and PR body while no longer running `ticket.py transition` at all.
 """
 import os
 import re
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLUGIN = os.path.join(REPO_ROOT, "plugins", "cai")
 STAGE_SHIP = os.path.join(
     REPO_ROOT, "plugins", "cai", "skills", "track", "references", "stage-ship.md")
 APPROVAL_GATES = os.path.join(
@@ -43,20 +44,21 @@ def _section(text, heading):
     return text[start:end]
 
 
-# --- stage-ship.md: closing the ticket joins the list, count stays two -----
+# --- stage-ship.md: closing the ticket does not join the list -------------
 
-def test_stage_ship_lists_closing_the_ticket_among_the_irreversible_ops():
+def test_stage_ship_does_not_list_closing_the_ticket_among_the_irreversible_ops():
     text = _flat(STAGE_SHIP)
     assert "merging" in text
     assert "tagging" in text
     assert "publishing" in text
-    assert "closing" in text and "ticket" in text
+    assert "and closing the linked ticket" not in text
+    assert "closing the ticket is not one of this stage's operations" in text.lower()
+    assert "/cai:track done" in text
 
 
-def test_stage_ship_still_says_two_human_gates_not_three():
+def test_stage_ship_still_says_two_human_gates():
     text = _flat(STAGE_SHIP)
     assert "two human gates" in text
-    assert "rather than adding a third" in text
 
 
 # --- SKILL.md: the AC17 guard for this unit specifically, on top of -------
@@ -147,42 +149,19 @@ def test_ticket_mirror_ship_section_names_commit_message_and_pr_body_once_each()
     assert "once" in text
 
 
-# --- AC16's other half: the close is actually reachable from the ship ------
-# --- confirmation, and from nowhere else ------------------------------------
-#
-# test_ticket_transition.py proves `ticket.py transition` refuses without the
-# flag and calls the backend once with it. Nothing proved any shipped prose
-# ever ran it: stage-ship.md listed "closing the linked ticket" and pointed at
-# ticket-mirror.md, whose ship section named only `ticket.py project` -- so the
-# close existed as a script no stage could reach, from #49 until this test.
+# --- AC16's other half moved: the close is no longer reachable from ship ---
+# --- at all -- see tests/test_ticket_done.py for where it is reachable now -
 
-def test_ticket_mirror_ship_section_runs_transition_with_the_flag():
+def test_ticket_mirror_ship_section_does_not_run_transition():
     section = " ".join(_section(_text(TICKET_MIRROR), "## ship").split())
-    assert "ticket.py transition" in section
-    assert "--confirmed-by-user" in section
+    assert "ticket.py transition" not in section
+    assert "--confirmed-by-user" not in section
 
 
-def test_approval_gates_gate_2_names_closing_the_ticket():
+def test_approval_gates_gate_2_does_not_name_closing_the_ticket():
     section = " ".join(_section(_text(APPROVAL_GATES), "## Gate 2").split())
-    assert "ticket.py transition" in section
-
-
-def test_confirmed_by_user_is_passed_from_the_ship_confirmation_alone():
-    # DD8: exactly one place an irreversible ticket close can originate from.
-    # The flag may be named where that confirmation lives and in the script
-    # that reads it -- no stage reference, agent or skill may pass it too.
-    allowed = {TICKET_MIRROR, APPROVAL_GATES,
-               os.path.join(PLUGIN, "scripts", "ticket.py")}
-    carriers = set()
-    for root, _dirs, files in os.walk(PLUGIN):
-        for name in files:
-            if not name.endswith((".md", ".py", ".json")):
-                continue
-            path = os.path.join(root, name)
-            if "--confirmed-by-user" in _text(path):
-                carriers.add(path)
-    assert carriers <= allowed, sorted(carriers - allowed)
-    assert TICKET_MIRROR in carriers
+    assert "ticket.py transition" not in section
+    assert "closing the ticket" not in section.lower()
 
 
 def test_shipper_md_never_closes_the_ticket_itself():

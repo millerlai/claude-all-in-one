@@ -40,13 +40,19 @@ class FakeReadBackend(tb.Backend):
     """A backend whose `read()` answer and category are set by the test --
     the controllable double this unit needs, since `StubBackend` always
     succeeds with a fixed value and `RecordingBackend` (test_ticket_project.py)
-    never implements `read()` at all."""
+    never implements `read()` at all.
+
+    `comments` is only merged into the returned value when the caller asks
+    for `with_comments=True` -- a test that never sets `comments` and never
+    asks for them behaves exactly as it did before this unit."""
     name = "fake-read"
 
-    def __init__(self, value=None, category="ok"):
+    def __init__(self, value=None, category="ok", comments=None):
         self._value = value
         self._category = category
+        self._comments = comments if comments is not None else []
         self.read_calls = []
+        self.with_comments_calls = []
 
     def __call__(self):
         return self
@@ -54,8 +60,13 @@ class FakeReadBackend(tb.Backend):
     def whoami(self, project_dir):
         raise NotImplementedError
 
-    def read(self, project_dir, ref):
+    def read(self, project_dir, ref, with_comments=False):
         self.read_calls.append(ref)
+        self.with_comments_calls.append(with_comments)
+        if with_comments and self._value is not None:
+            value = dict(self._value)
+            value["comments"] = self._comments
+            return value, self._category
         return self._value, self._category
 
     def upsert_comment(self, project_dir, ref, marker, body, login):
@@ -292,3 +303,214 @@ def test_the_other_subcommands_still_require_a_track_dir(monkeypatch):
         with pytest.raises(SystemExit) as exc:
             ticket.main()
         assert exc.value.code == 1, command
+
+
+# --- Claim listing -----------------------------------------------------------
+#
+# `list_claims` turns raw `{"body", "login"}` comment pairs into the claim
+# lines `read --ref` prints; `local_claim_state` says whether this tree's own
+# ticket.json (or its done/ counterpart) matches one of those claims.
+
+def _claim_comment(name, login="someone", updated="2026-09-26T12:45:17Z"):
+    lines = [ticket.marker_for(name), "此留言由 cai 就地覆寫，請勿手動編輯"]
+    if updated is not None:
+        lines.append("updated %s" % updated)
+    return {"body": "\n".join(lines), "login": login}
+
+
+def test_list_claims_empty_when_no_comments():
+    assert ticket.list_claims([]) == []
+
+
+def test_list_claims_parses_name_login_updated():
+    comments = [_claim_comment("track-issue-status-sync", login="millerlai",
+                                updated="2026-09-26T12:45:17Z")]
+    claims = ticket.list_claims(comments)
+    assert claims == [{"name": "track-issue-status-sync", "login": "millerlai",
+                        "updated": "2026-09-26T12:45:17Z"}]
+
+
+def test_list_claims_ignores_marker_not_on_first_line():
+    body = "just a comment\n" + ticket.marker_for("sneaky")
+    claims = ticket.list_claims([{"body": body, "login": "someone"}])
+    assert claims == []
+
+
+def test_list_claims_ignores_empty_body():
+    claims = ticket.list_claims([{"body": "", "login": "someone"},
+                                  {"login": "someone"}])
+    assert claims == []
+
+
+def test_list_claims_missing_login_is_unknown():
+    comment = _claim_comment("a-name", updated="2026-09-25T00:00:00Z")
+    del comment["login"]
+    claims = ticket.list_claims([comment])
+    assert claims[0]["login"] == "unknown"
+
+
+def test_list_claims_missing_updated_line_is_unknown():
+    comment = _claim_comment("a-name", updated=None)
+    claims = ticket.list_claims([comment])
+    assert claims[0]["updated"] == "unknown"
+
+
+def test_list_claims_sorts_newest_first_unknown_last():
+    older = _claim_comment("older", login="a", updated="2026-09-01T00:00:00Z")
+    newer = _claim_comment("newer", login="b", updated="2026-09-25T00:00:00Z")
+    unknown = _claim_comment("nodate", login="c", updated=None)
+    claims = ticket.list_claims([older, unknown, newer])
+    assert [c["name"] for c in claims] == ["newer", "older", "nodate"]
+
+
+def test_issue_number_from_plain_digits():
+    assert ticket._issue_number("170") == "170"
+    assert ticket._issue_number(" 170 ") == "170"
+
+
+def test_issue_number_from_url():
+    url = "https://github.com/owner/repo/issues/170"
+    assert ticket._issue_number(url) == "170"
+    assert ticket._issue_number(url + "#issuecomment-1") == "170"
+
+
+def test_issue_number_none_for_garbage():
+    assert ticket._issue_number("not-a-ref") is None
+    assert ticket._issue_number("") is None
+
+
+def test_local_claim_state_empty_number_is_not_local():
+    assert ticket.local_claim_state("proj", "some-track", "octocat", "") == ""
+
+
+def test_local_claim_state_invalid_name_is_not_local(tmp_path):
+    project_dir = str(tmp_path)
+    for bad_name in ("current", "done", "../x", "a name with space"):
+        assert ticket.local_claim_state(project_dir, bad_name, "octocat", "170") == ""
+
+
+def test_local_claim_state_resumable(tmp_path):
+    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir.mkdir(parents=True)
+    ticket.write_pointer(str(track_dir),
+                          {"backend": "github", "ref": "170", "login": "octocat",
+                           "projection": None})
+    state = ticket.local_claim_state(str(tmp_path), "track-issue-status-sync",
+                                      "octocat", "170")
+    assert state == "resumable"
+
+
+def test_local_claim_state_finished(tmp_path):
+    done_dir = tmp_path / ".claude" / "track" / "done" / "track-issue-status-sync"
+    done_dir.mkdir(parents=True)
+    ticket.write_pointer(str(done_dir),
+                          {"backend": "github", "ref": "170", "login": "octocat",
+                           "projection": None})
+    state = ticket.local_claim_state(str(tmp_path), "track-issue-status-sync",
+                                      "octocat", "170")
+    assert state == "finished"
+
+
+def test_local_claim_state_wrong_login_or_issue_is_not_local(tmp_path):
+    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir.mkdir(parents=True)
+    ticket.write_pointer(str(track_dir),
+                          {"backend": "github", "ref": "170", "login": "octocat",
+                           "projection": None})
+    assert ticket.local_claim_state(str(tmp_path), "track-issue-status-sync",
+                                     "someone-else", "170") == ""
+    assert ticket.local_claim_state(str(tmp_path), "track-issue-status-sync",
+                                     "octocat", "999") == ""
+
+
+def test_local_claim_state_unreadable_pointer_is_not_local(tmp_path):
+    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir.mkdir(parents=True)
+    (track_dir / "ticket.json").write_text("{not json", encoding="utf-8")
+    assert ticket.local_claim_state(str(tmp_path), "track-issue-status-sync",
+                                     "octocat", "170") == ""
+
+
+def test_local_claim_state_missing_login_is_not_local(tmp_path):
+    """A cached login of "" or None can never equal a claim's login, so a
+    pointer without one is never resumable -- the failure mode the design
+    calls out for a deleted claim author."""
+    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir.mkdir(parents=True)
+    ticket.write_pointer(str(track_dir),
+                          {"backend": "github", "ref": "170", "login": None,
+                           "projection": None})
+    assert ticket.local_claim_state(str(tmp_path), "track-issue-status-sync",
+                                     "unknown", "170") == ""
+
+
+# --- `read --ref` with claims -------------------------------------------
+
+def test_read_ref_prints_claims_zero_on_success(tmp_path, monkeypatch, capsys):
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    backend = FakeReadBackend(value={"number": "170", "title": "t", "body": "b"},
+                               comments=[])
+    register(monkeypatch, backend)
+
+    rc = ticket.read(None, str(project_dir), ref="170")
+    out = capsys.readouterr().out
+    assert rc == "ok"
+    assert "claims: 0" in out
+    assert backend.with_comments_calls == [True]
+    # claims block sits between title and body
+    lines = out.splitlines()
+    assert lines[1] == "title: t"
+    assert lines[2] == "claims: 0"
+    assert lines[3] == "b"
+
+
+def test_read_ref_prints_claim_lines_with_local_suffixes(tmp_path, monkeypatch, capsys):
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    track_dir = project_dir / ".claude" / "track" / "track-issue-status-sync"
+    track_dir.mkdir(parents=True)
+    ticket.write_pointer(str(track_dir),
+                          {"backend": "github", "ref": "170", "login": "millerlai",
+                           "projection": None})
+
+    mine = _claim_comment("track-issue-status-sync", login="millerlai",
+                           updated="2026-09-26T12:45:17Z")
+    other = _claim_comment("issue-status-claims", login="octocat",
+                            updated="2026-09-25T08:10:00Z")
+    backend = FakeReadBackend(value={"number": "170", "title": "t", "body": "b"},
+                               comments=[other, mine])
+    register(monkeypatch, backend)
+
+    rc = ticket.read(None, str(project_dir), ref="170")
+    out = capsys.readouterr().out
+    assert rc == "ok"
+    assert "claims: 2" in out
+    assert ("- track-issue-status-sync by millerlai, updated "
+            "2026-09-26T12:45:17Z, local: resumable") in out
+    assert ("- issue-status-claims by octocat, updated 2026-09-25T08:10:00Z"
+            in out)
+    # the other claim gets no local: suffix
+    for line in out.splitlines():
+        if line.startswith("- issue-status-claims"):
+            assert "local:" not in line
+
+
+def test_read_pointer_path_never_prints_claims(tmp_path, monkeypatch, capsys):
+    """The `--track-dir` pointer path stays `with_claims=False` per the
+    design's D3 refinement -- claims present in the fake backend's data must
+    not leak into that call's output."""
+    track = tmp_path / "track"
+    track.mkdir()
+    project_dir = tmp_path / "proj"
+    enable_ticket(project_dir)
+    backend = FakeReadBackend(value={"number": "48", "title": "t", "body": "b"},
+                               comments=[_claim_comment("someone-elses-track")])
+    register(monkeypatch, backend)
+    set_pointer(track, "fake-read", "48")
+
+    rc = ticket.read(str(track), str(project_dir))
+    out = capsys.readouterr().out
+    assert rc == "ok"
+    assert "claims:" not in out
+    assert backend.with_comments_calls == [False]

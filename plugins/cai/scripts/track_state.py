@@ -71,27 +71,6 @@ def table_stage_ids(state_path):
         return [cells[0] for cells in preflight.data_rows(fh.read())]
 
 
-def left_open_items(state_text):
-    """(stage, item) for every 'Left open:' entry across state.md's rows, in
-    table order. The marker is fixed text in the note cell (state.md's 4th
-    column); everything from its first occurrence to the end of the cell is
-    split on '; ', trimmed, and empties dropped."""
-    MARKER = "Left open:"
-    out = []
-    for cells in preflight.data_rows(state_text):
-        stage = cells[0]
-        note = cells[3] if len(cells) > 3 else ""
-        idx = note.find(MARKER)
-        if idx == -1:
-            continue
-        rest = note[idx + len(MARKER):]
-        for item in rest.split("; "):
-            item = item.strip()
-            if item:
-                out.append((stage, item))
-    return out
-
-
 def bad_statuses(track_dir, order):
     """(stage id, the offending value) for every row whose status is outside
     ledger.STATUSES, in stages.json order. An empty list means the table is
@@ -208,7 +187,7 @@ def left_open(track_root):
         print("no state.md in %s" % track_dir, file=sys.stderr)
         return 2
     with open(state_path, encoding="utf-8") as fh:
-        items = left_open_items(fh.read())
+        items = preflight.left_open_items(fh.read())
     if not items:
         print('Left open by %s: no "Left open:" marker in %s -- read it if '
               'this track predates the marker' % (feature, state_path))

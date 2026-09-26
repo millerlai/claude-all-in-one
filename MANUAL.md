@@ -205,8 +205,10 @@ Both arrive as a menu you pick from, never a prompt asking you to type
 sends `design` round again with what you said, at most three rounds), or
 reject it. Ship's quotes the exact commands about to run, and offers to hand
 them back instead; the squash before it, and — with ticket mirroring on — one
-last ticket update and whether to close the issue, are each asked on their
-own turn, because a yes to publishing is not a yes to any of them. Every menu also takes free text, so "yes
+last ticket update, are each asked on their own turn, because a yes to
+publishing is not a yes to either of them. Whether to close the issue is not
+asked here at all — that comes later, at `/cai:track done`, once the track
+has been archived. Every menu also takes free text, so "yes
 but rename the flag" is a first-class answer rather than something you have
 to squeeze into one of the options.
 
@@ -253,7 +255,12 @@ those two, whichever option is showing as picked when the menu closes is
 the one used. With nothing showing as picked, the two split apart again: the
 parallel-lane question falls back to sequential and the run keeps going, the
 same way commit per unit and the glossary do; the track-directory question is
-left unanswered and asked again later, like almost every other menu.
+left unanswered and asked again later, like almost every other menu. The close
+menu at `/cai:track done` — whether to close the mirrored issue — lands
+differently again in one respect: closing on its own without an answer, it
+comes back only when you next write in *this* session, never in a fresh one,
+because by then the track has already moved to `done/` and `current` is
+cleared.
 
 One catch worth knowing: at those two exception stops, "showing as picked"
 can just mean a highlight was resting on an option, not that you actually
@@ -291,6 +298,16 @@ stage's note, as a list you can paste straight into `/cai:intake` to start the
 next track. Then moves the track to `.claude/track/done/<feature>/` and clears
 `current`. Refused while any stage row is still empty or `in-progress`, and it
 names which.
+
+With ticket mirroring on, the move is followed by two more steps. First, the
+track's one marked comment is rewritten in place one last time — `status:
+done`, the six stage rows, and the `Left open:` items as their own list — so
+anyone reading the issue sees the same thing you just saw. Then, only if a
+ticket number resolves, a close menu asks: "Close #<number>" or "Leave it
+open", with neither recommended. Closing runs the one irreversible call
+ticket mirroring makes, so this menu — like the two sign-off gates — never
+puts a thumb on the scale. Anything but "Close #<number>" leaves the issue
+open.
 
 ## Running one stage alone
 
@@ -477,6 +494,13 @@ cannot be one on Windows at all). It reads the issue first, without creating
 anything, proposes a name from the title, asks you to confirm or replace it,
 and only then creates the track and points it.
 
+If another cai track already claims #241 — its own marked comment sitting on
+the issue — the read lists every claim it finds before the name is proposed.
+A claim ending `local: resumable` is your own, still on disk in this working
+tree: the claim menu offers to resume it by name instead of starting a second
+track on the same issue, recommended over starting fresh. Nothing claims
+#241 the first time through, so the walkthrough continues as above.
+
 The two-step form still works, and is what to use when you want the name to
 be something the title would not give you:
 
@@ -524,12 +548,14 @@ you one at a time.
 read the diff, and `ship` looks #241 up again so the number lands in the
 commit message and the PR body exactly once.
 
-**5. The issue gets closed — if you say so.** After the merge and tag commands
-have actually run, `ship` asks on its own turn. "Close #241" closes it;
-anything else leaves it open.
+**5. The issue gets closed — if you say so, at `done`.** `ship` no longer
+closes it. Once `/cai:track done` has moved the track into `done/`,
+it rewrites the comment one last time and, only then, asks its close menu:
+"Close #241" or "Leave it open".
 
-Throughout, one comment on #241 is rewritten after every stage, carrying the
-six stage rows. Local paths are left out of it.
+Throughout, one comment on #241 is rewritten after every stage, carrying a
+status line — `status: in-progress` until `done`, then `status: done` — and
+the six stage rows. Local paths are left out of it.
 
 ### What each stage does with the issue
 
@@ -542,11 +568,12 @@ six stage rows. Local paths are left out of it.
   the issue's body.
 - `ship` looks the issue up again before quoting its number in the commit and
   the PR, and asks on its own turn whether to update the comment one last time.
-- Once `ship`'s merge, tag and publish commands have actually run, it asks —
-  again on its own turn — whether to close the issue. Only "Close" closes it;
-  if you had the commands handed back instead, it doesn't ask and the issue
-  stays open. A close that fails says the issue is still open and is not
-  retried.
+- `/cai:track done`, once its refusal check has passed and the track has
+  moved into `done/`, rewrites the comment a final time — `status: done`, the
+  six rows, and the `Left open:` items — and then, only if a ticket number
+  resolves, asks its own close menu: "Close #<number>" or "Leave it open",
+  with neither recommended. Only "Close #<number>" closes it. A close that
+  fails says the issue is still open and is not retried.
 
 `ticket.py show --track-dir .claude/track/<feature>` prints the pointer, the
 GitHub login it cached, and how the last update went, without calling GitHub;
