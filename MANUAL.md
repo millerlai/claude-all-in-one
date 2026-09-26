@@ -27,6 +27,7 @@ like they fit, the more specific one is right.
 | Choose between options you can't compare | `/cai:options` | Six fields per option, then a pick |
 | See what a track, or a month, cost | `/cai:usage` | Relays what `usage_report.py` computed |
 | Put the tiers on a newer model | `/cai:models` | Saved for you alone; restart to apply |
+| See which agents need you | `/cai:viewer` | Opens a local web page, one row per session |
 | Run a git or gh operation | `/cai:git` | Runs on the chore tier, not your session's |
 | Run a mechanical one-off | `/cai:chore` | Chore tier; hands back anything needing judgement |
 | Apply one named refactoring | `/cai:extract-method` | One of 72, tab-completable |

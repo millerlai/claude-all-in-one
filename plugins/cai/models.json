@@ -49,6 +49,7 @@
     "skills/git/SKILL.md": "chore",
     "skills/git-sweep/SKILL.md": "chore",
     "skills/usage/SKILL.md": "chore",
+    "skills/viewer/SKILL.md": "chore",
 
     "agents/implementer.md": "build",
     "agents/reviewer.md": "build",

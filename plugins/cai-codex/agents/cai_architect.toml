@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.16
+# cai-codex-version: 0.2.17
 name = "cai_architect"
 description = "Cross-cutting design decisions, concurrency or correctness questions, or ambiguous requirements, analysed read-only by a senior architect. Expensive — not for routine tasks."
 model = "gpt-6-astra"

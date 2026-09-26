@@ -240,7 +240,8 @@ for path in skills:
 # that fixes it.
 SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git",
                "git-sweep", "goal", "intake", "models", "options", "plan-review",
-               "quiz", "refactor", "setup", "ship", "track", "usage", "verify"]
+               "quiz", "refactor", "setup", "ship", "track", "usage", "verify",
+               "viewer"]
 skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
 check(f"skills/ holds exactly the {len(SKILL_NAMES)} names {SKILL_NAMES} "
       f"({skill_dirs})", skill_dirs == SKILL_NAMES)

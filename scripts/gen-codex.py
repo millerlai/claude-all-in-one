@@ -48,6 +48,7 @@ EXCLUDE_DIRS = {
     "skills/usage",       # replaced by nothing -- Codex has no usage report
     "skills/setup",       # replaced by the hand-written Codex setup skill
     "skills/models",      # replaced by the hand-written Codex $models skill
+    "skills/viewer",      # replaced by the hand-written Codex skills/viewer/ directory
     "evals",              # `claude plugin eval` is Claude-only tooling
     "hooks",              # D4=B: setup writes the hook, not the generator
     ".claude-plugin",     # Claude's own manifest (name "cai", version 1.27.0); emit() writes the Codex one at .codex-plugin/ instead
@@ -85,6 +86,8 @@ HAND_WRITTEN = {
     "skills/setup/agents/openai.yaml",
     "skills/models/SKILL.md",
     "skills/models/agents/openai.yaml",
+    "skills/viewer/SKILL.md",
+    "skills/viewer/agents/openai.yaml",
     "README.md",
 }
 
@@ -132,6 +135,11 @@ DENY_LIST = [
     "~/.claude/",             # I1/D11: Claude's user config path; the Codex equivalent is under $CODEX_HOME (D1)
     'python "$HOME/.codex/cai/launcher.py"',  # U7: the old hard-coded interpreter form the rewrite above must no longer produce
 ]
+# U8: viewer.py's own source legitimately names Claude Code's tool/parameter
+# for its row classifier and Codex-thread classifier; exempting the whole
+# file would let any other deny-list token slip through unnoticed, so this is
+# scoped to the exact (path, token) pair instead.
+DENY_ALLOW = {("scripts/viewer.py", "AskUserQuestion"), ("scripts/viewer.py", "subagent_type")}
 # U7: the `python3`/bare-`py` variants of the same hard-coded interpreter
 # form -- a survivor here means some text still names one interpreter
 # literally instead of using the recorded `<cai>` command line.
@@ -295,7 +303,7 @@ def deny_hits(files: dict) -> list:
                 in_fence = not in_fence
                 continue
             for token in DENY_LIST:
-                if token in line:
+                if token in line and (path, token) not in DENY_ALLOW:
                     hits.append((path, lineno, token))
             m = HARD_CODED_LAUNCHER_PATTERN.search(line)
             if m:
