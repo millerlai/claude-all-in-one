@@ -87,6 +87,13 @@ person types a word back into:
   question. Fold this into the same `## Pending questions` report as the
   other two.
 
+A Step 0.5 menu that closes on its own leaves that answer unmade, not
+defaulted: `references/approval-gates.md`'s new section names the fallback
+each of the three takes — commit per unit is treated as no, so the parallel
+lane stays off and falls back to sequential, and the glossary question falls
+back to merge none. The run states which of the three timed out, by name,
+and build proceeds on whichever fallback applies.
+
 ## Step 1 — Turn the schedule into a state table
 
 Copy `## Work breakdown` rows (or the units cut above) into a state table

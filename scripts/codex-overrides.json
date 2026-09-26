@@ -778,6 +778,27 @@
         "  free-text choice must be available — add one yourself if the tool does not, so \"none of these\" needs no option of its own."
       ],
       "why": "I4: drops the claim that the question tool always adds a free-text choice (C11 is UNVERIFIED on Codex)."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "Question auto-continue is the person's own setting, not the track's — turned",
+        "on via `/config`'s \"Question auto-continue timeout\" row (or",
+        "`askUserQuestionTimeout` in `settings.json`), to `60s`, `5m` or `10m`, and off",
+        "by default. When it fires, the question tool's own result tells Claude you",
+        "may be away from your keyboard — that sentence, and nothing else, is what",
+        "this section calls a timed-out menu. `(No answer provided)` is a different,",
+        "ordinary rejection the platform uses when a person declines to answer a",
+        "clarifying question rather than picking anything; it carries no timeout",
+        "signal and is handled like any other answer, never like the outcomes below."
+      ],
+      "replacement": [
+        "Whether the question tool ever closes a question on its own is untested on",
+        "this platform. A question result that comes back saying the person did not",
+        "answer it is what this section calls a timed-out menu, handled as the rest",
+        "of this section describes."
+      ],
+      "why": "AC6/C6: the feasibility ledger records \"Codex's question tool closes a question on its own: UNVERIFIED\", so the generated text drops the Claude-specific recognition signal (naming AskUserQuestion and the away-from-keyboard wording) and states only that a result reporting no answer is what this section treats as a timeout."
     }
   ]
 }

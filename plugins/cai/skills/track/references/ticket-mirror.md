@@ -31,6 +31,14 @@ not a directory name — a URL cannot be one on Windows at all. So do not create
    the tool adds anyway. This directory name appears in every
    `/cai:track status` from here on, so it is the person's to pick, and asking
    costs exactly one menu.
+
+A proposed name here can also close on its own before either ask resolves —
+this one and the mirroring-off ask below it are the two places this file
+asks for the directory name. `references/approval-gates.md`'s "A menu that
+closes on its own" section covers both: a selected option creates and
+points the directory the way step 4 describes, and no selection creates
+nothing, asking again only after the person next writes.
+
 4. **Create the track under the confirmed name, then point it, before the
    first stage runs.**
    `ticket.py point --track-dir .claude/track/<name> --ref <the argument>`.

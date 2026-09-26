@@ -134,6 +134,8 @@ DENY_LIST = [
     "CLAUDE_CODE_",           # I1: Claude Code's own env var prefix must not leak into Codex-facing text
     "~/.claude/",             # I1/D11: Claude's user config path; the Codex equivalent is under $CODEX_HOME (D1)
     'python "$HOME/.codex/cai/launcher.py"',  # U7: the old hard-coded interpreter form the rewrite above must no longer produce
+    "askUserQuestionTimeout",  # AC6/#158: Claude's `/config` setting name for question auto-continue; untested on Codex
+    "away from your keyboard",  # AC6/#158: Claude's own timeout-result wording; the override states only that a no-answer result is a timeout
 ]
 # U8: viewer.py's own source legitimately names Claude Code's tool/parameter
 # for its row classifier and Codex-thread classifier; exempting the whole
