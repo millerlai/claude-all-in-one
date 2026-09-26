@@ -1,4 +1,4 @@
-# cai-codex-version: 0.2.21
+# cai-codex-version: 0.2.22
 name = "cai_verifier"
 description = "Runs the back half of the `verify` stage: reconciles four review reports the main session already dispatched and handed you, runs this repo's test command, and fixes only Blocker/Major, test-first. Never dispatches another agent yourself."
 model = "gpt-5.6-terra"

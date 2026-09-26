@@ -203,11 +203,77 @@ def test_idle_is_done():
     assert out["notes"] == []
 
 
-def test_shell_is_done_with_note():
+def test_shell_is_working_with_note():
+    # 2026-09-26 correction: a still-running background Bash needs no human,
+    # so this is `working`, not `done` -- see the decisions doc Tier 3 row.
     reg = _reg("shell")
     out = viewer.classify_claude(reg, [], 0)
-    assert out["state"] == "done"
+    assert out["state"] == "working"
+    assert out["certainty"] == "confirmed"
+    assert out["entryId"] == "working:%s" % reg["statusUpdatedAt"]
     assert out["notes"] == ["背景 shell 執行中"]
+    assert out["current"] is None
+
+
+def _bash_result(tool_id, task_id):
+    """A background Bash's tool_result: unlike the async-subagent shape, the
+    task id sits directly on the row-level toolUseResult as
+    "backgroundTaskId", confirmed read-only against a real local transcript
+    2026-09-26 (line 745 of the session cited in the design doc)."""
+    row = _tool_result(tool_id)
+    row["toolUseResult"] = {"stdout": "", "stderr": "", "interrupted": False,
+                            "isImage": False, "noOutputExpected": False,
+                            "backgroundTaskId": task_id}
+    return row
+
+
+def test_shell_current_shows_background_bash_by_description():
+    tail = [_tool_use("b1", "Bash", {"command": "pytest -q", "description": "跑測試",
+                                     "run_in_background": True}),
+           _bash_result("b1", "task-1")]
+    reg = _reg("shell")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["state"] == "working"
+    assert out["current"] == {"tool": "Bash", "input": "跑測試",
+                              "since": reg["statusUpdatedAt"]}
+
+
+def test_shell_current_falls_back_to_command_without_description():
+    tail = [_tool_use("b1", "Bash", {"command": "pytest -q", "run_in_background": True}),
+           _bash_result("b1", "task-1")]
+    reg = _reg("shell")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["current"]["input"] == "pytest -q"
+
+
+def test_shell_current_excludes_a_background_bash_already_notified():
+    tail = [_tool_use("b1", "Bash", {"command": "pytest -q", "description": "跑測試",
+                                     "run_in_background": True}),
+           _bash_result("b1", "task-1"),
+           _task_notification("task-1")]
+    reg = _reg("shell")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["state"] == "working"
+    assert out["current"] is None
+
+
+def test_shell_current_is_none_without_a_background_bash_call():
+    tail = [_tool_use("t1", "Read", {"file_path": "a.py"})]
+    reg = _reg("shell")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["current"] is None
+
+
+def test_shell_current_picks_the_newest_still_running_background_bash():
+    tail = [_tool_use("b1", "Bash", {"command": "cmd1", "description": "第一個",
+                                     "run_in_background": True}),
+           _bash_result("b1", "task-1"),
+           _tool_use("b2", "Bash", {"command": "cmd2", "description": "第二個",
+                                     "run_in_background": True}),
+           _bash_result("b2", "task-2")]
+    reg = _reg("shell")
+    out = viewer.classify_claude(reg, tail, 0)
+    assert out["current"]["input"] == "第二個"
 
 
 def test_busy_with_stale_turn_duration_tail_is_inferred_done():

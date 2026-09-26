@@ -1255,12 +1255,17 @@ def _truncate(text, limit):
     return text if len(text) <= limit else text[:limit]
 
 
-def _param_summary(tool_input, limit):
+_PARAM_SUMMARY_KEYS = ("file_path", "path", "pattern", "command", "cmd", "url", "description")
+# D2 rule 3's exception for a `shell` row's `current`: a background Bash's
+# own description says what it is doing, so it is read before "command"
+# there -- everywhere else "description" stays last (only an Agent-like call
+# with none of the other keys ever reaches it).
+_BACKGROUND_BASH_SUMMARY_KEYS = ("description", "command")
+
+
+def _param_summary(tool_input, limit, key_order=_PARAM_SUMMARY_KEYS):
     tool_input = tool_input if isinstance(tool_input, dict) else {}
-    # "description" last: an Agent call has none of the other keys, and its
-    # description is what it is doing, where the raw JSON dump would be cut
-    # off before saying so.
-    for key in ("file_path", "path", "pattern", "command", "cmd", "url", "description"):
+    for key in key_order:
         if key in tool_input:
             return _truncate(str(tool_input[key]), limit)
     return _truncate(json.dumps(tool_input), limit)
@@ -1462,6 +1467,53 @@ def _async_subagents(tail):
     return list(running.values())
 
 
+def _running_background_bash(tail):
+    """The tool_use block for the newest still-running background Bash call
+    (input.run_in_background True) -- D2 rule 3's `current` for a `shell`
+    row. Its tool_result differs from _async_subagents()'s shape: the task
+    id sits directly on the row-level toolUseResult as "backgroundTaskId",
+    not inside an "async_launched" status. Finish is the same later
+    queue-operation row carrying a <task-notification> for that id used
+    there. Shapes confirmed read-only against a real local transcript
+    2026-09-26. None when nothing is currently running (e.g. the launch
+    already scrolled out of the tail)."""
+    calls = {}      # tool_use id -> block, for background Bash calls only
+    running = {}    # task id -> block, insertion order == launch order
+    for row in tail:
+        row_type = row.get("type")
+        if row_type == "queue-operation":
+            content = row.get("content")
+            if isinstance(content, str) and TASK_NOTIFICATION_TAG in content:
+                task_id = content.partition("<task-id>")[2].partition("</task-id>")[0]
+                running.pop(task_id, None)
+            continue
+        message = row.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        if row_type == "assistant":
+            for block in content:
+                if not (isinstance(block, dict) and block.get("type") == "tool_use"
+                        and block.get("name") == "Bash"):
+                    continue
+                tool_input = block.get("input")
+                if isinstance(tool_input, dict) and tool_input.get("run_in_background") is True:
+                    calls[block.get("id")] = block
+        elif row_type == "user":
+            result = row.get("toolUseResult")
+            task_id = result.get("backgroundTaskId") if isinstance(result, dict) else None
+            if not isinstance(task_id, str):
+                continue
+            answered = [block for block in content
+                        if isinstance(block, dict) and block.get("type") == "tool_result"
+                        and block.get("tool_use_id") in calls]
+            # Same one-call-per-row assumption as _async_subagents().
+            if len(answered) != 1:
+                continue
+            running[task_id] = calls[answered[0]["tool_use_id"]]
+    return list(running.values())[-1] if running else None
+
+
 def _claude_subagents(tail):
     """Names of the subagents still running: Agent/Task calls with no
     tool_result yet (a foreground call), then the background launches
@@ -1527,8 +1579,19 @@ def classify_claude(reg, tail, now_ms):
         return result
 
     if status == "shell":
-        result.update(state="done", certainty="confirmed",
-                      entryId="done:%s" % since, notes=["背景 shell 執行中"])
+        # 2026-09-26 correction: Claude writes "shell" when a turn ended with
+        # a background Bash still running, and picks the turn back up itself
+        # once it finishes -- no human needed, so this is "working".
+        block = _running_background_bash(tail)
+        if block is not None:
+            result["current"] = {
+                "tool": "Bash",
+                "input": _param_summary(block.get("input"), ACTION_INPUT_MAX,
+                                        key_order=_BACKGROUND_BASH_SUMMARY_KEYS),
+                "since": since,
+            }
+        result.update(state="working", certainty="confirmed",
+                      entryId="working:%s" % since, notes=["背景 shell 執行中"])
         return result
 
     # status == "busy"
