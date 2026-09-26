@@ -39,6 +39,9 @@ cai-codex version is on `main`, an output change also needs
 reports DRIFT/UNRELEASED. `scripts/gen-codex.py` and its `scripts/codex-*.json`
 data are Ours.
 
+A `fix(cai):` PR bumps the patch version in `plugins/cai/.claude-plugin/plugin.json`
+in the same PR, not in a later `chore` commit.
+
 **Theirs** is an agent, skill, rule, template, or a script some shipped
 component actually invokes. It runs on a machine we will never see, against a
 repo we know nothing about, and `/plugin update` overwrites it — so it may not
