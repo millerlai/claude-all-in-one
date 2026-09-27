@@ -109,6 +109,12 @@ already-drafted commit message from Step 4> --body-file <the draft>`
 resolved a number) and fix every FAIL in the draft first. "Confirm the
 release?" is not this question; the commands are.
 
+**Before quoting the commands**, list build's manual steps: run `python
+${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and quote every
+`[build]` line it prints, or say none are recorded if it prints none.
+Standing alone, there is no track to read one from, so say there is nothing
+to read.
+
 | Option | What it does |
 |---|---|
 | Run them | Checked once more first, then they run, in the order quoted — see below. |
