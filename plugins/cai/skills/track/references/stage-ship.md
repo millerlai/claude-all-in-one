@@ -99,7 +99,10 @@ Read `git log <BASE>..HEAD --pretty=format:'%h %s%n%b'` and the diff stat.
 Compose one conventional commit message in English: `type(scope): summary`,
 imperative mood, ≤72 chars, then 2–6 body bullets summarizing the *net*
 change — not a replay of intermediate commits, and not fixup/WIP noise.
-Every bullet is a claim; the grounding rule above applies to each one.
+Every bullet is a claim; the grounding rule above applies to each one. When
+the dispatch names a ticket number, reference it as `Refs #<number>` and
+never with a closing keyword — closing stays with `/cai:track done`. A
+dispatch with no ticket number leaves the message unaffected.
 
 Trailer lines — `Co-Authored-By:` and the like — are not yours to compose.
 Dispatched by the track, leave them out of the draft: the main session adds
@@ -146,7 +149,10 @@ document this track produced, if one exists, rather than re-deriving it
 from the diff — but the *what* still comes from the diff under the
 grounding rule, since a design document describes a plan and this paragraph
 describes what shipped. Where the two disagree, the diff is right and the
-gap is worth a sentence. Put it in the PR description — you have `gh`, and that is where it always
+gap is worth a sentence. When the dispatch names a ticket number, reference
+it as `Refs #<number>` and never with a closing keyword — closing stays with
+`/cai:track done`. A dispatch with no ticket number leaves the body
+unaffected. Put it in the PR description — you have `gh`, and that is where it always
 lands. Pass the body on stdin behind a quoted delimiter, so Bash leaves any backtick in it alone:
 
 ```bash

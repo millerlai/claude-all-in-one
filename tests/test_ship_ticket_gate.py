@@ -166,3 +166,27 @@ def test_approval_gates_gate_2_does_not_name_closing_the_ticket():
 
 def test_shipper_md_never_closes_the_ticket_itself():
     assert "transition" not in _text(SHIPPER_MD)
+
+
+# --- #195: a closing keyword is never allowed in the commit message or PR --
+# --- body -- only `Refs #N`, since only /cai:track done's menu closes it ---
+
+def test_ticket_mirror_ship_section_requires_refs_form_and_forbids_closing_keyword():
+    section = _section(_text(TICKET_MIRROR), "## ship")
+    flat = " ".join(section.split())
+    assert "`Refs #" in flat
+    assert "closing keyword" in flat
+
+
+def test_stage_ship_step4_and_step7_name_refs_form():
+    text = _text(STAGE_SHIP)
+    for heading in ("## Step 4", "## Step 7"):
+        section = " ".join(_section(text, heading).split())
+        assert "`Refs #" in section, heading
+        assert "closing keyword" in section, heading
+
+
+def test_shipper_md_forbids_closing_keyword():
+    flat = _flat(SHIPPER_MD)
+    assert "`Refs #" in flat
+    assert "closing keyword" in flat

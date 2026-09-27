@@ -28,4 +28,7 @@ with no shortcuts.
   names the hunk, commit, or file it came from, confirmed in this pass —
   `stage-ship.md`'s grounding rule. Cut what you cannot ground; the plan
   said what was intended, and only the diff says what landed.
+- When the dispatch names a ticket number, reference it in the commit
+  message and PR body as `Refs #N` only — never with a closing keyword.
+  Closing the ticket is not this agent's job.
 '''
