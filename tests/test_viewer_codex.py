@@ -216,13 +216,15 @@ def test_not_in_progress_failed_status_notes_it():
     tail = [_task_started(1, BASE_MS - 5000), _task_complete(2, BASE_MS)]
     out = viewer.classify_codex("failed", tail, BASE_MS, BASE_MS)
     assert out["state"] == "done"
-    assert out["notes"] == ["\u4e0a\u4e00\u8f2a failed\uff0finterrupted"]
+    assert out["notes"] == []
+    assert out["noteCodes"] == ["previous-turn-failed"]
 
 
 def test_not_in_progress_interrupted_status_notes_it():
     tail = [_task_started(1, BASE_MS - 5000)]
     out = viewer.classify_codex("interrupted", tail, BASE_MS, BASE_MS)
-    assert out["notes"] == ["\u4e0a\u4e00\u8f2a failed\uff0finterrupted"]
+    assert out["notes"] == []
+    assert out["noteCodes"] == ["previous-turn-failed"]
 
 
 def test_fallback_in_progress_inferred_from_task_started_after_task_complete():

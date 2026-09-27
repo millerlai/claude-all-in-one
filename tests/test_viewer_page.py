@@ -7,6 +7,7 @@ every `${...}` JS template-literal interpolation is either wrapped in
 esc() or on an explicit, precisely-inventoried allowlist of non-string
 (numeric/boolean/class-name/prebuilt-safe-HTML) expressions.
 """
+import json
 import re
 
 import viewer
@@ -163,7 +164,12 @@ def test_timeline_css_is_restored():
 def test_footer_has_the_codex_lock_note_hidden_by_default():
     match = re.search(r'<span id="codexLockNote" hidden>(.*?)</span>', viewer.PAGE_HTML)
     assert match, "expected a hidden #codexLockNote span in the footer"
-    assert "thread-writer-locks" in match.group(1)
+    assert 'data-i18n="footer.codexLock"' in match.group(1)
+    js_text = _script_body(viewer.PAGE_HTML)
+    en_match = re.search(r"const STRINGS_EN = (\{.*?\n\});", js_text, re.S)
+    assert en_match, "expected a `const STRINGS_EN = {...};` object literal"
+    strings_en = json.loads(en_match.group(1))
+    assert "thread-writer-locks" in strings_en["footer.codexLock"]
 
 
 def test_poll_toggles_the_codex_lock_note():
@@ -192,3 +198,96 @@ def test_timeline_lives_inside_the_row_article():
     body = match.group(1)
     assert re.search(r"\$\{tl\}\s*</article>", body), \
         "the timeline interpolation must appear before </article>, not after"
+
+
+# ============================ language switch (en / zh-Hant) ==============
+
+_CJK_RANGES = [
+    (0x2E80, 0x2FDF), (0x3000, 0x303F), (0x3040, 0x30FF), (0x3100, 0x31BF),
+    (0x3400, 0x4DBF), (0x4E00, 0x9FFF), (0xAC00, 0xD7AF), (0xF900, 0xFAFF),
+    (0xFF00, 0xFFEF),
+]
+
+
+def _strings_en():
+    js_text = _script_body(viewer.PAGE_HTML)
+    match = re.search(r"const STRINGS_EN = (\{.*?\n\});", js_text, re.S)
+    assert match, "expected a `const STRINGS_EN = {...};` object literal"
+    return json.loads(match.group(1))
+
+
+def test_string_tables_have_the_same_keys():
+    js_text = _script_body(viewer.PAGE_HTML)
+    en_match = re.search(r"const STRINGS_EN = (\{.*?\n\});", js_text, re.S)
+    zh_match = re.search(r"const STRINGS_ZH_HANT = (\{.*?\n\});", js_text, re.S)
+    assert en_match, "expected a `const STRINGS_EN = {...};` object literal"
+    assert zh_match, "expected a `const STRINGS_ZH_HANT = {...};` object literal"
+    en = json.loads(en_match.group(1))
+    zh = json.loads(zh_match.group(1))
+    assert set(en.keys()) == set(zh.keys())
+    assert len(en) == 64
+
+
+def test_no_cjk_outside_the_zh_hant_table():
+    html = viewer.PAGE_HTML
+    match = re.search(r"const STRINGS_ZH_HANT = \{.*?\n\};", html, re.S)
+    assert match, "expected a `const STRINGS_ZH_HANT = {...};` object literal"
+    remainder = html[:match.start()] + html[match.end():]
+    assert remainder.count("繁體中文") == 1, \
+        "expected exactly one CJK string (the switch button label) outside the zh-Hant table"
+    remainder = remainder.replace("繁體中文", "", 1)
+    bad = [ch for ch in remainder
+           if any(lo <= ord(ch) <= hi for lo, hi in _CJK_RANGES)]
+    assert bad == [], "unexpected CJK outside the zh-Hant table: %r" % bad
+
+
+def test_every_i18n_attribute_names_a_key():
+    strings_en = _strings_en()
+    attrs = re.findall(
+        r'data-i18n(?:-html|-title|-aria-label)?="([^"]+)"', viewer.PAGE_HTML)
+    assert attrs, "expected at least one data-i18n* attribute"
+    for key in attrs:
+        assert key in strings_en, "data-i18n* attribute names an unknown key: %r" % key
+
+
+def test_every_note_code_has_a_key():
+    strings_en = _strings_en()
+    codes = ["reason-unknown", "alive-inferred", "background-shell",
+             "registry-may-be-stale", "previous-turn-failed"]
+    for code in codes:
+        assert "note." + code in strings_en
+
+
+def test_html_defaults_to_english_and_prepaint_reads_the_language_key():
+    html = viewer.PAGE_HTML
+    assert '<html lang="en">' in html
+    head_match = re.search(r"<head>.*?</head>", html, re.S)
+    assert head_match, "expected a <head> block"
+    assert "agent-viewer-lang" in head_match.group(0)
+
+
+def test_language_switch_has_two_labelled_buttons():
+    html = viewer.PAGE_HTML
+    en_match = re.search(r'<button data-lang-pref="en"[^>]*>([^<]*)</button>', html)
+    zh_match = re.search(r'<button data-lang-pref="zh-Hant"[^>]*>([^<]*)</button>', html)
+    assert en_match, "expected a data-lang-pref=\"en\" button"
+    assert zh_match, "expected a data-lang-pref=\"zh-Hant\" button"
+    assert en_match.group(1) == "English"
+    assert zh_match.group(1) == "繁體中文"
+
+
+def test_render_signature_includes_language():
+    js_text = _script_body(viewer.PAGE_HTML)
+    match = re.search(r"const sig = JSON\.stringify\((.+?)\);", js_text)
+    assert match, "expected render()'s `const sig = ...;` line"
+    assert "langPref" in match.group(1)
+
+
+def test_attention_notes_put_codes_before_raw_text():
+    js_text = _script_body(viewer.PAGE_HTML)
+    match = re.search(r"const notes = (.+?);", js_text)
+    assert match, "expected activityHTML's `const notes = ...;` line"
+    line = match.group(1)
+    assert "row.noteCodes" in line
+    assert "row.notes" in line
+    assert line.index("row.noteCodes") < line.index("row.notes")

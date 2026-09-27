@@ -282,7 +282,7 @@ CSP = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline
 # demo simulator, the free-text tdetail/timeline lines neither has a real
 # field for) and why.
 PAGE_HTML = """<!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -293,6 +293,10 @@ try {
   var p = localStorage.getItem('agent-viewer-theme') || 'system';
   document.documentElement.dataset.theme =
     p === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : p;
+} catch (e) {}
+// Resolve the language before first paint, the same way as the theme above.
+try {
+  if (localStorage.getItem('agent-viewer-lang') === 'zh-Hant') document.documentElement.setAttribute('lang', 'zh-Hant');
 } catch (e) {}
 </script>
 <style>
@@ -500,44 +504,181 @@ footer code{background:var(--panel2);border:1px solid var(--border);padding:1px 
   </div>
   <div class="summary" id="summary"></div>
   <div class="controls">
-    <div class="seg" id="themeSeg" role="radiogroup" aria-label="主題">
-      <button data-theme-pref="system" title="跟隨作業系統設定">◐ 系統</button>
-      <button data-theme-pref="dark">☾ 深色</button>
-      <button data-theme-pref="light">☀ 淺色</button>
+    <div class="seg" id="themeSeg" role="radiogroup" data-i18n-aria-label="theme.aria">
+      <button data-theme-pref="system" data-i18n-title="theme.system.title" data-i18n="theme.system"></button>
+      <button data-theme-pref="dark" data-i18n="theme.dark"></button>
+      <button data-theme-pref="light" data-i18n="theme.light"></button>
     </div>
-    <button id="soundBtn" class="toggle on">🔔 聲音：開</button>
-    <label><input type="checkbox" id="doneChime"> 完成時也響</label>
-    <label><input type="checkbox" id="inferredChime" checked> 推斷的等權限也響</label>
+    <div class="seg" id="langSeg" role="radiogroup" data-i18n-aria-label="lang.aria">
+      <button data-lang-pref="en" lang="en">English</button>
+      <button data-lang-pref="zh-Hant" lang="zh-Hant">繁體中文</button>
+    </div>
+    <button id="soundBtn" class="toggle on"></button>
+    <label><input type="checkbox" id="doneChime"> <span data-i18n="chime.done"></span></label>
+    <label><input type="checkbox" id="inferredChime" checked> <span data-i18n="chime.inferred"></span></label>
   </div>
 </header>
 
 <div id="unlock" class="unlock">
-  瀏覽器規定頁面要先被點過一次才能發出聲音 →
-  <button id="unlockBtn">啟用提示音（會先響一次給你聽）</button>
+  <span data-i18n="unlock.text"></span>
+  <button id="unlockBtn" data-i18n="unlock.button"></button>
 </div>
 
 <nav class="filters" id="filters">
-  <button data-f="all" class="active">全部</button>
-  <button data-f="human">需要你</button>
+  <button data-f="all" class="active" data-i18n="filter.all"></button>
+  <button data-f="human" data-i18n="common.needsYou"></button>
   <button data-f="cai">cai track</button>
-  <button data-f="plain">一般 agent</button>
+  <button data-f="plain" data-i18n="filter.plain"></button>
 </nav>
 
 <main id="list"></main>
 
 <footer>
-  <span id="codexLockNote" hidden>Codex：找不到 thread-writer-locks，無法判斷哪個 session 開著<br></span>
-  回答問題、核准權限、簽核仍然在終端機做；這一頁只負責讓你<b>看見</b>誰在等你。<br>
-  同一張表列出 Claude Code 與 Codex 的主 session。「可能在等權限」只出現在 Codex 的列上，是推斷出來的：
-  一次工具呼叫超過 30 秒還沒有結果就算，只是跑得比較久的呼叫看起來會一樣；
-  Claude 的「等你核准權限」是從它自己的登記檔讀到的，是確定，不是推斷。<br>
-  排序：需要你的在最上面（等最久的優先）→ 執行中。按「已讀」停止閃爍，狀態再變時會重新亮起。<br>
-  主題選擇記在這個瀏覽器裡，下次打開沿用。
+  <span id="codexLockNote" hidden><span data-i18n="footer.codexLock"></span><br></span>
+  <span data-i18n-html="footer.terminal"></span><br>
+  <span data-i18n="footer.inference1"></span>
+  <span data-i18n="footer.inference2"></span>
+  <span data-i18n="footer.inference3"></span><br>
+  <span data-i18n="footer.order"></span><br>
+  <span data-i18n="footer.theme"></span>
 </footer>
 
 <div class="toast" id="toast"></div>
 
 <script>
+const STRINGS_EN = {
+  "lang.aria": "Language",
+  "theme.aria": "Theme",
+  "theme.system.title": "Follow the operating system setting",
+  "theme.system": "◐ System",
+  "theme.dark": "☾ Dark",
+  "theme.light": "☀ Light",
+  "sound.on": "🔔 Sound: on",
+  "sound.off": "🔕 Sound: off",
+  "chime.done": "Also chime when done",
+  "chime.inferred": "Also chime for inferred permission waits",
+  "unlock.text": "Browsers only let a page play sound after it has been clicked once →",
+  "unlock.button": "Enable chimes (plays one now so you can hear it)",
+  "filter.all": "All",
+  "common.needsYou": "Needs you",
+  "filter.plain": "Other agents",
+  "footer.codexLock": "Codex: thread-writer-locks not found, so it cannot tell which sessions are open",
+  "footer.terminal": "Answering questions, approving permissions and signing off still happen in the terminal; this page only lets you <b>see</b> who is waiting for you.",
+  "footer.inference1": "One list shows the main sessions of both Claude Code and Codex. “Maybe waiting for permission” appears only on Codex rows and is inferred:",
+  "footer.inference2": "a tool call with no result after 30 seconds counts, so a call that is merely slow looks the same;",
+  "footer.inference3": "Claude's “Waiting for permission” is read from its own session registry file, so it is confirmed, not inferred.",
+  "footer.order": "Order: rows that need you first (longest wait first) → running. Press “Seen” to stop the flashing; it lights up again when the state changes.",
+  "footer.theme": "Your theme choice is kept in this browser and used next time.",
+  "dur.seconds": "{n} s",
+  "dur.minutes": "{n} min",
+  "dur.hoursMinutes": "{h} h {m} min",
+  "state.gate": "Waiting for your sign-off",
+  "state.question": "Waiting for your answer",
+  "state.permission": "Waiting for permission",
+  "state.permissionInferred": "Maybe waiting for permission",
+  "state.attention": "Needs your attention",
+  "state.done": "Done, awaiting instructions",
+  "state.working": "Running",
+  "state.workingBackground": "Running (background)",
+  "state.unknown": "Unknown",
+  "gate.title": "Human gate",
+  "now.recent": "Just now:",
+  "now.subagents": "subagents:",
+  "question.hint": "Answer in the terminal · this page only shows, it never answers for you",
+  "permission.lineInferred": "Maybe waiting for your permission (inferred)",
+  "permission.hint": "To approve, go back to the terminal",
+  "permission.hintInferred": "Inferred: this tool call has had no result for a long time · if it is only slow it will recover by itself · to approve, go back to the terminal",
+  "list.separator": ", ",
+  "certainty.confirmed": "confirmed",
+  "certainty.inferred": "inferred",
+  "ack.button": "Seen",
+  "expand.open": "▾ History",
+  "expand.close": "▴ Collapse",
+  "copy.title": "Copy the resume command",
+  "empty.list": "No agents in this view right now",
+  "summary.unread": "{n} unread",
+  "title.unread": "({n}) Needs you · Agent Viewer",
+  "stale.note": "Data stopped at {time}",
+  "since.wait": "Waiting {time}",
+  "since.run": "This turn {time}",
+  "since.ago": "Ended {time} ago",
+  "offline.badge": "OFFLINE",
+  "offline.note": "The viewer is not responding (it may have been stopped)",
+  "toast.copied": "Copied: {cmd}",
+  "toast.noAudio": "This browser does not support Web Audio",
+  "note.reason-unknown": "Reason unknown",
+  "note.alive-inferred": "Alive: inferred",
+  "note.background-shell": "Background shell running",
+  "note.registry-may-be-stale": "Session registry may be stale",
+  "note.previous-turn-failed": "Previous turn failed/interrupted"
+};
+const STRINGS_ZH_HANT = {
+  "lang.aria": "語言",
+  "theme.aria": "主題",
+  "theme.system.title": "跟隨作業系統設定",
+  "theme.system": "◐ 系統",
+  "theme.dark": "☾ 深色",
+  "theme.light": "☀ 淺色",
+  "sound.on": "🔔 聲音：開",
+  "sound.off": "🔕 聲音：關",
+  "chime.done": "完成時也響",
+  "chime.inferred": "推斷的等權限也響",
+  "unlock.text": "瀏覽器規定頁面要先被點過一次才能發出聲音 →",
+  "unlock.button": "啟用提示音（會先響一次給你聽）",
+  "filter.all": "全部",
+  "common.needsYou": "需要你",
+  "filter.plain": "一般 agent",
+  "footer.codexLock": "Codex：找不到 thread-writer-locks，無法判斷哪個 session 開著",
+  "footer.terminal": "回答問題、核准權限、簽核仍然在終端機做；這一頁只負責讓你<b>看見</b>誰在等你。",
+  "footer.inference1": "同一張表列出 Claude Code 與 Codex 的主 session。「可能在等權限」只出現在 Codex 的列上，是推斷出來的：",
+  "footer.inference2": "一次工具呼叫超過 30 秒還沒有結果就算，只是跑得比較久的呼叫看起來會一樣；",
+  "footer.inference3": "Claude 的「等你核准權限」是從它自己的登記檔讀到的，是確定，不是推斷。",
+  "footer.order": "排序：需要你的在最上面（等最久的優先）→ 執行中。按「已讀」停止閃爍，狀態再變時會重新亮起。",
+  "footer.theme": "主題選擇記在這個瀏覽器裡，下次打開沿用。",
+  "dur.seconds": "{n} 秒",
+  "dur.minutes": "{n} 分鐘",
+  "dur.hoursMinutes": "{h} 小時 {m} 分",
+  "state.gate": "等你簽核",
+  "state.question": "等你回答",
+  "state.permission": "等你核准權限",
+  "state.permissionInferred": "可能在等權限",
+  "state.attention": "等你處理",
+  "state.done": "完成，等指示",
+  "state.working": "執行中",
+  "state.workingBackground": "執行中（背景）",
+  "state.unknown": "未知",
+  "gate.title": "人工閘門",
+  "now.recent": "剛剛：",
+  "now.subagents": "subagents：",
+  "question.hint": "回終端機作答 · 這一頁只顯示，不代答",
+  "permission.lineInferred": "可能在等你核准權限（推斷）",
+  "permission.hint": "要核准請回終端機",
+  "permission.hintInferred": "推斷：這個工具呼叫太久沒有結果 · 若只是跑得久會自己恢復 · 要核准請回終端機",
+  "list.separator": "、",
+  "certainty.confirmed": "確定",
+  "certainty.inferred": "推斷",
+  "ack.button": "已讀",
+  "expand.open": "▾ 經過",
+  "expand.close": "▴ 收起",
+  "copy.title": "複製 resume 指令",
+  "empty.list": "這個分類目前沒有 agent",
+  "summary.unread": "未讀 {n}",
+  "title.unread": "({n}) 需要你 · Agent Viewer",
+  "stale.note": "資料停在 {time}",
+  "since.wait": "已等 {time}",
+  "since.run": "本輪 {time}",
+  "since.ago": "{time}前結束",
+  "offline.badge": "離線",
+  "offline.note": "viewer 沒有回應（可能已經 stop）",
+  "toast.copied": "已複製：{cmd}",
+  "toast.noAudio": "這個瀏覽器不支援 Web Audio",
+  "note.reason-unknown": "原因未知",
+  "note.alive-inferred": "存活：推斷",
+  "note.background-shell": "背景 shell 執行中",
+  "note.registry-may-be-stale": "登記檔可能過時",
+  "note.previous-turn-failed": "上一輪 failed／interrupted"
+};
+const STRINGS = {'en': STRINGS_EN, 'zh-Hant': STRINGS_ZH_HANT};
 const STAGES = ['intake','discover','design','build','verify','ship'];
 // A human gate sits in front of these two stages (after design; before ship's irreversible steps).
 const GATED = new Set(['build','ship']);
@@ -572,6 +713,41 @@ document.getElementById('themeSeg').addEventListener('click', e => {
   applyTheme();
 });
 applyTheme();
+
+// ---- language: en / zh-Hant, remembered per browser ----
+const LANG_KEY = 'agent-viewer-lang';
+let langPref = 'en';
+try { if (localStorage.getItem(LANG_KEY) === 'zh-Hant') langPref = 'zh-Hant'; } catch (e) {}
+function tr(key, params){
+  let s = STRINGS[langPref][key];
+  if (s === undefined) s = key;
+  if (params) for (const name in params) s = s.split('{' + name + '}').join(String(params[name]));
+  return s;
+}
+function renderSoundBtn(){
+  document.getElementById('soundBtn').textContent = tr(soundOn ? 'sound.on' : 'sound.off');
+}
+function applyLang(){
+  document.documentElement.setAttribute('lang', langPref);
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = tr(el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-html]')) el.innerHTML = tr(el.dataset.i18nHtml);
+  for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = tr(el.dataset.i18nTitle);
+  for (const el of document.querySelectorAll('[data-i18n-aria-label]')) el.setAttribute('aria-label', tr(el.dataset.i18nAriaLabel));
+  for (const b of document.querySelectorAll('[data-lang-pref]')) {
+    b.classList.toggle('active', b.dataset.langPref === langPref);
+    b.setAttribute('aria-checked', b.dataset.langPref === langPref);
+  }
+  renderSoundBtn();
+  setOffline(failCount >= 3);
+}
+document.getElementById('langSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-lang-pref]');
+  if (!b) return;
+  langPref = b.dataset.langPref;
+  try { localStorage.setItem(LANG_KEY, langPref); } catch (err) {}
+  applyLang();
+  render();
+});
 
 // ---- sound preferences: master toggle unpersisted (matches the mockup); the
 // two per-sound checkboxes are persisted, unlike the mockup which never did. ----
@@ -609,26 +785,30 @@ function clockFmt(ms){
 }
 function humanFmt(ms){
   const s = Math.max(0, Math.floor(ms / 1000));
-  if (s < 60) return s + ' 秒';
-  if (s < 3600) return Math.floor(s / 60) + ' 分鐘';
-  return Math.floor(s / 3600) + ' 小時 ' + Math.floor(s % 3600 / 60) + ' 分';
+  if (s < 60) return tr('dur.seconds', {n: s});
+  if (s < 3600) return tr('dur.minutes', {n: Math.floor(s / 60)});
+  return tr('dur.hoursMinutes', {h: Math.floor(s / 3600), m: Math.floor(s % 3600 / 60)});
 }
-const clock = t => new Date(t).toLocaleTimeString('zh-TW', {hour12:false});
+function clock(ms){
+  if (langPref === 'zh-Hant') return new Date(ms).toLocaleTimeString('zh-TW', {hour12:false});
+  const d = new Date(ms);
+  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
 
 function stateLabel(row){
   if (row.state === 'question') {
-    if (row.track && row.track.gateWaiting) return {label:'等你簽核', icon:'🛡️'};
-    return {label:'等你回答', icon:'❓'};
+    if (row.track && row.track.gateWaiting) return {label:tr('state.gate'), icon:'🛡️'};
+    return {label:tr('state.question'), icon:'❓'};
   }
   if (row.state === 'permission') {
     return row.certainty === 'confirmed'
-      ? {label:'等你核准權限', icon:'🔐'}
-      : {label:'可能在等權限', icon:'🔐'};
+      ? {label:tr('state.permission'), icon:'🔐'}
+      : {label:tr('state.permissionInferred'), icon:'🔐'};
   }
-  if (row.state === 'attention') return {label:'等你處理', icon:'⚠️'};
-  if (row.state === 'done') return {label:'完成，等指示', icon:'✅'};
-  if (row.state === 'working') return {label: row.background === true ? '執行中（背景）' : '執行中', icon:''};
-  return {label:'未知', icon:''};
+  if (row.state === 'attention') return {label:tr('state.attention'), icon:'⚠️'};
+  if (row.state === 'done') return {label:tr('state.done'), icon:'✅'};
+  if (row.state === 'working') return {label: row.background === true ? tr('state.workingBackground') : tr('state.working'), icon:''};
+  return {label:tr('state.unknown'), icon:''};
 }
 
 function stepperHTML(row){
@@ -640,7 +820,7 @@ function stepperHTML(row){
     const st = byId[s] || 'todo';
     const icon = {done:'✓', skipped:'–', failed:'✕', blocked:'‖'}[st] || '';
     const gateHTML = GATED.has(s)
-      ? '<li class="gate ' + (waitingGate === s ? 'waiting' : '') + '" title="人工閘門">⚑</li><li class="sep"></li>'
+      ? '<li class="gate ' + (waitingGate === s ? 'waiting' : '') + '" title="' + esc(tr('gate.title')) + '">⚑</li><li class="sep"></li>'
       : '';
     const sepHTML = i ? '<li class="sep"></li>' : '';
     const curCls = s === t.current ? 'cur' : '';
@@ -652,15 +832,15 @@ function stepperHTML(row){
 
 function nowHTML(row){
   const cur = row.current || {};
-  // 「剛剛」shows only the most recent 3 of row.recent's up-to-8 entries
-  // (oldest-first order) -- the restored 「經過」 button below expands the
+  // "Just now" shows only the most recent 3 of row.recent's up-to-8 entries
+  // (oldest-first order) -- the restored "History" button below expands the
   // full list.
   const r = (row.recent || []).slice(-3).map(x =>
     '<span>' + esc(x.tool) + ' ' + esc(String(x.input || '').split('/').pop()) + '</span>').join('');
   const subs = (row.subagents || []).map(s => '<span class="sub-a">' + esc(s) + '</span>').join('');
   const since = cur.since || row.since;
-  const recentHTML = r ? '<div class="recent">剛剛：' + r + '</div>' : '';
-  const subsHTML = subs ? '<div class="subs">subagents：' + subs + '</div>' : '';
+  const recentHTML = r ? '<div class="recent">' + esc(tr('now.recent')) + r + '</div>' : '';
+  const subsHTML = subs ? '<div class="subs">' + esc(tr('now.subagents')) + subs + '</div>' : '';
   return `<div class="now"><span class="spin"></span><span class="tool">${esc(cur.tool || '')}</span>
       <code>${esc(cur.input || '')}</code><span class="dur" data-since="${esc(since)}" data-mode="dur"></span></div>
     ${recentHTML}
@@ -676,19 +856,19 @@ function activityHTML(row){
     const optsHTML = opts.map(o => '<span class="opt">' + esc(o) + '</span>').join('');
     h += `<div class="box"><div class="q">${esc(icon)} ${esc(text)}</div>
       <div class="opts">${optsHTML}</div>
-      <div class="hint">回終端機作答 · 這一頁只顯示，不代答</div></div>`;
+      <div class="hint">${esc(tr('question.hint'))}</div></div>`;
   } else if (row.state === 'permission') {
     const perm = row.permission || {};
     const confirmed = row.certainty === 'confirmed';
-    const qline = confirmed ? '等你核准權限' : '可能在等你核准權限（推斷）';
+    const qline = confirmed ? tr('state.permission') : tr('permission.lineInferred');
     const hint = confirmed
-      ? '要核准請回終端機'
-      : '推斷：這個工具呼叫太久沒有結果 · 若只是跑得久會自己恢復 · 要核准請回終端機';
+      ? tr('permission.hint')
+      : tr('permission.hintInferred');
     h += `<div class="box"><div class="q">🔐 ${esc(qline)}</div>
       <div class="now" style="margin-top:7px"><span class="tool">${esc(perm.tool || '')}</span><code>${esc(perm.input || '')}</code></div>
       <div class="hint">${esc(hint)}</div></div>`;
   } else if (row.state === 'attention') {
-    const notes = (row.notes || []).join('、');
+    const notes = (row.noteCodes || []).map(c => tr('note.' + c)).concat(row.notes || []).join(tr('list.separator'));
     if (notes) h += `<div class="box">${esc(notes)}</div>`;
   } else if (row.state === 'done') {
     if (row.summary) h += `<div class="box">✅ ${esc(row.summary)}</div>`;
@@ -707,11 +887,11 @@ function rowHTML(row){
   const mode = m.human ? 'wait' : (row.state === 'working' ? 'run' : 'ago');
   const platLabel = row.platform === 'codex' ? 'CODEX' : 'CLAUDE';
   const kindHTML = row.track ? '<span class="kind cai">CAI TRACK</span>' : '<span class="kind">AGENT</span>';
-  const certaintyTag = row.certainty === 'confirmed' ? '確定' : '推斷';
-  const sinceNote = row.aliveCertainty === 'inferred' ? '<div class="meta">存活：推斷</div>' : '';
+  const certaintyTag = row.certainty === 'confirmed' ? tr('certainty.confirmed') : tr('certainty.inferred');
+  const sinceNote = row.aliveCertainty === 'inferred' ? '<div class="meta">' + esc(tr('note.alive-inferred')) + '</div>' : '';
   const branchHTML = row.branch ? `<div class="meta">⎇ ${esc(row.branch)}</div>` : '';
-  const ackBtn = isAlert ? '<button class="ack" data-act="ack">已讀</button>' : '';
-  // 「經過」 expands row.recent's up-to-8 entries (D2 rule 2) -- unlike the
+  const ackBtn = isAlert ? '<button class="ack" data-act="ack">' + esc(tr('ack.button')) + '</button>' : '';
+  // "History" expands row.recent's up-to-8 entries (D2 rule 2) -- unlike the
   // mockup's timeline interpolation (a sibling placed after the closing
   // article tag, which the render() DOM-parse below then silently drops),
   // this one goes inside the article so it actually renders.
@@ -721,7 +901,7 @@ function rowHTML(row){
         esc(x.tool) + ' ' + esc(x.input || '') + '</span></li>').join('') + '</ul>'
     : '';
   const expandBtn = '<button class="icon" data-act="expand">' +
-    (expanded.has(row.key) ? '▴ 收起' : '▾ 經過') + '</button>';
+    esc(expanded.has(row.key) ? tr('expand.close') : tr('expand.open')) + '</button>';
 
   return `<article class="row s-${m.cls} ${alertCls} ${ackedCls}" data-id="${esc(row.key)}">
     <div class="stripe"></div>
@@ -738,7 +918,7 @@ function rowHTML(row){
     <div class="activity">${activityHTML(row)}</div>
     <div class="actions">
       ${ackBtn}
-      <button class="icon" data-act="copy" title="複製 resume 指令">⧉ resume</button>
+      <button class="icon" data-act="copy" title="${esc(tr('copy.title'))}">⧉ resume</button>
       ${expandBtn}
     </div>
     ${tl}
@@ -756,7 +936,7 @@ function render(){
   for (const [key, n] of nodes) if (!keep.has(key)) { n.el.remove(); nodes.delete(key); }
   let prev = null;
   for (const row of vis) {
-    const sig = JSON.stringify([row, acks.has(row.key), expanded.has(row.key)]);
+    const sig = JSON.stringify([row, acks.has(row.key), expanded.has(row.key), langPref]);
     let n = nodes.get(row.key);
     if (!n || n.sig !== sig) {
       const tmp = document.createElement('div');
@@ -771,8 +951,12 @@ function render(){
     prev = n.el;
   }
   let empty = listEl.querySelector('.empty');
-  if (!vis.length && !empty) listEl.insertAdjacentHTML('beforeend', '<div class="empty">這個分類目前沒有 agent</div>');
-  if (vis.length && empty) empty.remove();
+  if (!vis.length) {
+    if (!empty) listEl.insertAdjacentHTML('beforeend', '<div class="empty">' + esc(tr('empty.list')) + '</div>');
+    else empty.textContent = tr('empty.list');
+  } else if (empty) {
+    empty.remove();
+  }
   summary();
   tick();
 }
@@ -782,18 +966,18 @@ function summary(){
   const unread = human.filter(r => !acks.has(r.key)).length;
   const work = rows.filter(r => r.state === 'working').length;
   const hotCls = unread ? 'hot' : '';
-  const unreadHTML = unread ? '<em>未讀 ' + unread + '</em>' : '';
+  const unreadHTML = unread ? '<em>' + esc(tr('summary.unread', {n: unread})) + '</em>' : '';
   document.getElementById('summary').innerHTML =
-    `<span class="chip human ${hotCls}">需要你<b>${pad(human.length)}</b>${unreadHTML}</span>
-     <span class="chip">執行中<b>${pad(work)}</b></span>`;
-  document.title = unread ? '(' + unread + ') 需要你 · Agent Viewer' : 'Agent Viewer';
+    `<span class="chip human ${hotCls}">${esc(tr('common.needsYou'))}<b>${pad(human.length)}</b>${unreadHTML}</span>
+     <span class="chip">${esc(tr('state.working'))}<b>${pad(work)}</b></span>`;
+  document.title = unread ? tr('title.unread', {n: unread}) : 'Agent Viewer';
 }
 
 function checkStale(){
   const note = document.getElementById('staleNote');
   if (lastGeneratedAt && Date.now() - lastGeneratedAt > 10000) {
     note.hidden = false;
-    note.textContent = '資料停在 ' + clock(lastGeneratedAt);
+    note.textContent = tr('stale.note', {time: clock(lastGeneratedAt)});
   } else {
     note.hidden = true;
   }
@@ -803,7 +987,7 @@ function tick(){
   const now = Date.now();
   for (const el of document.querySelectorAll('[data-since]')) {
     const d = now - Number(el.dataset.since);
-    el.textContent = {wait:'已等 ' + clockFmt(d), run:'本輪 ' + clockFmt(d), ago:humanFmt(d) + '前結束', dur:clockFmt(d)}[el.dataset.mode];
+    el.textContent = {wait: tr('since.wait', {time: clockFmt(d)}), run: tr('since.run', {time: clockFmt(d)}), ago: tr('since.ago', {time: humanFmt(d)}), dur:clockFmt(d)}[el.dataset.mode];
   }
   checkStale();
 }
@@ -851,9 +1035,9 @@ function setOffline(off){
   const note = document.getElementById('offlineNote');
   if (off) {
     badge.classList.remove('live');
-    badge.innerHTML = '離線';
+    badge.textContent = tr('offline.badge');
     note.hidden = false;
-    note.textContent = 'viewer 沒有回應（可能已經 stop）';
+    note.textContent = tr('offline.note');
   } else {
     badge.classList.add('live');
     badge.innerHTML = '<i></i>LIVE';
@@ -914,7 +1098,7 @@ listEl.addEventListener('click', e => {
   if (b.dataset.act === 'copy') {
     const cmd = (row.platform === 'codex' ? 'codex resume ' : 'claude --resume ') + row.sessionId;
     try { navigator.clipboard.writeText(cmd).catch(() => {}); } catch (err) {}
-    toast('已複製：' + cmd);
+    toast(tr('toast.copied', {cmd}));
   }
   if (b.dataset.act === 'expand') {
     expanded.has(row.key) ? expanded.delete(row.key) : expanded.add(row.key);
@@ -931,17 +1115,18 @@ document.getElementById('filters').addEventListener('click', e => {
 document.getElementById('soundBtn').addEventListener('click', e => {
   soundOn = !soundOn;
   e.currentTarget.classList.toggle('on', soundOn);
-  e.currentTarget.textContent = soundOn ? '🔔 聲音：開' : '🔕 聲音：關';
+  renderSoundBtn();
 });
 document.getElementById('unlockBtn').addEventListener('click', () => {
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     actx.resume();
-  } catch (err) { toast('這個瀏覽器不支援 Web Audio'); }
+  } catch (err) { toast(tr('toast.noAudio')); }
   document.getElementById('unlock').hidden = true;
   chime('ask');
 });
 
+applyLang();
 render();
 poll();
 setInterval(poll, 1000);
@@ -1555,7 +1740,7 @@ def classify_claude(reg, tail, now_ms):
     since = reg["statusUpdatedAt"]
     status = reg.get("status")
     result = {"since": since, "question": None, "permission": None, "current": None,
-             "background": False}
+             "background": False, "noteCodes": []}
 
     if status not in KNOWN_CLAUDE_STATUSES:
         result.update(state="unknown", certainty="confirmed",
@@ -1586,7 +1771,8 @@ def classify_claude(reg, tail, now_ms):
 
         result.update(state="attention", certainty="confirmed",
                       entryId="attention:%s" % since,
-                      notes=[waiting_for if waiting_for else "原因未知"])
+                      notes=[waiting_for] if waiting_for else [],
+                      noteCodes=[] if waiting_for else ["reason-unknown"])
         return result
 
     if status == "idle":
@@ -1609,7 +1795,7 @@ def classify_claude(reg, tail, now_ms):
                 "since": since,
             }
         result.update(state="working", certainty="confirmed",
-                      entryId="working:%s" % since, notes=["背景 shell 執行中"])
+                      entryId="working:%s" % since, notes=[], noteCodes=["background-shell"])
         return result
 
     # status == "busy"
@@ -1627,7 +1813,7 @@ def classify_claude(reg, tail, now_ms):
             and now_ms - since > 60000)
     if stale:
         result.update(state="done", certainty="inferred",
-                      entryId="done:%s" % since, notes=["登記檔可能過時"])
+                      entryId="done:%s" % since, notes=[], noteCodes=["registry-may-be-stale"])
         return result
 
     block = _last_unresolved_tool_use(tail)
@@ -1668,7 +1854,7 @@ def _unknown_domain_row(reg):
            "platform": "claude", "project": os.path.basename(reg.get("cwd") or ""),
            "cwd": reg.get("cwd"), "sessionId": reg.get("sessionId"), "model": None,
            "state": "unknown", "certainty": "confirmed",
-           "entryId": "unknown:%s" % since, "since": since, "notes": [],
+           "entryId": "unknown:%s" % since, "since": since, "notes": [], "noteCodes": [],
            "question": None, "permission": None, "current": None,
            # No liveness check happens for a foreign pidDomain (see
            # _local_pid_domain_match), so no tail is ever read either --
@@ -1709,14 +1895,14 @@ def claude_rows(config_root, now_ms):
         alive = check_alive(reg.get("pid"), reg.get("procStart"), False)
         if alive == "gone":
             continue
-        notes = ["存活：推斷"] if alive == "alive-unverified" else []
+        codes = ["alive-inferred"] if alive == "alive-unverified" else []
 
         transcript_path = usage_collector.session_transcript(
             os.path.join(config_root, "projects"), reg.get("cwd"), reg.get("sessionId"))
         tail = read_tail(transcript_path, TRANSCRIPT_TAIL_MAX) if transcript_path else []
 
         classified = classify_claude(reg, tail, now_ms)
-        classified["notes"] = notes + classified["notes"]
+        classified["noteCodes"] = codes + classified["noteCodes"]
         summary_text = _last_assistant_text(tail)
 
         row = {"key": "claude:%s:%s" % (reg.get("pid"), reg.get("procStart")),
@@ -1841,7 +2027,7 @@ def classify_codex(turn_status, tail, now_ms, tail_mtime_ms):
     "done:%s" % since is deterministic per registry state.
     """
     in_progress, in_progress_certainty = _codex_in_progress(turn_status, tail)
-    result = {"question": None, "permission": None, "current": None}
+    result = {"question": None, "permission": None, "current": None, "noteCodes": []}
 
     if not tail:
         result.update(since=tail_mtime_ms, state="unknown", certainty="confirmed",
@@ -1894,9 +2080,10 @@ def classify_codex(turn_status, tail, now_ms, tail_mtime_ms):
                       notes=[])
         return result
 
-    notes = ["上一輪 failed／interrupted"] if turn_status in ("failed", "interrupted") else []
+    codes = ["previous-turn-failed"] if turn_status in ("failed", "interrupted") else []
     result.update(since=tail_mtime_ms, state="done", certainty="confirmed",
-                  entryId="done:%s:%d" % (turn_status or "done", tail_mtime_ms), notes=notes)
+                  entryId="done:%s:%d" % (turn_status or "done", tail_mtime_ms),
+                  notes=[], noteCodes=codes)
     return result
 
 

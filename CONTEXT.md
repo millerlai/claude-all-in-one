@@ -37,3 +37,5 @@ or specs, and only concepts specific to this project.
 **備份分支（backup branch）**: ship 在 squash 前建的本地分支 `backup/<來源>-<後綴>`，從不 push；來源的 PR 合併後，sweep 會把它列為可刪。
 **來源分支（source branch）**: 備份分支當初備份的那條分支，sweep 從備份名對回某個已合併 PR 的 head 找出它。
 **時間檢查**: sweep 判斷備份可刪的條件之一：備份最後一個 commit 不晚於來源 PR 的合併時間，用來擋住同名分支重複使用時的誤刪。
+**代碼（note code）**: Agent Viewer 的 server 自己寫的備註改送的短字串，與語言無關，由頁面查字串表翻成所選語言，例如 `reason-unknown`。
+**原文（raw text）**: Agent Viewer 列上平台或使用者寫的文字（`waitingFor`、提問、摘要、工具輸入、路徑），頁面照原樣顯示，不翻譯也不查表。
