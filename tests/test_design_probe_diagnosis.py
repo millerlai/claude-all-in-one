@@ -336,3 +336,27 @@ def test_decisions_first_then_stance_still_traces_the_stance(tmp_path):
                                       (str(tmp_path), str(tmp_path)))
     assert ok is False
     assert "UC1" in label
+
+
+def test_decisions_with_a_stray_failing_test_still_fails(tmp_path):
+    decisions_path = tmp_path / "t-decisions.md"
+    decisions_path.write_text(
+        DECISIONS_MIN + "\n## Failing test\n\ntests/test_x.py::test_y fails.\n",
+        encoding="utf-8")
+    detail_text = "## Reference\n\nt-decisions.md\n"
+    ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert "numbers no use cases" in label
+
+
+def test_stance_without_use_cases_with_a_stray_failing_test_still_fails(tmp_path):
+    stance_path = tmp_path / "t-stance.md"
+    stance_path.write_text(
+        "# t - stance\n\n## Status\n\ndraft\n\n## Optimises for\n\n"
+        "latency over throughput.\n\n## Failing test\n\n"
+        "tests/test_x.py::test_y fails.\n",
+        encoding="utf-8")
+    detail_text = "## Reference\n\nt-stance.md\n"
+    ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert "numbers no use cases" in label
