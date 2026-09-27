@@ -414,7 +414,10 @@ def _read_central_records(path):
 
     out = []
     malformed = 0
-    for number, text in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):
+    # split("\n"), not splitlines() -- ledger.py's writer only ever emits LF,
+    # and splitlines() also breaks on U+2028, U+2029 and U+0085, which can
+    # appear unescaped inside a legal JSON string.
+    for number, text in enumerate(raw.decode("utf-8", "replace").split("\n"), 1):
         if not text.strip():
             continue
         try:

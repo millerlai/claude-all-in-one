@@ -1085,7 +1085,11 @@ def read_tail(path, max_bytes):
         data = data[newline + 1:] if newline != -1 else b""
 
     rows = []
-    for line in data.decode("utf-8", "replace").splitlines():
+    # split("\n"), not splitlines(): the file's own line boundary is LF, but
+    # splitlines() also breaks on U+2028, U+2029 and U+0085, which can appear
+    # unescaped inside a legal JSON string and would otherwise split one
+    # object into two unparseable halves.
+    for line in data.decode("utf-8", "replace").split("\n"):
         line = line.strip()
         if not line:
             continue

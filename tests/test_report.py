@@ -99,6 +99,25 @@ def test_range_report_groups_across_projects(tmp_path, monkeypatch):
 
 # --- UC5: GAP-02's four questions in one query ------------------------------
 
+def test_a_separator_character_in_a_central_record_is_not_malformed(tmp_path, monkeypatch):
+    """AC6. `_read_central_records()` (usage_report.py:417) used
+    `str.splitlines()`, so a note carrying U+2028 turned one central record
+    into two malformed lines."""
+    central_path = tmp_path / "central" / "usage.jsonl"
+    monkeypatch.setenv("CAI_USAGE_LEDGER", str(central_path))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-central-sep")
+    monkeypatch.setattr(ledger.usage_collector, "collect", lambda *a, **k: ({}, {}, []))
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+
+    ledger.append(track, "build", "passed", note="a" + chr(0x2028) + "b")
+
+    records, malformed = usage_report._read_central_records(str(central_path))
+    assert malformed == 0
+    assert len(records) == 1
+    assert records[0]["note"] == "a" + chr(0x2028) + "b"
+
+
 def test_range_report_counts_attempts_including_failed_and_blocked(tmp_path, monkeypatch):
     central_path = tmp_path / "central" / "usage.jsonl"
     monkeypatch.setenv("CAI_USAGE_LEDGER", str(central_path))

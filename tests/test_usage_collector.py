@@ -128,6 +128,36 @@ def test_rerun_is_byte_identical(tmp_path):
     assert first == second
 
 
+# --- T3: a separator character inside a line does not split it -------------
+# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T3.
+# `read_window()` (usage_collector.py:204) used `str.splitlines()`, whose
+# boundary set includes U+2028/U+2029/U+0085 -- characters that can appear
+# unescaped inside a JSON string. A field carrying one used to split a
+# legitimate assistant line into two unparseable halves.
+
+def test_a_separator_character_inside_a_line_does_not_split_it(tmp_path):
+    root = str(tmp_path / "projects")
+    cwd = str(tmp_path / "proj")
+    session_id = "sess-sep"
+    usage_1 = _usage(1)
+    ts = "2026-08-30T00:00:01.000Z"
+    line = json.dumps({
+        "type": "assistant",
+        "timestamp": ts,
+        "requestId": "req-sep",
+        "message": {"model": "claude-opus-5", "usage": usage_1},
+        "note": "before" + chr(0x2028) + "after",
+    }, ensure_ascii=False)
+    _write_session(root, cwd, session_id, [line])
+
+    orchestration, agents, problems = usage_collector.collect(
+        session_id, cwd, None, "2026-08-30T00:10:00.000Z", projects_root=root)
+
+    assert problems == []
+    assert agents == {}
+    assert orchestration == {"claude-opus-5": _expected(usage_1)}
+
+
 def test_25_lines_5_request_ids_dedup_to_5(tmp_path):
     root = str(tmp_path / "projects")
     cwd = str(tmp_path / "proj")

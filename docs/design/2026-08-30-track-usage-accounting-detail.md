@@ -115,7 +115,7 @@ Status: approved 2026-08-30
 
 **D4 — 窗界以毫秒另存 `window_end`，`ts` 一個字元都不動。** 高階設計留下的秒與毫秒落差有三種解法：把 `ts` 改成毫秒、記下已採計的 requestId、另存毫秒窗界。第一種改的是既有欄位的格式，`tests/test_ledger.py:153` 這類固定字串會跟著壞，而且 `ts` 是別人也在讀的欄位；第二種要存不定長度的 id 集合，直接撞 4096 上限。第三種只加一個定長欄位，且讓相鄰兩個窗**完全接續**：下一個窗的下界就是上一個窗的上界，不重不漏。
 
-**D5 — `_fit` 加第三個縮減步驟：收合用量，最後才拒絕；順序維持先砍 note。** 既有的兩步（先砍 note、再簡化 artifact，`plugins/cai/scripts/ledger.py:180-204`）不動，新步驟排在它們之後：把 per-model 明細換成該欄四類 token 的總和，並寫上 `usage_collapsed`。
+**D5 — `_fit` 加兩個新的縮減步驟：截 `usage_problems`、收合用量；順序改成先砍 note、再截 `usage_problems`、再收合用量、最後才簡化 artifact，最後才拒絕（P1 選項 B，`docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md`）。** 既有砍 note 那一步不動。`usage_problems` 跟 per-model 明細一樣沒有上限——每遇到一則壞行、一則缺時間戳、一個讀不到的檔就多一則——所以它自己也要有縮減步驟：找得到就保留前 K 則、補一則「N more omitted」；收合把 per-model 明細換成該欄四類 token 的總和，並寫上 `usage_collapsed`。原本排第二的「簡化 artifact 成 basename」搬到收合之後：`preflight.py` 的 `artifact_unchanged` 靠記錄上 artifact 的完整路徑（含目錄）去找檔，提早砍成 basename 會讓它在專案子目錄下的檔案找不到而 FAIL，所以這一步要撐到真的沒有其他欄位可縮時才被犧牲。
 
 收合步驟**不是為今天的數字寫的**——Budgets 的實測已經說明今天的形狀根本走不到它。它為的是一件確定會發生的事：**相異 model 數沒有上限**。7 是 2026-08-29 那天的觀察值，每出一個新版就多一個識別字。
 
@@ -563,7 +563,7 @@ sequenceDiagram
 | note 加用量超過收斂目標（**今天就會發生**，既有 15 筆有 3 筆會踩到） | `_fit` 第一步截 note，用量完整保留（D5 的不對稱理由） | exit 0，stderr 說明 note 被截；note 比導入前提早 1588 到 2060 位元組被截 |
 | 相異 model 數成長到 12 個，用量自己吃掉整個收斂預算 | 前兩步失效，第三步把 per-model 明細收合成總和並設 `usage_collapsed` | exit 0，stderr 說明明細被收合；報表對這一筆只給總和 |
 | 專案路徑很深，`project` 欄位很長 | 吃掉 central candidate 的收斂預算，**收合比 12 個 model 更早觸發**；per-track 那份因為要減掉 `project` 與 `track`，反而更小 | exit 0；提早只剩總和，但兩份都不會超過 4096 |
-| 收合之後仍超過收斂目標 | `_fit` 回 `None`，`append()` 丟 `LedgerError`，**兩份都還沒寫** | exit 2；檔案系統維持原狀，不產生孤兒 |
+| 全部步驟之後仍超過收斂目標 | `_fit` 回 `None`，`append()` 丟 `LedgerError`，**兩份都還沒寫**；單是 `usage_problems` 爆量不會走到這一列——它自己的截斷步驟先把清單縮短，仍是 exit 0 | exit 2；檔案系統維持原狀，不產生孤兒 |
 | 集中帳本所在目錄不可寫、被鎖、位置解不出來 | per-track 照寫，`synced` 記 false、`sync_error` 帶原因 | exit 0；跨專案報表把這一筆算成未涵蓋而不是 0 |
 | 集中寫成功之後 per-track 寫入真的失敗（磁碟滿、權限被改） | 集中帳本多一筆 per-track 沒有的孤兒。`_fit` 提前之後這是孤兒的唯一來源 | `ledger.py append` exit 2 報錯，人會看到；報表可由 `project` 加 `track` 加 `ts` 比對出來 |
 | 舊 track 的 ledger 沒有用量欄位 | `records()` 用 `.get()` 讀不會壞；report 算成未涵蓋 | 舊記錄照常顯示，用量欄留白不是 0 |

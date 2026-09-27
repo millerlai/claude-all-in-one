@@ -12,6 +12,7 @@ usage_collector internally, so these tests monkeypatch
 without needing a real one on disk.
 """
 import os
+import re
 
 import ledger
 import usage_collector
@@ -121,6 +122,29 @@ def test_adjacent_windows_do_not_overlap(tmp_path, monkeypatch):
     assert calls[1][1] == record2["window_end"]
 
 
+def test_a_separator_character_in_the_note_does_not_break_the_next_window(tmp_path, monkeypatch):
+    """T2. `_window_since()` (ledger.py:139) reads the central ledger with
+    `str.splitlines()` -- a note carrying U+2028 used to split that record in
+    two, so the first attempt's `window_end` became unreadable and the
+    second attempt's lower bound fell back to the import-day floor instead,
+    double-counting the window in between."""
+    track = str(tmp_path)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-window-sep")
+
+    calls = []
+
+    def fake_collect(session_id, cwd, since, until, projects_root=None):
+        calls.append((since, until))
+        return {}, {}, []
+
+    monkeypatch.setattr(ledger.usage_collector, "collect", fake_collect)
+
+    record1 = ledger.append(track, "build", "passed", note="a" + chr(0x2028) + "b")
+    ledger.append(track, "verify", "passed", note="second")
+
+    assert calls[1][0] == record1["window_end"]
+
+
 # --- no session id: record still written, with the reason on file ----------
 
 def test_missing_session_id_writes_empty_dicts_with_a_reason(tmp_path, monkeypatch):
@@ -167,12 +191,13 @@ def test_fit_honours_a_smaller_limit():
     assert "usage_collapsed" in why or record.get("usage_collapsed")
 
 
-# --- _fit's second step: artifact reduced to its basename (Major-4 guard) --
+# --- _fit's artifact-basename step (Major-4 guard) --------------------------
 
 def test_fit_step_two_reduces_artifact_to_basename_when_note_alone_is_not_enough():
     # Built with the platform's own separator: `\` is not a separator on
     # POSIX, so a hardcoded Windows path left os.path.basename() returning
-    # the whole string unshortened there, and step 2 shrank nothing (#69).
+    # the whole string unshortened there, and the basename step shrank
+    # nothing (#69).
     long_artifact = os.sep + os.sep.join(
         ["deep-directory-segment"] * 10 + ["artifact.txt"])
     # A note short enough (<= len(TRUNCATED)) that step 1 always empties it
@@ -189,9 +214,9 @@ def test_fit_step_two_reduces_artifact_to_basename_when_note_alone_is_not_enough
     basename_too = dict(note_emptied, artifact=os.path.basename(long_artifact))
     size_after_step_two = len(ledger._encode(basename_too))
 
-    # A limit only the artifact-basename step (step 2) can reach: too small
-    # for step 1 (emptied note, full path) alone, big enough once the path
-    # is shortened too.
+    # A limit only the artifact-basename step can reach: too small for the
+    # note-truncation step (emptied note, full path) alone, big enough once
+    # the path is shortened too.
     limit = size_after_step_two + 5
     assert limit < size_after_step_one
 
@@ -201,3 +226,75 @@ def test_fit_step_two_reduces_artifact_to_basename_when_note_alone_is_not_enough
     assert record["artifact"] == os.path.basename(long_artifact)
     assert "usage_collapsed" not in record
     assert "basename" in why
+
+
+# --- _fit's new step: usage_problems is cut before collapse (P1 option B) --
+# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T5.
+
+def test_forty_usage_problems_are_cut_to_fit_instead_of_refusing(tmp_path, monkeypatch, capsys):
+    track = str(tmp_path)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-many-problems")
+
+    n = 40
+    problems = ["unparseable line %d in %s" % (i, os.path.join(track, "transcript.jsonl"))
+                for i in range(n)]
+
+    def fake_collect(session_id, cwd, since, until, projects_root=None):
+        return {}, {}, list(problems)
+
+    monkeypatch.setattr(ledger.usage_collector, "collect", fake_collect)
+
+    record = ledger.append(track, "build", "failed", note="short note")
+
+    err = capsys.readouterr().err
+    match = re.search(r"usage_problems cut to the first (\d+) of (\d+) to fit (\d+) bytes", err)
+    assert match is not None, err
+    k, told_n, limit = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    assert told_n == n
+    assert limit == ledger.CENTRAL_FIT_LIMIT
+
+    cut = record["usage_problems"]
+    assert len(cut) == k + 1
+    assert cut[:k] == problems[:k]
+    assert cut[k] == "%d more omitted" % (n - k)
+    assert "usage_collapsed" not in record
+    assert record["artifact"] is None  # nothing named here, not exercised by this test
+
+    line = ledger.records(track)[0]
+    assert line["outcome"] == "failed"
+
+
+# --- _fit's K=0 fallback: even the summary-only form does not fit ----------
+# The loop in ledger.py's step 2 tries every K from n-1 down to 0; when no K
+# fits, it keeps the K=0 (summary-only) form only if that is strictly
+# shorter than the original list, otherwise it restores the original list
+# (docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's Fix, "K=0 也
+# 放不下時"). Neither existing `_fit` test drives this branch: the 40-problem
+# tests above always find a fitting K well above 0. `limit=10` here is
+# smaller than any record's fixed scaffolding, so no branch of `_fit` can
+# ever make the record fit -- the point is only to observe which form of
+# `usage_problems` survives the comparison, not to reach exit 0.
+
+def _base_record(usage_problems):
+    return {"ts": "2026-08-30T00:00:00Z", "stage": "build", "outcome": "failed",
+            "artifact": None, "sha256": None, "gate": "auto", "note": "",
+            "orchestration": {}, "agents": {}, "usage_problems": usage_problems,
+            "window_end": "2026-08-30T00:00:00.000Z", "session_id": "sess-x"}
+
+
+def test_fit_keeps_the_k0_summary_when_it_is_shorter_than_the_original_list():
+    # Five 300-byte entries: "5 more omitted" is far shorter than the list
+    # it stands in for, so the K=0 form is kept even though it still does
+    # not fit under limit=10.
+    record = _base_record(["p" * 300] * 5)
+    ledger._fit(record, limit=10)
+    assert record["usage_problems"] == ["5 more omitted"]
+
+
+def test_fit_restores_the_original_list_when_the_k0_summary_is_not_shorter():
+    # A single one-character entry: "['x']" already encodes shorter than
+    # '["1 more omitted"]', so cutting it down to a summary would make the
+    # record bigger, not smaller -- the original list is kept instead.
+    record = _base_record(["x"])
+    ledger._fit(record, limit=10)
+    assert record["usage_problems"] == ["x"]

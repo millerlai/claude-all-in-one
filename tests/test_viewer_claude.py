@@ -37,6 +37,18 @@ def test_read_tail_skips_unparseable_and_non_dict_lines(tmp_path):
     assert rows == [{"a": 1}, {"a": 2}]
 
 
+def test_read_tail_keeps_an_object_whose_field_holds_a_separator_character(tmp_path):
+    """T6. `read_tail()` (viewer.py:1088) used `str.splitlines()`, so a
+    transcript field carrying U+2028/U+2029/U+0085 -- legal, unescaped JSON
+    text -- used to split one object into two unparseable halves and drop
+    both silently."""
+    path = tmp_path / "t.jsonl"
+    obj = {"a": "x" + chr(0x2028) + "y"}
+    path.write_text(json.dumps(obj, ensure_ascii=False) + "\n", encoding="utf-8")
+    rows = viewer.read_tail(str(path), 65536)
+    assert rows == [obj]
+
+
 def test_read_tail_discards_partial_line_at_front_of_a_bounded_read(tmp_path):
     path = tmp_path / "t.jsonl"
     # Three full lines; a max_bytes small enough to land inside line 2 means

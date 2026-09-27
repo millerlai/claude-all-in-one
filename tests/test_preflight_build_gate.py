@@ -13,6 +13,7 @@ import sys
 
 import ledger
 import preflight
+import usage_collector
 
 PREFLIGHT_PY = os.path.join(os.path.dirname(ledger.__file__), "preflight.py")
 
@@ -555,3 +556,79 @@ def test_a_passed_human_record_signs_off_the_design(tmp_path):
 
     assert done.returncode == 0, done.stdout
     assert "PASS design_signed_off" in done.stdout
+
+
+# --- _fit's new usage_problems / artifact order (P1 option B) --------------
+# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T7, T8.
+# The artifact sits in a project *subdirectory* -- the diagnosis notes the
+# bug only shows at the gate when the fitted record still has to carry
+# directory components, not just a filename findable from the root either
+# way.
+
+_LONG_MODEL = "claude-haiku-4-5-2025100%d"
+_MAX_TOKENS = {key: 999999 for key in usage_collector.TOKEN_KEYS}
+
+
+def _worst_case_models(n):
+    return {(_LONG_MODEL % i) + ("x" * 16): dict(_MAX_TOKENS) for i in range(n)}
+
+
+def test_a_separator_character_in_the_approve_note_still_signs_off(tmp_path):
+    """T4. `design_signed_off` reads the design row's records off
+    `ledger.records()`, which used to split a note carrying U+2028 into two
+    malformed lines -- losing the Approve entirely."""
+    doc = write_doc(tmp_path, "d-high-level.md", HLD)
+    track = make_track(tmp_path, "d-high-level.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human",
+                 note="Approve" + chr(0x2028) + "!")
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout
+
+
+def test_forty_usage_problems_still_let_gate_1_pass_with_full_artifact_path(
+        tmp_path, monkeypatch):
+    (tmp_path / "docs" / "design").mkdir(parents=True)
+    doc = write_doc(tmp_path, "docs/design/x-diagnosis.md", HLD)
+    track = make_track(tmp_path, "docs/design/x-diagnosis.md")
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-t7")
+    n = 40
+    problems = ["unparseable line %d in %s" % (i, os.path.join(track, "transcript.jsonl"))
+                for i in range(n)]
+    monkeypatch.setattr(ledger.usage_collector, "collect",
+                        lambda *a, **k: ({}, {}, list(problems)))
+
+    record = ledger.append(track, "design", "passed", artifact=doc, gate="human", note="Approve")
+    assert len(record["usage_problems"]) < n  # cut, not left to overflow the record
+    assert record["artifact"] == doc  # full path kept, not reduced to a basename
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout
+    assert "PASS artifact_unchanged" in done.stdout
+
+
+def test_forty_models_still_collapse_and_keep_the_full_artifact_path(tmp_path, monkeypatch):
+    (tmp_path / "docs" / "design").mkdir(parents=True)
+    doc = write_doc(tmp_path, "docs/design/x-diagnosis.md", HLD)
+    track = make_track(tmp_path, "docs/design/x-diagnosis.md")
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-t8")
+    orchestration = _worst_case_models(20)
+    agents = _worst_case_models(20)
+    monkeypatch.setattr(ledger.usage_collector, "collect",
+                        lambda *a, **k: (dict(orchestration), dict(agents), []))
+
+    record = ledger.append(track, "design", "passed", artifact=doc, gate="human", note="Approve")
+    assert record.get("usage_collapsed") is True
+    assert record["artifact"] == doc  # full path kept, not reduced to a basename
+
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 0, done.stdout
+    assert "PASS design_signed_off" in done.stdout
+    assert "PASS artifact_unchanged" in done.stdout

@@ -136,7 +136,12 @@ def _window_since(session_id):
             raw = fh.read()
     except OSError:
         return since
-    for text in raw.decode("utf-8", "replace").splitlines():
+    # split("\n"), not splitlines(): the writer's only line boundary is LF
+    # (ledger.py:183-185), but splitlines() also breaks on U+2028, U+2029 and
+    # U+0085 -- characters json.dumps(..., ensure_ascii=False) writes
+    # unescaped, and which can appear inside a legal JSON string -- so a
+    # single record used to be split into two unparseable halves.
+    for text in raw.decode("utf-8", "replace").split("\n"):
         if not text.strip():
             continue
         try:
@@ -389,17 +394,31 @@ def _fit(record, limit=MAX_RECORD):
     if len(line) <= limit:
         return line, "note truncated to fit %d bytes" % limit
 
-    # Step 1 already emptied the note, so the only field left with slack is the
-    # artifact path. Its basename still names the file; the directories do not.
-    if record["artifact"]:
-        record["artifact"] = os.path.basename(record["artifact"])
-        line = _encode(record)
-        if len(line) <= limit:
-            return line, ("note dropped and artifact reduced to its basename "
-                          "to fit %d bytes" % limit)
+    # Step 2: usage_problems has no ceiling either -- one per bad line,
+    # missing timestamp, or unreadable file (usage_collector.py:200,211,218)
+    # -- and cutting it before the artifact path keeps that path whole for as
+    # long as possible, since `artifact_unchanged` (preflight.py) needs the
+    # full path, not just the basename, to find the file on disk. Find the
+    # largest K that still fits with a trailing summary line; K=0 (summary
+    # only) is kept if it is at least shorter than the original, even when it
+    # still does not fit, so a later step has less to carry.
+    problems = record.get("usage_problems") or []
+    n = len(problems)
+    if n:
+        for k in range(n - 1, -1, -1):
+            record["usage_problems"] = problems[:k] + ["%d more omitted" % (n - k)]
+            line = _encode(record)
+            if len(line) <= limit:
+                return line, ("usage_problems cut to the first %d of %d "
+                              "to fit %d bytes" % (k, n, limit))
+        # record["usage_problems"] is now the K=0 (summary-only) form, left
+        # over from the loop's last iteration.
+        if len(line) >= len(_encode(dict(record, usage_problems=problems))):
+            record["usage_problems"] = problems
+            line = _encode(record)
 
     # Step 3 (D5): the number of distinct models has no ceiling, so per-model
-    # detail is the one field that can grow without bound. Collapse it to the
+    # detail is another field that can grow without bound. Collapse it to the
     # five token totals it came from -- the source transcript is gone in 30
     # days, but the total survives in the record forever.
     if record.get("orchestration") or record.get("agents"):
@@ -409,6 +428,17 @@ def _fit(record, limit=MAX_RECORD):
         line = _encode(record)
         if len(line) <= limit:
             return line, ("usage detail collapsed to per-source totals "
+                          "to fit %d bytes" % limit)
+
+    # Step 4: the artifact path, reduced to its basename. Moved to last so
+    # `artifact_unchanged` keeps the full path as long as anything else can
+    # still be cut instead (P1 option B) -- its basename still names the
+    # file; the directories do not.
+    if record["artifact"]:
+        record["artifact"] = os.path.basename(record["artifact"])
+        line = _encode(record)
+        if len(line) <= limit:
+            return line, ("note dropped and artifact reduced to its basename "
                           "to fit %d bytes" % limit)
 
     return None, ("record is %d bytes with nothing left to drop (limit %d)"
@@ -427,7 +457,9 @@ def records(track_dir, stage=None):
         return []
 
     out = []
-    for number, text in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):
+    # split("\n"), not splitlines() -- see _window_since()'s comment above,
+    # same reason.
+    for number, text in enumerate(raw.decode("utf-8", "replace").split("\n"), 1):
         if not text.strip():
             continue
         try:
