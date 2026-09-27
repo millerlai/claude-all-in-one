@@ -464,10 +464,17 @@ def options_drafts(text, artifact, track_dir):
             with open(path, encoding="utf-8") as fh:
                 draft = fh.read()
         except (OSError, UnicodeDecodeError) as exc:
+            # #208: the one observed miss was not a missing draft -- it was a
+            # decision asked and drafted in an *earlier* track, whose signed
+            # decisions document this track only reused. The veto stays
+            # strict (this track still owes its own copy), so the fix is
+            # telling the person the way out instead of only the dead end.
             failed.append((False, (
                 "options_drafts (missing options-%s.md -- pending-questions.md's "
                 "Step 0 saves the options shown to the person there before this stage can pass; "
-                "write it to %s -- %s)" % (id_, path, exc))))
+                "write it to %s -- %s; if this entry was asked in another track, copy "
+                "that track's options-%s.md here, or ask it again in this one)"
+                % (id_, path, exc, id_))))
             continue
         checked += 1
         for ok, label in options_lint.probes(draft):
