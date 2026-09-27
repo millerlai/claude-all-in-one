@@ -36,7 +36,8 @@ already exists, this is a resume: skip straight to the next unfinished
 stage `track_state.py status` names. Otherwise this is a new track — first
 count existing directories under `.claude/track/` (excluding `done/`); at
 5 already, refuse and say why instead of creating a sixth. Archived tracks
-under `done/` never count toward this cap — it only grows.
+under `done/` never count toward this cap — it only grows. Before creating
+anything, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_start.py --track-dir .claude/track/<feature> --project-dir <project root>` and relay what it prints; on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 2 means stop, create nothing, and report exactly what it printed.
 
 Create `.claude/track/<feature>/state.md`, then `.claude/track/current`, then
 start the first stage below. The table: `| stage | status | artifact | note |`,
@@ -130,3 +131,4 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 First run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and relay its output verbatim, then follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/ticket-mirror.md`'s `/cai:track done` section, which says what runs after the move too — all skipped when the refusal below fires.
 Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
+Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `/cai:git-sweep`, which shows its table before deleting anything — run none of this yourself.

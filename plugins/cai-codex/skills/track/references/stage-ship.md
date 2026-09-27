@@ -6,7 +6,11 @@ no track underneath it. The procedure below is the same either way.
 
 **On Codex, this stage prepares only and never runs the irreversible
 operations below** — merging, tagging, publishing. No subagent runs an irreversible git/gh operation here: after
-the person confirms, the main session runs them itself. That confirmation
+the person confirms, the main session runs tagging and publishing
+itself, but not the merge — the guard denies `gh pr merge` on this
+platform (its "ask" permission decision is parsed but not acted on
+here), so hand that exact command back for the person to run
+themselves. That confirmation
 is one of the two human gates the track never skips; running this stage
 standing alone does not remove it. With ticket mirroring on,
 `references/ticket-mirror.md`'s ship section adds one separate item, the
@@ -56,13 +60,14 @@ thing that outranks it.
 ## Step 1 — Preflight checks
 
 ```bash
-git status --porcelain
+git status --porcelain --untracked-files=no
 git branch --show-current
 ```
 
-Working tree must be clean — if dirty, stop and ask the user to commit or
-stash first. Must be on a feature branch — if on `main`/`master` or detached
-HEAD, stop.
+Only a tracked file with uncommitted changes blocks — commit or stash it and
+stop. An untracked file never blocks: the squash (Step 5) neither includes
+nor touches it (#198). Must be on a feature branch — if on `main`/`master` or
+detached HEAD, stop.
 
 ## Step 2 — Determine BASE
 
@@ -103,7 +108,10 @@ Read `git log <BASE>..HEAD --pretty=format:'%h %s%n%b'` and the diff stat.
 Compose one conventional commit message in English: `type(scope): summary`,
 imperative mood, ≤72 chars, then 2–6 body bullets summarizing the *net*
 change — not a replay of intermediate commits, and not fixup/WIP noise.
-Every bullet is a claim; the grounding rule above applies to each one.
+Every bullet is a claim; the grounding rule above applies to each one. When
+the dispatch names a ticket number, reference it as `Refs #<number>` and
+never with a closing keyword — closing stays with `$track done`. A
+dispatch with no ticket number leaves the message unaffected.
 
 Trailer lines — `Co-Authored-By:` and the like — are not yours to compose.
 Dispatched by the track, leave them out of the draft: the main session adds
@@ -112,8 +120,9 @@ the one you commit. Never write one naming your own model — you are not the
 session the person worked with. Standing alone, end the message with the
 ones your own instructions give for commits.
 
-**Show the drafted message to the user and wait for confirmation** before
-Step 5 — the message in full, then a menu (`references/approval-gates.md`),
+The draft is checked before it is shown, as `references/approval-gates.md`'s
+squash bullet says. **Show the drafted message to the user and wait for
+confirmation** before Step 5 — the message in full, then a menu (`references/approval-gates.md`),
 asked on its own turn rather than folded into the gate above. This is
 history-rewriting; never skip confirmation.
 
@@ -147,7 +156,10 @@ document this track produced, if one exists, rather than re-deriving it
 from the diff — but the *what* still comes from the diff under the
 grounding rule, since a design document describes a plan and this paragraph
 describes what shipped. Where the two disagree, the diff is right and the
-gap is worth a sentence. Put it in the PR description — you have `gh`, and that is where it always
+gap is worth a sentence. When the dispatch names a ticket number, reference
+it as `Refs #<number>` and never with a closing keyword — closing stays with
+`$track done`. A dispatch with no ticket number leaves the body
+unaffected. Put it in the PR description — you have `gh`, and that is where it always
 lands. Write the release note to cai-pr-body.md in the system temp directory with your file-writing tool, not the shell, then pass the file:
 
 ```bash

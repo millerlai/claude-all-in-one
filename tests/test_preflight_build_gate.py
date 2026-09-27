@@ -233,7 +233,7 @@ def test_a_passed_auto_record_does_not_count_as_sign_off(tmp_path):
 def test_a_failed_human_record_does_not_count_as_sign_off(tmp_path):
     doc = write_doc(tmp_path, "d-high-level.md", HLD)
     track = make_track(tmp_path, "d-high-level.md")
-    ledger.append(track, "design", "failed", artifact=doc, gate="human")
+    ledger.append(track, "design", "failed", artifact=doc, gate="human", note="fixture")
 
     done = run(track, str(tmp_path))
 
@@ -278,7 +278,7 @@ def test_a_failed_rerun_after_approval_does_not_erase_it(tmp_path):
     doc = write_doc(tmp_path, "d-detail.md", DETAIL)
     track = make_track(tmp_path, "d-detail.md")
     ledger.append(track, "design", "passed", artifact=doc, gate="human")
-    ledger.append(track, "design", "failed", artifact=doc, gate="auto")
+    ledger.append(track, "design", "failed", artifact=doc, gate="auto", note="fixture")
 
     done = run(track, str(tmp_path))
 
@@ -545,6 +545,25 @@ def test_a_decisions_reference_that_resolves_nowhere_fails_and_names_it(tmp_path
     assert done.returncode == 2
     line = next(l for l in done.stdout.splitlines() if "options_drafts" in l)
     assert line.startswith("FAIL ") and "d-gone-decisions.md" in line
+
+
+# --- #208: a track that reuses another track's signed decisions ---
+#
+# options_drafts stays strict -- every Tier 1 entry still owes a draft in
+# *this* track's dir, decided elsewhere or not -- but the FAIL message now
+# tells the person the two ways out, instead of only naming the missing path.
+
+def test_the_missing_draft_message_names_a_way_out_for_a_decision_asked_elsewhere(tmp_path):
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
+    track = make_track(tmp_path, "d-decisions.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    done = run(track, str(tmp_path))
+
+    assert done.returncode == 2
+    line = next(l for l in done.stdout.splitlines() if "options_drafts" in l)
+    assert line.startswith("FAIL options_drafts (missing options-D1.md")
+    assert "asked in another track" in line
+    assert "copy that track's options-D1.md" in line
 
 
 def test_a_passed_human_record_signs_off_the_design(tmp_path):

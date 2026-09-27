@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""PreToolUse guard. Three jobs, and they are not the same kind of rule:
+"""PreToolUse guard. Four jobs, and they are not the same kind of rule:
 
 - block destructive git/shell commands unless the user explicitly confirmed them;
-- block a commit made directly onto a protected branch, which destroys nothing
-  but is the one absolute in rules/workflow.md a hook can actually decide;
+- block a commit made directly onto a protected branch, or a push that lands
+  one there, which destroys nothing but is the one absolute in
+  rules/workflow.md a hook can actually decide;
 - block a backtick Bash would run as a command, or a $(...) a stray
   apostrophe left unquoted, which rewrites a commit message or PR body -- or
   runs something -- without an error.
+- ask, rather than block or silently allow, before `gh pr merge` -- merging is
+  a human's call, not something to run unattended or refuse outright (#194
+  maintainer decision, 2026-09-27).
 
 Cross-platform (pure stdlib, works on Windows).
-Exit codes: 0 = allow, 2 = block (stderr is fed back to Claude).
+Exit codes: 0 = allow (or ask, on Claude Code -- see ask() below), 2 = block
+(stderr is fed back to the model).
 """
 import json
+import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -41,10 +48,15 @@ COMMIT_FIRST = (
     "blocked it and ask them to run it manually."
 )
 
+# A -C/-c value quoted because it holds a space -- an ordinary Windows user
+# directory ("C:\Users\Jane Doe\project") is exactly this shape -- must not
+# stop matching at that space and drop the rest of the pattern (#194 review).
+OPT_VALUE = r'"[^"]*"|\'[^\']*\'|\S+'
+
 # git takes global options before the verb, so `git -C <dir> push --force` and
 # `git -c k=v reset --hard` walk straight past a pattern anchored on `git push`.
 # Tolerating a run of them is the difference between a rule and a suggestion.
-GIT = r"git\s+(?:(?:-[cC]\s+\S+|--\S+)\s+)*"
+GIT = r"git\s+(?:(?:-[cC]\s+(?:" + OPT_VALUE + r")|--\S+)\s+)*"
 
 # Argument text, bounded to a single command. Unbounded, `git status && npm
 # publish --no-verify` read as git skipping its own hooks -- a false block on a
@@ -54,7 +66,11 @@ ARGS = r"[^\n;&|]*"
 # Destructive whichever shell runs them.
 BLOCKED = [
     # (pattern, reason, advice)
-    (GIT + r"push\b" + ARGS + r"?(\s--force(?!-with-lease)|\s-f\b)", "force push (use --force-with-lease if truly needed)", CONFIRM),
+    # A `+refspec` (`git push origin +HEAD:main`) forces exactly like --force/-f
+    # do, just spelled differently -- #194. Blocked on every target, matching
+    # those two, not only main/master: leaving it a hole on other branches
+    # would make "force push" in the reason above a half-truth.
+    (GIT + r"push\b" + ARGS + r"?(\s--force(?!-with-lease)|\s-f\b|\s\+[^\s+])", "force push (use --force-with-lease if truly needed)", CONFIRM),
     (GIT + r"reset\s+" + ARGS + r"--hard", "hard reset discards work", CONFIRM),
     (GIT + r"clean\s+(?:-[a-z]*f|--force)", "git clean -f deletes untracked files", CONFIRM),
     (GIT + ARGS + r"--no-verify", "skipping hooks", CONFIRM),
@@ -113,6 +129,173 @@ NON_BASH = [
 # git's own global options.
 COMMIT = re.compile(r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*" + GIT + r"commit\b")
 PROTECTED = ("main", "master")
+
+# Same command boundary as COMMIT, but captures the push's own arguments (to
+# read its destination) and a `-C <dir>` global option by itself (to read
+# *that* directory's branch instead of the hook's cwd -- #194's own worktree
+# session is exactly the case that needs this: the main checkout sits on
+# main while the work happens in `git -C <worktree> push` from elsewhere).
+# Args stop at `)` too, on top of ARGS's `;&|` and newline: a push scrubbed
+# out of a `$(...)` substitution keeps that closing paren in the same line,
+# and reading it as part of a refspec would corrupt the destination.
+PUSH_ARGS = r"[^\n;&|)]*"
+PUSH = re.compile(
+    r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*git\s+"
+    r"(?:-C\s+(?P<cdir>" + OPT_VALUE + r")\s+|-[cC]\s+\S+\s+|--\S+\s+)*"
+    r"push\b(?P<args>" + PUSH_ARGS + r")"
+)
+
+
+# Merging a PR is decided by a person, not blocked outright: `gh pr merge`
+# itself, plus the one other door to the same effect this guard can see --
+# `gh api` writing straight to the REST endpoint the CLI wraps
+# (POST/PUT .../pulls/<n>/merge). Same command-boundary anchor as
+# COMMIT/PUSH above, so a mention inside a commit message or PR body (a
+# quoted argument, not preceded by `;&|(`` or `$(`) does not match -- except
+# the backtick itself, which is Bash-only: unlike COMMIT/PUSH (whose backtick
+# false positive only bites on a protected-branch target), this check fires
+# on every branch, so a backtick-quoted mention on the PowerShell/Codex path
+# would otherwise ask or hard-deny an ordinary commit. `-R`/`--repo` before
+# the verb is threaded through the same way GIT's own global options are, so
+# `gh -R owner/repo pr merge 5`, `gh -Rowner/repo pr merge 5` and
+# `gh --repo=owner/repo pr merge 5` are all still caught -- ahead of `api`
+# too, so the same forms in front of `gh api ... /pulls/<n>/merge` are caught.
+GH_OPT = r"(?:(?:-R\s*|--repo[= ])(?:" + OPT_VALUE + r")\s*)*"
+GH_BOUNDARY = r"(?:^|\n|[;&|(]\s*|\$\()"
+GH_BOUNDARY_BASH = r"(?:^|\n|[;&|(`]\s*|\$\()"
+
+
+def _gh_merge_patterns(boundary):
+    pr_merge = re.compile(
+        boundary + r"\s*(?:\w+=\S*\s+)*gh\s+" + GH_OPT + r"pr\s+merge\b")
+    api_merge = re.compile(
+        boundary + r"\s*(?:\w+=\S*\s+)*gh\s+" + GH_OPT + r"api\b"
+        r"(?=" + ARGS + r"\s(?:-X\s*(?:POST|PUT)\b|--method[= ]?(?:POST|PUT)\b))"
+        r"(?=" + ARGS + r"/pulls/\d+/merge\b)",
+        re.IGNORECASE)
+    return pr_merge, api_merge
+
+
+GH_PR_MERGE, GH_API_MERGE = _gh_merge_patterns(GH_BOUNDARY)
+GH_PR_MERGE_BASH, GH_API_MERGE_BASH = _gh_merge_patterns(GH_BOUNDARY_BASH)
+
+# Set only by plugins/cai-codex/scripts/launcher.py (hand-written) before it
+# invokes this same file -- an explicit signal from the one component that
+# knows which host it is running under, rather than this guard guessing from
+# the payload shape. Claude Code never sets it, so that is the default path.
+CODEX_GUARD_ENV = "CAI_CODEX_GUARD"
+
+MERGE_REASON = "merging a pull request"
+
+# https://learn.chatgpt.com/docs/hooks: "permissionDecision: 'ask', legacy
+# 'decision: approve', continue: false, stopReason, and suppressOutput are
+# parsed but not supported yet." An "ask" JSON on this host would be parsed
+# and then ignored, silently letting the merge through -- worse than blocking
+# it -- so Codex gets a deny, with the command repeated for the person to run.
+MERGE_CODEX_ADVICE = (
+    "Codex's hook host parses a PreToolUse \"ask\" permission decision but "
+    "does not yet act on one, so this guard cannot put up a prompt here. "
+    "Tell the person the exact command above and let them run it themselves."
+)
+
+
+def _unquote(value):
+    """Strip one layer of matching quotes from a -C value the regex matched
+    quoted (a path with a space in it); a bare value passes through as-is."""
+    if value and len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
+# Options that take a separate value, so that value is not misread as the
+# remote or a refspec.
+PUSH_VALUE_OPTS = ("-o", "--push-option", "--repo", "--receive-pack", "--exec")
+
+PUSH_PROTECTED_ADVICE = (
+    "Changes reach main/master only through a merged pull request. " + CONFIRM
+)
+
+
+def push_targets(args):
+    """The destination branch name(s) `git push <args>` would write to. None
+    stands for "whatever the current branch is" -- a bare push, a push naming
+    only a remote, or an explicit HEAD refspec -- which the caller resolves
+    with current_branch(). `--tags` alone leaves no branch destination at all
+    and is the one case that adds nothing. `--all`/`--mirror` push every
+    local branch regardless of which one is checked out, so they always
+    include every protected branch as a target rather than falling back to
+    "whatever the current branch is" (#194 review).
+
+    Best-effort, like the rest of this guard: unbalanced quotes fall back to
+    a plain split, and an option this does not recognise is skipped as a flag
+    rather than misread as the remote -- a missed protected push is the
+    failure this guard exists to prevent, but a false block on an ordinary
+    push is the failure that gets it switched off."""
+    try:
+        tokens = shlex.split(args)
+    except ValueError:
+        tokens = args.split()
+
+    positional = []
+    skip_value = False
+    tags_only = False
+    all_or_mirror = False
+    skip_redirect_target = False
+    for tok in tokens:
+        if skip_value:
+            skip_value = False
+            continue
+        if skip_redirect_target:
+            skip_redirect_target = False
+            continue
+        if tok in ("--all", "--mirror"):
+            all_or_mirror = True
+            continue
+        if tok == "--tags":
+            tags_only = True
+            continue
+        if tok in PUSH_VALUE_OPTS:
+            skip_value = True
+            continue
+        if any(tok.startswith(o + "=") for o in PUSH_VALUE_OPTS):
+            continue
+        if tok.startswith("-"):
+            continue
+        redirect = re.fullmatch(r"\d*(?P<op>>{1,2})(?P<dup>&?\d*)", tok)
+        if redirect:
+            # `2>&1` duplicates a file descriptor and names no file; a bare
+            # `>`/`>>`/`2>` does, and that filename is the *next* token, not
+            # the remote or a refspec (#194 review).
+            if not redirect.group("dup"):
+                skip_redirect_target = True
+            continue
+        if re.fullmatch(r"\d*<", tok):
+            continue  # input redirection has no target to skip
+        positional.append(tok)
+
+    targets = []
+    for spec in positional[1:]:  # positional[0], if present, is the remote
+        spec = spec.lstrip("+")
+        dst = spec.split(":", 1)[1] if ":" in spec else spec
+        if dst.startswith("refs/heads/"):
+            dst = dst[len("refs/heads/"):]
+        targets.append(None if dst in ("", "HEAD") else dst)
+    if all_or_mirror:
+        targets.extend(PROTECTED)
+    elif not targets and not tags_only:
+        targets.append(None)
+    return targets
+
+
+def has_remote_ref(cwd, git_dir, branch):
+    """Whether some remote is already tracked as having `branch` --
+    `refs/remotes/*/<branch>`. Only used to exempt a non-force push that
+    would create the branch on a remote that has none: the unborn-commit
+    exemption above (:407-410) mirrored for push, since "open a PR" is
+    unfollowable when the remote has no main yet to open one into."""
+    global_args = ["-C", git_dir] if git_dir else []
+    done = git(cwd, *global_args, "for-each-ref", f"refs/remotes/*/{branch}")
+    return bool(done and done.returncode == 0 and done.stdout.strip())
 
 # A quoted heredoc body is data the command writes out, not commands it runs.
 # Matched as text, a PR body or release note that merely mentions `git commit`
@@ -244,6 +427,15 @@ def scan_command(command):
 
         if walk_depth > 0 or state == "normal":
             if c == "\\":
+                if i + 1 < n and command[i + 1] == "\n":
+                    # Bash removes a backslash-newline pair entirely before
+                    # word-splitting, joining the two lines -- so a command
+                    # split across a continuation (`gh pr \` / `merge 123`)
+                    # must read the same as the unwrapped form, not slip
+                    # past GH_PR_MERGE/COMMIT/PUSH because `\s+` never
+                    # crosses the backslash.
+                    i += 2
+                    continue
                 out.append(c)
                 if i + 1 < n:
                     out.append(command[i + 1])
@@ -360,6 +552,12 @@ def scan_command(command):
 
         # state == "double"
         if c == "\\":
+            if i + 1 < n and command[i + 1] == "\n":
+                # Same line-continuation removal as the normal-state branch
+                # above -- Bash also strips a backslash-newline pair inside
+                # double quotes.
+                i += 2
+                continue
             out.append(c)
             if i + 1 < n:
                 out.append(command[i + 1])
@@ -400,18 +598,23 @@ def git(cwd, *args):
         return None
 
 
-def current_branch(cwd):
+def current_branch(cwd, git_dir=None):
     """Branch name, or None when git can't answer: no git, no repo, detached
     HEAD, or no commits yet.
+
+    `git_dir` is a `-C <dir>` seen in the command itself (push only, so far);
+    passing it to git lets git resolve a relative path against `cwd` itself,
+    rather than this function guessing how to join the two.
 
     The unborn case has to fail open. symbolic-ref happily names the branch of
     a freshly-init'd repo, so checking it alone blocks the very first commit -
     and the advice to branch first is unfollowable when there is no history to
     branch from."""
-    head = git(cwd, "rev-parse", "--verify", "HEAD")
+    global_args = ["-C", git_dir] if git_dir else []
+    head = git(cwd, *global_args, "rev-parse", "--verify", "HEAD")
     if head is None or head.returncode != 0:
         return None
-    done = git(cwd, "symbolic-ref", "--short", "HEAD")
+    done = git(cwd, *global_args, "symbolic-ref", "--short", "HEAD")
     return done.stdout.strip() if done and done.returncode == 0 else None
 
 
@@ -439,6 +642,24 @@ def deny(reason, command, advice):
         f"{advice}\n"
     )
     return 2
+
+
+def ask(reason, command):
+    """Claude Code path for `reason`: print the permission-decision JSON
+    PreToolUse reads and exit 0, so the person sees a prompt instead of a
+    silent allow or a hard block. Verified against
+    https://code.claude.com/docs/en/permission-modes: "Claude Code doesn't
+    add the option to prompts forced by one of your ask rules or by a hook,
+    because auto mode still shows you those prompts" -- so this fires even
+    when the session is otherwise running unattended."""
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "ask",
+            "permissionDecisionReason": f"bash_guard: {reason}. Command: {command}",
+        }
+    }))
+    return 0
 
 
 def main() -> int:
@@ -481,9 +702,41 @@ def main() -> int:
     if discard and worktree_dirty(cwd):
         return deny(discard[0], command, discard[1])
 
+    # A push that reaches main/master bypasses the same PR the commit rule
+    # below protects, just one step later -- #194. `--force`/`-f`/`+refspec`
+    # are already denied above regardless of target; what is left is a lease
+    # or a plain push whose destination resolves to a protected branch.
+    for m in PUSH.finditer(code):
+        push_args = m.group("args")
+        git_dir = _unquote(m.group("cdir"))
+        lease = bool(re.search(r"(?:^|\s)--force-with-lease\b", push_args))
+        branch = None
+        for target in push_targets(push_args):
+            if target is None:
+                if branch is None:
+                    branch = current_branch(cwd, git_dir) or ""
+                target = branch
+            if target not in PROTECTED:
+                continue
+            if lease or has_remote_ref(cwd, git_dir, target):
+                where = f"{git_dir} (git -C)" if git_dir else (cwd or "the hook working directory")
+                return deny(f"push to protected branch '{target}'", command,
+                            f"Branch read from {where}. " + PUSH_PROTECTED_ADVICE)
+
     if COMMIT.search(code) and current_branch(cwd) in PROTECTED:
         return deny("committing directly to a protected branch", command,
                     f"Branch read from {cwd or 'the hook working directory'}. " + BRANCH)
+
+    # Checked last: every rule above is a deny, and a command that trips one
+    # of them stays denied even if it also merges -- ask never weakens a
+    # deny.
+    pr_merge, api_merge = ((GH_PR_MERGE_BASH, GH_API_MERGE_BASH)
+                            if payload.get("tool_name") == "Bash"
+                            else (GH_PR_MERGE, GH_API_MERGE))
+    if pr_merge.search(code) or api_merge.search(code):
+        if os.environ.get(CODEX_GUARD_ENV) == "1":
+            return deny(MERGE_REASON, command, MERGE_CODEX_ADVICE)
+        return ask(MERGE_REASON, command)
 
     return 0
 

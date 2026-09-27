@@ -760,13 +760,18 @@ for path in sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md")
           f"{PLUGIN}/scripts/" not in read_text(path))
 
 
-def temp_repo(branch, commit=True):
+def temp_repo(branch, commit=True, spaced=False):
     """A throwaway repo on a known branch. The guard asks git which branch it
     is on, so every `git commit` case needs a cwd of its own — otherwise the
     result depends on whoever runs validate.py being on the right branch.
 
-    `commit=False` leaves HEAD unborn, which the guard treats as unprotected."""
-    path = tempfile.mkdtemp(prefix=f"cai-guard-{branch}-")
+    `commit=False` leaves HEAD unborn, which the guard treats as unprotected.
+
+    `spaced=True` puts a space in the directory name itself -- the common
+    Windows-user-directory shape (#194 review) that a `-C <dir>` value must
+    survive parsing, not just a `\\S+`-friendly path."""
+    prefix = f"cai guard {branch} " if spaced else f"cai-guard-{branch}-"
+    path = tempfile.mkdtemp(prefix=prefix)
     subprocess.run(["git", "init", "-b", branch, path], capture_output=True, text=True)
     if commit:
         subprocess.run(["git", "-C", path, "-c", "user.email=t@example.com",
@@ -804,6 +809,17 @@ def dirty_repo(untracked_only=False):
     return path
 
 
+def remote_ref_repo(branch, spaced=False):
+    """A repo that already has refs/remotes/origin/main and origin/master, as
+    if the remote already carries them -- the fixture the #194 push rule's
+    new-remote exemption must NOT apply to, since a PR is possible there."""
+    path = temp_repo(branch, spaced=spaced)
+    for name in ("main", "master"):
+        subprocess.run(["git", "-C", path, "update-ref", f"refs/remotes/origin/{name}", "HEAD"],
+                       capture_output=True, text=True)
+    return path
+
+
 WORK = temp_repo("work")
 MAIN = temp_repo("main")
 DIRTY = dirty_repo()
@@ -811,12 +827,98 @@ UNTRACKED_ONLY = dirty_repo(untracked_only=True)
 NOT_A_REPO = tempfile.mkdtemp(prefix="cai-guard-bare-")
 DETACHED = detached_repo()
 UNBORN = temp_repo("main", commit=False)
+# Feature branch, remote already has main/master: proves the exemption reads
+# the remote, not the current branch -- a push naming main explicitly must
+# still be blocked from a feature checkout.
+REMOTE = remote_ref_repo("work")
+# On main, remote already has main/master: the fixture a bare push or a bare
+# `--force-with-lease` while on main resolves against.
+MAIN_REMOTE = remote_ref_repo("main")
+# Same as MAIN_REMOTE, but the repo directory itself has a space in its path
+# -- `-C <dir>`'s value pattern must not stop parsing at the first
+# whitespace (#194 review).
+SPACED_MAIN_REMOTE = remote_ref_repo("main", spaced=True)
+# main present locally with a remote-tracking ref, but checked out on a
+# feature branch: proves `--all`/`--mirror` are blocked regardless of which
+# branch the session happens to be on, not only when cwd is already on main
+# (#194 review).
+FEATURE_WITH_LOCAL_MAIN = remote_ref_repo("main")
+subprocess.run(["git", "-C", FEATURE_WITH_LOCAL_MAIN, "checkout", "-b", "feature"],
+               capture_output=True, text=True)
 
 CASES = [
     # (tool_name, command, expected, cwd)
     ("Bash", "git push --force origin main", 2, WORK),
     ("Bash", "git push -f origin main", 2, WORK),
-    ("Bash", "git push --force-with-lease origin main", 0, WORK),
+    # #194: a `+refspec` forces exactly like --force/-f, on any target.
+    ("Bash", "git push origin +HEAD:main", 2, WORK),
+    ("Bash", "git push origin +main", 2, WORK),
+    # #194 maintainer decision: --force-with-lease to main/master is now
+    # blocked too, reversing this pin -- a lease protects against overwriting
+    # someone else's push, not against rewriting main itself.
+    ("Bash", "git push --force-with-lease origin main", 2, WORK),
+    ("Bash", "git push --force-with-lease origin master", 2, WORK),
+    # A lease push to a feature branch stays allowed -- the shipper's own
+    # documented push (agents/shipper.md:21).
+    ("Bash", "git push --force-with-lease origin feat/x", 0, WORK),
+    ("Bash", "git push --force-with-lease", 0, WORK),
+    # No refspec, so the destination is the current branch -- main here, with
+    # no remote-tracking ref needed since a lease gets no new-remote exemption.
+    ("Bash", "git push --force-with-lease", 2, MAIN),
+    # A non-force push whose destination resolves to main/master, once a
+    # remote-tracking ref for it already exists (REMOTE), in every shape that
+    # names main without saying --force.
+    ("Bash", "git push origin HEAD:main", 2, REMOTE),
+    ("Bash", "git push origin main", 2, REMOTE),
+    ("Bash", "git push origin refs/heads/main", 2, REMOTE),
+    ("Bash", "git push origin :main", 2, REMOTE),
+    ("Bash", "git push origin --delete main", 2, REMOTE),
+    ("Bash", "echo hi && git push origin HEAD:main", 2, REMOTE),
+    ("PowerShell", "git push origin HEAD:main", 2, REMOTE),
+    # Bare pushes and --all/--mirror read the current branch -- main, with a
+    # remote-tracking ref already present.
+    ("Bash", "git push", 2, MAIN_REMOTE),
+    ("Bash", "git push origin", 2, MAIN_REMOTE),
+    ("Bash", "git push origin HEAD", 2, MAIN_REMOTE),
+    ("Bash", "git push --all origin", 2, MAIN_REMOTE),
+    ("Bash", "git push --mirror", 2, MAIN_REMOTE),
+    # --all/--mirror push every local branch, not just whichever one is
+    # checked out -- blocked even from a feature checkout with a local main
+    # present, not only when cwd already resolves to main (#194 review).
+    ("Bash", "git push --all origin", 2, FEATURE_WITH_LOCAL_MAIN),
+    ("Bash", "git push --mirror", 2, FEATURE_WITH_LOCAL_MAIN),
+    # A redirection token must not be misread as the remote or a refspec --
+    # this is still a bare push, not one naming something else.
+    ("Bash", "git push 2>&1", 2, MAIN_REMOTE),
+    # Nor must the filename a `>`/`>>` operator redirects to, even when a
+    # space separates the operator from its target (#194 review).
+    ("Bash", "git push origin > out.txt", 2, MAIN_REMOTE),
+    ("Bash", "git push origin feat/x > out.txt 2>&1", 0, WORK),
+    # `-C <dir>` names a different repo than the session cwd -- this session's
+    # own worktrees make that the common case, not an edge one. Reading only
+    # the hook cwd would get both of these backwards.
+    ("Bash", f"git -C {MAIN_REMOTE} push origin HEAD:master", 2, WORK),
+    ("Bash", f"git -C {MAIN_REMOTE} push --force-with-lease", 2, WORK),
+    ("Bash", f"git -C {WORK} push --force-with-lease", 0, MAIN_REMOTE),
+    # A `-C <dir>` value containing a space (an ordinary Windows user
+    # directory) must not truncate at the first whitespace and silently drop
+    # the whole push rule (#194 review).
+    ("Bash", f'git -C "{SPACED_MAIN_REMOTE}" push origin main', 2, WORK),
+    ("Bash", f'git -C "{SPACED_MAIN_REMOTE}" push --force origin main', 2, WORK),
+    # The first push of a brand-new repo: no `refs/remotes/*/main` exists
+    # anywhere, so there is no PR to open into. Force/lease get no such
+    # exemption (both proven above).
+    ("Bash", "git push -u origin main", 0, MAIN),
+    # Ordinary pushes that must stay allowed.
+    ("Bash", "git push -u origin feat/x", 0, WORK),
+    ("Bash", "git push origin main:feat/x", 0, WORK),
+    ("Bash", "git push origin v1.0", 0, WORK),
+    ("Bash", "git push --tags", 0, WORK),
+    ("Bash", "git push", 0, WORK),
+    ("Bash", "git log --grep='git push origin main'", 0, MAIN),
+    ("Bash", "cat > n.md <<'EOF'\ngit push origin main\nEOF", 0, MAIN),
+    # A push hidden in an unquoted heredoc substitution is still a push.
+    ("Bash", "cat <<EOF\n$(git push origin HEAD:main)\nEOF", 2, REMOTE),
     ("Bash", "git reset --hard HEAD~1", 2, WORK),
     ("Bash", "git commit --no-verify -m x", 2, WORK),
     ("Bash", "rm -rf build/", 2, WORK),
@@ -976,6 +1078,25 @@ CASES = [
     # single quotes is blocked, as a backtick there is (stance trade T-b).
     ("Bash", "ls # it's\necho $(date)", 2, WORK),
     ("PowerShell", "git commit -m 'fix: it's $(echo hi)'s bug'", 0, WORK),
+    # --- #194 follow-up: `gh pr merge` asks (Claude Code) rather than blocks
+    # or silently allows, so its exit code alone reads the same as a plain
+    # allow -- the ask JSON on stdout is what tests/test_bash_guard_merge.py
+    # checks; this file only proves these shapes don't trip a 2 here.
+    ("Bash", "gh pr merge 123 --squash", 0, WORK),
+    ("Bash", "gh api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
+    ("Bash", "gh --repo=owner/repo pr merge 123", 0, WORK),
+    ("Bash", "gh -Rowner/repo pr merge 123", 0, WORK),
+    ("Bash", "gh --repo owner/repo api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
+    ("Bash", "gh pr \\\nmerge 123", 0, WORK),
+    # Look-alikes: neither a merge nor a block.
+    ("Bash", "gh pr view 123", 0, WORK),
+    ("Bash", "git merge feature", 0, WORK),
+    ("Bash", 'git commit -m "please gh pr merge later"', 0, WORK),
+    ("Bash", "gh api repos/o/r/pulls/5/merge", 0, WORK),
+    ("PowerShell", 'git commit -m "docs: mention that `gh pr merge` requires review before use"', 0, WORK),
+    # An existing deny rule stays denied even on a command that also merges --
+    # ask never weakens a deny.
+    ("Bash", "git push --force origin main && gh pr merge 5", 2, WORK),
 ]
 
 
@@ -1044,6 +1165,11 @@ if os.path.isfile(LAUNCHER):
         ({"tool_input": {"command": ["powershell.exe", "-Command", 'git commit -m "fix `None`"']}, "cwd": WORK}, 0),
         ({"tool_input": {"command": ["bash", "-c", "cat <<EOF\n$(git push --force origin main)\nEOF"]}, "cwd": WORK}, 2),
         ({"tool_input": {"command": ["bash", "-c", "git commit -m 'fix: it's $(echo hi)'s bug'"]}, "cwd": WORK}, 2),
+        # #194 follow-up: Codex's hook host parses but does not act on an
+        # "ask" permission decision, so the launcher sets CAI_CODEX_GUARD=1
+        # before invoking bash_guard.py and a merge is denied here instead of
+        # asked, unlike the Claude Code case above.
+        ({"tool_input": {"command": "gh pr merge 123"}, "cwd": WORK}, 2),
     ]
 
     def run_codex_guard(payload):
@@ -1525,11 +1651,12 @@ def write_ship_state(track_dir, verify_status):
 
 # ship's own repo fixtures live outside the track directory it reads, so
 # writing state.md never touches the git status this check is also reading.
-SHIP_DIRTY = temp_repo("ship-dirty")
+# A tracked file with an uncommitted change, not an untracked one (#198):
+# untracked files never block ship, so an untracked-only fixture here would
+# now prove the opposite of what "dirty tree" means to name.
+SHIP_DIRTY = dirty_repo()
 SHIP_DIRTY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
 write_ship_state(SHIP_DIRTY_TRACK, "done")
-with open(os.path.join(SHIP_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
-    fh.write("scratch\n")
 done = run_preflight_at("ship", SHIP_DIRTY, SHIP_DIRTY_TRACK)
 check("preflight ship [dirty tree] -> 2", done.returncode == 2)
 check("preflight ship names clean_tree", "FAIL clean_tree" in done.stdout)
@@ -1539,6 +1666,13 @@ SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
 write_ship_state(SHIP_CLEAN_TRACK, "done")
 done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
 check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
+
+# #198's decision: untracked files never block ship, whatever their number.
+SHIP_UNTRACKED_ONLY = dirty_repo(untracked_only=True)
+SHIP_UNTRACKED_ONLY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_UNTRACKED_ONLY_TRACK, "done")
+done = run_preflight_at("ship", SHIP_UNTRACKED_ONLY, SHIP_UNTRACKED_ONLY_TRACK)
+check("preflight ship [untracked only] -> 0", done.returncode == 0)
 
 # ship's other two reasons: the fixtures above always fill verify's status and
 # always run on a feature branch, so only clean_tree was ever exercised.
@@ -1891,6 +2025,21 @@ if os.path.isfile(STAGES_JSON):
             check(f"{build_ref}'s {label} names the diagnosis path's "
                   f"`## Failing test`", phrase in build_step(heading))
 
+        # #199: a test-runner report with 0 failures used to read as green
+        # even when a named file collected 0 tests or skipped every test
+        # (a conftest that skips the whole package, say). Step 3.4 has to
+        # treat that report as red, or the bounded retry never fires.
+        check(f"{build_ref}'s Step 3.4 treats a NOT RUN test file as red",
+              "no NOT RUN file" in build_step("## Step 3"))
+
+    test_runner_ref = f"{PLUGIN}/agents/test-runner.md"
+    if os.path.isfile(test_runner_ref):
+        # #199: the report format has to name the zero-collected/all-skipped
+        # case explicitly, or test-runner has no words telling it to.
+        check(f"{test_runner_ref} reports a named file that collected 0 "
+              "tests or skipped them all as NOT RUN",
+              "NOT RUN" in read_text(test_runner_ref))
+
     # The original mis-assignment picked a stage's agent by tier alone --
     # design pointed at architect (Read-only), ship at explorer (no git) --
     # and both named agents that could not do the stage's job. Assert the
@@ -2191,7 +2340,21 @@ if os.path.isfile(VERIFY_REF):
 # reader to ticket-mirror.md; the second is headroom, on the same reasoning as
 # both moves above. The procedure deliberately did not come here: it is twenty
 # lines, and this file routes rather than implements.
-TRACK_SKILL_MAX = 130
+#
+# 130 -> 131 on 2026-09-26 (#193): one line routes a new track on `main`/
+# `master` through `track_start.py` before intake's preflight can ever FAIL
+# `not_main_branch`. Moved together with the pinned body-line count in
+# tests/test_track_skill_ticket_pointer.py, as that test's own docstring
+# requires, keeping the same two-line gap below the ceiling rather than
+# spending it -- #203 is expected to spend it next, raising this ceiling
+# again rather than landing on it.
+#
+# 131 -> 132 on 2026-09-26 (#203): one line ends `/cai:track done` with the
+# post-merge routine (switch to the base branch, `git pull`, `/cai:git-sweep`)
+# instead of leaving it to be typed by hand. Moved together with the pinned
+# body-line count in tests/test_track_skill_ticket_pointer.py, keeping the
+# same two-line gap.
+TRACK_SKILL_MAX = 132
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)

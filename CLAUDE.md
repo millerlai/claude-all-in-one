@@ -169,6 +169,16 @@ transcripts and writes nothing.
 
 ## Mistakes Claude repeats here
 
-<!-- Empty on purpose. Add an entry only once Claude makes the same mistake
-     in this repo a second time. A mistake that would happen in any repo
-     belongs in ~/.claude/rules/ instead. -->
+<!-- Add an entry only once Claude makes the same mistake in this repo a
+     second time. A mistake that would happen in any repo belongs in
+     ~/.claude/rules/ instead. -->
+
+- **Calling a PR done while its Linux CI is still running.** A green local
+  run here is Windows only (see "Platform coverage"); Linux is covered by CI
+  alone. #218 was handed off with CI pending and merged red. Before saying a
+  PR is shipped, or merging it, wait until `gh pr checks <n>` finishes green.
+- **A test that plants a fake executable as `git.bat`.** `shutil.which`
+  finds a `.bat` only through Windows' PATHEXT, so on the Linux CI it found
+  no `git` at all (#219). Write `git.bat` on Windows and, on POSIX, a file
+  named `git` with a `#!/bin/sh` line and mode `0o755`; keep the assertion
+  the same on both.

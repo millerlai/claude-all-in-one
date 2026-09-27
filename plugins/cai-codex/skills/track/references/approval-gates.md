@@ -108,13 +108,25 @@ recommendation there would be the model choosing it.
 ## Gate 2 — before `ship`'s irreversible operations
 
 Quote the exact commands about to run — merging, tagging, publishing, a
-force-push — and what each one makes public. "Confirm the release?" is not
-this question; the commands are.
+force-push — and what each one makes public. Before quoting a `gh pr create`
+that carries a drafted PR body, run `ship_draft_check.py --message-file <the
+already-drafted commit message from Step 4> --body-file <the draft>`
+(`--ticket <number>` and `--track-dir` too, when ticket-mirror's ship section
+resolved a number) and fix every FAIL in the draft first. "Confirm the
+release?" is not this question; the commands are.
+
+**Before quoting the commands**, list build's manual steps: run `python
+<cai-root>/scripts/track_state.py left-open` and quote every
+`[build]` line it prints, or say none are recorded if it prints none.
+Standing alone, there is no track to read one from, so say there is nothing
+to read.
 
 | Option | What it does |
 |---|---|
 | Run them | Checked once more first, then they run, in the order quoted — see below. |
 | Stop — hand me the commands | Nothing runs. Report them for the person to run themselves. |
+
+The merge itself is denied here rather than asked: `gh pr merge` is a human action, but the guard's "ask" permission decision is parsed and not acted on by this platform's hook host, so it blocks the command instead and hands the exact command back for the person to run themselves, on top of this gate.
 
 **Before "Run them" runs anything, inside a track**, the base branch may have
 moved since `ship`'s preflight read it, and a branch that no longer merges
@@ -137,6 +149,17 @@ git fetch origin
 "Stop — hand me the commands" hands over the quoted commands only, not
 these two.
 
+**Two reminders ride along with this gate, neither of them a stop (#198).**
+`preflight.py ship`'s always-PASS `untracked_since_start` line names the
+untracked files this track appears to have produced — code the squash never
+picks up and git never sees again once the branch merges — so quote that
+line in the same message as the commands above; it is a reminder, not
+another question. Once "Run them" has run, or the commands have been handed
+over, say in one line which documents `docs_not_in_git` named: design
+documents this track wrote that are not in git (in this repo, `docs/` is
+gitignored, so they never show up in `git status` on their own) — and that
+they stay out of git unless the person asks to add them.
+
 **Standing alone** (`$ship`, no track), there is no `state.md` for
 `preflight.py ship` to read, so neither runs: the quoted commands run as
 quoted, and you say in one line that the merge with the base branch was not
@@ -145,11 +168,14 @@ checked.
 Two more confirmations sit beside this one and are asked on their own
 turns, because a yes to publishing is not a yes to either of them:
 
-- **The squash**, `stage-ship.md` Step 4 — show the drafted commit message
-  and ask before rewriting history. A dispatched draft carries no trailer
-  lines: end it with the ones your own instructions give for commits
+- **The squash**, `stage-ship.md` Step 4 — a dispatched draft carries no
+  trailer lines: end it with the ones your own instructions give for commits
   (`Co-Authored-By:` and the like), if any, before you show it, so the
-  message approved is the message committed.
+  message approved is the message committed. Then, before showing it, run
+  `ship_draft_check.py --message-file <the draft>` (`--ticket <number>` and
+  `--track-dir` too, when ticket-mirror's ship section resolved a number) and
+  fix every FAIL in the draft; then show the message and ask before
+  rewriting history.
 - **The ticket comment**, `references/ticket-mirror.md`'s ship section —
   whether to run `ticket.py project` once more for ship's own row, only when
   mirroring is on.

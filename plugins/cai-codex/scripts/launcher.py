@@ -169,12 +169,19 @@ def run_guard(root: Path) -> int:
     # ownership" makes those `git` calls fail, and both checks treat "can't
     # tell" as an unrelated repo, i.e. fail open: a protected-branch commit
     # or a dirty-tree discard would go through unblocked. No cwd in the
-    # payload leaves the guard's environment untouched, same as before --
+    # payload leaves git's environment as it was, same as before --
     # bash_guard.py already fails open when it can't read a cwd (its own
     # `payload.get("cwd")` default of None becomes `cwd=None`, and
     # subprocess.run's own `cwd=None` means "inherit").
     cwd = adapted.get("cwd")
-    env = _git_safe_env(cwd) if cwd else None
+    env = _git_safe_env(cwd) if cwd else dict(os.environ)
+    # The one explicit signal bash_guard.py has for "this is Codex, not
+    # Claude Code" -- set here, by the one component that actually knows,
+    # rather than bash_guard.py sniffing the payload shape. Codex's hook host
+    # parses a PreToolUse "ask" decision but does not act on it
+    # (learn.chatgpt.com/docs/hooks), so a `gh pr merge` gets denied here
+    # instead of the permission prompt Claude Code shows.
+    env["CAI_CODEX_GUARD"] = "1"
     result = subprocess.run([sys.executable, str(guard)],
                              input=json.dumps(adapted), encoding="utf-8", env=env)
     return result.returncode

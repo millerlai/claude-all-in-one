@@ -38,7 +38,8 @@ already exists, this is a resume: skip straight to the next unfinished
 stage `track_state.py status` names. Otherwise this is a new track — first
 count existing directories under `.claude/track/` (excluding `done/`); at
 5 already, refuse and say why instead of creating a sixth. Archived tracks
-under `done/` never count toward this cap — it only grows.
+under `done/` never count toward this cap — it only grows. Before creating
+anything, run `<cai> track_start --track-dir .claude/track/<feature> --project-dir <project root>` and relay what it prints; on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 2 means stop, create nothing, and report exactly what it printed.
 
 Create `.claude/track/<feature>/state.md`, then `.claude/track/current`, then
 start the first stage below. The table: `| stage | status | artifact | note |`,
@@ -99,9 +100,12 @@ Exactly two stages stop for a person, never more:
 - **After `design`** — before any code exists, a person signs off on the
   design artifact. Do not start `build` without that sign-off.
 - **Before the irreversible operations in `ship`** — merging, tagging,
-  publishing. Confirm with the person before running them, then run them
-  yourself: no subagent runs an irreversible git/gh operation here, so
-  `ship`'s own dispatched stage only prepares.
+  publishing. Confirm with the person before running them, then run
+  tagging and publishing yourself: no subagent runs an irreversible
+  git/gh operation here, so `ship`'s own dispatched stage only
+  prepares. Not the merge, though — the guard denies `gh pr merge` on
+  this platform, so hand that command back for the person to run
+  themselves.
 
 Both are asked with `request_user_input` if it is in your tool list — a
 menu, labelled options; only when it is not in your tool list, ask with
@@ -139,3 +143,4 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 First run `<cai> track_state left-open` and relay its output verbatim, then follow `<cai-root>/skills/track/references/ticket-mirror.md`'s `$track done` section, which says what runs after the move too — all skipped when the refusal below fires.
 Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
+Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `$git-sweep`, which shows its table before deleting anything — run none of this yourself.

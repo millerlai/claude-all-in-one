@@ -47,11 +47,11 @@ TOKENS_B_TOTAL = sum(TOKENS_B.values())
 
 
 def _append_with_usage(track_dir, stage, outcome, monkeypatch, orchestration=None,
-                       agents=None, session_id="sess-fixed"):
+                       agents=None, session_id="sess-fixed", note="fixture"):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session_id)
     monkeypatch.setattr(ledger.usage_collector, "collect",
                         lambda *a, **k: (dict(orchestration or {}), dict(agents or {}), []))
-    return ledger.append(track_dir, stage, outcome)
+    return ledger.append(track_dir, stage, outcome, note=note)
 
 
 def _money_str(amount):

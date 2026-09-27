@@ -63,11 +63,12 @@ def make_track(tmp_path):
 def stub_status(returncode, stdout="", stderr=""):
     """Replaces preflight.git with a fake that answers `status --porcelain`
     the given way and defers every other call to the real git -- same shape
-    as test_preflight_merge_check.py's `--version` stub."""
+    as test_preflight_merge_check.py's `--version` stub. Matches on the first
+    two arguments, since ship asks with `-z` (#198) and verify without it."""
     real_git = preflight.git
 
     def fake_git(cwd, *args, encoding=None):
-        if args == ("status", "--porcelain"):
+        if args[:2] == ("status", "--porcelain"):
             if returncode is None:
                 return None
             return subprocess.CompletedProcess(

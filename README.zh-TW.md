@@ -123,7 +123,7 @@ Fowler 目錄中的每一種重構也各自是一個 slash command——`/cai:ex
 
 | | |
 |---|---|
-| **Bash 安全防護** | 掛在 Bash *與* PowerShell 工具上的 `PreToolUse` hook。阻擋 force push、`reset --hard`、`git clean -f`、`--no-verify`、`rm -rf` 以及等效的 `Remove-Item -Recurse -Force`、直接 commit 到 `main`/`master`，以及 Bash 指令裡出現的 PowerShell here-string 語法——就是那個會在 commit 訊息裡留下多餘 `@` 字元的寫法。它也會在**工作目錄有未提交變更時**阻擋 `git checkout -- <paths>` 與 `git restore`——這正是「驗證步驟把它原本要檢查的修正吃掉」的樣子；工作目錄乾淨時這兩個指令什麼都不會丟，直接放行。被擋下時會附上修正建議，而不只是拒絕。 |
+| **Bash 安全防護** | 掛在 Bash *與* PowerShell 工具上的 `PreToolUse` hook。阻擋 force push（`--force`、`-f`、`+refspec`，或 `--force-with-lease`）、`reset --hard`、`git clean -f`、`--no-verify`、`rm -rf` 以及等效的 `Remove-Item -Recurse -Force`、直接 commit 到 `main`/`master`、目的地解析為 `main`/`master` 的任何 push（無論是否 force），以及 Bash 指令裡出現的 PowerShell here-string 語法——就是那個會在 commit 訊息裡留下多餘 `@` 字元的寫法。它也會在**工作目錄有未提交變更時**阻擋 `git checkout -- <paths>` 與 `git restore`——這正是「驗證步驟把它原本要檢查的修正吃掉」的樣子；工作目錄乾淨時這兩個指令什麼都不會丟，直接放行。被擋下時會附上修正建議，而不只是拒絕。 |
 | **共用規則** | 八份指令檔，涵蓋 Claude 應如何溝通、驗證主張、寫程式、執行工作流程、選擇模型、使用記憶、撰寫文件，以及呈現選項。由 `/cai:setup` 安裝到使用者層級。 |
 | **嘗試 ledger** | 軌道的每一次階段嘗試——`passed`、`failed`、`blocked`、`skipped`，或供應商拒絕服務時的 `unavailable`——都會附加到 `.claude/track/<feature>/ledger.jsonl`，連同它的關卡類型（`auto` 或 `human`）、所指 artifact 的 SHA-256，以及自上一筆紀錄以來該 session 花掉的 token。另有一份帶著專案與軌道名稱的副本寫到 `~/.claude/cai/usage.jsonl`，這就是 `/cai:usage` 跨專案讀取的來源。某個階段自上次通過或被跳過以來，累積五次 failed 或 blocked 就會被封頂，拒絕訊息會列出三種解法；`unavailable` 永遠不計入。 |
 

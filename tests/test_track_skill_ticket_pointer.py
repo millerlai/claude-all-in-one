@@ -104,7 +104,7 @@ def test_validate_reports_the_same_body_line_count_as_computed_here():
     assert reported <= ceiling
 
 
-def test_skill_md_body_is_128_lines():
+def test_skill_md_body_is_130_lines():
     """120 before ticket mirroring, plus one pointer line each for it and
     for `references/pending-questions.md` (2026-09-03), plus five for
     `references/approval-gates.md` (#74).
@@ -128,8 +128,21 @@ def test_skill_md_body_is_128_lines():
     `ticket-mirror.md`, where its four-step procedure lives -- the procedure
     stayed out of SKILL.md precisely so this stayed one line. TRACK_SKILL_MAX
     moved 128 -> 130 in the same change, so the gap is two again rather than
-    zero."""
-    assert _skill_body_lines() == 128
+    zero.
+
+    128 -> 129 on 2026-09-26 (#193): one line routes a new track started on
+    `main`/`master` through `track_start.py` -- a `git pull --ff-only` plus
+    `git switch -c track/<feature>` -- before intake's preflight can ever
+    FAIL `not_main_branch`. TRACK_SKILL_MAX moved 130 -> 131 in the same
+    change, so the gap stays two rather than closing to one -- #203 is
+    expected to spend it next.
+
+    129 -> 130 on 2026-09-26 (#203): one line ends the done section with the
+    post-merge routine (switch to the base branch, `git pull`,
+    `/cai:git-sweep`) that used to be typed by hand every time. TRACK_SKILL_MAX
+    moved 131 -> 132 in the same change, keeping the two-line gap this test's
+    own docstring asks for."""
+    assert _skill_body_lines() == 130
 
 
 # --- '## Human gates' still says what it has always said --------------------

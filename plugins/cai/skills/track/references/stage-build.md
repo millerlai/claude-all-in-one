@@ -120,10 +120,11 @@ each replaces — a resumed session needs this at Step 6 without re-asking.
 Under a track the notes go in `.claude/track/<feature>/`, beside the
 `state.md` a cold session resumes from. Check `.gitignore` covers
 `.claude/track/` first — `preflight.py`'s `track_ignored` reports when it
-does not and never blocks, so an unignored track leaves the notes in the
-working tree and `ship` fails later on `clean_tree` instead, naming the
-symptom rather than the cause. Standing alone, put them wherever this
-project already keeps working notes.
+does not and never blocks. An untracked track file never trips `ship`'s
+`clean_tree` on its own (#198); committing it and then changing it does, and
+that FAIL now names the file rather than leaving the person to guess why the
+tree is dirty. Standing alone, put them wherever this project already keeps
+working notes.
 
 Order the units: riskiest one with no unmet dependency first. Check
 upstream blockers here too — a unit waiting on another team's endpoint is
@@ -175,6 +176,9 @@ For each unit, in schedule order:
    keep the red output, because Step 6.1 needs it.
 4. **Verify.** Dispatch `test-runner` with the unit's `Verify with`
    command. Read the real output.
+   - Green means no failures **and** no NOT RUN file — a named test file
+     that collected 0 tests, or skipped every test, is red even with 0
+     failures reported.
    - Green → continue.
    - Red → back to `implementer` once with the actual failure text. Still
      red → stop and report. No unbounded fix loop.
@@ -361,6 +365,8 @@ of the ledger's `--note`; you write no track file at all.
 - every deviation
 - anything skipped
 - every `CONTEXT.md` definition replaced, old text quoted
+- what is left open -- every step Step 6.4 names as a manual step, one item
+  each
 
 The in-flight `unit <N> of <total>` row is still written by Step 5.5
 above, not here -- this section is what you hand back once the whole

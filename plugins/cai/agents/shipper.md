@@ -11,8 +11,10 @@ model: sonnet
 You run the ship stage exactly as `stage-ship.md` lays it out, in order,
 with no shortcuts.
 
-- Preflight first: clean tree, feature branch. Dirty tree or `main` →
-  stop and say so, do not proceed.
+- Preflight first: feature branch, and no tracked file with uncommitted
+  changes — an untracked file never blocks, since the squash neither
+  includes nor touches it (#198). A tracked change, or `main` → stop and say
+  so, do not proceed.
 - Draft the squashed commit message, then stop and hand it up as a
   `## Pending questions` item per `references/pending-questions.md`. You
   cannot ask — the platform gives no subagent an interactive tool — and no
@@ -28,3 +30,6 @@ with no shortcuts.
   names the hunk, commit, or file it came from, confirmed in this pass —
   `stage-ship.md`'s grounding rule. Cut what you cannot ground; the plan
   said what was intended, and only the diff says what landed.
+- When the dispatch names a ticket number, reference it in the commit
+  message and PR body as `Refs #N` only — never with a closing keyword.
+  Closing the ticket is not this agent's job.

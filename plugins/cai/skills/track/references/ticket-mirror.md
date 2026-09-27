@@ -67,6 +67,8 @@ nothing, asking again only after the person next writes.
 
 4. **Create the track under the confirmed name, then point it, before the
    first stage runs.**
+   Create it the way SKILL.md's new-track paragraph does, including its
+   `track_start.py` run, then
    `ticket.py point --track-dir .claude/track/<name> --ref <the argument>`.
 
    The order matters and nothing enforces it: pointing after `intake` has
@@ -124,7 +126,11 @@ release note, the confirmation prompt — resolve it with `ticket.py read
 echoes the pointer — it never calls a backend, so it cannot confirm the
 ticket still exists. The dispatch prompt to the ship stage asks for that resolved
 number to appear exactly once in the commit message and exactly once in the PR
-body — not copied verbatim from `ref`, since resolving it is the point.
+body — not copied verbatim from `ref`, since resolving it is the point. Both
+places name it as `Refs #<number>`, never after a closing keyword (`close(s|d)`,
+`fix(es|ed)`, `resolve(s|d)`, any case, with or without a colon): a closing
+keyword closes the ticket on merge, and only `/cai:track done`'s menu below
+closes it.
 
 Ship's confirmation before the irreversible operations (`stage-ship.md`'s
 human gate) gains one more item, asked on its own turn, separately from the
