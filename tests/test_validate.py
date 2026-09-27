@@ -57,6 +57,20 @@ def _repository_url(repo):
     return manifest["repository"] + ".git"
 
 
+def _set_legacy_form(repo):
+    """Put both marketplace files in the copy back to the relative-path
+    string form they had before the first release. A copy of the working
+    tree is legacy only on main before that release -- `release.py prepare`
+    pins it mid-release and main stays pinned afterwards -- so tests that
+    need the legacy form set it here instead of assuming it."""
+    for rel_path in (CAI_MARKETPLACE, CODEX_MARKETPLACE):
+        path = repo / rel_path
+        obj = json.loads(path.read_text(encoding="utf-8"))
+        for entry in obj["plugins"]:
+            entry["source"] = f"./plugins/{entry['name']}"
+        path.write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def _pin_marketplace(repo, rel_path, plugin_name, plugin_path, url, ref):
     """Rewrite one plugin entry's `source` in the given marketplace file to
     the git-subdir object form."""
@@ -102,12 +116,12 @@ def test_r4_passes_on_an_unmodified_copy(tmp_path):
 FORM_LABEL = "marketplace entries use one consistent source form (legacy string, or git-subdir)"
 
 
-def test_legacy_string_form_passes_on_an_unmodified_copy(tmp_path):
-    """Baseline: both real marketplace files are still legacy-string on this
-    branch (the actual pin only happens when release.py prepare cuts a
-    release), so an unmodified copy must pass both marketplace-form checks
-    added in this unit, and validate.py overall must exit 0."""
+def test_legacy_string_form_passes(tmp_path):
+    """Baseline: with both marketplace files in the legacy string form (main
+    before the first release), a copy must pass both marketplace-form checks,
+    and validate.py overall must exit 0."""
     repo = _copy_repo(tmp_path)
+    _set_legacy_form(repo)
 
     result = _run_validate(repo)
 
@@ -137,12 +151,13 @@ def test_mixed_form_fails_check_a(tmp_path):
     """One marketplace file pinned to git-subdir, the other left as the
     legacy string -- the two disagree on form, so Check A must FAIL."""
     repo = _copy_repo(tmp_path)
+    _set_legacy_form(repo)
     url = _repository_url(repo)
     version = _product_version(repo)
     ref = f"v{version}"
 
     _pin_marketplace(repo, CAI_MARKETPLACE, "cai", "plugins/cai", url, ref)
-    # .agents/plugins/marketplace.json is left untouched (legacy string).
+    # .agents/plugins/marketplace.json stays in the legacy string form.
 
     result = _run_validate(repo)
 
@@ -165,12 +180,13 @@ def test_uc5_validate_check_loop_reaches_a_third_marketplace_row(tmp_path):
     git-subdir scenario, per the finding's documented allowance): the third
     row points at a marketplace file that does not exist in the copy, so it
     lands in validate.py's own except-unreadable branch. The two real rows
-    stay legacy-string (unmodified), so the mismatched third row's
+    are set to the legacy string form, so the mismatched third row's
     "unreadable" form makes the consistent-form check disagree and FAIL --
     proving the loop actually reached a row it was never specifically coded
     for.
     """
     repo = _copy_repo(tmp_path)
+    _set_legacy_form(repo)
     release_py = repo / "scripts" / "release.py"
     text = release_py.read_text(encoding="utf-8")
     anchor = ")\nPRODUCT_MANIFEST"

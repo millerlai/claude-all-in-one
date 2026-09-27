@@ -38,8 +38,24 @@ _REAL_GH_AUTH_OK = release._gh_auth_ok
 # ---------------------------------------------------------------------------
 
 REAL_PLUGIN_JSON = (REPO_ROOT / "plugins/cai/.claude-plugin/plugin.json").read_text(encoding="utf-8")
-REAL_CLAUDE_MARKETPLACE = (REPO_ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8")
-REAL_CODEX_MARKETPLACE = (REPO_ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8")
+
+
+def _legacy_form(marketplace_text):
+    """The real marketplace file with every plugin entry's `source` set back
+    to the relative-path string it had before the first release. The working
+    tree's own form cannot be trusted as a fixture: `release.py prepare` pins
+    it to git-subdir mid-release, and main stays pinned after the first
+    release, so tests that need the legacy form build it here."""
+    obj = json.loads(marketplace_text)
+    for entry in obj["plugins"]:
+        entry["source"] = f"./plugins/{entry['name']}"
+    return json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
+
+
+LEGACY_CLAUDE_MARKETPLACE = _legacy_form(
+    (REPO_ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
+LEGACY_CODEX_MARKETPLACE = _legacy_form(
+    (REPO_ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
 
 # Derived from the real manifest rather than hard-coded, so this file does not
 # go stale every time scripts/release.py itself bumps the product version
@@ -118,13 +134,13 @@ def test_repository_git_url_appends_dot_git():
 
 def test_pinned_ref_is_none_for_legacy_string_form():
     market = release.MARKETPLACES[0]
-    assert release.pinned_ref(REAL_CLAUDE_MARKETPLACE, market) is None
+    assert release.pinned_ref(LEGACY_CLAUDE_MARKETPLACE, market) is None
 
 
 def test_pin_marketplace_replaces_only_the_target_source():
     market = release.MARKETPLACES[0]
     url = "https://github.com/millerlai/claude-all-in-one.git"
-    new_text = release.pin_marketplace(REAL_CLAUDE_MARKETPLACE, market, url, "v1.37.0")
+    new_text = release.pin_marketplace(LEGACY_CLAUDE_MARKETPLACE, market, url, "v1.37.0")
 
     assert new_text.endswith("\n") and not new_text.endswith("\n\n")
     obj = json.loads(new_text)
@@ -133,8 +149,8 @@ def test_pin_marketplace_replaces_only_the_target_source():
         "source": "git-subdir", "url": url, "path": "plugins/cai", "ref": "v1.37.0",
     }
     # Every other top-level key is untouched.
-    assert entry["description"] == json.loads(REAL_CLAUDE_MARKETPLACE)["plugins"][0]["description"]
-    assert list(obj.keys()) == list(json.loads(REAL_CLAUDE_MARKETPLACE).keys())
+    assert entry["description"] == json.loads(LEGACY_CLAUDE_MARKETPLACE)["plugins"][0]["description"]
+    assert list(obj.keys()) == list(json.loads(LEGACY_CLAUDE_MARKETPLACE).keys())
 
     assert release.pinned_ref(new_text, market) == "v1.37.0"
 
@@ -142,7 +158,7 @@ def test_pin_marketplace_replaces_only_the_target_source():
 def test_pin_marketplace_codex_marketplace():
     market = release.MARKETPLACES[1]
     url = "https://github.com/millerlai/claude-all-in-one.git"
-    new_text = release.pin_marketplace(REAL_CODEX_MARKETPLACE, market, url, "v1.37.0")
+    new_text = release.pin_marketplace(LEGACY_CODEX_MARKETPLACE, market, url, "v1.37.0")
 
     assert release.pinned_ref(new_text, market) == "v1.37.0"
 
@@ -192,11 +208,11 @@ def test_shared_functions_handle_a_third_platform_with_no_special_casing(tmp_pat
 def test_pin_marketplace_raises_when_plugin_missing():
     market = release.MARKETPLACES[1]  # "cai-codex" is not in the Claude marketplace
     with pytest.raises(ValueError):
-        release.pin_marketplace(REAL_CLAUDE_MARKETPLACE, market, "https://x/y.git", "v1.0.0")
+        release.pin_marketplace(LEGACY_CLAUDE_MARKETPLACE, market, "https://x/y.git", "v1.0.0")
 
 
 def test_pin_marketplace_raises_when_plugin_duplicated():
-    obj = json.loads(REAL_CLAUDE_MARKETPLACE)
+    obj = json.loads(LEGACY_CLAUDE_MARKETPLACE)
     obj["plugins"].append(dict(obj["plugins"][0]))
     text = json.dumps(obj)
     market = release.MARKETPLACES[0]
@@ -519,7 +535,8 @@ def test_platform_cache_ok_false_when_manifest_missing(tmp_path):
 @pytest.fixture
 def repo_pair(tmp_path):
     """A bare `origin` and a working clone seeded with today's real manifest
-    and marketplace fixtures on `main`, both on branch `main`."""
+    and the legacy-form marketplace fixtures on `main`, both on branch
+    `main` -- the state `prepare` sees before a first release."""
     origin = tmp_path / "origin.git"
     work = tmp_path / "work"
 
@@ -537,11 +554,11 @@ def repo_pair(tmp_path):
 
     claude_market = work / ".claude-plugin" / "marketplace.json"
     claude_market.parent.mkdir(parents=True)
-    claude_market.write_text(REAL_CLAUDE_MARKETPLACE, encoding="utf-8")
+    claude_market.write_text(LEGACY_CLAUDE_MARKETPLACE, encoding="utf-8")
 
     codex_market = work / ".agents" / "plugins" / "marketplace.json"
     codex_market.parent.mkdir(parents=True)
-    codex_market.write_text(REAL_CODEX_MARKETPLACE, encoding="utf-8")
+    codex_market.write_text(LEGACY_CODEX_MARKETPLACE, encoding="utf-8")
 
     _run_git(["add", "-A"], cwd=work)
     _run_git(["commit", "-m", "seed"], cwd=work)
@@ -794,9 +811,9 @@ def _fake_git_for_verify(version, tag_sha="abc123"):
         if args[:1] == ("show",):
             rel = args[1].split(":", 1)[1]
             if rel == release.MARKETPLACES[0].file:
-                return subprocess.CompletedProcess(args, 0, REAL_CLAUDE_MARKETPLACE, "")
+                return subprocess.CompletedProcess(args, 0, LEGACY_CLAUDE_MARKETPLACE, "")
             if rel == release.MARKETPLACES[1].file:
-                return subprocess.CompletedProcess(args, 0, REAL_CODEX_MARKETPLACE, "")
+                return subprocess.CompletedProcess(args, 0, LEGACY_CODEX_MARKETPLACE, "")
             return subprocess.CompletedProcess(args, 1, "", "")
         if args[:1] == ("ls-tree",):
             return subprocess.CompletedProcess(args, 0, "", "")
