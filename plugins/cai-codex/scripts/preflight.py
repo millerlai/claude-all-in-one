@@ -37,6 +37,12 @@ MERGE_TREE_MIN_VERSION = (2, 38)
 BASE_REF_CANDIDATES = ("refs/remotes/origin/main", "refs/remotes/origin/master")
 MAX_CONFLICTS_SHOWN = 10
 
+# Written by track_start.py on every exit-0 path inside a git repo, read here
+# by untracked_since_start (#198): the set of paths git did not yet track
+# when this track began, so "new since then" can mean this track's own work
+# rather than whatever scratch was already lying around.
+UNTRACKED_BASELINE_NAME = "untracked-at-start.json"
+
 # The three suffixes the $design-*-doc commands already write. state.md
 # carries no separate field for this -- the filename is the convention.
 SUFFIX_KIND = {"-diagnosis.md": "diagnosis", "-stance.md": "stance",
@@ -401,8 +407,10 @@ def track_ignored(track_dir, project_dir):
     if done.returncode == 0:
         return True, "track_ignored (%s)" % track_dir
     return True, ("track_ignored (%s is NOT ignored -- add `.claude/track/` to "
-                  ".gitignore, or ship's clean_tree will trip over this "
-                  "track's own files)" % track_dir)
+                  ".gitignore; an untracked track file does not block ship "
+                  "(#198), but committing one and then changing it does, "
+                  "and ship's clean_tree will name it without saying why "
+                  "it's there)" % track_dir)
 
 
 def discover(track_dir, project_dir):
@@ -771,6 +779,183 @@ def verify(track_dir, project_dir):
     return [(ok, "has_changes (%s)" % detail)]
 
 
+def _tracked_changed_paths(porcelain_z_stdout):
+    """The paths `git status --porcelain -z` marks changed, minus the wholly
+    untracked (`??`) ones (#198): the squash neither includes nor touches an
+    untracked file, so only a tracked change is a reason for `clean_tree` to
+    block. Each entry is `XY PATH` -- two status letters, a space, then the
+    path -- ending in NUL; a rename or copy is followed by its old path as a
+    field of its own, skipped here since the new path already names it.
+    -z, not plain --porcelain: without it git C-quotes a name holding a
+    control character, so `_escape_control_chars` never saw the raw
+    character and the label showed git's quoting instead (Linux CI, #226)."""
+    fields = porcelain_z_stdout.split("\0")
+    paths = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        xy, path = entry[:2], entry[3:]
+        if "R" in xy or "C" in xy:
+            i += 1
+        if xy != "??":
+            paths.append(path)
+    return paths
+
+
+def _named_paths(shown, verb):
+    """`(N) label`-shaped text listing up to MAX_CONFLICTS_SHOWN of `shown`,
+    each escaped the way a conflicted path already is, plus a trailing count
+    of what got cut. Shared by clean_tree and untracked_since_start so a
+    crafted filename can't forge extra PASS/FAIL lines in either."""
+    n = len(shown)
+    names = ", ".join(_escape_control_chars(p) for p in shown[:MAX_CONFLICTS_SHOWN])
+    if n > MAX_CONFLICTS_SHOWN:
+        names += " and %d more" % (n - MAX_CONFLICTS_SHOWN)
+    return "%d %s: %s" % (n, verb, names)
+
+
+def _untracked_paths(project_dir):
+    """Every untracked path git reports, one entry per file -- `ls-files`
+    rather than `status --porcelain`, which folds a wholly-untracked
+    directory into one `dir/` entry and would hide a new file created inside
+    one that was already untracked. None when git could not answer."""
+    done = git(project_dir, "ls-files", "--others", "--exclude-standard", "-z",
+              encoding="utf-8")
+    if done is None or done.returncode != 0:
+        return None
+    return [p for p in done.stdout.split("\0") if p]
+
+
+def _artifact_paths(track_dir, project_dir):
+    """Every document this track's own records name, project-root relative:
+    state.md's artifact column, every ledger record's `--artifact`, and --
+    once Detail has run -- the decisions document a detail design's
+    `## Reference` points at.
+
+    state.md's design row holds only the most recent artifact (a detail
+    design replaces the stance and decisions cells that came before it,
+    preflight.py's own `tier1_drafts` docstring), but earlier passes' own
+    documents are still this track's, so the ledger -- which keeps every
+    `--artifact` a design or build pass or Gate 1 Approve ever recorded --
+    is read too (#198 critique)."""
+    paths = set()
+
+    row = state_row(track_dir, "design")
+    if row is not None and len(row) > 2 and row[2] not in ("", "—"):
+        paths.add(row[2])
+
+    for record in ledger.records(track_dir):
+        if record.get("malformed"):
+            continue
+        artifact = record.get("artifact")
+        if artifact:
+            paths.add(artifact)
+
+    for artifact in list(paths):
+        if not artifact.endswith("-detail.md"):
+            continue
+        doc = resolve(artifact, project_dir, track_dir)
+        if doc is None:
+            continue
+        try:
+            with open(doc, encoding="utf-8") as fh:
+                detail_text = fh.read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        reference = design_probe.COMMENT.sub(
+            "", design_probe.sections(detail_text).get("Reference", ""))
+        reference = re.sub(r"\S*<[^>\s]*>\S*", "", reference)
+        for cand in re.findall(r"[\w./\\-]+\.md", reference):
+            if cand.endswith("-decisions.md"):
+                paths.add(cand)
+
+    return paths
+
+
+def _to_posix(path):
+    return path.replace(os.sep, "/")
+
+
+def untracked_since_start(track_dir, project_dir):
+    """Report-only, never blocks (#198): which untracked paths are new since
+    this track started, so the main session can remind the person which code
+    this track produced the squash will otherwise leave out of git. A wrong
+    guess costs one extra line here, never a stop.
+
+    Excludes the track's own directory and its recorded artifacts -- neither
+    is "code this track produced" in the sense Gate 2 cares about."""
+    if not is_git_repo(project_dir):
+        return True, ("untracked_since_start (not checked: %s is not a git "
+                      "repository)" % project_dir)
+
+    now = _untracked_paths(project_dir)
+    if now is None:
+        return True, "untracked_since_start (not checked: git did not answer)"
+
+    try:
+        track_rel = _to_posix(os.path.relpath(
+            os.path.abspath(track_dir), os.path.abspath(project_dir)))
+    except ValueError:
+        track_rel = None  # different drives on Windows -- nothing to exclude by prefix
+
+    excluded = {_to_posix(a) for a in _artifact_paths(track_dir, project_dir)}
+
+    def is_track_file(p):
+        return track_rel is not None and (p == track_rel or p.startswith(track_rel + "/"))
+
+    candidates = sorted(p for p in now if p not in excluded and not is_track_file(p))
+
+    baseline_path = os.path.join(track_dir, UNTRACKED_BASELINE_NAME)
+    try:
+        with open(baseline_path, encoding="utf-8") as fh:
+            baseline = set(json.load(fh))
+        have_baseline = True
+    except (OSError, ValueError):
+        baseline = set()
+        have_baseline = False
+
+    if have_baseline:
+        new = [p for p in candidates if p not in baseline]
+        if not new:
+            return True, "untracked_since_start (none new since track start)"
+        return True, "untracked_since_start (%s)" % _named_paths(new, "new since track start")
+
+    if not candidates:
+        return True, "untracked_since_start (no baseline recorded, and no untracked files)"
+    return True, ("untracked_since_start (no baseline recorded -- listing "
+                  "every untracked path: %s)" % _named_paths(candidates, "untracked"))
+
+
+def docs_not_in_git(track_dir, project_dir):
+    """Report-only, never blocks (#198): which of this track's own documents
+    (state.md's artifact, every ledger `--artifact`, a detail design's
+    referenced decisions document) exist on disk but git does not track --
+    a reminder the main session names after ship, since a gitignored `docs/`
+    (as in this repo) means the person has to be told rather than shown."""
+    if not is_git_repo(project_dir):
+        return True, ("docs_not_in_git (not checked: %s is not a git "
+                      "repository)" % project_dir)
+
+    missing = []
+    for artifact in sorted(_artifact_paths(track_dir, project_dir)):
+        doc = resolve(artifact, project_dir, track_dir)
+        if doc is None:
+            continue
+        done = git(project_dir, "ls-files", "--error-unmatch", "--", doc)
+        if done is None:
+            return True, "docs_not_in_git (not checked: git did not answer)"
+        if done.returncode != 0:
+            missing.append(artifact)
+
+    if not missing:
+        return True, "docs_not_in_git (none)"
+    return True, "docs_not_in_git (%s)" % ", ".join(
+        _escape_control_chars(p) for p in missing)
+
+
 def ship(track_dir, project_dir):
     row = state_row(track_dir, "verify")
     if row is None:
@@ -785,14 +970,20 @@ def ship(track_dir, project_dir):
         merge_check = (True, "merges_cleanly (not checked: %s is not a git repository)"
                        % project_dir)
     else:
-        working = git(project_dir, "status", "--porcelain")
+        working = git(project_dir, "status", "--porcelain", "-z")
         problem = _status_problem(working)
         if problem is not None:
             clean_check = (False, "clean_tree (%s)" % problem)
         else:
-            clean = not working.stdout.strip()
-            clean_check = (clean, "clean_tree (working tree %s)" %
-                            ("is clean" if clean else "has uncommitted changes"))
+            changed = _tracked_changed_paths(working.stdout)
+            if not changed:
+                clean_check = (True, "clean_tree (working tree is clean, or holds "
+                               "only untracked files, which the squash neither "
+                               "includes nor touches)")
+            else:
+                clean_check = (False, "clean_tree (%s -- commit or stash them)"
+                               % _named_paths(changed, "tracked file(s) with "
+                                              "uncommitted changes"))
         branch = current_branch(project_dir)
         branch_check = (branch is not UNKNOWN_BRANCH and branch not in ("main", "master"),
                          "not_main_branch (branch is %s)" % (
@@ -800,7 +991,9 @@ def ship(track_dir, project_dir):
                              else branch or "detached HEAD"))
         merge_check = merges_cleanly(project_dir)
 
-    return [status_check, clean_check, branch_check, merge_check]
+    return [status_check, clean_check, branch_check, merge_check,
+            untracked_since_start(track_dir, project_dir),
+            docs_not_in_git(track_dir, project_dir)]
 
 
 STAGES = {"design": design, "intake": intake, "discover": discover,

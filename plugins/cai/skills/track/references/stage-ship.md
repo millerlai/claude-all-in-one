@@ -52,13 +52,14 @@ thing that outranks it.
 ## Step 1 — Preflight checks
 
 ```bash
-git status --porcelain
+git status --porcelain --untracked-files=no
 git branch --show-current
 ```
 
-Working tree must be clean — if dirty, stop and ask the user to commit or
-stash first. Must be on a feature branch — if on `main`/`master` or detached
-HEAD, stop.
+Only a tracked file with uncommitted changes blocks — commit or stash it and
+stop. An untracked file never blocks: the squash (Step 5) neither includes
+nor touches it (#198). Must be on a feature branch — if on `main`/`master` or
+detached HEAD, stop.
 
 ## Step 2 — Determine BASE
 

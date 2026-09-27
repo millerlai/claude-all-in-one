@@ -1525,11 +1525,12 @@ def write_ship_state(track_dir, verify_status):
 
 # ship's own repo fixtures live outside the track directory it reads, so
 # writing state.md never touches the git status this check is also reading.
-SHIP_DIRTY = temp_repo("ship-dirty")
+# A tracked file with an uncommitted change, not an untracked one (#198):
+# untracked files never block ship, so an untracked-only fixture here would
+# now prove the opposite of what "dirty tree" means to name.
+SHIP_DIRTY = dirty_repo()
 SHIP_DIRTY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
 write_ship_state(SHIP_DIRTY_TRACK, "done")
-with open(os.path.join(SHIP_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
-    fh.write("scratch\n")
 done = run_preflight_at("ship", SHIP_DIRTY, SHIP_DIRTY_TRACK)
 check("preflight ship [dirty tree] -> 2", done.returncode == 2)
 check("preflight ship names clean_tree", "FAIL clean_tree" in done.stdout)
@@ -1539,6 +1540,13 @@ SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
 write_ship_state(SHIP_CLEAN_TRACK, "done")
 done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
 check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
+
+# #198's decision: untracked files never block ship, whatever their number.
+SHIP_UNTRACKED_ONLY = dirty_repo(untracked_only=True)
+SHIP_UNTRACKED_ONLY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_UNTRACKED_ONLY_TRACK, "done")
+done = run_preflight_at("ship", SHIP_UNTRACKED_ONLY, SHIP_UNTRACKED_ONLY_TRACK)
+check("preflight ship [untracked only] -> 0", done.returncode == 0)
 
 # ship's other two reasons: the fixtures above always fill verify's status and
 # always run on a feature branch, so only clean_tree was ever exercised.
@@ -2191,7 +2199,21 @@ if os.path.isfile(VERIFY_REF):
 # reader to ticket-mirror.md; the second is headroom, on the same reasoning as
 # both moves above. The procedure deliberately did not come here: it is twenty
 # lines, and this file routes rather than implements.
-TRACK_SKILL_MAX = 130
+#
+# 130 -> 131 on 2026-09-26 (#193): one line routes a new track on `main`/
+# `master` through `track_start.py` before intake's preflight can ever FAIL
+# `not_main_branch`. Moved together with the pinned body-line count in
+# tests/test_track_skill_ticket_pointer.py, as that test's own docstring
+# requires, keeping the same two-line gap below the ceiling rather than
+# spending it -- #203 is expected to spend it next, raising this ceiling
+# again rather than landing on it.
+#
+# 131 -> 132 on 2026-09-26 (#203): one line ends `/cai:track done` with the
+# post-merge routine (switch to the base branch, `git pull`, `/cai:git-sweep`)
+# instead of leaving it to be typed by hand. Moved together with the pinned
+# body-line count in tests/test_track_skill_ticket_pointer.py, keeping the
+# same two-line gap.
+TRACK_SKILL_MAX = 132
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)

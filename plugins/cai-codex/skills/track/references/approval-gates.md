@@ -137,6 +137,17 @@ git fetch origin
 "Stop — hand me the commands" hands over the quoted commands only, not
 these two.
 
+**Two reminders ride along with this gate, neither of them a stop (#198).**
+`preflight.py ship`'s always-PASS `untracked_since_start` line names the
+untracked files this track appears to have produced — code the squash never
+picks up and git never sees again once the branch merges — so quote that
+line in the same message as the commands above; it is a reminder, not
+another question. Once "Run them" has run, or the commands have been handed
+over, say in one line which documents `docs_not_in_git` named: design
+documents this track wrote that are not in git (in this repo, `docs/` is
+gitignored, so they never show up in `git status` on their own) — and that
+they stay out of git unless the person asks to add them.
+
 **Standing alone** (`$ship`, no track), there is no `state.md` for
 `preflight.py ship` to read, so neither runs: the quoted commands run as
 quoted, and you say in one line that the merge with the base branch was not

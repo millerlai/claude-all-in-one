@@ -137,13 +137,17 @@ begins. The rest are each skill's own.
 /cai:track billing-export
 ```
 
-That creates `.claude/track/billing-export/state.md` with one row per stage,
-writes `.claude/track/current`, and begins at `intake`.
+Started on `main`/`master`, this first pulls (fast-forward only) and switches
+to `track/billing-export`, so `intake`'s preflight never blocks on the branch;
+on any other branch it leaves things alone. That then creates
+`.claude/track/billing-export/state.md` with one row per stage, writes
+`.claude/track/current`, and begins at `intake`.
 
 Do one thing once per repo: add `.claude/track/` to `.gitignore`. A track's
-files are working state, and `ship` refuses a dirty working tree — so a repo
-that tracks them trips over its own bookkeeping at the last stage. `intake`'s
-preflight says so when they aren't ignored, without blocking.
+files are working state, and while an untracked one never blocks `ship`
+(#198), committing them and then changing them does — `ship` refuses a dirty
+working tree over a *tracked* change. `intake`'s preflight says so when
+they aren't ignored, without blocking.
 
 Each stage runs the same shape. A free check first, then the paid work, then
 the outcome is recorded — every attempt, not only the ones that worked:
@@ -309,6 +313,10 @@ ticket mirroring makes, so this menu — like the two sign-off gates — never
 puts a thumb on the scale. Anything but "Close #<number>" leaves the issue
 open.
 
+`done` ends by naming the routine for after the PR merges — switch to the
+base branch, `git pull`, then `/cai:git-sweep` to see which branches can be
+deleted — without running any of it for you.
+
 ## Running one stage alone
 
 Every stage is also a command: `/cai:intake`, `/cai:discover`, `/cai:design`,
@@ -331,7 +339,7 @@ names one of these:
 
 | Names | Meaning | Do this |
 |---|---|---|
-| `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | Branch first. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
+| `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | A new track branches for you; seeing this means it could not (git unreachable, or the branch already exists) — branch by hand. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
 | `active_tracks` | Five tracks are already open | `/cai:track done` on one. Archived tracks never count |
 | `reserved_name` | You named a feature `current` or `done` | Pick another; both already mean something under `.claude/track/` |
 | `state_md` | No `state.md`, or no row for the stage this one reads | Open the track with `/cai:track <name>` first |
@@ -345,15 +353,21 @@ names one of these:
 | `work_breakdown` | A *detail* design has no `## Work breakdown` | `build` consumes that table as its schedule. The other kinds need none — `build` cuts the units itself |
 | `has_changes` | Nothing to review — clean tree, no diff from base, or git could not be asked whether the tree is clean | Commit something first. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
 | `verify_status` | `ship` asked to run before `verify` finished | Run verify, or skip it with a reason you'd be willing to read back |
-| `clean_tree` | Uncommitted changes at ship time, or git could not be asked | Commit or stash. Ship rewrites history and won't do it over a dirty tree. If the dirty files are the track's own, ignore `.claude/track/`. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
+| `clean_tree` | A *tracked* file has an uncommitted change at ship time, or git could not be asked. Untracked files never trip this — the squash neither includes nor touches them | Commit or stash the file(s) the line names. If the dirty files are the track's own, ignore `.claude/track/`. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
 | `merges_cleanly` | `ship`: your branch conflicts with the remote's default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Checked when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |
 | `ledger_attempts` | Any stage: five failed or blocked attempts since it last passed or was skipped | The message lists every attempt's note and the three ways out: `/cai:track skip <stage> --reason "<why>"`, `CAI_TRACK_MAX_ATTEMPTS` set higher (or `0` for no cap), or deleting the track's `ledger.jsonl` |
 
-Two more lines always print as `PASS` and are still worth reading:
-`track_ignored` at `intake` says when git is *not* ignoring the track's files,
-and `ledger_intact` on every stage counts ledger lines that could not be
-parsed. Neither ever blocks. A dispatch the provider refused — a rate limit,
-an overload — is recorded as `unavailable` and never counts toward the cap.
+Four more lines always print as `PASS` and are still worth reading:
+`track_ignored` at `intake` says when git is *not* ignoring the track's
+files, and `ledger_intact` on every stage counts ledger lines that could not
+be parsed. At `ship`, `untracked_since_start` names the untracked files that
+appeared since this track began — code it looks like this track produced,
+which the squash will not pick up — and `docs_not_in_git` names this track's
+own documents (state.md's artifact, every ledger `--artifact`, a detail
+design's referenced decisions document) that exist on disk but git does not
+track, such as a design document under a gitignored `docs/`. None of the
+four ever blocks. A dispatch the provider refused — a rate limit, an
+overload — is recorded as `unavailable` and never counts toward the cap.
 
 This layer exists because refusing costs nothing and asking a model costs
 something. A stage that can't start should find that out before anyone pays
@@ -378,6 +392,7 @@ the same way.
   billing-export/
     state.md                 one row per stage, overwritten in place
     ledger.jsonl             every attempt, appended, never edited
+    untracked-at-start.json  untracked paths seen when track_start.py ran, for ship's untracked_since_start
     implementation-notes.md  build's unit table and deviations, once build writes one
     ticket.json              the linked issue, only with ticket mirroring on
   done/
