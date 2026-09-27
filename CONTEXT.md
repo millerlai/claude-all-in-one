@@ -34,3 +34,6 @@ or specs, and only concepts specific to this project.
 **Close menu**: The menu `done` asks after the move: "Close #<number>" or "Leave it open".
 **Pointer**: A track's `ticket.json`: backend, ref, cached login, last projection.
 **Timeout table**: approval-gates' "what each stop does about a menu that closed on its own".
+**備份分支（backup branch）**: ship 在 squash 前建的本地分支 `backup/<來源>-<後綴>`，從不 push；來源的 PR 合併後，sweep 會把它列為可刪。
+**來源分支（source branch）**: 備份分支當初備份的那條分支，sweep 從備份名對回某個已合併 PR 的 head 找出它。
+**時間檢查**: sweep 判斷備份可刪的條件之一：備份最後一個 commit 不晚於來源 PR 的合併時間，用來擋住同名分支重複使用時的誤刪。

@@ -15,8 +15,9 @@ single signal covers every repo:
   pr        a merged pull request whose head was that branch -- squash repos.
   gone      the branch's upstream is no longer on the remote.
 
-Only `ancestry` and `pr` are evidence that the work reached <base>, and only those
-are ever reported `deletable`. `gone` is evidence that someone deleted the remote
+Only `ancestry` and `pr` are evidence that the work reached <base>, and only
+those -- plus the backup rule below, which leans on `pr` -- are ever reported
+`deletable`. `gone` is evidence that someone deleted the remote
 branch -- which a merge does by itself where "automatically delete head branches"
 is on, but which a person can also do at any time, to a branch that was never
 merged. It gets its own status for a human to judge rather than a delete.
@@ -25,6 +26,14 @@ A branch carrying commits its upstream never received is reported `ahead` and is
 never deletable, whatever the other signals say: a squash-merged branch that was
 committed to afterwards holds the only copy of those commits.
 
+A `backup/<source>-<suffix>` branch -- what `ship` leaves behind before it
+squashes -- is never pushed and is no pull request's head, so none of the
+three signals can fire for it. It is reported `deletable` when <source> is
+the head of a merged pull request and the backup's last commit is no later
+than that merge. The match is by name only; nothing checks the backup's
+contents. The time check is what keeps a backup made in a later round of a
+reused branch name from riding on the earlier round's merge.
+
 Prints a table and changes nothing unless `--delete` is passed.
 
     branch_sweep.py                 # show the table
@@ -32,6 +41,7 @@ Prints a table and changes nothing unless `--delete` is passed.
     branch_sweep.py --base develop  # compare against a branch other than the default
 """
 import argparse
+import datetime
 import json
 import os
 import re
@@ -50,6 +60,11 @@ CLI_ENV = "CAI_GH_CLI"
 # PRs reads as `keep`, which is the safe direction to be wrong in -- the table
 # says keep, nothing is deleted, and the branch is still there next run.
 PR_LIMIT = 200
+
+# What `ship` names the branch it leaves behind before it squashes
+# (plugins/cai/skills/track/references/stage-ship.md:112:
+# `git branch "backup/${BRANCH}-$(date +%Y%m%d-%H%M%S)"`).
+BACKUP_PREFIX = "backup/"
 
 _AHEAD = re.compile(r"ahead (\d+)")
 
@@ -124,12 +139,13 @@ def classify_gh(returncode, stderr):
 
 
 def gh_merged_prs(cwd=None):
-    """({branch: pr number}, note). `note` is None when the query worked, else
-    the one-word reason, so the caller can say why the `pr` signal is missing
-    instead of silently reporting every squash-merged branch as `keep`."""
+    """({branch: (pr number, merged_at or None)}, note). `note` is None when
+    the query worked, else the one-word reason, so the caller can say why the
+    `pr` signal is missing instead of silently reporting every squash-merged
+    branch as `keep`."""
     argv = gh_prefix() + ["pr", "list", "--state", "merged",
                           "--limit", str(PR_LIMIT),
-                          "--json", "number,headRefName"]
+                          "--json", "number,headRefName,mergedAt"]
     out, err, code = run(argv, cwd=cwd)
     if code != 0:
         return {}, classify_gh(code, err)
@@ -144,18 +160,23 @@ def gh_merged_prs(cwd=None):
         if not isinstance(row, dict):
             continue
         head, number = row.get("headRefName"), row.get("number")
-        if not isinstance(head, str) or not isinstance(number, int):
+        if not isinstance(head, str) or not head or not isinstance(number, int):
             continue
+        merged_at = row.get("mergedAt")
+        merged_at = merged_at if isinstance(merged_at, str) else None
         # A branch reused across two PRs keeps the later one: it is the merge
         # that the tip of the local branch could plausibly have reached.
-        if number > merged.get(head, 0):
-            merged[head] = number
+        if number > merged.get(head, (0, None))[0]:
+            merged[head] = (number, merged_at)
     return merged, None
 
 
 def local_branches(cwd=None):
-    """[(name, upstream, ahead, gone)] for every local branch, from one call."""
-    fmt = "%(refname:short)\t%(upstream:short)\t%(upstream:track)"
+    """[(name, upstream, ahead, gone, committed)] for every local branch, from
+    one call. `committed` is the branch tip's ISO commit date, empty when the
+    field is absent."""
+    fmt = ("%(refname:short)\t%(upstream:short)\t%(upstream:track)\t"
+          "%(committerdate:iso-strict)")
     out, rc = git(["for-each-ref", "--format=" + fmt, "refs/heads"], cwd=cwd)
     if rc != 0:
         return []
@@ -167,9 +188,10 @@ def local_branches(cwd=None):
         name = parts[0]
         upstream = parts[1] if len(parts) > 1 else ""
         track = parts[2] if len(parts) > 2 else ""
+        committed = parts[3] if len(parts) > 3 else ""
         found = _AHEAD.search(track)
         rows.append((name, upstream, int(found.group(1)) if found else 0,
-                     "gone" in track))
+                     "gone" in track, committed))
     return rows
 
 
@@ -209,10 +231,49 @@ def default_base(cwd=None):
     return "main"
 
 
+def backup_source(name, prs):
+    """The merged PR head a `backup/<source>-<suffix>` branch was made from,
+    or None if `name` does not match one. `ship` names the suffix with a
+    literal `-`, which a source containing `/` (every branch this plugin
+    names) would also produce if it were substituted for `/` -- so both
+    spellings of each head are tried."""
+    if not name.startswith(BACKUP_PREFIX):
+        return None
+    rest = name[len(BACKUP_PREFIX):]
+    best = None
+    for head in prs:
+        for spelling in (head, head.replace("/", "-")):
+            if not rest.startswith(spelling + "-"):
+                continue
+            if len(rest) <= len(spelling) + 1:
+                continue
+            candidate = (len(spelling), spelling == head, prs[head][0], head)
+            if best is None or candidate > best:
+                best = candidate
+    return best[3] if best else None
+
+
+def committed_before(committed, merged_at):
+    """Whether `committed` (a branch tip's commit date) is no later than
+    `merged_at`. False -- not proven safe -- for anything that fails to
+    parse, which is the safe direction to be wrong in."""
+    if not committed or not merged_at:
+        return False
+    try:
+        committed_dt = datetime.datetime.fromisoformat(
+            committed.replace("Z", "+00:00"))
+        merged_dt = datetime.datetime.fromisoformat(
+            merged_at.replace("Z", "+00:00"))
+        return committed_dt <= merged_dt
+    except (ValueError, TypeError):
+        return False
+
+
 def classify(row, base, held, ancestry, prs):
     """(status, why) for one branch. Order is the safety policy: anything a
     delete would fail on or lose is settled before any merge signal is read."""
-    name, _upstream, ahead, gone = row
+    name, _upstream, ahead, gone, committed = row
+    unproven = None
     if name == base:
         return None, None
     if name in held:
@@ -222,10 +283,17 @@ def classify(row, base, held, ancestry, prs):
     if name in ancestry:
         return "deletable", "ancestry: already on %s" % base
     if name in prs:
-        return "deletable", "pr: #%d merged" % prs[name]
+        return "deletable", "pr: #%d merged" % prs[name][0]
+    source = backup_source(name, prs)
+    if source is not None:
+        number, merged_at = prs[source]
+        if committed_before(committed, merged_at):
+            return "deletable", "backup of %s: pr #%d merged" % (source, number)
+        unproven = ("backup of %s: pr #%d merged before its last commit"
+                   % (source, number))
     if gone:
         return "gone", "upstream deleted on the remote, merge unproven"
-    return "keep", "no merge signal"
+    return "keep", unproven or "no merge signal"
 
 
 def sweep(base, cwd=None):

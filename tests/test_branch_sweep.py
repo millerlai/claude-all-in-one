@@ -5,7 +5,8 @@ the one `git branch --merged` cannot answer, and the reason the script reads
 three signals instead of the one every other tool reads. The rest guard the
 safety policy around it -- held, ahead and gone must survive every merge signal,
 because each of them names a branch whose deletion would either fail or lose the
-only copy of something.
+only copy of something. Backup branches left behind by `ship` before it squashes
+are covered too.
 """
 import json
 import subprocess
@@ -65,11 +66,20 @@ def delete_on_remote(repo, branch):
 
 def use_fake_gh(monkeypatch, merged=(), mode="ok", stderr="", exit_code="1"):
     """Point the script's gh seam at tests/fake_gh.py, answering `merged` as
-    `gh pr list --json number,headRefName` would."""
+    `gh pr list --json number,headRefName,mergedAt` would.
+
+    Each entry in `merged` is a 2-tuple (number, head) -- omitting `mergedAt`
+    from the row, same as a `gh` predating that field -- or a 3-tuple
+    (number, head, merged_at), which adds it."""
+    rows = []
+    for entry in merged:
+        row = {"number": entry[0], "headRefName": entry[1]}
+        if len(entry) == 3:
+            row["mergedAt"] = entry[2]
+        rows.append(row)
     monkeypatch.setenv(branch_sweep.CLI_ENV, fake_gh.cli_argv())
     monkeypatch.setenv("FAKE_GH_MODE", mode)
-    monkeypatch.setenv("FAKE_GH_STDOUT", json.dumps(
-        [{"number": n, "headRefName": b} for n, b in merged]))
+    monkeypatch.setenv("FAKE_GH_STDOUT", json.dumps(rows))
     monkeypatch.setenv("FAKE_GH_STDERR", stderr)
     monkeypatch.setenv("FAKE_GH_EXIT", exit_code)
 
@@ -253,3 +263,160 @@ def test_a_base_that_does_not_exist_exits_two(repo, capsys, monkeypatch):
 def test_outside_a_repository_exits_two(tmp_path, capsys):
     assert branch_sweep.main(["--repo", str(tmp_path)]) == 2
     assert "not a git repository" in capsys.readouterr().err
+
+
+MERGED_AFTER = "2999-01-01T00:00:00Z"
+MERGED_BEFORE = "2000-01-01T00:00:00Z"
+
+
+def test_backup_of_a_squash_merged_source_is_deletable(repo, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    use_fake_gh(monkeypatch, merged=[(106, "feat/squashed", MERGED_AFTER)])
+    git(repo, "branch", "backup/feat/squashed-20260926-194453", "feat/squashed")
+
+    found, _ = statuses(repo)
+    assert found["backup/feat/squashed-20260926-194453"] == "deletable"
+    assert why(repo, "backup/feat/squashed-20260926-194453") == (
+        "backup of feat/squashed: pr #106 merged")
+
+
+def test_backup_is_deletable_after_its_source_was_deleted(repo, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    use_fake_gh(monkeypatch, merged=[(106, "feat/squashed", MERGED_AFTER)])
+    git(repo, "branch", "backup/feat/squashed-20260926-194453", "feat/squashed")
+    git(repo, "branch", "-D", "feat/squashed")
+
+    found, _ = statuses(repo)
+    assert found["backup/feat/squashed-20260926-194453"] == "deletable"
+    assert why(repo, "backup/feat/squashed-20260926-194453") == (
+        "backup of feat/squashed: pr #106 merged")
+
+
+def test_backup_with_dashes_and_a_word_suffix_is_recognised(repo, monkeypatch):
+    commit_on(repo, "fix/diagnosis-recognition-shape", "work")
+    push(repo, "fix/diagnosis-recognition-shape")
+    use_fake_gh(monkeypatch, merged=[
+        (106, "fix/diagnosis-recognition-shape", MERGED_AFTER)])
+    git(repo, "branch",
+        "backup/fix-diagnosis-recognition-shape-20260926-presquash",
+        "fix/diagnosis-recognition-shape")
+
+    found, _ = statuses(repo)
+    backup = "backup/fix-diagnosis-recognition-shape-20260926-presquash"
+    assert found[backup] == "deletable"
+    assert why(repo, backup) == (
+        "backup of fix/diagnosis-recognition-shape: pr #106 merged")
+
+
+def test_backup_of_an_unmerged_source_is_kept(repo, monkeypatch):
+    commit_on(repo, "feat/live", "work")
+    push(repo, "feat/live")
+    use_fake_gh(monkeypatch, merged=[])
+    git(repo, "branch", "backup/feat/live-20260926-194453", "feat/live")
+
+    found, _ = statuses(repo)
+    assert found["backup/feat/live-20260926-194453"] == "keep"
+    assert why(repo, "backup/feat/live-20260926-194453") == "no merge signal"
+
+
+def test_backups_are_kept_when_gh_is_unavailable(repo, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    git(repo, "branch", "backup/feat/squashed-20260926-194453", "feat/squashed")
+    use_fake_gh(monkeypatch, mode="fail", stderr="gh: some failure")
+
+    found, note = statuses(repo)
+    assert found["backup/feat/squashed-20260926-194453"] == "keep"
+    assert note is not None
+
+
+def test_backup_held_by_a_worktree_is_held(repo, tmp_path, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    git(repo, "branch", "backup/feat/squashed-20260926-194453", "feat/squashed")
+    git(repo, "worktree", "add", str(tmp_path / "wt"),
+        "backup/feat/squashed-20260926-194453")
+    use_fake_gh(monkeypatch, merged=[(106, "feat/squashed", MERGED_AFTER)])
+
+    found, _ = statuses(repo)
+    assert found["backup/feat/squashed-20260926-194453"] == "held"
+
+
+def test_delete_prints_the_sha_that_undoes_a_backup(repo, capsys, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    backup = "backup/feat/squashed-20260926-194453"
+    git(repo, "branch", backup, "feat/squashed")
+    sha, _ = git(repo, "rev-parse", backup)
+    use_fake_gh(monkeypatch, merged=[(106, "feat/squashed", MERGED_AFTER)])
+
+    branch_sweep.main(["--repo", str(repo), "--delete"])
+
+    out = capsys.readouterr().out
+    assert "git branch " + backup + " " + sha[:7] in out
+
+
+def test_backup_made_after_its_source_merged_is_kept(repo, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    use_fake_gh(monkeypatch, merged=[(106, "feat/squashed", MERGED_BEFORE)])
+    git(repo, "branch", "backup/feat/squashed-20260926-194453", "feat/squashed")
+
+    found, _ = statuses(repo)
+    assert found["backup/feat/squashed-20260926-194453"] == "keep"
+    assert why(repo, "backup/feat/squashed-20260926-194453") == (
+        "backup of feat/squashed: pr #106 merged before its last commit")
+
+
+def test_the_longest_matching_source_names_the_backup(repo, monkeypatch):
+    commit_on(repo, "feat/a-b", "work")
+    push(repo, "feat/a-b")
+    use_fake_gh(monkeypatch, merged=[(1, "feat/a", MERGED_AFTER),
+                                     (2, "feat/a-b", MERGED_AFTER)])
+    git(repo, "branch", "backup/feat/a-b-20260926-120000", "feat/a-b")
+
+    found, _ = statuses(repo)
+    backup = "backup/feat/a-b-20260926-120000"
+    assert found[backup] == "deletable"
+    assert why(repo, backup) == "backup of feat/a-b: pr #2 merged"
+
+
+def test_the_as_is_spelling_wins_a_tie_over_a_slash_substitution(repo, monkeypatch):
+    """DD2: equal-length match, the as-is spelling wins over the `/`-to-`-`
+    substitution -- even though the substituted head has the higher PR
+    number, which would win if that were the only tie-break left."""
+    commit_on(repo, "fix-thing", "work")
+    push(repo, "fix-thing")
+    use_fake_gh(monkeypatch, merged=[(1, "fix-thing", MERGED_AFTER),
+                                     (2, "fix/thing", MERGED_AFTER)])
+    git(repo, "branch", "backup/fix-thing-20260926-120000", "fix-thing")
+
+    found, _ = statuses(repo)
+    backup = "backup/fix-thing-20260926-120000"
+    assert found[backup] == "deletable"
+    assert why(repo, backup) == "backup of fix-thing: pr #1 merged"
+
+
+def test_a_backup_with_no_suffix_is_not_a_backup(repo, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    use_fake_gh(monkeypatch, merged=[(106, "feat/squashed", MERGED_AFTER)])
+    git(repo, "branch", "backup/feat/squashed", "feat/squashed")
+
+    found, _ = statuses(repo)
+    assert found["backup/feat/squashed"] == "keep"
+    assert why(repo, "backup/feat/squashed") == "no merge signal"
+
+
+def test_backup_without_a_merge_time_is_kept(repo, monkeypatch):
+    commit_on(repo, "feat/squashed", "work")
+    push(repo, "feat/squashed")
+    use_fake_gh(monkeypatch, merged=[(106, "feat/squashed")])
+    git(repo, "branch", "backup/feat/squashed-20260926-194453", "feat/squashed")
+
+    found, _ = statuses(repo)
+    assert found["backup/feat/squashed-20260926-194453"] == "keep"
+    assert found["feat/squashed"] == "deletable"
+    assert why(repo, "feat/squashed") == "pr: #106 merged"
