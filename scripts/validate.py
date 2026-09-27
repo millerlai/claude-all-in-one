@@ -2446,16 +2446,26 @@ if os.environ.get("CAI_VALIDATE_NESTED") != "1":
     check("validate_hook [watched edit, repo valid] -> 0",
           run_hook(hook_payload(f"{PLUGIN}/rules/coding.md")).returncode == 0)
 
-    probe = f"{PLUGIN}/skills/_validate_hook_probe"
+    # The broken skill goes into a copy, never into the tree being checked:
+    # anything reading this tree meanwhile -- a second validate.py, a test
+    # copying the repo, a pytest-xdist worker -- would see it and fail (#221).
+    # validate_hook.py finds its tree from its own location, so running the
+    # copy's hook checks the copy.
+    hook_scratch = tempfile.mkdtemp(prefix="cai-validate-hook-")
     try:
+        broken_tree = os.path.join(hook_scratch, "repo")
+        shutil.copytree(".", broken_tree, ignore=shutil.ignore_patterns(
+            ".git", "__pycache__", ".pytest_cache"))
+        probe = os.path.join(broken_tree, PLUGIN, "skills", "_validate_hook_probe")
         os.makedirs(probe, exist_ok=True)
-        with open(f"{probe}/SKILL.md", "w", encoding="utf-8") as fh:
+        with open(os.path.join(probe, "SKILL.md"), "w", encoding="utf-8") as fh:
             fh.write("no frontmatter, so validate.py fails\n")
-        broke = run_hook(hook_payload(f"{probe}/SKILL.md"))
+        broke = run_hook(hook_payload(os.path.join(probe, "SKILL.md")),
+                         [sys.executable, os.path.join(broken_tree, "scripts", "validate_hook.py")])
         check("validate_hook [watched edit, repo broken] -> 2", broke.returncode == 2)
         check("validate_hook names the failing check", "FAIL" in broke.stderr)
     finally:
-        shutil.rmtree(probe, ignore_errors=True)
+        shutil.rmtree(hook_scratch, ignore_errors=True)
 
     # .claude/settings.json invokes the dispatcher, not the script. Same reason
     # the guard's dispatcher is exercised above: a broken interpreter lookup or

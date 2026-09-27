@@ -17,6 +17,7 @@ every test in this file -- the full run takes tens of seconds, and this
 file's tests would otherwise pay for it three times over.
 """
 import os
+import shutil
 import subprocess
 import sys
 
@@ -101,37 +102,36 @@ def test_uc4_stage_verify_pinned_clause_checks_still_run():
         assert fragment in out, fragment
 
 
-def test_uc4_report_check_is_anchored_to_the_real_heading():
+def test_uc4_report_check_is_anchored_to_the_real_heading(tmp_path):
     """Regression for an unanchored-find() bug in validate.py's
     verify_section(): stage-verify.md's own Report section quotes
     "## Report" in backticks, describing itself, a few lines below the real
     heading. A plain find(heading) matches that backticked mention once the
     real heading is renamed or deleted, slices decoy-to-EOF, and the slice
     still contains the pinned clause -- passing on a section that no longer
-    exists. This mutates the real file and restores it byte-for-byte in a
-    finally block, the same way the validate_hook probe above breaks and
-    then removes its own throwaway fixture; it cannot share `_run_validate`'s
-    cached result since it needs a run against altered content.
+    exists. This mutates a copy of the repo, never the real file: another
+    pytest-xdist worker, or an edit in progress, reads the real one at the
+    same time (#221). It cannot share `_run_validate`'s cached result since
+    it needs a run against altered content.
     """
+    repo = os.path.join(str(tmp_path), "repo")
+    shutil.copytree(REPO_ROOT, repo, ignore=shutil.ignore_patterns(
+        ".git", "__pycache__", ".pytest_cache"))
     path = os.path.join(
-        REPO_ROOT, "plugins", "cai", "skills", "track", "references",
+        repo, "plugins", "cai", "skills", "track", "references",
         "stage-verify.md")
     with open(path, "rb") as fh:
         original = fh.read()
     assert original.count(b"\n## Report\n") == 1, "expected one real heading"
     mutated = original.replace(b"\n## Report\n", b"\n## Handback\n", 1)
-    try:
-        with open(path, "wb") as fh:
-            fh.write(mutated)
-        result = subprocess.run(
-            [sys.executable, VALIDATE], cwd=REPO_ROOT,
-            capture_output=True, text=True, encoding="utf-8")
-        report_lines = [
-            l for l in result.stdout.splitlines()
-            if "Report section still asks for parked" in l]
-        assert report_lines == [
-            "FAIL stage-verify.md's Report section still asks for parked "
-            "proposals"], report_lines
-    finally:
-        with open(path, "wb") as fh:
-            fh.write(original)
+    with open(path, "wb") as fh:
+        fh.write(mutated)
+    result = subprocess.run(
+        [sys.executable, os.path.join("scripts", "validate.py")], cwd=repo,
+        capture_output=True, text=True, encoding="utf-8")
+    report_lines = [
+        l for l in result.stdout.splitlines()
+        if "Report section still asks for parked" in l]
+    assert report_lines == [
+        "FAIL stage-verify.md's Report section still asks for parked "
+        "proposals"], report_lines
