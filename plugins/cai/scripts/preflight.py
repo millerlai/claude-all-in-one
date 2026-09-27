@@ -779,15 +779,30 @@ def verify(track_dir, project_dir):
     return [(ok, "has_changes (%s)" % detail)]
 
 
-def _tracked_changed_paths(porcelain_stdout):
-    """The paths `git status --porcelain` marks changed, minus the wholly
+def _tracked_changed_paths(porcelain_z_stdout):
+    """The paths `git status --porcelain -z` marks changed, minus the wholly
     untracked (`??`) ones (#198): the squash neither includes nor touches an
     untracked file, so only a tracked change is a reason for `clean_tree` to
-    block. A porcelain v1 line is `XY PATH` -- two status letters, a space,
-    then the path (a rename keeps the `old -> new` arrow, since either half
-    is a tracked change the squash would otherwise drop)."""
-    return [line[3:] for line in porcelain_stdout.splitlines()
-            if line and not line.startswith("??")]
+    block. Each entry is `XY PATH` -- two status letters, a space, then the
+    path -- ending in NUL; a rename or copy is followed by its old path as a
+    field of its own, skipped here since the new path already names it.
+    -z, not plain --porcelain: without it git C-quotes a name holding a
+    control character, so `_escape_control_chars` never saw the raw
+    character and the label showed git's quoting instead (Linux CI, #226)."""
+    fields = porcelain_z_stdout.split("\0")
+    paths = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        xy, path = entry[:2], entry[3:]
+        if "R" in xy or "C" in xy:
+            i += 1
+        if xy != "??":
+            paths.append(path)
+    return paths
 
 
 def _named_paths(shown, verb):
@@ -955,7 +970,7 @@ def ship(track_dir, project_dir):
         merge_check = (True, "merges_cleanly (not checked: %s is not a git repository)"
                        % project_dir)
     else:
-        working = git(project_dir, "status", "--porcelain")
+        working = git(project_dir, "status", "--porcelain", "-z")
         problem = _status_problem(working)
         if problem is not None:
             clean_check = (False, "clean_tree (%s)" % problem)

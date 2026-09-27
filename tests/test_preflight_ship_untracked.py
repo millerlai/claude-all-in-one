@@ -123,6 +123,17 @@ def test_control_char_path_is_escaped(tmp_path):
     assert "\\x0a" in label
 
 
+def test_tracked_changed_paths_reads_raw_names_from_porcelain_z():
+    # The test above is Linux-only, so this runs the parsing everywhere: with
+    # plain --porcelain git C-quotes a control-character name ("evil\nname"),
+    # and the escape never saw the raw character -- Linux CI caught it on #226.
+    # -z gives raw names, and a rename's old path as a separate field.
+    out = (" M a.txt\0M  evil\nname.txt\0R  new.txt\0old.txt\0"
+           "?? untracked.txt\0A  added.txt\0")
+    assert preflight._tracked_changed_paths(out) == [
+        "a.txt", "evil\nname.txt", "new.txt", "added.txt"]
+
+
 def test_untracked_since_start_lists_only_new_paths(tmp_path):
     repo = make_repo(tmp_path)
     track = make_track(tmp_path)
