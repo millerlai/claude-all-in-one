@@ -362,6 +362,8 @@ of the ledger's `--note`; you write no track file at all.
 - every deviation
 - anything skipped
 - every `CONTEXT.md` definition replaced, old text quoted
+- what is left open -- every step Step 6.4 names as a manual step, one item
+  each
 
 The in-flight `unit <N> of <total>` row is still written by Step 5.5
 above, not here -- this section is what you hand back once the whole

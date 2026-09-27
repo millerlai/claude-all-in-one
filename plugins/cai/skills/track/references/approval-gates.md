@@ -102,8 +102,18 @@ recommendation there would be the model choosing it.
 ## Gate 2 — before `ship`'s irreversible operations
 
 Quote the exact commands about to run — merging, tagging, publishing, a
-force-push — and what each one makes public. "Confirm the release?" is not
-this question; the commands are.
+force-push — and what each one makes public. Before quoting a `gh pr create`
+that carries a drafted PR body, run `ship_draft_check.py --message-file <the
+already-drafted commit message from Step 4> --body-file <the draft>`
+(`--ticket <number>` and `--track-dir` too, when ticket-mirror's ship section
+resolved a number) and fix every FAIL in the draft first. "Confirm the
+release?" is not this question; the commands are.
+
+**Before quoting the commands**, list build's manual steps: run `python
+${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and quote every
+`[build]` line it prints, or say none are recorded if it prints none.
+Standing alone, there is no track to read one from, so say there is nothing
+to read.
 
 | Option | What it does |
 |---|---|
@@ -150,11 +160,14 @@ checked.
 Two more confirmations sit beside this one and are asked on their own
 turns, because a yes to publishing is not a yes to either of them:
 
-- **The squash**, `stage-ship.md` Step 4 — show the drafted commit message
-  and ask before rewriting history. A dispatched draft carries no trailer
-  lines: end it with the ones your own instructions give for commits
+- **The squash**, `stage-ship.md` Step 4 — a dispatched draft carries no
+  trailer lines: end it with the ones your own instructions give for commits
   (`Co-Authored-By:` and the like), if any, before you show it, so the
-  message approved is the message committed.
+  message approved is the message committed. Then, before showing it, run
+  `ship_draft_check.py --message-file <the draft>` (`--ticket <number>` and
+  `--track-dir` too, when ticket-mirror's ship section resolved a number) and
+  fix every FAIL in the draft; then show the message and ask before
+  rewriting history.
 - **The ticket comment**, `references/ticket-mirror.md`'s ship section —
   whether to run `ticket.py project` once more for ship's own row, only when
   mirroring is on.
