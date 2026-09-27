@@ -1525,11 +1525,12 @@ def write_ship_state(track_dir, verify_status):
 
 # ship's own repo fixtures live outside the track directory it reads, so
 # writing state.md never touches the git status this check is also reading.
-SHIP_DIRTY = temp_repo("ship-dirty")
+# A tracked file with an uncommitted change, not an untracked one (#198):
+# untracked files never block ship, so an untracked-only fixture here would
+# now prove the opposite of what "dirty tree" means to name.
+SHIP_DIRTY = dirty_repo()
 SHIP_DIRTY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
 write_ship_state(SHIP_DIRTY_TRACK, "done")
-with open(os.path.join(SHIP_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
-    fh.write("scratch\n")
 done = run_preflight_at("ship", SHIP_DIRTY, SHIP_DIRTY_TRACK)
 check("preflight ship [dirty tree] -> 2", done.returncode == 2)
 check("preflight ship names clean_tree", "FAIL clean_tree" in done.stdout)
@@ -1539,6 +1540,13 @@ SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
 write_ship_state(SHIP_CLEAN_TRACK, "done")
 done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
 check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
+
+# #198's decision: untracked files never block ship, whatever their number.
+SHIP_UNTRACKED_ONLY = dirty_repo(untracked_only=True)
+SHIP_UNTRACKED_ONLY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+write_ship_state(SHIP_UNTRACKED_ONLY_TRACK, "done")
+done = run_preflight_at("ship", SHIP_UNTRACKED_ONLY, SHIP_UNTRACKED_ONLY_TRACK)
+check("preflight ship [untracked only] -> 0", done.returncode == 0)
 
 # ship's other two reasons: the fixtures above always fill verify's status and
 # always run on a feature branch, so only clean_tree was ever exercised.

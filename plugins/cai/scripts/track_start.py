@@ -17,6 +17,7 @@ Exit:   0 proceed (a branch was created, or none was needed), 2 stop and
         create nothing, 1 usage error.
 """
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -55,6 +56,33 @@ def ref_exists(project_dir, ref):
     return done.returncode == 0
 
 
+def write_baseline(track_dir, project_dir):
+    """Snapshot every untracked path into `<track-dir>/untracked-at-start.json`,
+    read later by `preflight.py`'s `untracked_since_start` (#198) so a Gate 2
+    reminder can tell this track's own new files apart from whatever scratch
+    was already lying around.
+
+    Called on every exit-0 path below, not only the branch this script just
+    created -- most tracks start already on a feature branch
+    (`preflight.py intake`'s guidance), and that path used to write nothing,
+    which made the common case the one with no baseline instead of the rare
+    one (#198 critique).
+
+    Best-effort: git not answering, or the write failing, leaves no baseline
+    file, which `untracked_since_start` already reports honestly as "no
+    baseline recorded" -- it must never be a reason this script stops."""
+    paths = preflight._untracked_paths(project_dir)
+    if paths is None:
+        return
+    try:
+        os.makedirs(track_dir, exist_ok=True)
+        with open(os.path.join(track_dir, preflight.UNTRACKED_BASELINE_NAME),
+                  "w", encoding="utf-8") as fh:
+            json.dump(paths, fh)
+    except OSError:
+        pass
+
+
 def start(track_dir, project_dir):
     """(exit_code, message) -- never raises, same contract as preflight's
     checks: not knowing is a reason to stop, not to guess."""
@@ -67,8 +95,10 @@ def start(track_dir, project_dir):
     if branch is preflight.UNKNOWN_BRANCH:
         return 2, "git did not answer -- stopping"
     if branch is None:
+        write_baseline(track_dir, project_dir)
         return 0, "detached HEAD -- leaving it alone"
     if branch not in ("main", "master"):
+        write_baseline(track_dir, project_dir)
         return 0, "already on %s -- leaving it alone" % branch
 
     name = "track/%s" % feature
@@ -117,6 +147,7 @@ def start(track_dir, project_dir):
         if checkout.returncode != 0:
             return 2, "could not create %s: %s" % (name, first_line(checkout))
 
+    write_baseline(track_dir, project_dir)
     return 0, "%s; created and switched to %s" % (pulled_note, name)
 
 

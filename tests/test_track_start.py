@@ -9,6 +9,7 @@ test_preflight_merge_check.py make -- the behaviour worth pinning here is
 what git itself does across a fast-forward, a diverged pull, and an unborn
 HEAD, not what a fake would be told to say.
 """
+import json
 import os
 import pathlib
 import subprocess
@@ -204,6 +205,51 @@ def test_intake_preflight_passes_after_track_start(tmp_path):
     checks = preflight.intake(track_dir, str(repo))
     branch_check = checks[0]
     assert branch_check[0] is True, branch_check
+
+
+def test_baseline_written_after_branching(tmp_path):
+    """#198: the baseline preflight.py's untracked_since_start reads later has
+    to exist on the common path -- a brand-new branch -- and has to see the
+    untracked file that was already there before track_start ran."""
+    repo = init_repo(tmp_path / "repo")
+    (repo / "scratch.txt").write_text("already here\n", encoding="utf-8")
+    track_dir = track_dir_for(tmp_path, "feat-k")
+    code, _ = track_start.start(track_dir, str(repo))
+    assert code == 0
+    baseline = os.path.join(track_dir, preflight.UNTRACKED_BASELINE_NAME)
+    assert os.path.isfile(baseline)
+    with open(baseline, encoding="utf-8") as fh:
+        recorded = json.load(fh)
+    assert recorded == ["scratch.txt"]
+
+
+def test_baseline_written_when_already_on_feature_branch(tmp_path):
+    """#198 critique: most tracks start already on a feature branch
+    (preflight.py's own not_main_branch guidance), and that exit-0 path used
+    to write no baseline at all, which made untracked_since_start fall back
+    to "no baseline" on the common case rather than the rare one."""
+    repo = init_repo(tmp_path / "repo")
+    git(repo, "checkout", "-b", "other")
+    (repo / "scratch.txt").write_text("already here\n", encoding="utf-8")
+    track_dir = track_dir_for(tmp_path, "feat-l")
+    code, _ = track_start.start(track_dir, str(repo))
+    assert code == 0
+    baseline = os.path.join(track_dir, preflight.UNTRACKED_BASELINE_NAME)
+    assert os.path.isfile(baseline)
+    with open(baseline, encoding="utf-8") as fh:
+        recorded = json.load(fh)
+    assert recorded == ["scratch.txt"]
+
+
+def test_no_baseline_on_stop(tmp_path):
+    """An exit-2 path creates nothing -- writing a baseline for a track that
+    never starts would leave a directory behind that looks like a resume."""
+    repo = init_repo(tmp_path / "repo")
+    git(repo, "branch", "track/feat-m")
+    track_dir = track_dir_for(tmp_path, "feat-m")
+    code, _ = track_start.start(track_dir, str(repo))
+    assert code == 2
+    assert not os.path.isdir(track_dir)
 
 
 def test_skill_md_runs_track_start_before_creating_state_md():

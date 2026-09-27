@@ -125,10 +125,11 @@ each replaces — a resumed session needs this at Step 6 without re-asking.
 Under a track the notes go in `.claude/track/<feature>/`, beside the
 `state.md` a cold session resumes from. Check `.gitignore` covers
 `.claude/track/` first — `preflight.py`'s `track_ignored` reports when it
-does not and never blocks, so an unignored track leaves the notes in the
-working tree and `ship` fails later on `clean_tree` instead, naming the
-symptom rather than the cause. Standing alone, put them wherever this
-project already keeps working notes.
+does not and never blocks. An untracked track file never trips `ship`'s
+`clean_tree` on its own (#198); committing it and then changing it does, and
+that FAIL now names the file rather than leaving the person to guess why the
+tree is dirty. Standing alone, put them wherever this project already keeps
+working notes.
 
 Order the units: riskiest one with no unmet dependency first. Check
 upstream blockers here too — a unit waiting on another team's endpoint is
