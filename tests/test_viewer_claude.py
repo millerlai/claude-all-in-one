@@ -172,6 +172,7 @@ def test_waiting_with_escalated_waiting_for_is_attention():
     assert out["state"] == "attention"
     assert out["certainty"] == "confirmed"
     assert "dialog open" in out["notes"]
+    assert out["noteCodes"] == []
 
 
 def test_waiting_with_unresolved_ask_user_question_is_question():
@@ -204,7 +205,8 @@ def test_waiting_with_a_resolved_tool_use_falls_back_to_attention():
     reg = _reg("waiting")
     out = viewer.classify_claude(reg, tail, 0)
     assert out["state"] == "attention"
-    assert out["notes"] == ["原因未知"]
+    assert out["notes"] == []
+    assert out["noteCodes"] == ["reason-unknown"]
 
 
 def test_idle_is_done():
@@ -268,7 +270,8 @@ def test_shell_is_working_with_note():
     assert out["state"] == "working"
     assert out["certainty"] == "confirmed"
     assert out["entryId"] == "working:%s" % reg["statusUpdatedAt"]
-    assert out["notes"] == ["背景 shell 執行中"]
+    assert out["notes"] == []
+    assert out["noteCodes"] == ["background-shell"]
     assert out["current"] is None
 
 
@@ -343,7 +346,8 @@ def test_shell_with_a_background_agent_is_plain_working_with_note():
     out = viewer.classify_claude(reg, tail, reg["statusUpdatedAt"])
     assert out["state"] == "working"
     assert out["certainty"] == "confirmed"
-    assert out["notes"] == ["背景 shell 執行中"]
+    assert out["notes"] == []
+    assert out["noteCodes"] == ["background-shell"]
     assert out["background"] is False
 
 
@@ -354,7 +358,8 @@ def test_busy_with_stale_turn_duration_tail_is_inferred_done():
     out = viewer.classify_claude(reg, tail, now_ms)
     assert out["state"] == "done"
     assert out["certainty"] == "inferred"
-    assert out["notes"] == ["登記檔可能過時"]
+    assert out["notes"] == []
+    assert out["noteCodes"] == ["registry-may-be-stale"]
 
 
 def test_busy_with_recent_turn_duration_tail_is_working():
@@ -769,7 +774,7 @@ def test_claude_rows_notes_alive_unverified(tmp_path, monkeypatch):
     monkeypatch.setattr(viewer, "check_alive", lambda *a, **k: "alive-unverified")
     rows, problems = viewer.claude_rows(str(tmp_path), 0)
     assert len(rows) == 1
-    assert "存活：推斷" in rows[0]["notes"]
+    assert "alive-inferred" in rows[0]["noteCodes"]
     assert rows[0]["state"] == "done"
     # V4: an inferred liveness must be tagged as such so the page's
     # unconditional "存活：推斷" meta line (rowHTML's sinceNote) can fire.
