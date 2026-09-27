@@ -446,7 +446,9 @@ has got too close to your model's window.
 Ask for metrics instead, for one track or over a number of days, and it prints
 four numbers per stage: `first_pass` (did the first attempt pass), `cycle`
 (from the stage's first record to its last pass), `rework` (how many attempts
-it took), and `human_signed` (the share of attempts a person signed off).
+it took), and `human_signed` (the share of attempts a person signed off --
+only `design` and `ship` have a human gate at all, so it reads `n/a`
+elsewhere).
 
 Every figure comes from `usage_report.py`, not from the model. Two things to
 read it by: every dollar is *equivalent API spend* — what the same tokens
