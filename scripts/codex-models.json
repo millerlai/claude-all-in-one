@@ -10,7 +10,7 @@
     "sets `effort:` gets that instead, so a per-agent raise on the Claude",
     "side (reviewer at high inside build) is not flattened on Codex.",
     "",
-    "Re-tiering is a one-line edit here, followed by --release; a slug",
+    "Re-tiering is a one-line edit here; a slug",
     "retired or hidden for an account (C19) breaks dispatch for that user."
   ],
   "roles": {

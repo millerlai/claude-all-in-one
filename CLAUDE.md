@@ -33,14 +33,14 @@ and must not be hand-edited except its nine hand-written files:
 `skills/models/agents/openai.yaml`, `skills/viewer/SKILL.md`,
 `skills/viewer/agents/openai.yaml`, and `README.md` (the list is
 `HAND_WRITTEN` in `scripts/gen-codex.py`). After changing
-`plugins/cai/`, regenerate it (`python scripts/gen-codex.py`); once a
-cai-codex version is on `main`, an output change also needs
-`python scripts/gen-codex.py --release <greater version>`, or `validate.py`
-reports DRIFT/UNRELEASED. `scripts/gen-codex.py` and its `scripts/codex-*.json`
-data are Ours.
+`plugins/cai/`, regenerate it (`python scripts/gen-codex.py`);
+`validate.py` reports DRIFT when the generated tree is stale — just rerun
+`python scripts/gen-codex.py`. `scripts/gen-codex.py` and its
+`scripts/codex-*.json` data are Ours.
 
-A `fix(cai):` PR bumps the patch version in `plugins/cai/.claude-plugin/plugin.json`
-in the same PR, not in a later `chore` commit.
+No PR changes `version` in `plugins/cai/.claude-plugin/plugin.json`;
+`scripts/release.py` writes it when a release is cut (see README,
+`### Releasing`).
 
 **Theirs** is an agent, skill, rule, template, or a script some shipped
 component actually invokes. It runs on a machine we will never see, against a
