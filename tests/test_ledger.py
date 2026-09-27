@@ -240,6 +240,53 @@ def test_an_unreadable_artifact_is_refused_and_names_the_path(tmp_path):
     assert not os.path.exists(os.path.join(str(tmp_path), "ledger.jsonl"))
 
 
+# --- #207: a non-passing outcome without a note leaves nothing to say why --
+
+def test_a_non_passing_outcome_without_a_note_is_refused(tmp_path):
+    for outcome in ("failed", "blocked", "skipped", "unavailable"):
+        track = os.path.join(str(tmp_path), outcome)
+        os.makedirs(track)
+        done = run("append", "--track-dir", track, "--stage", "design",
+                   "--outcome", outcome)
+        assert done.returncode == 2, outcome
+        assert "note" in done.stderr, outcome
+        assert not os.path.exists(os.path.join(track, "ledger.jsonl")), outcome
+
+
+def test_a_whitespace_only_note_is_refused(tmp_path):
+    done = run("append", "--track-dir", str(tmp_path), "--stage", "design",
+               "--outcome", "blocked", "--note", "   ")
+    assert done.returncode == 2
+    assert "note" in done.stderr
+    assert not os.path.exists(os.path.join(str(tmp_path), "ledger.jsonl"))
+
+
+def test_the_library_refuses_a_non_passing_outcome_without_a_note(tmp_path):
+    try:
+        ledger.append(str(tmp_path), "design", "failed")
+        assert False, "should have raised LedgerError"
+    except ledger.LedgerError as exc:
+        assert "note" in str(exc)
+
+
+def test_a_refused_note_writes_nothing_centrally(tmp_path, monkeypatch):
+    central = tmp_path / "central.jsonl"
+    monkeypatch.setenv("CAI_USAGE_LEDGER", str(central))
+    track = tmp_path / "t"
+    track.mkdir()
+    done = run("append", "--track-dir", str(track), "--stage", "design",
+               "--outcome", "failed")
+    assert done.returncode == 2
+    assert not central.exists()
+
+
+def test_passed_needs_no_note(tmp_path):
+    """Guard: this already passed before the #207 fix; it must keep passing."""
+    done = run("append", "--track-dir", str(tmp_path), "--stage", "design",
+               "--outcome", "passed")
+    assert done.returncode == 0, done.stderr
+
+
 # --- D3: an over-long note is truncated, never a refused record -----------
 
 def test_an_over_long_note_is_truncated_not_rejected(tmp_path):

@@ -6,7 +6,11 @@ no track underneath it. The procedure below is the same either way.
 
 **On Codex, this stage prepares only and never runs the irreversible
 operations below** — merging, tagging, publishing. No subagent runs an irreversible git/gh operation here: after
-the person confirms, the main session runs them itself. That confirmation
+the person confirms, the main session runs tagging and publishing
+itself, but not the merge — the guard denies `gh pr merge` on this
+platform (its "ask" permission decision is parsed but not acted on
+here), so hand that exact command back for the person to run
+themselves. That confirmation
 is one of the two human gates the track never skips; running this stage
 standing alone does not remove it. With ticket mirroring on,
 `references/ticket-mirror.md`'s ship section adds one separate item, the

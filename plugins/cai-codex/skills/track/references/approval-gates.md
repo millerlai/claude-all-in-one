@@ -126,6 +126,8 @@ to read.
 | Run them | Checked once more first, then they run, in the order quoted — see below. |
 | Stop — hand me the commands | Nothing runs. Report them for the person to run themselves. |
 
+The merge itself is denied here rather than asked: `gh pr merge` is a human action, but the guard's "ask" permission decision is parsed and not acted on by this platform's hook host, so it blocks the command instead and hands the exact command back for the person to run themselves, on top of this gate.
+
 **Before "Run them" runs anything, inside a track**, the base branch may have
 moved since `ship`'s preflight read it, and a branch that no longer merges
 cleanly opens a PR that GitHub marks conflicting and runs no CI on. So you —

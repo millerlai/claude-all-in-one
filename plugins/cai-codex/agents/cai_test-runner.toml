@@ -11,7 +11,13 @@ Run the relevant test command, then report:
 
 1. Pass/fail summary (counts).
 2. For each failure: test name, file:line, one-line error, minimal stack.
-3. Nothing else. Do NOT attempt fixes.
+3. For every test file named in your brief or command, its own
+   collected/passed/failed/skipped counts. For pytest, add `-rA` (or `-v
+   -rs`) so per-file, per-test outcomes and skip reasons print. A named file
+   that collected 0 tests, or whose tests were all skipped, gets its own
+   line: NOT RUN <file>, with the skip reason or "collected 0" — 0 failures
+   there does not make the summary green.
+4. Nothing else. Do NOT attempt fixes.
 
 Scope the command and bound it: name the directory, module, or node ids you
 were pointed at, and pass the runner's own timeout flag. Never fall back to
