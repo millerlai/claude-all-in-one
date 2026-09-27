@@ -529,6 +529,35 @@ def test_platform_cache_ok_false_when_manifest_missing(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# local_gate -- which pytest command it runs (#221)
+# ---------------------------------------------------------------------------
+
+def _gate_argvs(monkeypatch, tmp_path, has_xdist):
+    seen = []
+
+    def fake_run(argv, *, cwd, env=None, timeout=None):
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(release, "run", fake_run)
+    monkeypatch.setattr(release, "_has_xdist", lambda: has_xdist)
+    assert release.local_gate(tmp_path) == []
+    return seen
+
+
+def test_local_gate_runs_pytest_in_parallel_when_xdist_is_installed(monkeypatch, tmp_path):
+    seen = _gate_argvs(monkeypatch, tmp_path, has_xdist=True)
+
+    assert [sys.executable, "-m", "pytest", "-n", "auto"] in seen
+
+
+def test_local_gate_runs_pytest_in_one_process_without_xdist(monkeypatch, tmp_path):
+    seen = _gate_argvs(monkeypatch, tmp_path, has_xdist=False)
+
+    assert [sys.executable, "-m", "pytest"] in seen
+
+
+# ---------------------------------------------------------------------------
 # prepare() -- real local origin (bare) + working clone
 # ---------------------------------------------------------------------------
 

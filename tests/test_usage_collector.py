@@ -294,7 +294,12 @@ def test_collect_under_500ms_on_4mb_transcript(tmp_path):
 
     assert problems == []
     assert orchestration["claude-opus-5"]["input_tokens"] > 0
-    assert elapsed < 0.5
+    # Under pytest-xdist the other workers share the cores: on CI's four,
+    # this took 0.546 s wall-clock and 0.524 s of CPU, so neither measure
+    # holds 0.5 s there (#221). The looser budget still trips on a large
+    # regression; the exact 0.5 s is held by a single-process run.
+    budget = 1.0 if os.environ.get("PYTEST_XDIST_WORKER") else 0.5
+    assert elapsed < budget
 
 
 # --- aggregate(): the pure per-line function, called directly --------------

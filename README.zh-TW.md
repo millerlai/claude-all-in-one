@@ -289,7 +289,7 @@ python -m pytest
 
 `validate.py` 會檢查：manifests；每個 agent 與 skill 是否具備 Claude Code 載入所需的 frontmatter；hook 指令指向的檔案是否存在；防護是否仍擋下該擋的東西；每個規則檔以及 `track`、`goal` 兩個 skill 是否在行數上限內；每個 `.cmd` 檔是否為純 ASCII、沒有任何文字檔以 UTF-8 BOM 開頭；eval grader 格式是否正確且不含機密；以及透過 `plugins/cai/scripts/provenance.py` 檢查 `docs/rule-provenance.md` 的每個條目引用的文字是否仍存在、每個重述某條規則的地方是否仍與它一致。由於模型能比對的每一段 `description` 都會在每個 session 送給它，它也會檢查所有 agent 與 skill 的 `description` 總長度（不含那 72 張重構卡——它們帶有 `disable-model-invocation: true`，因此不會在未被呼叫時送進模型）沒有超過上次量到的值。這是棘輪而不是目標：只能縮小或持平，永遠不會悄悄漲回去。
 
-`pytest` 執行 `tests/`，驗證 `plugins/cai/scripts/` 底下的腳本實際行為；它是這個 repo 唯一的開發期相依套件（`pip install pytest`）。CI 會在每個 pull request 上、以 Linux 執行這兩者。Windows 只靠手動執行涵蓋；macOS 完全沒有涵蓋。
+`pytest` 執行 `tests/`，驗證 `plugins/cai/scripts/` 底下的腳本實際行為；它是這個 repo 唯一必要的開發期相依套件（`pip install pytest`）。`pytest-xdist`（讓 pytest 同時開多個 worker 行程的外掛）是選用的：裝了之後，`python -m pytest -n auto` 會依 CPU 數量開 worker 並行執行。CI 會在每個 pull request 上、以 Linux 執行這兩者，pytest 帶 `-n auto`。Windows 只靠手動執行涵蓋；macOS 完全沒有涵蓋。
 
 編輯時你很少需要自己跑 `validate.py`：`.claude/settings.json` 註冊了一個 `PostToolUse` hook，只要 Edit 或 Write 工具碰到 `plugins/cai/` 或 `.claude-plugin/` 就會執行它，並回報失敗項目。透過 shell 改寫的檔案不會觸發它。
 
