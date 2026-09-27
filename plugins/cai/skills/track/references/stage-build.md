@@ -175,6 +175,9 @@ For each unit, in schedule order:
    keep the red output, because Step 6.1 needs it.
 4. **Verify.** Dispatch `test-runner` with the unit's `Verify with`
    command. Read the real output.
+   - Green means no failures **and** no NOT RUN file — a named test file
+     that collected 0 tests, or skipped every test, is red even with 0
+     failures reported.
    - Green → continue.
    - Red → back to `implementer` once with the actual failure text. Still
      red → stop and report. No unbounded fix loop.

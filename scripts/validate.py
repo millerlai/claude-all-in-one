@@ -1993,6 +1993,21 @@ if os.path.isfile(STAGES_JSON):
             check(f"{build_ref}'s {label} names the diagnosis path's "
                   f"`## Failing test`", phrase in build_step(heading))
 
+        # #199: a test-runner report with 0 failures used to read as green
+        # even when a named file collected 0 tests or skipped every test
+        # (a conftest that skips the whole package, say). Step 3.4 has to
+        # treat that report as red, or the bounded retry never fires.
+        check(f"{build_ref}'s Step 3.4 treats a NOT RUN test file as red",
+              "no NOT RUN file" in build_step("## Step 3"))
+
+    test_runner_ref = f"{PLUGIN}/agents/test-runner.md"
+    if os.path.isfile(test_runner_ref):
+        # #199: the report format has to name the zero-collected/all-skipped
+        # case explicitly, or test-runner has no words telling it to.
+        check(f"{test_runner_ref} reports a named file that collected 0 "
+              "tests or skipped them all as NOT RUN",
+              "NOT RUN" in read_text(test_runner_ref))
+
     # The original mis-assignment picked a stage's agent by tier alone --
     # design pointed at architect (Read-only), ship at explorer (no git) --
     # and both named agents that could not do the stage's job. Assert the
