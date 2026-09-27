@@ -67,6 +67,8 @@ nothing, asking again only after the person next writes.
 
 4. **Create the track under the confirmed name, then point it, before the
    first stage runs.**
+   Create it the way SKILL.md's new-track paragraph does, including its
+   `track_start.py` run, then
    `ticket.py point --track-dir .claude/track/<name> --ref <the argument>`.
 
    The order matters and nothing enforces it: pointing after `intake` has

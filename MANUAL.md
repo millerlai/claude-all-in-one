@@ -137,8 +137,11 @@ begins. The rest are each skill's own.
 /cai:track billing-export
 ```
 
-That creates `.claude/track/billing-export/state.md` with one row per stage,
-writes `.claude/track/current`, and begins at `intake`.
+Started on `main`/`master`, this first pulls (fast-forward only) and switches
+to `track/billing-export`, so `intake`'s preflight never blocks on the branch;
+on any other branch it leaves things alone. That then creates
+`.claude/track/billing-export/state.md` with one row per stage, writes
+`.claude/track/current`, and begins at `intake`.
 
 Do one thing once per repo: add `.claude/track/` to `.gitignore`. A track's
 files are working state, and `ship` refuses a dirty working tree — so a repo
@@ -331,7 +334,7 @@ names one of these:
 
 | Names | Meaning | Do this |
 |---|---|---|
-| `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | Branch first. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
+| `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | A new track branches for you; seeing this means it could not (git unreachable, or the branch already exists) — branch by hand. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
 | `active_tracks` | Five tracks are already open | `/cai:track done` on one. Archived tracks never count |
 | `reserved_name` | You named a feature `current` or `done` | Pick another; both already mean something under `.claude/track/` |
 | `state_md` | No `state.md`, or no row for the stage this one reads | Open the track with `/cai:track <name>` first |

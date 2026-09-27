@@ -36,7 +36,8 @@ already exists, this is a resume: skip straight to the next unfinished
 stage `track_state.py status` names. Otherwise this is a new track — first
 count existing directories under `.claude/track/` (excluding `done/`); at
 5 already, refuse and say why instead of creating a sixth. Archived tracks
-under `done/` never count toward this cap — it only grows.
+under `done/` never count toward this cap — it only grows. Before creating
+anything, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_start.py --track-dir .claude/track/<feature> --project-dir <project root>` and relay what it prints; on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 2 means stop, create nothing, and report exactly what it printed.
 
 Create `.claude/track/<feature>/state.md`, then `.claude/track/current`, then
 start the first stage below. The table: `| stage | status | artifact | note |`,

@@ -2191,7 +2191,15 @@ if os.path.isfile(VERIFY_REF):
 # reader to ticket-mirror.md; the second is headroom, on the same reasoning as
 # both moves above. The procedure deliberately did not come here: it is twenty
 # lines, and this file routes rather than implements.
-TRACK_SKILL_MAX = 130
+#
+# 130 -> 131 on 2026-09-26 (#193): one line routes a new track on `main`/
+# `master` through `track_start.py` before intake's preflight can ever FAIL
+# `not_main_branch`. Moved together with the pinned body-line count in
+# tests/test_track_skill_ticket_pointer.py, as that test's own docstring
+# requires, keeping the same two-line gap below the ceiling rather than
+# spending it -- #203 is expected to spend it next, raising this ceiling
+# again rather than landing on it.
+TRACK_SKILL_MAX = 131
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)
