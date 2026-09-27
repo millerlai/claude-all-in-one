@@ -319,14 +319,27 @@ def test_tool_path_ignores_a_same_named_file_in_the_current_directory(monkeypatc
     NoDefaultCurrentDirectoryInExePath set), it inserts the current
     directory ahead of every PATH entry regardless of a `path=` argument,
     so a bare shutil.which("git") call resolves the planted file first."""
+    # shutil.which() finds `git.bat` through PATHEXT on Windows only; on
+    # POSIX (the Linux CI) it wants a file named exactly `git` with the
+    # executable bit, and it never searches cwd there, so the same assertion
+    # holds on both.
+    def write_tool(directory, body):
+        if sys.platform == "win32":
+            tool = directory / "git.bat"
+            tool.write_text(f"@echo {body}\n")
+        else:
+            tool = directory / "git"
+            tool.write_text(f"#!/bin/sh\necho {body}\n")
+            tool.chmod(0o755)
+        return tool
+
     real_tool_dir = tmp_path / "real_tools"
     real_tool_dir.mkdir()
-    real_git = real_tool_dir / "git.bat"
-    real_git.write_text("@echo real\n")
+    real_git = write_tool(real_tool_dir, "real")
 
     fake_cwd = tmp_path / "repo_root"
     fake_cwd.mkdir()
-    (fake_cwd / "git.bat").write_text("@echo planted\n")
+    write_tool(fake_cwd, "planted")
 
     monkeypatch.chdir(fake_cwd)
     monkeypatch.setenv("PATH", str(real_tool_dir))
