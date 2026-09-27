@@ -15,12 +15,27 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 GUARD = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "plugins", "cai", "scripts", "bash_guard.py")
 
 
-def run(command, tool="Bash", codex=False, cwd=""):
+@pytest.fixture
+def feature_repo(tmp_path):
+    """A throwaway repo sitting on a feature branch, used as the cwd of every
+    guard call. Without it the guard judged each command against whatever
+    branch this test run's own checkout was on: a PR's detached merge ref
+    passed, but main's push CI runs on `main`, where the `git commit`
+    look-alikes tripped the commit-on-a-protected-branch rule (#228 merged
+    red)."""
+    subprocess.run(["git", "init", "-b", "feat", str(tmp_path)],
+                   capture_output=True, text=True)
+    return str(tmp_path)
+
+
+def run(command, cwd, tool="Bash", codex=False):
     env = dict(os.environ)
     if codex:
         env["CAI_CODEX_GUARD"] = "1"
@@ -29,7 +44,7 @@ def run(command, tool="Bash", codex=False, cwd=""):
     return subprocess.run(
         [sys.executable, GUARD],
         input=json.dumps({"tool_name": tool, "tool_input": {"command": command}, "cwd": cwd}),
-        capture_output=True, text=True, env=env,
+        capture_output=True, text=True, env=env, cwd=cwd,
     )
 
 
@@ -53,9 +68,9 @@ ASK_COMMANDS = [
 ]
 
 
-def test_claude_path_asks_instead_of_blocking_or_allowing_silently():
+def test_claude_path_asks_instead_of_blocking_or_allowing_silently(feature_repo):
     for command in ASK_COMMANDS:
-        done = run(command)
+        done = run(command, feature_repo)
         assert done.returncode == 0, (command, done.stdout, done.stderr)
         payload = json.loads(done.stdout)
         out = payload["hookSpecificOutput"]
@@ -64,9 +79,9 @@ def test_claude_path_asks_instead_of_blocking_or_allowing_silently():
         assert out["permissionDecisionReason"]
 
 
-def test_codex_signal_denies_and_hands_back_the_command():
+def test_codex_signal_denies_and_hands_back_the_command(feature_repo):
     for command in ASK_COMMANDS:
-        done = run(command, codex=True)
+        done = run(command, feature_repo, codex=True)
         assert done.returncode == 2, (command, done.stdout, done.stderr)
         assert done.stdout == ""
         assert command in done.stderr
@@ -97,34 +112,34 @@ BACKTICK_LOOKALIKES = [
 ]
 
 
-def test_lookalikes_are_not_treated_as_a_merge():
+def test_lookalikes_are_not_treated_as_a_merge(feature_repo):
     for command in NOT_MERGE_COMMANDS:
-        done = run(command)
+        done = run(command, feature_repo)
         assert done.returncode == 0, (command, done.stdout, done.stderr)
         assert done.stdout == "", (command, done.stdout)
 
 
-def test_lookalikes_are_not_treated_as_a_merge_under_codex_either():
+def test_lookalikes_are_not_treated_as_a_merge_under_codex_either(feature_repo):
     for command in NOT_MERGE_COMMANDS:
-        done = run(command, codex=True)
+        done = run(command, feature_repo, codex=True)
         assert done.returncode == 0, (command, done.stdout, done.stderr)
 
 
-def test_backtick_lookalike_is_not_a_merge_on_powershell():
+def test_backtick_lookalike_is_not_a_merge_on_powershell(feature_repo):
     for command in BACKTICK_LOOKALIKES:
-        done = run(command, tool="PowerShell")
+        done = run(command, feature_repo, tool="PowerShell")
         assert done.returncode == 0, (command, done.stdout, done.stderr)
         assert done.stdout == "", (command, done.stdout)
 
 
-def test_backtick_lookalike_is_not_a_merge_on_powershell_under_codex():
+def test_backtick_lookalike_is_not_a_merge_on_powershell_under_codex(feature_repo):
     for command in BACKTICK_LOOKALIKES:
-        done = run(command, tool="PowerShell", codex=True)
+        done = run(command, feature_repo, tool="PowerShell", codex=True)
         assert done.returncode == 0, (command, done.stdout, done.stderr)
 
 
-def test_an_existing_deny_rule_still_wins_over_ask():
-    done = run("git push --force origin main && gh pr merge 5")
+def test_an_existing_deny_rule_still_wins_over_ask(feature_repo):
+    done = run("git push --force origin main && gh pr merge 5", feature_repo)
     assert done.returncode == 2, (done.stdout, done.stderr)
     assert done.stdout == ""
     assert "force push" in done.stderr
