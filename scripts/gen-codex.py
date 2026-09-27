@@ -13,23 +13,20 @@ Design: docs/design/2026-09-18-codex-support-detail.md, "### gen-codex.py".
 U1 owns: collect/exclude, the override engine and its anchor rule, the
 `${CLAUDE_PLUGIN_ROOT}` and `/cai:` rewrites, `--check`/`--source`/`--out`,
 and the first override. U2 adds every other override and the rest of the
-deny-list, including the fenced-code-block-only bash-syntax tokens. U3 (this
-build) adds emit() -- agent TOMLs, `openai.yaml`, the manifest, the
-`stages.json` agent prefix -- plus the fingerprint and `--release`, per D13
-as modified 2026-09-19 (implementation-notes.md, "Unit 3 (decided before it
-started)"): the fingerprint also covers the hand-written files that exist on
-disk, and `--release` refuses only a version already published on the base
-ref, not merely a non-increasing one.
+deny-list, including the fenced-code-block-only bash-syntax tokens. U3 adds
+emit() -- agent TOMLs, `openai.yaml`, the manifest, the `stages.json` agent
+prefix. The version stamp (the manifest's "version" and every agent TOML's
+`# cai-codex-version:` line) is read from `source`'s own
+`.claude-plugin/plugin.json`, whose "version" key is the single hand-written
+release version for both plugin trees (docs/design/2026-09-26-release-
+versioning-detail.md); scripts/release.py is the only writer of that file.
 
-Exit codes: 0 ok; 1 drift, anchor miss, deny-list hit, or an unreleased
-change under `--check`; 2 bad arguments, an unreadable input file, or a
-`--release` version already published on the base ref.
+Exit codes: 0 ok; 1 drift, anchor miss, or a deny-list hit; 2 bad arguments
+or an unreadable input file.
 """
 import argparse
-import hashlib
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -43,7 +40,6 @@ TIERS_FILE = SCRIPT_DIR / "codex-models.json"
 # Codex's reasoning-effort names, low to high (design C22) -- the same list
 # as install_codex.py's EFFORT_ORDER, which the installer checks against.
 CODEX_EFFORTS = ("low", "medium", "high", "xhigh", "max", "ultra")
-RELEASE_FILE = SCRIPT_DIR / "codex-release.json"
 
 # Design decisions, "Excluded from the Codex tree." Directories are matched
 # by path prefix, files by exact relative path.
@@ -516,104 +512,13 @@ def emit(files: dict, tiers: dict, version: str) -> dict:
     return out
 
 
-def fingerprint(files: dict) -> str:
-    """SHA-256 over the sorted (relative path, bytes) pairs of every file in
-    `files`, the manifest excluded (D13 as modified 2026-09-19: the caller
-    adds the hand-written files that exist on disk before calling this)."""
-    h = hashlib.sha256()
-    for rel in sorted(files):
-        if rel == MANIFEST_PATH:
-            continue
-        content = files[rel]
-        if isinstance(content, str):
-            content = content.encode("utf-8")
-        h.update(rel.encode("utf-8") + b"\x00" + content + b"\x00")
-    return "sha256:" + h.hexdigest()
-
-
-# ---------------------------------------------------------------------------
-# Release record (D13 as modified 2026-09-19, implementation-notes.md "Unit 3
-# (decided before it started)"): the fingerprint also covers the hand-written
-# files that exist on disk, and `--release` refuses only a version already
-# published on the base ref, not merely a non-increasing one.
-# ---------------------------------------------------------------------------
-
-def load_release_record(path: Path = RELEASE_FILE):
-    if not path.is_file():
-        return None
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _git(cwd, *args):
-    """Same shape as preflight.py's own git() helper -- duplicated rather
-    than imported, since preflight.py is out of scope for this change and
-    the two would otherwise couple two independently-versioned CLI surfaces."""
-    try:
-        return subprocess.run(["git", *args], cwd=cwd or None,
-                               capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return None
-
-
-def find_base_ref(cwd):
-    """The same chain as preflight.py's find_base_ref: the remote's default
-    branch if origin answers, else a local main or master."""
-    done = _git(cwd, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
-    if done and done.returncode == 0:
-        return done.stdout.strip()
-    for ref in ("origin/main", "origin/master", "main", "master"):
-        done = _git(cwd, "rev-parse", "--verify", "--quiet", ref)
-        if done and done.returncode == 0:
-            return ref
-    return None
-
-
-def read_published_record(cwd, ref, rel_path="scripts/codex-release.json"):
-    """The release record committed at `ref`, or None when `ref` is None, the
-    file does not exist there, or its contents are not the expected JSON."""
-    if ref is None:
-        return None
-    done = _git(cwd, "show", f"{ref}:{rel_path}")
-    if done is None or done.returncode != 0:
-        return None
-    try:
-        return json.loads(done.stdout)
-    except json.JSONDecodeError:
-        return None
-
-
-def check_unreleased(working_record, published_record, current_fingerprint):
-    """(is_unreleased, reason) for `--check`'s UNRELEASED rule. Pure: takes
-    the working record (this repo's scripts/codex-release.json, or None), the
-    base ref's published record (or None -- no base ref, or no file there,
-    both skip rule (b)), and the freshly computed fingerprint."""
-    if working_record is None:
-        return True, "no release record recorded -- run --release <version>"
-    if working_record.get("fingerprint") != current_fingerprint:
-        return True, "output changed, run --release <greater version>"
-    if published_record is not None:
-        same_version = published_record.get("version") == working_record.get("version")
-        if same_version and published_record.get("fingerprint") != current_fingerprint:
-            return True, ("output changed after %s was published without a "
-                          "version bump" % working_record.get("version"))
-    return False, ""
-
-
-def _version_tuple(v):
-    try:
-        return tuple(int(p) for p in v.split("."))
-    except (AttributeError, ValueError):
-        return (0,)
-
-
-def release_refusal(new_version, published_record):
-    """Whether `--release new_version` must be refused (exit 2): D13 as
-    modified -- refuse only when new_version is lower than, or equal to, the
-    version already published on the base ref. Re-recording the working
-    version is allowed when the base ref has no record, or a different one."""
-    if published_record is None:
-        return False
-    return _version_tuple(new_version) <= _version_tuple(published_record.get("version", "0.0.0"))
+def product_version(source: Path) -> str:
+    """The single hand-written version, read from plugins/cai/.claude-plugin/
+    plugin.json under `source`. scripts/release.py is the only writer of that
+    file's "version" key (design, "唯一來源")."""
+    manifest_path = source / ".claude-plugin" / "plugin.json"
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return data["version"]
 
 
 def _diff_with_disk(out: Path, files: dict) -> list:
@@ -652,8 +557,13 @@ def _write_tree(out: Path, files: dict):
             p.unlink()
 
 
-def build(source: Path, out: Path, check: bool, release: str = None,
-          release_file: Path = RELEASE_FILE, project_dir: Path = ROOT) -> int:
+def build(source: Path, out: Path, check: bool) -> int:
+    try:
+        version = product_version(source)
+    except (OSError, ValueError, KeyError) as e:
+        print(f"unreadable product version: {e}")
+        return 2
+
     raw = relocate_catalog(collect(source))
     try:
         text_files = {rel: content.decode("utf-8") for rel, content in raw.items()}
@@ -668,11 +578,6 @@ def build(source: Path, out: Path, check: bool, release: str = None,
         return 1
 
     rewritten = rewrite(overridden)
-
-    # The version stamp: --release's own value while writing a release, else
-    # whatever is currently recorded (glossary "version stamp"; D13).
-    working_record = load_release_record(release_file)
-    version = release or (working_record["version"] if working_record else "0.0.0")
     emitted = emit(rewritten, load_tiers(), version)
 
     hits = deny_hits(emitted)
@@ -684,47 +589,14 @@ def build(source: Path, out: Path, check: bool, release: str = None,
 
     encoded = {rel: text.encode("utf-8") for rel, text in emitted.items()}
 
-    # Fingerprint: every emitted file, the manifest excluded, plus whichever
-    # hand-written files (D18) already exist under `out` (D13 as modified).
-    fp_files = dict(encoded)
-    for hw in HAND_WRITTEN:
-        p = out / hw
-        if p.is_file():
-            fp_files[hw] = p.read_bytes()
-    current_fp = fingerprint(fp_files)
-
-    base = find_base_ref(project_dir)
-    if base is None:
-        print("SKIP release base unavailable")
-        published_record = None
-    else:
-        published_record = read_published_record(project_dir, base)
-
     if check:
         drift = _diff_with_disk(out, encoded)
         for rel in drift:
             print(f"DRIFT {rel}")
-        unreleased, reason = check_unreleased(working_record, published_record, current_fp)
-        if unreleased:
-            print(f"UNRELEASED: {reason}")
         print(f"{len(encoded)} file(s) checked, {len(drift)} finding(s)")
-        return 1 if (drift or unreleased) else 0
-
-    if release and release_refusal(release, published_record):
-        print(f"--release {release}: {published_record['version']} is already "
-              f"published on {base}")
-        return 2
+        return 1 if drift else 0
 
     _write_tree(out, encoded)
-
-    if release:
-        # newline="" -- write_text's platform newline translation would turn
-        # this file's "\n" into "\r\n" on Windows, churning it against the
-        # LF-only copy already committed.
-        release_file.write_text(
-            json.dumps({"version": release, "fingerprint": current_fp}, indent=2) + "\n",
-            encoding="utf-8", newline="")
-        print(f"released {release}")
 
     print(f"{len(encoded)} file(s) generated, 0 finding(s)")
     return 0
@@ -735,14 +607,13 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true", help="report drift, write nothing")
     ap.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
-    ap.add_argument("--release", metavar="X.Y.Z", help="write the release record at this version")
     args = ap.parse_args(argv)
 
     if not args.source.is_dir():
         print(f"no such source directory: {args.source}")
         return 2
 
-    return build(args.source, args.out, args.check, args.release)
+    return build(args.source, args.out, args.check)
 
 
 if __name__ == "__main__":

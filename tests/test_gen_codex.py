@@ -5,8 +5,11 @@ in Implementation spec). U1 owns: collect/exclude, the override engine and its
 anchor rule, the `${CLAUDE_PLUGIN_ROOT}` and `/cai:` rewrites,
 `--check`/`--source`/`--out`, and the first override (approval-gates.md:21).
 U2 adds every other override plus the rest of the deny-list, including the
-fenced-code-block-only bash-syntax tokens. Emit, fingerprint and `--release`
-are later units.
+fenced-code-block-only bash-syntax tokens. Emit -- agent TOMLs, `openai.yaml`,
+the manifest, the `stages.json` prefix -- is a later unit; its version stamp
+comes from the source tree's own `.claude-plugin/plugin.json` "version" key
+(docs/design/2026-09-26-release-versioning-detail.md), the single hand-written
+release version for both plugin trees.
 
 The module file is `gen-codex.py` (hyphenated, to match `gen-models.py`'s CLI
 naming), so it cannot be `import`ed by name; it is loaded through `importlib`
@@ -408,20 +411,6 @@ def test_check_on_a_freshly_generated_tree_exits_0(tmp_path):
     gen = run("--source", str(REAL_SOURCE), "--out", str(out))
     assert gen.returncode == 0, gen.stdout + gen.stderr
 
-    # The release record fingerprints the shipped tree -- generated files plus
-    # whichever HAND_WRITTEN files exist for real (D13 as modified) -- so a
-    # faithful stand-in for that tree needs them too, or --check reports a
-    # false UNRELEASED because a real hand-written file (launcher.py, and
-    # later install_codex.py/README.md/setup's SKILL.md) is missing from this
-    # disposable copy. Read HAND_WRITTEN from the module rather than a
-    # hard-coded list, so a later unit's addition is picked up automatically.
-    for rel in gen_codex.HAND_WRITTEN:
-        real_path = gen_codex.DEFAULT_OUT / rel
-        if real_path.is_file():
-            dest = out / rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(real_path, dest)
-
     checked = run("--check", "--source", str(REAL_SOURCE), "--out", str(out))
     assert checked.returncode == 0, checked.stdout + checked.stderr
 
@@ -656,8 +645,7 @@ def test_generated_tree_cites_no_more_design_ids_than_its_source():
 
 # ---------------------------------------------------------------------------
 # U3 "Done when" rows: D2/D3/D17 (agent TOMLs, tier table, stages.json
-# prefix), D8 (openai.yaml x N), D13 as modified 2026-09-19 (UNRELEASED,
-# --release refusal)
+# prefix), D8 (openai.yaml x N)
 # ---------------------------------------------------------------------------
 
 AGENT_SHORT_NAMES = [
@@ -806,160 +794,28 @@ def test_claude_plugin_manifest_is_excluded_from_the_codex_tree(tmp_path):
     assert not (out / ".claude-plugin").exists()
 
 
-def test_manifest_carries_the_release_version_and_release_writes_the_record(tmp_path):
-    # A project dir with no git history at all: find_base_ref returns None,
-    # so release_refusal never fires here -- isolates this test from whatever
-    # this repo's own base ref happens to have published.
+
+def test_manifest_version_matches_the_source_products_plugin_json(tmp_path):
+    source = _copy_real_source(tmp_path)
+    manifest_path = source / ".claude-plugin" / "plugin.json"
+    manifest = gen_codex.json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = "9.9.9"
+    manifest_path.write_text(gen_codex.json.dumps(manifest), encoding="utf-8")
+
     out = tmp_path / "out"
-    release_file = tmp_path / "codex-release.json"
-    rc = gen_codex.build(REAL_SOURCE, out, check=False, release="0.3.1",
-                         release_file=release_file, project_dir=tmp_path)
+    rc = gen_codex.build(source, out, check=False)
     assert rc == 0
 
-    manifest = gen_codex.json.loads((out / gen_codex.MANIFEST_PATH).read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.3.1"
-    assert manifest["name"] == "cai-codex"
-
-    record = gen_codex.json.loads(release_file.read_text(encoding="utf-8"))
-    assert record["version"] == "0.3.1"
-    assert record["fingerprint"].startswith("sha256:")
-
-    # Re-running --check against the same out/release_file/project_dir is
-    # clean: the record now matches the current fingerprint.
-    checked = gen_codex.build(REAL_SOURCE, out, check=True,
-                              release_file=release_file, project_dir=tmp_path)
-    assert checked == 0
+    codex_manifest = gen_codex.json.loads(
+        (out / gen_codex.MANIFEST_PATH).read_text(encoding="utf-8"))
+    assert codex_manifest["version"] == "9.9.9"
 
 
-def test_release_refuses_a_version_already_published_on_the_base_ref(tmp_path):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q", "-b", "main")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "test")
-    (repo / "scripts").mkdir()
-    (repo / "scripts" / "codex-release.json").write_text(
-        '{"version": "0.2.0", "fingerprint": "sha256:whatever"}', encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "init")
+def test_build_exits_2_when_the_source_has_no_product_manifest(tmp_path):
+    source = _copy_real_source(tmp_path)
+    (source / ".claude-plugin" / "plugin.json").unlink()
 
     out = tmp_path / "out"
-    release_file = tmp_path / "codex-release.json"
-    rc = gen_codex.build(REAL_SOURCE, out, check=False, release="0.2.0",
-                         release_file=release_file, project_dir=repo)
+    rc = gen_codex.build(source, out, check=False)
 
     assert rc == 2
-    assert not release_file.is_file()
-    # A refused --release must not write the tree either -- otherwise `out`
-    # is left stamped with the very version the command just refused to
-    # record, even though nothing says so happened.
-    assert not out.exists(), "a refused --release must not write the tree at all"
-
-
-# ---------------------------------------------------------------------------
-# D13 as modified 2026-09-19: pure decision functions, no git or real files
-# ---------------------------------------------------------------------------
-
-def test_check_unreleased_flags_a_changed_fingerprint_under_an_unchanged_version():
-    working = {"version": "0.1.0", "fingerprint": "sha256:old"}
-    unreleased, reason = gen_codex.check_unreleased(working, None, "sha256:new")
-    assert unreleased
-    assert "run --release" in reason
-
-
-def test_check_unreleased_flags_no_record_at_all():
-    unreleased, reason = gen_codex.check_unreleased(None, None, "sha256:x")
-    assert unreleased
-    assert "run --release" in reason
-
-
-def test_check_unreleased_is_clean_when_fingerprint_matches_and_nothing_published():
-    working = {"version": "0.1.0", "fingerprint": "sha256:same"}
-    unreleased, _ = gen_codex.check_unreleased(working, None, "sha256:same")
-    assert not unreleased
-
-
-def test_check_unreleased_flags_output_changed_after_the_working_version_was_published():
-    working = {"version": "0.1.0", "fingerprint": "sha256:same"}
-    published = {"version": "0.1.0", "fingerprint": "sha256:different"}
-    unreleased, reason = gen_codex.check_unreleased(working, published, "sha256:same")
-    assert unreleased
-    assert "0.1.0" in reason
-
-
-def test_check_unreleased_is_clean_when_published_version_differs():
-    # main published an older version -- this repo has since bumped and the
-    # working record already agrees with the current fingerprint.
-    working = {"version": "0.2.0", "fingerprint": "sha256:same"}
-    published = {"version": "0.1.0", "fingerprint": "sha256:whatever"}
-    unreleased, _ = gen_codex.check_unreleased(working, published, "sha256:same")
-    assert not unreleased
-
-
-def test_release_refusal_when_the_version_is_not_higher_than_published():
-    published = {"version": "0.1.0", "fingerprint": "sha256:x"}
-    assert gen_codex.release_refusal("0.1.0", published)
-    assert gen_codex.release_refusal("0.0.9", published)
-    assert not gen_codex.release_refusal("0.2.0", published)
-
-
-def test_release_refusal_never_fires_with_no_published_record():
-    # Lets U4-U6 keep re-recording 0.1.0 inside this PR: main has no record.
-    assert not gen_codex.release_refusal("0.1.0", None)
-
-
-# ---------------------------------------------------------------------------
-# One small integration test with a real (temp) git repo, per the D13
-# modification's own instruction: everything else above is pure.
-# ---------------------------------------------------------------------------
-
-def _git(cwd, *args):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True,
-                          text=True, encoding="utf-8")
-
-
-def test_read_published_record_reads_the_base_refs_committed_file(tmp_path):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "test")
-    release = repo / "scripts"
-    release.mkdir()
-    (release / "codex-release.json").write_text(
-        '{"version": "0.1.0", "fingerprint": "sha256:abc"}', encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "init")
-    branch = _git(repo, "symbolic-ref", "--short", "HEAD").stdout.strip()
-
-    record = gen_codex.read_published_record(repo, branch)
-
-    assert record == {"version": "0.1.0", "fingerprint": "sha256:abc"}
-    assert gen_codex.read_published_record(repo, "no-such-ref") is None
-    assert gen_codex.read_published_record(repo, None) is None
-
-
-def test_find_base_ref_finds_the_current_branch_when_named_main(tmp_path):
-    repo = tmp_path / "repo2"
-    repo.mkdir()
-    _git(repo, "init", "-q", "-b", "main")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "test")
-    (repo / "a.txt").write_text("x", encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "init")
-
-    assert gen_codex.find_base_ref(repo) == "main"
-
-
-def test_find_base_ref_returns_none_with_no_usable_ref(tmp_path):
-    repo = tmp_path / "repo3"
-    repo.mkdir()
-    _git(repo, "init", "-q", "-b", "some-feature")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "test")
-    (repo / "a.txt").write_text("x", encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", "init")
-
-    assert gen_codex.find_base_ref(repo) is None

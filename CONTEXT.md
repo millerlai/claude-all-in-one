@@ -34,6 +34,18 @@ or specs, and only concepts specific to this project.
 **Close menu**: The menu `done` asks after the move: "Close #<number>" or "Leave it open".
 **Pointer**: A track's `ticket.json`: backend, ref, cached login, last projection.
 **Timeout table**: approval-gates' "what each stop does about a menu that closed on its own".
+**產品版號**: 唯一手寫的版號，其他版號欄位都由它推出（I1）。
+**公開介面**: 技能名稱、`/cai:setup` 寫入位置、model-choice 存檔格式、平台最低版本（D1＝B）。
+**平台下限**: Claude Code 2.1.283（D12）、codex-cli 0.157.1（D11）。
+**track 格式檔**: 改到它們時，發布頁要提醒「進行中的 track 先做完再更新」（D1＝B）。
+**子目錄來源項目**: 市集檔裡 `source` 為 `{"source": "git-subdir", "url", "path", "ref"}` 的外掛項目。
+**發版提交**: 標題 `chore(release): vX.Y.Z`、同時寫版號、ref、cai-codex 與 CHANGELOG 的那一個提交（D6）。
+**release PR**: 從 release 分支到 main 的 PR，以合併提交合併（D3）。
+**本機閘門**: `cut` 在提交前跑的 `validate.py` 與 `pytest`。
+**遠端檢查**: `verify` 在隔離設定目錄裡讓兩個 CLI 從 GitHub 安裝新標籤。
+**送出中的版本**: origin/main 的 Claude 市集檔 `ref` 所指的版本。
+**標籤規則集**: GitHub repo 設定裡對 `v*` 禁止更新、刪除的規則集（D5）。
+**stable 分支**: 退路：最後一個好標籤加一個「市集檔改回相對路徑」的提交（D4）。
 **備份分支（backup branch）**: ship 在 squash 前建的本地分支 `backup/<來源>-<後綴>`，從不 push；來源的 PR 合併後，sweep 會把它列為可刪。
 **來源分支（source branch）**: 備份分支當初備份的那條分支，sweep 從備份名對回某個已合併 PR 的 head 找出它。
 **時間檢查**: sweep 判斷備份可刪的條件之一：備份最後一個 commit 不晚於來源 PR 的合併時間，用來擋住同名分支重複使用時的誤刪。

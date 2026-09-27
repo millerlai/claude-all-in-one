@@ -142,7 +142,8 @@ mp = json.load(open(".claude-plugin/marketplace.json"))
 check("marketplace has name/owner/plugins", all(k in mp for k in ("name", "owner", "plugins")))
 
 for entry in mp["plugins"]:
-    src = entry["source"]
+    source = entry["source"]
+    src = source if isinstance(source, str) else source["path"]
     manifest = f"{src}/.claude-plugin/plugin.json"
     pl = json.load(open(manifest))
     check(f"{manifest} has name/version", "name" in pl and "version" in pl)
@@ -1646,17 +1647,60 @@ if os.path.isfile(GEN_CODEX):
     if codex_check.returncode != 0:
         print("    ", codex_check.stdout.strip().replace("\n", "\n     "))
 
-# D6: this build of Codex reads only a bare-string `source`, and silently
-# drops the plugin entry if it is ever hand-edited back to the documented
-# `{"path": ...}` object form (E2) -- catch that here rather than at install.
-AGENTS_MARKETPLACE = ".agents/plugins/marketplace.json"
+# Release versioning (docs/design/2026-09-26-release-versioning-detail.md):
+# scripts/release.py owns pinning both marketplace files to a git-subdir
+# source once a release is cut, and MARKETPLACES is the one list both it and
+# this check read -- a third platform is one more row there, not a new code
+# path here (UC5; see tests/test_release.py's fake_platforms test).
+sys.path.insert(0, "scripts")
+import release  # noqa: E402
+
+product_manifest_text = read_text(release.PRODUCT_MANIFEST)
+
+# release.pinned_ref returns None for the legacy bare-string `source` and the
+# pinned ref for the git-subdir object form, so it doubles as the form probe.
+# Transitional: both marketplace files are still legacy-string on this branch
+# (the real pin only happens when `release.py prepare` cuts a release), so
+# accepting that form here is deliberate; a later unit removes it once the
+# first release lands.
+forms = {}
+for market in release.MARKETPLACES:
+    try:
+        text = read_text(market.file)
+        forms[market.file] = "legacy" if release.pinned_ref(text, market) is None else "subdir"
+    except (OSError, json.JSONDecodeError, ValueError):
+        forms[market.file] = "unreadable"
+
+consistent_form = len(set(forms.values())) == 1 and "unreadable" not in forms.values()
+check("marketplace entries use one consistent source form (legacy string, or git-subdir)",
+      consistent_form)
+if not consistent_form:
+    for file, form in forms.items():
+        print(f"     {file}: {form}")
+
+if consistent_form and next(iter(forms.values())) == "subdir":
+    expected_url = release.repository_git_url(product_manifest_text)
+    expected_ref = "v" + release.product_version(product_manifest_text)
+    for market in release.MARKETPLACES:
+        obj = json.load(open(market.file, encoding="utf-8"))
+        entry = next(p for p in obj.get("plugins", []) if p.get("name") == market.plugin)
+        source = entry.get("source") or {}
+        ok = (source.get("source") == "git-subdir"
+              and source.get("url") == expected_url
+              and source.get("path") == market.path
+              and source.get("ref") == expected_ref)
+        check(f"{market.file} pins {market.plugin} correctly (url/path/ref)", ok)
+        if not ok:
+            print(f"     {market.file}: got {source}, want "
+                  f"url={expected_url!r} path={market.path!r} ref={expected_ref!r}")
+
+CAI_CODEX_MANIFEST = "plugins/cai-codex/.codex-plugin/plugin.json"
 try:
-    amp = json.load(open(AGENTS_MARKETPLACE, encoding="utf-8"))
-    codex_sources_are_strings = all(
-        isinstance(entry.get("source"), str) for entry in amp.get("plugins", []))
-except (OSError, json.JSONDecodeError):
-    codex_sources_are_strings = False
-check(f"{AGENTS_MARKETPLACE} sources are strings", codex_sources_are_strings)
+    codex_manifest = json.load(open(CAI_CODEX_MANIFEST, encoding="utf-8"))
+    codex_version_matches = codex_manifest.get("version") == release.product_version(product_manifest_text)
+except (OSError, json.JSONDecodeError, ValueError):
+    codex_version_matches = False
+check(f"{CAI_CODEX_MANIFEST} version matches the product version (R4)", codex_version_matches)
 
 # What each stage's agent must be granted, checked against its `tools:`
 # frontmatter rather than its name -- picking an agent by tier alone is

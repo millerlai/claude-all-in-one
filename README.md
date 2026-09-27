@@ -273,7 +273,7 @@ worth watching.
 
 ## Prerequisites
 
-- Claude Code CLI, installed and authenticated.
+- Claude Code CLI, installed and authenticated. Requires 2.1.283 or later.
 - Git.
 - Python 3 on `PATH` — `python3` on macOS/Linux, `python` or the `py` launcher
   on Windows. The bash guard needs it; `/cai:setup` tells you if it's
@@ -318,7 +318,7 @@ re-serves the cached commit:
 Re-run `/cai:setup` afterwards to pick up rule changes, and restart the
 session — running sessions don't hot-reload plugin agents or hooks.
 
-If content changed without a version bump, or the cache looks corrupted:
+If the cache looks corrupted:
 
 ```
 /plugin marketplace update claude-all-in-one
@@ -344,6 +344,10 @@ codex plugin add cai-codex@claude-all-in-one
 
 The `owner/repo` form is the one Codex documents; this build exercised the
 equivalent local form, `codex plugin marketplace add <path to a clone>`.
+
+Requires `codex-cli` 0.157.1 or later — check with `codex --version`. An
+older codex-cli won't see this plugin at all: it drops the marketplace entry
+silently, with no error message.
 
 Start Codex with `--enable default_mode_request_user_input` so `$setup`'s
 language question renders as a menu. The track's two human gates ask the
@@ -371,15 +375,16 @@ Windows-specific notes.
 
 ```
 codex plugin marketplace upgrade
-codex plugin remove cai-codex@claude-all-in-one
 codex plugin add cai-codex@claude-all-in-one
 ```
 
-Then run `$setup` inside Codex. The first line refreshes Codex's copy of
-this repository ("Refresh configured Git marketplace snapshots", in
-`codex plugin marketplace --help`); it was not exercised in this build.
-The remove/add pair and `$setup` were, but only against a local-path
-marketplace, which is read fresh on every add.
+Then run `$setup` inside Codex. Re-running `add` alone is enough to move to
+a new version once the marketplace is upgraded — no separate `remove` step
+needed. The first line refreshes Codex's copy of this repository ("Refresh
+configured Git marketplace snapshots", in `codex plugin marketplace
+--help`); it has not yet been exercised end to end against the real
+GitHub-hosted marketplace, only `add` against a local-path marketplace,
+which is read fresh on every add.
 
 ### Uninstall
 
@@ -390,6 +395,32 @@ codex plugin remove cai-codex@claude-all-in-one
 Then remove what `$setup` wrote by hand — see
 [`plugins/cai-codex/README.md`](plugins/cai-codex/README.md)'s Uninstall
 section for the exact list.
+
+## Compatibility
+
+One version number, in `plugins/cai/.claude-plugin/plugin.json`, covers both
+`cai` and its generated `cai-codex` counterpart — they always ship together
+at the same version.
+
+That version follows [SemVer](https://semver.org/) against a public
+interface: skill names, `/cai:setup`'s write locations, the model-choice
+save format, and the two platform floors below.
+
+| Change | Bump | Example |
+|---|---|---|
+| Removing or renaming a skill; an old save file no longer loading; raising a platform floor | MAJOR | Dropping `/cai:quiz` |
+| Adding a skill; adding an omittable field to an old save file; a track-format change | MINOR | Adding a new tool, or changing what `.claude/track/<feature>/state.md` records (called out on that release's GitHub Release page) |
+| A script bug fix that doesn't change format; rewording a rule | PATCH | Fixing a guard regex |
+
+Platform floors: Claude Code 2.1.283 or later, codex-cli 0.157.1 or later.
+
+## If an update stops installing
+
+If updating stops working on either platform, check the most recent GitHub
+Release page first. If a fallback is active, it gives exact instructions for
+a `stable` branch — a `#stable` ref suffix on Claude Code, `--ref stable` on
+Codex. The specific commands aren't documented here ahead of time: they
+depend on details only confirmed when the fallback is actually used.
 
 ## Model tiers
 
@@ -567,14 +598,55 @@ Add the marketplace from a local checkout, then install to test your changes:
 /plugin install cai@claude-all-in-one
 ```
 
+### Testing unreleased changes
+
+Claude Code testers can skip the install step above entirely and point
+`claude` straight at an uninstalled tree with `--plugin-dir
+/path/to/claude-all-in-one/plugins/cai`.
+
+Codex testers can add a second, differently-named local marketplace entry —
+`cai-dev`, say — pointed at their working checkout, to try changes without
+disturbing the real `claude-all-in-one` marketplace entry. This is a
+maintainer workaround with known limits, not a fully general local-dev setup.
+
 Everything users receive lives under `plugins/cai/` — the plugin cache
 copies only that directory, so anything outside it never reaches an installer.
 Decide which side a new file is on before writing it: [`CLAUDE.md`](CLAUDE.md)'s
 "Who a file is for" draws the line between what ships and what only maintains
 this repo (`docs/`, `scripts/`, `tests/`, `.github/`, `.claude/skills/`). The
-plugin cache is keyed by version, so a pull request that changes anything under
-`plugins/cai/` also bumps `version` in `plugins/cai/.claude-plugin/plugin.json`
-— without it, `/plugin update` keeps serving the old copy.
+plugin cache is keyed by version — no pull request changes `version` in
+`plugins/cai/.claude-plugin/plugin.json` any more; `scripts/release.py`
+writes it once, when a release is cut. See `### Releasing` below.
+
+### Releasing
+
+`scripts/release.py` has four subcommands, run in order:
+
+1. `python scripts/release.py prepare X.Y.Z [--base REF]` drafts a
+   `release/vX.Y.Z` branch and a `CHANGELOG.md` section. Edit that section
+   by hand before continuing.
+2. `python scripts/release.py cut X.Y.Z` writes the version, tags it, and
+   calls `verify` automatically.
+3. `python scripts/release.py verify X.Y.Z` can also be run standalone, to
+   retry a check without cutting again.
+4. `python scripts/release.py publish X.Y.Z` publishes the GitHub Release.
+
+There's no fixed schedule — the maintainer cuts a release whenever they
+decide to, typically after a `fix:` lands. The release PR merges with
+`--merge` (a real merge commit), the one exception to this repo's usual
+squash-merge habit: reverting it must never look like reverting the version
+bump alone. A version number that got tagged but failed its checks and was
+never served is simply skipped — the next release uses the next number, and
+the CHANGELOG notes what was skipped. A GitHub tag ruleset, set up once by
+the repo owner, protects `v*` tags from being moved or deleted.
+
+### Stable fallback
+
+If a platform's update path breaks and the fix isn't ready yet, the
+maintainer can point a `stable` branch at the last known-good tag, with both
+marketplace files reverted to the old relative-path form, so installs fall
+back to that tag instead of a broken `main` HEAD. This is a manual,
+maintainer-run procedure — `scripts/release.py` does not automate it.
 
 Adding guidance rather than code? [GUIDE.md](GUIDE.md) covers which component
 should hold it — a convention, a procedure, or a constraint — and why putting it

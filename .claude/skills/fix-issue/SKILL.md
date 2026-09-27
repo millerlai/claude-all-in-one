@@ -1,6 +1,6 @@
 ---
 name: fix-issue
-description: Use when asked to fix, resolve or work through a GitHub issue of this repo (for example "fix issue 142", "修 issue 142", "依序從 issue N 開始", or an issue URL) and the result should be a tested fix on a branch plus a PR that closes it. Covers reproducing on main, test-first, the cai-codex regenerate and release step, validate.py and the full pytest, the PR and its CI. Usage - /fix-issue <issue number or URL>
+description: Use when asked to fix, resolve or work through a GitHub issue of this repo (for example "fix issue 142", "修 issue 142", "依序從 issue N 開始", or an issue URL) and the result should be a tested fix on a branch plus a PR that closes it. Covers reproducing on main, test-first, the cai-codex regenerate step, validate.py and the full pytest, the PR and its CI. Usage - /fix-issue <issue number or URL>
 ---
 
 # fix-issue
@@ -34,11 +34,9 @@ description: Use when asked to fix, resolve or work through a GitHub issue of th
 5. **修。**
    - 做讓測試轉綠的最小改動。註解寫「為什麼」，並附上 issue 編號。
    - 再用懷疑的眼光檢查一次：找出可能打破新規則的輸入，例如模板占位字、legacy 文件、CRLF、相對路徑和絕對路徑。真的找到就補一個測試。
-6. **bump 版本、release codex。**
-   - 改到 `plugins/cai/`，就 bump `plugins/cai/.claude-plugin/plugin.json`；修 bug 只升 patch 版本。
-   - 改到會被產生進 `plugins/cai-codex/` 的檔案，就跑 `python scripts/gen-codex.py`。全部改完之後再跑 `--release <main 上的版本升一個 patch>`。
-   - 同一個 branch 上可以重跑同一個版本號，因為它只和 `main` 上的版本比較。
-   - `usage_report.py` 這類不會被產生過去的檔案，不需要 release。
+6. **重產 codex。**
+   - 改到會被產生進 `plugins/cai-codex/` 的檔案，就跑 `python scripts/gen-codex.py`。
+   - 不要改 `plugin.json` 的 `version`。
 7. **驗證。**
    - `python scripts/validate.py` 要 exit 0，而且沒有任何 FAIL。
    - 完整的 `python -m pytest` 放背景跑，中途不要打斷。
@@ -66,8 +64,7 @@ description: Use when asked to fix, resolve or work through a GitHub issue of th
 - Windows 本機全部通過、Linux CI 卻失敗：測試裡預期的路徑要用 pathlib 組，不要直接寫反斜線。
 - `main` 前進之後，發生衝突的 PR 不會跑 CI。處理方式：
   - 把 `origin/main` merge 進來；
-  - 產生出來的檔案一律取 theirs，再重新產生；
-  - release 的版本號用 `main` 上的版本加一。
+  - 產生出來的檔案一律取 theirs，再重新產生。
 - Windows 上，Python 重導出去的 stdout 會用 cp950 編碼：腳本前面加 `PYTHONUTF8=1`，中文內容則用 Write／Edit 寫進檔案。
 
 ## 交付前
@@ -76,4 +73,4 @@ description: Use when asked to fix, resolve or work through a GitHub issue of th
 - [ ] 每個新測試都親眼看過它失敗（守門測試除外，並已點名）
 - [ ] validate exit 0；完整的 pytest 是在最終狀態跑的
 - [ ] 每個驗收條件都指到 `file:line`，所有偏離都列出來了
-- [ ] 版本已 bump；需要時 codex 也已 release
+- [ ] 沒有改 `version`；需要時 codex 已重新產生

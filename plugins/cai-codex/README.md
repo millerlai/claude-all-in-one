@@ -6,7 +6,7 @@ rather than hand-translated.
 
 ## Requirements
 
-- `codex-cli`.
+- `codex-cli` 0.157.1 or later.
 - Python 3 reachable as `python3` (macOS, Linux) or `python`/`py -3`
   (Windows) in the shell Codex runs commands in. `$setup` records
   whichever interpreter it ran with, and every generated command reuses
