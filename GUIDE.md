@@ -143,10 +143,20 @@ restatement is a ledger line, not new code.
   plus `git symbolic-ref`, so `bash_guard` now blocks it. That split is the
   whole diagnostic in one example: same paragraph, same tone of voice, only one
   of them mechanisable.
+
+  A push that lands on `main`/`master` is the same rule applied to the other
+  half of that sentence: every force form (`--force`, `-f`, a `+refspec`, or
+  `--force-with-lease`) and any non-force push whose destination resolves
+  there is blocked too, so a change reaches a protected branch only through a
+  merged PR. The one exemption is a brand-new remote that has no `main` yet —
+  its first, non-force push has no PR to open into.
 - The guard reads text, not intent, and two limits follow from that. It resolves
   the branch from the session's working directory, so `cd sub && git commit`
   is judged against the parent — the deny message names the directory it used so
-  a wrong verdict is at least diagnosable. And it matches one command at a time,
+  a wrong verdict is at least diagnosable. (The push rule reads a `-C <dir>` in
+  the same command instead, since a session working across worktrees — this one
+  included — has a cwd that is often the wrong repo for the push it is judging.)
+  And it matches one command at a time,
   so a PowerShell pipe that feeds a recursive listing into `Remove-Item -Force`
   reads as two harmless halves. Both are the cost of a hook that has to stay
   fast and never guess; the alternative is parsing shell grammar.
