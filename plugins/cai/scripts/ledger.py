@@ -27,6 +27,7 @@ time anyone checked them (#59).
 
 Usage:  ledger.py append --track-dir DIR --stage S --outcome O
                         [--artifact P] [--gate auto|human] [--note TEXT]
+                        (--note is required unless --outcome passed)
         ledger.py show   --track-dir DIR [--stage S]
 Exit:   0 written (a truncated note still counts), 2 refused, 1 usage error.
 """
@@ -219,6 +220,11 @@ def append(track_dir, stage, outcome, artifact=None, gate="auto", note=""):
     if stage not in ids:
         raise LedgerError("unknown stage: %s (expected one of %s)"
                           % (stage, ", ".join(ids)))
+    # #207: a non-passing outcome with an empty note cannot say why the
+    # attempt didn't pass, so refuse it here -- before any write -- rather
+    # than record a row nobody can learn from.
+    if outcome != "passed" and not (note or "").strip():
+        raise LedgerError("a note is required for outcome %s: say why" % outcome)
 
     # An empty cell and the em dash both mean "this stage produced nothing",
     # which is a fact worth recording, not a path that failed to resolve.

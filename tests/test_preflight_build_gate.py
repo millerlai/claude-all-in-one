@@ -233,7 +233,7 @@ def test_a_passed_auto_record_does_not_count_as_sign_off(tmp_path):
 def test_a_failed_human_record_does_not_count_as_sign_off(tmp_path):
     doc = write_doc(tmp_path, "d-high-level.md", HLD)
     track = make_track(tmp_path, "d-high-level.md")
-    ledger.append(track, "design", "failed", artifact=doc, gate="human")
+    ledger.append(track, "design", "failed", artifact=doc, gate="human", note="fixture")
 
     done = run(track, str(tmp_path))
 
@@ -278,7 +278,7 @@ def test_a_failed_rerun_after_approval_does_not_erase_it(tmp_path):
     doc = write_doc(tmp_path, "d-detail.md", DETAIL)
     track = make_track(tmp_path, "d-detail.md")
     ledger.append(track, "design", "passed", artifact=doc, gate="human")
-    ledger.append(track, "design", "failed", artifact=doc, gate="auto")
+    ledger.append(track, "design", "failed", artifact=doc, gate="auto", note="fixture")
 
     done = run(track, str(tmp_path))
 

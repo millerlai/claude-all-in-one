@@ -14,12 +14,13 @@ import usage_report
 
 
 def _append(track, stage, outcome, monkeypatch, ts, artifact=None, gate="auto",
-           session_id="sess-fixed"):
+           session_id="sess-fixed", note="fixture"):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", session_id)
     monkeypatch.setattr(ledger.usage_collector, "collect",
                         lambda *a, **k: ({}, {}, []))
     monkeypatch.setattr(ledger, "_now", lambda: ts)
-    return ledger.append(track, stage, outcome, artifact=artifact, gate=gate)
+    return ledger.append(track, stage, outcome, artifact=artifact, gate=gate,
+                         note=note)
 
 
 def _line(report, stage):
