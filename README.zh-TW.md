@@ -50,20 +50,18 @@ flowchart TB
     DE(["designer · think<br/>+ Write"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
     VE(["verifier · build<br/>測試 + git 讀取 + Agent"])
-    SH(["shipper · chore<br/>git + gh"])
+    SH(["shipper · build<br/>git + gh"])
 
     classDef stage fill:#e8eefc,stroke:#4a6fb5,color:#17335f
     classDef human fill:#fff3cd,stroke:#c79100,color:#6b4e00
     classDef think fill:#efe6f7,stroke:#7d5ba6,color:#3d2757
     classDef build fill:#e6eef3,stroke:#4a7c94,color:#1f3f4d
-    classDef chore fill:#eceff1,stroke:#78909c,color:#37474f
     classDef ends fill:#ffffff,stroke:#9aa5b1,color:#33404d
 
     class S1,S2,S3,S4,S5,S6 stage
     class HG1,HG2 human
     class AR,DE think
-    class IM,VE build
-    class SH chore
+    class IM,VE,SH build
     class START,DONE ends
 ```
 
@@ -112,8 +110,8 @@ Fowler 目錄中的每一種重構也各自是一個 slash command——`/cai:ex
 |---|---|---|
 | `explorer` | `chore` | 唯讀偵察。 |
 | `test-runner` | `chore` | 執行 repo 自己的自動化檢查。 |
-| `shipper` | `chore` | `ship` 階段。 |
 | `implementer` | `build` | `build` 階段、`/cai:build`、`/cai:goal`。 |
+| `shipper` | `build` | `ship` 階段。 |
 | `reviewer` | `build` | `verify` 階段、`/cai:verify`——一次三個，各負責一個視角：correctness、conformance、coverage。 |
 | `security-reviewer` | `build` | `verify` 階段的第四個視角：shell 執行、什麼會進入參數向量（argv）、被保存下來的內容裡的機密、guard 繞過——就這四項，沒有第五項。 |
 | `refactoring-detector` | `build` | 重構掃描期間，跨模組群組平行分析 smell。 |

@@ -5,7 +5,7 @@ description: >
   and opened as a PR by stage-ship.md's procedure — as the `ship` stage
   dispatches it.
 tools: Read, Bash(git:*), Bash(gh:*)
-model: haiku
+model: sonnet
 ---
 
 You run the ship stage exactly as `stage-ship.md` lays it out, in order,

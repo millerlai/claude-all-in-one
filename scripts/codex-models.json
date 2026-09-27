@@ -6,6 +6,10 @@
     "scripts/gen-codex.py's emit(). Ruled out: adding these columns to",
     "plugins/cai/models.json itself, which I1 keeps untouched.",
     "",
+    "The effort here is the tier's default: an agent whose own frontmatter",
+    "sets `effort:` gets that instead, so a per-agent raise on the Claude",
+    "side (reviewer at high inside build) is not flattened on Codex.",
+    "",
     "Re-tiering is a one-line edit here, followed by --release; a slug",
     "retired or hidden for an account (C19) breaks dispatch for that user."
   ],

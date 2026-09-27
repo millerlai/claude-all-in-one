@@ -140,7 +140,10 @@ Two more confirmations sit beside this one and are asked on their own
 turns, because a yes to publishing is not a yes to either of them:
 
 - **The squash**, `stage-ship.md` Step 4 — show the drafted commit message
-  and ask before rewriting history.
+  and ask before rewriting history. A dispatched draft carries no trailer
+  lines: end it with the ones your own instructions give for commits
+  (`Co-Authored-By:` and the like), if any, before you show it, so the
+  message approved is the message committed.
 - **The ticket comment**, `references/ticket-mirror.md`'s ship section —
   whether to run `ticket.py project` once more for ship's own row, only when
   mirroring is on.

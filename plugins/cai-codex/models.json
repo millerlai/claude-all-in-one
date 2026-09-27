@@ -43,7 +43,6 @@
   "assignments": {
     "agents/explorer.md": "chore",
     "agents/test-runner.md": "chore",
-    "agents/shipper.md": "chore",
     "skills/setup/SKILL.md": "chore",
     "skills/chore/SKILL.md": "chore",
     "skills/git/SKILL.md": "chore",
@@ -52,6 +51,7 @@
     "skills/viewer/SKILL.md": "chore",
 
     "agents/implementer.md": "build",
+    "agents/shipper.md": "build",
     "agents/reviewer.md": "build",
     "agents/security-reviewer.md": "build",
     "agents/refactoring-detector.md": "build",
