@@ -201,7 +201,11 @@ def read_window(path, since_ms, until_ms, problems):
         return []
 
     out = []
-    for number, text in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):
+    # split("\n"), not splitlines(): the transcript's own line boundary is
+    # LF, but splitlines() also breaks on U+2028, U+2029 and U+0085, which
+    # can appear unescaped inside a legal JSON string and would otherwise
+    # split one line into two unparseable halves.
+    for number, text in enumerate(raw.decode("utf-8", "replace").split("\n"), 1):
         text = text.strip()
         if not text:
             continue

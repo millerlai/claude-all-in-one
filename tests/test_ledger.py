@@ -163,6 +163,35 @@ def test_a_malformed_line_is_visible_but_counts_for_nobody(tmp_path):
     assert ledger.malformed_lines(track) == [2]
 
 
+# --- AC1/AC7: a separator character in a note does not split the record ----
+# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T1.
+# `json.dumps(..., ensure_ascii=False)` writes U+2028, U+2029 and U+0085
+# unescaped, and `str.splitlines()` treats each as its own line boundary --
+# so one legal record used to read back as two malformed placeholders.
+
+def test_separator_characters_in_a_note_do_not_split_the_record(tmp_path):
+    track = str(tmp_path)
+    seps = [chr(0x2028), chr(0x2029), chr(0x85)]
+    notes = ["a" + sep + "b" + str(i) for i, sep in enumerate(seps)]
+    for note in notes:
+        ledger.append(track, "build", "failed", note=note)
+
+    assert ledger.attempts(track, "build") == 3
+    assert [r["note"] for r in ledger.records(track, "build")] == notes
+    assert ledger.malformed_lines(track) == []
+
+
+def test_a_separator_character_does_not_shift_a_later_malformed_lines_number(tmp_path):
+    """AC7: a real record carrying U+2028 stays one line; a genuinely broken
+    line after it is still reported at its own line number, not pushed out
+    by a phantom split of the line before it."""
+    track = str(tmp_path)
+    ledger.append(track, "build", "failed", note="a" + chr(0x2028) + "b")
+    corrupt(track, "not json at all")
+
+    assert ledger.malformed_lines(track) == [2]
+
+
 def test_a_wholly_corrupt_ledger_still_answers(tmp_path):
     track = str(tmp_path)
     with open(os.path.join(track, "ledger.jsonl"), "wb") as fh:
