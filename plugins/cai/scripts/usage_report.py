@@ -523,6 +523,10 @@ def range_report(central_path, days, price_table):
 
 ATTEMPT_OUTCOMES = ("passed",) + ledger.COUNTS_AS_RETRY  # passed, failed, blocked
 GATE_WALKED_STAGES = ("design", "ship")
+# "No attempt happened" (NO_DATA) and "this stage has no human gate at all"
+# are different facts; one glyph for both is the ambiguity issue #200
+# complains about, so a stage with attempts but no gate gets its own marker.
+NOT_GATED = "n/a"
 
 
 def _stage_attempts(stage_records):
@@ -657,6 +661,13 @@ def _fmt_ratio(num, den):
     return "%d/%d" % (num, den) if den else NO_DATA
 
 
+def _fmt_human_signed(stage, num, den):
+    # Only design and ship have a human gate at all (issue #200): every
+    # other stage's ratio would always read against a gate that was never
+    # there to sign, which looked like a defect rather than "not applicable".
+    return _fmt_ratio(num, den) if stage in GATE_WALKED_STAGES else NOT_GATED
+
+
 def metrics_report(track_dir):
     """One track's own ledger: first_pass/cycle/rework/human_signed per
     stage, a TOTAL line, and the track's own cycle time -- issue #85's
@@ -669,10 +680,12 @@ def metrics_report(track_dir):
     lines = ["Stage metrics for %s" % track_dir,
              "Columns: first_pass is 1 if the stage's first attempt passed, "
              "else 0; cycle is h:mm:ss from the stage's first record to its "
-             "last passed one; rework is the stage's attempt count "
-             "(consecutive same-sha passed rows count once); human_signed "
-             "is the share of attempts carrying a human gate record; %s "
-             "means the stage had no attempt at all." % NO_DATA, ""]
+             "last passed one -- first record already the pass shows as "
+             "0:00:00; rework is the stage's attempt count (consecutive "
+             "same-sha passed rows count once); human_signed is the share "
+             "of attempts carrying a human gate record, only design and "
+             "ship have a human gate at all, so it reads %s elsewhere; %s "
+             "means the stage had no attempt at all." % (NOT_GATED, NO_DATA), ""]
 
     fp_passed = fp_attempted = 0
     total_rework = 0
@@ -687,13 +700,15 @@ def metrics_report(track_dir):
         fp_attempted += 1
         fp_passed += metrics["first_pass"]
         total_rework += metrics["rework"]
-        human_num_total += metrics["human_num"]
-        human_den_total += metrics["human_den"]
+        if stage in GATE_WALKED_STAGES:
+            human_num_total += metrics["human_num"]
+            human_den_total += metrics["human_den"]
         if stage in GATE_WALKED_STAGES and metrics["gate_not_walked"]:
             walked_notes.append("gate not walked: %s" % stage)
         lines.append("%-10s  first_pass=%d  cycle=%s  rework=%d  human_signed=%s"
                     % (stage, metrics["first_pass"], _fmt_hms(metrics["cycle_seconds"]),
-                       metrics["rework"], _fmt_ratio(metrics["human_num"], metrics["human_den"])))
+                       metrics["rework"],
+                       _fmt_human_signed(stage, metrics["human_num"], metrics["human_den"])))
 
     lines.append("-" * 40)
     lines.append("%-10s  first_pass=%s  cycle=%s  rework=%d  human_signed=%s"
@@ -747,8 +762,12 @@ def central_metrics_report(central_path, days):
     lines = (["Cross-project stage metrics -- last %d day(s)" % days] + header
              + ["Columns: first_pass and human_signed add each track's own "
                 "numerator and denominator; rework and cycle are averaged "
-                "across tracks that had an attempt; %s means no track had "
-                "an attempt in this stage." % NO_DATA, ""])
+                "across tracks that had an attempt, cycle averages a track's "
+                "own first record to its last passed one, which is 0:00:00 "
+                "when the first record was already the pass; human_signed "
+                "reads %s outside design and ship, the only stages with a "
+                "human gate at all; %s means no track had an attempt in "
+                "this stage." % (NOT_GATED, NO_DATA), ""])
 
     if not os.path.isfile(central_path):
         lines.append("No cross-project data yet -- the central ledger does "
@@ -791,8 +810,9 @@ def central_metrics_report(central_path, days):
                 continue
             fp_den += 1
             fp_num += metrics["first_pass"]
-            human_num += metrics["human_num"]
-            human_den += metrics["human_den"]
+            if stage in GATE_WALKED_STAGES:
+                human_num += metrics["human_num"]
+                human_den += metrics["human_den"]
             rework_vals.append(metrics["rework"])
             if metrics["cycle_seconds"] is not None:
                 cycle_vals.append(metrics["cycle_seconds"])
@@ -813,7 +833,7 @@ def central_metrics_report(central_path, days):
         rework_avgs.append(rework_avg)
         lines.append("%-10s  first_pass=%s  cycle=%s  rework=%.2f  human_signed=%s"
                     % (stage, _fmt_ratio(fp_num, fp_den), _fmt_hms(cycle_avg),
-                       rework_avg, _fmt_ratio(human_num, human_den)))
+                       rework_avg, _fmt_human_signed(stage, human_num, human_den)))
 
     lines.append("-" * 40)
     total_rework_avg = (sum(rework_avgs) / len(rework_avgs)) if rework_avgs else None

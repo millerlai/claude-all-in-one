@@ -84,10 +84,23 @@ def bad_statuses(track_dir, order):
     return out
 
 
+def next_unfinished(track_dir, order):
+    """The first stage in stages.json order whose status is not done or
+    skipped, as (stage id, status), or None when every stage is done or
+    skipped. One definition, shared by the current track's `next:` line and
+    by every other active track's status line below (#204) -- two readers of
+    "unfinished" would eventually disagree about where a track stands."""
+    for sid in order:
+        row = preflight.state_row(track_dir, sid)
+        status = row[1] if row and len(row) > 1 else ""
+        if status not in ("done", "skipped"):
+            return sid, status
+    return None
+
+
 def format_status(feature, track_dir, order, show_next=True):
     rows = {sid: preflight.state_row(track_dir, sid) for sid in order}
     lines = ["current: %s" % feature]
-    next_stage = None
     skipped = []
     for sid in order:
         row = rows[sid]
@@ -115,18 +128,36 @@ def format_status(feature, track_dir, order, show_next=True):
                         else "not signed off")
             line += "  (gate: %s)" % gate
         lines.append(line)
-        if next_stage is None and status not in ("done", "skipped"):
-            next_stage = sid
     lines.append("")
     if show_next:
+        next_stage = next_unfinished(track_dir, order)
         lines.append("next: %s"
-                     % (next_stage or "none -- every stage is done or skipped"))
+                     % (next_stage[0] if next_stage
+                        else "none -- every stage is done or skipped"))
     if skipped:
         lines.append("skipped:")
         for sid, note in skipped:
             lines.append("  %s: %s" % (sid, note))
-    others = [t for t in preflight.active_tracks(os.path.dirname(track_dir)) if t != feature]
+    track_root = os.path.dirname(track_dir)
+    others = [t for t in preflight.active_tracks(track_root) if t != feature]
     lines.append("other active tracks: %s" % (", ".join(others) if others else "none"))
+    for other in others:
+        other_dir = os.path.join(track_root, other)
+        other_state = os.path.join(other_dir, "state.md")
+        if not os.path.isfile(other_state):
+            lines.append("  %s  (no state.md)" % other)
+            continue
+        actual = table_stage_ids(other_state)
+        if len(actual) != len(order) or set(actual) != set(order):
+            lines.append("  %s  (state.md disagrees with stages.json)" % other)
+            continue
+        other_next = next_unfinished(other_dir, order)
+        if other_next is None:
+            lines.append("  %s  every stage done or skipped" % other)
+        else:
+            stage, status = other_next
+            lines.append("  %s  stopped at: %s (%s)"
+                         % (other, stage, status or "not started"))
     return "\n".join(lines)
 
 

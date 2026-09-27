@@ -18,7 +18,8 @@ from what the script prints.
   directory>` -- prints, per stage, `first_pass` (did the first attempt
   pass), `cycle` (h:mm:ss from the stage's first record to its last pass),
   `rework` (how many attempts it took), and `human_signed` (share of those
-  attempts a human gate actually signed off).
+  attempts a human gate actually signed off -- only `design` and `ship`
+  have a human gate at all, so it reads `n/a` for every other stage).
 - The same four numbers across projects: `metrics --days <N>`, aggregated
   per stage over every track that touched it in that window.
 - If the command exits non-zero, relay stderr verbatim and stop -- do not

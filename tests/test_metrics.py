@@ -61,7 +61,9 @@ def test_fixed_sample_all_four_numbers(tmp_path, monkeypatch):
     assert "first_pass=0" in intake_line
     assert "rework=2" in intake_line
     assert "cycle=0:05:00" in intake_line
-    assert "human_signed=0/2" in intake_line
+    # intake has no human gate (issue #200) -- n/a, not a ratio of an
+    # attempt count no human ever signs.
+    assert "human_signed=n/a" in intake_line
 
     design_line = _line(report, "design")
     assert "first_pass=1" in design_line
@@ -88,7 +90,9 @@ def test_fixed_sample_all_four_numbers(tmp_path, monkeypatch):
     total_line = _line(report, "TOTAL")
     assert "first_pass=1/2" in total_line
     assert "rework=3" in total_line
-    assert "human_signed=1/3" in total_line
+    # human_signed sums gated stages only (issue #200) -- intake is ungated,
+    # so only design's 1/1 counts.
+    assert "human_signed=1/1" in total_line
 
     assert "1 malformed line(s) skipped." in report
     assert "gate not walked" not in report
@@ -108,7 +112,8 @@ def test_two_passes_without_artifact_are_two_attempts(tmp_path, monkeypatch):
 
     verify_line = _line(report, "verify")
     assert "rework=2" in verify_line
-    assert "human_signed=0/2" in verify_line
+    # verify has no human gate (issue #200).
+    assert "human_signed=n/a" in verify_line
 
 
 # --- (b) empty and single-record ledgers ------------------------------------
@@ -135,7 +140,8 @@ def test_single_record_ledger(tmp_path, monkeypatch):
     assert "first_pass=1" in intake_line
     assert "rework=1" in intake_line
     assert "cycle=0:00:00" in intake_line
-    assert "human_signed=0/1" in intake_line
+    # intake has no human gate (issue #200).
+    assert "human_signed=n/a" in intake_line
 
 
 # --- (c) a passed stage with no human gate anywhere is called out ----------
@@ -304,8 +310,8 @@ def test_central_metrics_aggregates_across_tracks(tmp_path, monkeypatch):
     assert "first_pass=1/2" in build_line
     # rework: (1 + 2) / 2 tracks == 1.5.
     assert "rework=1.50" in build_line
-    # human_signed: neither track used a human gate -- 0 of (1 + 2) attempts.
-    assert "human_signed=0/3" in build_line
+    # build has no human gate (issue #200) -- n/a, not a ratio.
+    assert "human_signed=n/a" in build_line
     # cycle: (0 + 10) / 2 tracks == 5s.
     assert "cycle=0:00:05" in build_line
 
@@ -316,6 +322,84 @@ def test_central_metrics_no_central_ledger_exits_with_no_data_message(tmp_path):
     report = usage_report.central_metrics_report(str(central_path), 30)
 
     assert "No cross-project data yet" in report
+
+
+# --- (e) human_signed is gated -- issue #200 --------------------------------
+
+def test_ungated_stage_with_attempts_prints_na_in_both_reports(tmp_path, monkeypatch):
+    """intake/build/verify have no human gate at all (GATE_WALKED_STAGES ==
+    design/ship only), so a stage with attempts but no gate prints n/a, not
+    a ratio that always reads 0 -- design and ship still print a ratio."""
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    _append(track, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z")
+    _append(track, "build", "passed", monkeypatch, "2026-09-01T00:01:00Z")
+    _append(track, "verify", "passed", monkeypatch, "2026-09-01T00:02:00Z")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:03:00Z", gate="human")
+
+    report = usage_report.metrics_report(track)
+
+    for stage in ("intake", "build", "verify"):
+        assert "human_signed=n/a" in _line(report, stage)
+    assert "human_signed=1/1" in _line(report, "design")
+
+    central_path = tmp_path / "central" / "usage.jsonl"
+    monkeypatch.setenv("CAI_USAGE_LEDGER", str(central_path))
+    os.makedirs(central_path.parent, exist_ok=True)
+    (central_path.parent / "usage-start.txt").write_text("2026-01-01\n", encoding="utf-8")
+    monkeypatch.setattr(os, "getcwd", lambda: str(tmp_path / "proj-c"))
+    central_track = str(tmp_path / "proj-c" / "track")
+    os.makedirs(central_track)
+    _append(central_track, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z",
+           session_id="sess-c")
+    _append(central_track, "design", "passed", monkeypatch, "2026-09-01T00:01:00Z",
+           session_id="sess-c", gate="human")
+
+    central_report = usage_report.central_metrics_report(str(central_path), 30)
+    assert "human_signed=n/a" in _line(central_report, "intake")
+    assert "human_signed=1/1" in _line(central_report, "design")
+    # TOTAL sums numerators/denominators over design/ship only -- the
+    # ungated intake attempt must not leak into it (1/1, not 1/2).
+    assert "human_signed=1/1" in _line(central_report, "TOTAL")
+
+
+def test_total_human_signed_counts_gated_stages_only(tmp_path, monkeypatch):
+    """Three ungated attempts (intake/build/verify) plus one signed design
+    attempt: TOTAL's human_signed is 1/1, not 1/4 -- the ungated attempts
+    never belonged in that denominator (issue #200)."""
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    _append(track, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z")
+    _append(track, "build", "passed", monkeypatch, "2026-09-01T00:01:00Z")
+    _append(track, "verify", "passed", monkeypatch, "2026-09-01T00:02:00Z")
+    _append(track, "design", "passed", monkeypatch, "2026-09-01T00:03:00Z", gate="human")
+
+    report = usage_report.metrics_report(track)
+    assert "human_signed=1/1" in _line(report, "TOTAL")
+
+    # Without any design/ship attempt, TOTAL's human_signed has nothing to
+    # sum -- NO_DATA, not 0/3 from the ungated stages.
+    track2 = str(tmp_path / "track2")
+    os.makedirs(track2)
+    _append(track2, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z")
+    _append(track2, "build", "passed", monkeypatch, "2026-09-01T00:01:00Z")
+    _append(track2, "verify", "passed", monkeypatch, "2026-09-01T00:02:00Z")
+
+    report2 = usage_report.metrics_report(track2)
+    assert "human_signed=%s" % usage_report.NO_DATA in _line(report2, "TOTAL")
+
+
+def test_headers_explain_cycle_and_gated_human_signed(tmp_path):
+    track = str(tmp_path / "track")
+    os.makedirs(track)
+    track_report = usage_report.metrics_report(track)
+    central_report = usage_report.central_metrics_report(
+        str(tmp_path / "central" / "usage.jsonl"), 30)
+
+    for report in (track_report, central_report):
+        assert "design and ship" in report
+        assert "0:00:00" in report
+        assert "already the pass" in report
 
 
 # --- CLI: metrics exits 0 for both forms ------------------------------------
