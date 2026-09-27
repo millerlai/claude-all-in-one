@@ -115,8 +115,9 @@ the one you commit. Never write one naming your own model — you are not the
 session the person worked with. Standing alone, end the message with the
 ones your own instructions give for commits.
 
-**Show the drafted message to the user and wait for confirmation** before
-Step 5 — the message in full, then a menu (`references/approval-gates.md`),
+The draft is checked before it is shown, as `references/approval-gates.md`'s
+squash bullet says. **Show the drafted message to the user and wait for
+confirmation** before Step 5 — the message in full, then a menu (`references/approval-gates.md`),
 asked on its own turn rather than folded into the gate above. This is
 history-rewriting; never skip confirmation.
 
