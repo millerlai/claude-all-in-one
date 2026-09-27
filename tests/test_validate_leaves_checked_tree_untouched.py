@@ -35,11 +35,23 @@ _WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_CREAT
 _busy = False
 
 
-def _inside(path):
-    """The path relative to the checked tree, or None if it is outside."""
+def _inside(path, dir_fd=None):
+    """The path relative to the checked tree, or None if it is outside.
+
+    POSIX shutil.rmtree deletes by bare name under an open directory,
+    os.remove(name, dir_fd=fd). Resolved against the cwd -- the checked
+    tree -- that name would blame the tree for a temp dir's cleanup, so it
+    is joined to the fd's own directory instead, or skipped when that cannot
+    be read. os.* events pass -1 for "no dir_fd", shutil.rmtree None."""
     if not isinstance(path, (str, bytes, os.PathLike)):
         return None
-    full = os.path.normcase(os.path.realpath(os.fsdecode(path)))
+    path = os.fsdecode(path)
+    if isinstance(dir_fd, int) and dir_fd >= 0 and not os.path.isabs(path):
+        try:
+            path = os.path.join(os.readlink("/proc/self/fd/%d" % dir_fd), path)
+        except OSError:
+            return None
+    full = os.path.normcase(os.path.realpath(path))
     if not full.startswith(_ROOT + os.sep) or "__pycache__" in full:
         return None
     return os.path.relpath(full, _ROOT).replace(os.sep, "/")
@@ -62,16 +74,19 @@ def _hook(event, args):
     if _busy:
         return
     try:
+        arg = lambda i: args[i] if len(args) > i else None
         if event == "open":
-            flags = args[2] if isinstance(args[2], int) else 0
-            paths = [args[0]] if flags & _WRITE_FLAGS else []
-        elif event in ("os.mkdir", "os.remove", "os.rmdir", "shutil.rmtree"):
-            paths = [args[0]]
+            flags = arg(2) if isinstance(arg(2), int) else 0
+            paths = [(arg(0), None)] if flags & _WRITE_FLAGS else []
+        elif event == "os.mkdir":
+            paths = [(arg(0), arg(2))]
+        elif event in ("os.remove", "os.rmdir", "shutil.rmtree"):
+            paths = [(arg(0), arg(1))]
         elif event == "os.rename":
-            paths = [args[0], args[1]]
+            paths = [(arg(0), arg(2)), (arg(1), arg(3))]
         else:
             return
-        hits = [rel for rel in map(_inside, paths) if rel]
+        hits = [rel for rel in (_inside(p, fd) for p, fd in paths) if rel]
     except Exception as exc:
         _log("hook-error", [repr(exc)])
         return

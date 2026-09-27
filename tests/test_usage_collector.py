@@ -287,10 +287,13 @@ def test_collect_under_500ms_on_4mb_transcript(tmp_path):
     path = _write_session(root, cwd, session_id, lines)
     assert os.path.getsize(path) > 3.5 * 1024 * 1024
 
-    start = time.perf_counter()
+    # CPU time, not wall-clock: under pytest-xdist the other workers compete
+    # for the same cores, and CI's four of them pushed wall-clock past the
+    # budget while the collector's own cost was unchanged (#221).
+    start = time.process_time()
     orchestration, agents, problems = usage_collector.collect(
         session_id, cwd, None, "2027-01-01T00:00:00.000Z", projects_root=root)
-    elapsed = time.perf_counter() - start
+    elapsed = time.process_time() - start
 
     assert problems == []
     assert orchestration["claude-opus-5"]["input_tokens"] > 0
