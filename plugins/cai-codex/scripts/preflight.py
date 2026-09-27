@@ -723,12 +723,33 @@ def change_size(cwd, *rev):
     return files, lines
 
 
+def _status_problem(status):
+    """None when `git status --porcelain` answered normally (exit 0);
+    otherwise the reason its answer can't be trusted.
+
+    A failed status still comes back as a `CompletedProcess` with empty
+    stdout -- indistinguishable from a clean tree unless the caller checks
+    this before reading stdout at all. Not knowing is a reason to block, the
+    same principle `current_branch()`'s `UNKNOWN_BRANCH` already applies to
+    branch detection."""
+    if status is None:
+        return "git status did not answer"
+    if status.returncode != 0:
+        msg = ((status.stderr or "").strip().splitlines()[0]
+               if (status.stderr or "").strip() else "no message")
+        return "git status failed: %s" % msg
+    return None
+
+
 def verify(track_dir, project_dir):
     if not is_git_repo(project_dir):
         return [(False, "has_changes (%s is not a git repository)" % project_dir)]
 
     status = git(project_dir, "status", "--porcelain")
-    dirty = bool(status and status.stdout.strip())
+    problem = _status_problem(status)
+    if problem is not None:
+        return [(False, "has_changes (%s)" % problem)]
+    dirty = bool(status.stdout.strip())
 
     base = find_base_ref(project_dir)
     diff = False
@@ -765,9 +786,13 @@ def ship(track_dir, project_dir):
                        % project_dir)
     else:
         working = git(project_dir, "status", "--porcelain")
-        clean = bool(working and not working.stdout.strip())
-        clean_check = (clean, "clean_tree (working tree %s)" %
-                        ("is clean" if clean else "has uncommitted changes"))
+        problem = _status_problem(working)
+        if problem is not None:
+            clean_check = (False, "clean_tree (%s)" % problem)
+        else:
+            clean = not working.stdout.strip()
+            clean_check = (clean, "clean_tree (working tree %s)" %
+                            ("is clean" if clean else "has uncommitted changes"))
         branch = current_branch(project_dir)
         branch_check = (branch is not UNKNOWN_BRANCH and branch not in ("main", "master"),
                          "not_main_branch (branch is %s)" % (
