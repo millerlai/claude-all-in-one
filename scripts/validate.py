@@ -1078,6 +1078,25 @@ CASES = [
     # single quotes is blocked, as a backtick there is (stance trade T-b).
     ("Bash", "ls # it's\necho $(date)", 2, WORK),
     ("PowerShell", "git commit -m 'fix: it's $(echo hi)'s bug'", 0, WORK),
+    # --- #194 follow-up: `gh pr merge` asks (Claude Code) rather than blocks
+    # or silently allows, so its exit code alone reads the same as a plain
+    # allow -- the ask JSON on stdout is what tests/test_bash_guard_merge.py
+    # checks; this file only proves these shapes don't trip a 2 here.
+    ("Bash", "gh pr merge 123 --squash", 0, WORK),
+    ("Bash", "gh api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
+    ("Bash", "gh --repo=owner/repo pr merge 123", 0, WORK),
+    ("Bash", "gh -Rowner/repo pr merge 123", 0, WORK),
+    ("Bash", "gh --repo owner/repo api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
+    ("Bash", "gh pr \\\nmerge 123", 0, WORK),
+    # Look-alikes: neither a merge nor a block.
+    ("Bash", "gh pr view 123", 0, WORK),
+    ("Bash", "git merge feature", 0, WORK),
+    ("Bash", 'git commit -m "please gh pr merge later"', 0, WORK),
+    ("Bash", "gh api repos/o/r/pulls/5/merge", 0, WORK),
+    ("PowerShell", 'git commit -m "docs: mention that `gh pr merge` requires review before use"', 0, WORK),
+    # An existing deny rule stays denied even on a command that also merges --
+    # ask never weakens a deny.
+    ("Bash", "git push --force origin main && gh pr merge 5", 2, WORK),
 ]
 
 
@@ -1146,6 +1165,11 @@ if os.path.isfile(LAUNCHER):
         ({"tool_input": {"command": ["powershell.exe", "-Command", 'git commit -m "fix `None`"']}, "cwd": WORK}, 0),
         ({"tool_input": {"command": ["bash", "-c", "cat <<EOF\n$(git push --force origin main)\nEOF"]}, "cwd": WORK}, 2),
         ({"tool_input": {"command": ["bash", "-c", "git commit -m 'fix: it's $(echo hi)'s bug'"]}, "cwd": WORK}, 2),
+        # #194 follow-up: Codex's hook host parses but does not act on an
+        # "ask" permission decision, so the launcher sets CAI_CODEX_GUARD=1
+        # before invoking bash_guard.py and a merge is denied here instead of
+        # asked, unlike the Claude Code case above.
+        ({"tool_input": {"command": "gh pr merge 123"}, "cwd": WORK}, 2),
     ]
 
     def run_codex_guard(payload):

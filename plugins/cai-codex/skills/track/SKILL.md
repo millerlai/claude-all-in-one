@@ -99,9 +99,12 @@ Exactly two stages stop for a person, never more:
 - **After `design`** — before any code exists, a person signs off on the
   design artifact. Do not start `build` without that sign-off.
 - **Before the irreversible operations in `ship`** — merging, tagging,
-  publishing. Confirm with the person before running them, then run them
-  yourself: no subagent runs an irreversible git/gh operation here, so
-  `ship`'s own dispatched stage only prepares.
+  publishing. Confirm with the person before running them, then run
+  tagging and publishing yourself: no subagent runs an irreversible
+  git/gh operation here, so `ship`'s own dispatched stage only
+  prepares. Not the merge, though — the guard denies `gh pr merge` on
+  this platform, so hand that command back for the person to run
+  themselves.
 
 Both are asked with `request_user_input` if it is in your tool list — a
 menu, labelled options; only when it is not in your tool list, ask with

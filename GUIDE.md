@@ -150,6 +150,15 @@ restatement is a ledger line, not new code.
   there is blocked too, so a change reaches a protected branch only through a
   merged PR. The one exemption is a brand-new remote that has no `main` yet —
   its first, non-force push has no PR to open into.
+
+  Not every decidable case is a block, though: `gh pr merge` is decidable to
+  detect but not decidable to decide, since merging is the person's call, not
+  a rule with one right answer. The guard asks instead of blocking or letting
+  it through silently — a third outcome the two-question diagnostic above
+  doesn't name, sitting between "must hold" and "advice". Claude Code shows
+  that as a permission prompt; Codex's hook host parses but does not act on
+  an "ask" decision, so there the guard denies it instead and hands back the
+  command for the person to run themselves.
 - The guard reads text, not intent, and two limits follow from that. It resolves
   the branch from the session's working directory, so `cd sub && git commit`
   is judged against the parent — the deny message names the directory it used so

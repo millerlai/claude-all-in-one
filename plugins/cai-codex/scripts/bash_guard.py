@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse guard. Three jobs, and they are not the same kind of rule:
+"""PreToolUse guard. Four jobs, and they are not the same kind of rule:
 
 - block destructive git/shell commands unless the user explicitly confirmed them;
 - block a commit made directly onto a protected branch, or a push that lands
@@ -8,11 +8,16 @@
 - block a backtick Bash would run as a command, or a $(...) a stray
   apostrophe left unquoted, which rewrites a commit message or PR body -- or
   runs something -- without an error.
+- ask, rather than block or silently allow, before `gh pr merge` -- merging is
+  a human's call, not something to run unattended or refuse outright (#194
+  maintainer decision, 2026-09-27).
 
 Cross-platform (pure stdlib, works on Windows).
-Exit codes: 0 = allow, 2 = block (stderr is fed back to Claude).
+Exit codes: 0 = allow (or ask, on Claude Code -- see ask() below), 2 = block
+(stderr is fed back to the model).
 """
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -138,6 +143,59 @@ PUSH = re.compile(
     r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*git\s+"
     r"(?:-C\s+(?P<cdir>" + OPT_VALUE + r")\s+|-[cC]\s+\S+\s+|--\S+\s+)*"
     r"push\b(?P<args>" + PUSH_ARGS + r")"
+)
+
+
+# Merging a PR is decided by a person, not blocked outright: `gh pr merge`
+# itself, plus the one other door to the same effect this guard can see --
+# `gh api` writing straight to the REST endpoint the CLI wraps
+# (POST/PUT .../pulls/<n>/merge). Same command-boundary anchor as
+# COMMIT/PUSH above, so a mention inside a commit message or PR body (a
+# quoted argument, not preceded by `;&|(`` or `$(`) does not match -- except
+# the backtick itself, which is Bash-only: unlike COMMIT/PUSH (whose backtick
+# false positive only bites on a protected-branch target), this check fires
+# on every branch, so a backtick-quoted mention on the PowerShell/Codex path
+# would otherwise ask or hard-deny an ordinary commit. `-R`/`--repo` before
+# the verb is threaded through the same way GIT's own global options are, so
+# `gh -R owner/repo pr merge 5`, `gh -Rowner/repo pr merge 5` and
+# `gh --repo=owner/repo pr merge 5` are all still caught -- ahead of `api`
+# too, so the same forms in front of `gh api ... /pulls/<n>/merge` are caught.
+GH_OPT = r"(?:(?:-R\s*|--repo[= ])(?:" + OPT_VALUE + r")\s*)*"
+GH_BOUNDARY = r"(?:^|\n|[;&|(]\s*|\$\()"
+GH_BOUNDARY_BASH = r"(?:^|\n|[;&|(`]\s*|\$\()"
+
+
+def _gh_merge_patterns(boundary):
+    pr_merge = re.compile(
+        boundary + r"\s*(?:\w+=\S*\s+)*gh\s+" + GH_OPT + r"pr\s+merge\b")
+    api_merge = re.compile(
+        boundary + r"\s*(?:\w+=\S*\s+)*gh\s+" + GH_OPT + r"api\b"
+        r"(?=" + ARGS + r"\s(?:-X\s*(?:POST|PUT)\b|--method[= ]?(?:POST|PUT)\b))"
+        r"(?=" + ARGS + r"/pulls/\d+/merge\b)",
+        re.IGNORECASE)
+    return pr_merge, api_merge
+
+
+GH_PR_MERGE, GH_API_MERGE = _gh_merge_patterns(GH_BOUNDARY)
+GH_PR_MERGE_BASH, GH_API_MERGE_BASH = _gh_merge_patterns(GH_BOUNDARY_BASH)
+
+# Set only by plugins/cai-codex/scripts/launcher.py (hand-written) before it
+# invokes this same file -- an explicit signal from the one component that
+# knows which host it is running under, rather than this guard guessing from
+# the payload shape. Claude Code never sets it, so that is the default path.
+CODEX_GUARD_ENV = "CAI_CODEX_GUARD"
+
+MERGE_REASON = "merging a pull request"
+
+# https://learn.chatgpt.com/docs/hooks: "permissionDecision: 'ask', legacy
+# 'decision: approve', continue: false, stopReason, and suppressOutput are
+# parsed but not supported yet." An "ask" JSON on this host would be parsed
+# and then ignored, silently letting the merge through -- worse than blocking
+# it -- so Codex gets a deny, with the command repeated for the person to run.
+MERGE_CODEX_ADVICE = (
+    "Codex's hook host parses a PreToolUse \"ask\" permission decision but "
+    "does not yet act on one, so this guard cannot put up a prompt here. "
+    "Tell the person the exact command above and let them run it themselves."
 )
 
 
@@ -369,6 +427,15 @@ def scan_command(command):
 
         if walk_depth > 0 or state == "normal":
             if c == "\\":
+                if i + 1 < n and command[i + 1] == "\n":
+                    # Bash removes a backslash-newline pair entirely before
+                    # word-splitting, joining the two lines -- so a command
+                    # split across a continuation (`gh pr \` / `merge 123`)
+                    # must read the same as the unwrapped form, not slip
+                    # past GH_PR_MERGE/COMMIT/PUSH because `\s+` never
+                    # crosses the backslash.
+                    i += 2
+                    continue
                 out.append(c)
                 if i + 1 < n:
                     out.append(command[i + 1])
@@ -485,6 +552,12 @@ def scan_command(command):
 
         # state == "double"
         if c == "\\":
+            if i + 1 < n and command[i + 1] == "\n":
+                # Same line-continuation removal as the normal-state branch
+                # above -- Bash also strips a backslash-newline pair inside
+                # double quotes.
+                i += 2
+                continue
             out.append(c)
             if i + 1 < n:
                 out.append(command[i + 1])
@@ -571,6 +644,24 @@ def deny(reason, command, advice):
     return 2
 
 
+def ask(reason, command):
+    """Claude Code path for `reason`: print the permission-decision JSON
+    PreToolUse reads and exit 0, so the person sees a prompt instead of a
+    silent allow or a hard block. Verified against
+    https://code.claude.com/docs/en/permission-modes: "Claude Code doesn't
+    add the option to prompts forced by one of your ask rules or by a hook,
+    because auto mode still shows you those prompts" -- so this fires even
+    when the session is otherwise running unattended."""
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "ask",
+            "permissionDecisionReason": f"bash_guard: {reason}. Command: {command}",
+        }
+    }))
+    return 0
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -635,6 +726,17 @@ def main() -> int:
     if COMMIT.search(code) and current_branch(cwd) in PROTECTED:
         return deny("committing directly to a protected branch", command,
                     f"Branch read from {cwd or 'the hook working directory'}. " + BRANCH)
+
+    # Checked last: every rule above is a deny, and a command that trips one
+    # of them stays denied even if it also merges -- ask never weakens a
+    # deny.
+    pr_merge, api_merge = ((GH_PR_MERGE_BASH, GH_API_MERGE_BASH)
+                            if payload.get("tool_name") == "Bash"
+                            else (GH_PR_MERGE, GH_API_MERGE))
+    if pr_merge.search(code) or api_merge.search(code):
+        if os.environ.get(CODEX_GUARD_ENV) == "1":
+            return deny(MERGE_REASON, command, MERGE_CODEX_ADVICE)
+        return ask(MERGE_REASON, command)
 
     return 0
 

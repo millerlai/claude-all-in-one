@@ -21,7 +21,10 @@ with no shortcuts.
   No subagent runs an irreversible git/gh operation here: report the
   drafted commit, the backup branch, and the exact commands, and stop.
   The person confirms first, every time — one of the two human gates the
-  track never skips — then the main session runs them, never this stage.
+  track never skips — then the main session runs the push, tag and
+  publish itself, never this stage. Not the merge: the guard denies
+  `gh pr merge` on this platform, so the main session hands that
+  command back for the person to run themselves too.
 - Report exactly what the procedure asks for at each step; do not improvise
   a different git sequence because it looks equivalent.
 - Every sentence you write into a commit message, release note, or PR body
