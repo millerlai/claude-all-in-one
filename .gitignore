@@ -10,6 +10,10 @@ __pycache__/
 # the ledger is append-only, so a tracked one would conflict on every merge.
 .claude/track/
 
+# Worktrees left over from other work: an untracked `.claude/worktrees/`
+# would otherwise dirty ship's clean_tree check (#202).
+.claude/worktrees/
+
 # Scratch and reference material. Tracked docs stay tracked; new ones need
 # an explicit `git add -f`.
 docs/

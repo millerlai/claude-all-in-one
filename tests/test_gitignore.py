@@ -20,6 +20,13 @@ def test_git_ignores_a_tracks_state_and_ledger():
     assert check_ignore(".claude/track/billing-export/state.md") == 0
 
 
+def test_git_ignores_claude_code_worktrees():
+    # Leftover Claude Code worktrees under .claude/worktrees/ carry their own
+    # `.git` file, so the parent checkout's `git status` lists them as an
+    # untracked directory and trips ship's clean_tree (#202).
+    assert check_ignore(".claude/worktrees/feature-x/README.md") == 0
+
+
 def test_the_repos_own_shared_settings_stay_tracked():
     # `.claude/settings.json` carries this repo's hooks and is committed. An
     # over-broad `.claude/` rule would silently drop it from everyone's tree.
