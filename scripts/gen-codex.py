@@ -40,6 +40,9 @@ DEFAULT_OUT = ROOT / "plugins" / "cai-codex"
 SCRIPT_DIR = Path(__file__).resolve().parent
 OVERRIDES_FILE = SCRIPT_DIR / "codex-overrides.json"
 TIERS_FILE = SCRIPT_DIR / "codex-models.json"
+# Codex's reasoning-effort names, low to high (design C22) -- the same list
+# as install_codex.py's EFFORT_ORDER, which the installer checks against.
+CODEX_EFFORTS = ("low", "medium", "high", "xhigh", "max", "ultra")
 RELEASE_FILE = SCRIPT_DIR / "codex-release.json"
 
 # Design decisions, "Excluded from the Codex tree." Directories are matched
@@ -425,12 +428,18 @@ def _toml_string(value: str) -> str:
 
 def _agent_toml(short: str, source_text: str, role: str, tiers: dict, version: str) -> str:
     """The `agents/cai_<short>.toml` text for one source `agents/<short>.md`
-    (design "Agents (D2=A, D3=A, D17)")."""
+    (design "Agents (D2=A, D3=A, D17)"). The effort is the source's own
+    `effort:` when it sets one, else the tier's: an agent the Claude side
+    raises above its tier (a reviewer at high) keeps that on Codex."""
     fm_body, body = _split_frontmatter_body(source_text)
     blocks = _frontmatter_blocks(fm_body) if fm_body is not None else []
     description = _frontmatter_value(blocks, "description")
     tools = _frontmatter_value(blocks, "tools")
     tier = tiers[role]
+    effort = _frontmatter_value(blocks, "effort") or tier["effort"]
+    if effort not in CODEX_EFFORTS:
+        raise ValueError(f"agents/{short}.md: effort {effort!r} is not a Codex "
+                         f"reasoning effort ({', '.join(CODEX_EFFORTS)})")
     preamble = f"Tools declared allowed by the source (not enforced by Codex): {tools}"
     instructions = preamble + "\n\n" + body.strip("\n") + "\n"
     return (
@@ -438,7 +447,7 @@ def _agent_toml(short: str, source_text: str, role: str, tiers: dict, version: s
         f"name = \"cai_{short}\"\n"
         f"description = {_toml_string(description)}\n"
         f"model = {_toml_string(tier['model'])}\n"
-        f"model_reasoning_effort = {_toml_string(tier['effort'])}\n"
+        f"model_reasoning_effort = {_toml_string(effort)}\n"
         f"sandbox_mode = {_toml_string(_sandbox_mode(tools))}  # declared intent, unenforced by Codex (E5)\n"
         f"developer_instructions = '''\n{instructions}'''\n"
     )

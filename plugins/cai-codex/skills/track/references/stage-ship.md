@@ -105,6 +105,13 @@ imperative mood, ≤72 chars, then 2–6 body bullets summarizing the *net*
 change — not a replay of intermediate commits, and not fixup/WIP noise.
 Every bullet is a claim; the grounding rule above applies to each one.
 
+Trailer lines — `Co-Authored-By:` and the like — are not yours to compose.
+Dispatched by the track, leave them out of the draft: the main session adds
+its own before showing the message, and the message the person approves is
+the one you commit. Never write one naming your own model — you are not the
+session the person worked with. Standing alone, end the message with the
+ones your own instructions give for commits.
+
 **Show the drafted message to the user and wait for confirmation** before
 Step 5 — the message in full, then a menu (`references/approval-gates.md`),
 asked on its own turn rather than folded into the gate above. This is

@@ -956,7 +956,7 @@ def test_role_agents_matches_the_real_tree():
     agents = install_codex.role_agents(CAI_CODEX_ROOT)
 
     assert list(agents.keys()) == ["chore", "build", "think"]
-    assert agents["chore"] == ["cai_explorer.toml", "cai_shipper.toml", "cai_test-runner.toml"]
+    assert agents["chore"] == ["cai_explorer.toml", "cai_test-runner.toml"]
 
 
 def test_shipped_defaults_matches_the_real_tree():
@@ -964,9 +964,12 @@ def test_shipped_defaults_matches_the_real_tree():
 
     defaults = install_codex.shipped_defaults(CAI_CODEX_ROOT, agents)
 
-    assert defaults["chore"] == ("gpt-5.6-luna", "low")
-    assert defaults["build"] == ("gpt-5.6-terra", "medium")
-    assert defaults["think"] == ("gpt-6-astra", "high")
+    assert defaults["chore"] == ("gpt-5.6-luna", ("low", "low"))
+    # implementer, refactoring-detector, reviewer, security-reviewer, shipper,
+    # verifier: the three review agents keep the high their source sets.
+    assert defaults["build"] == (
+        "gpt-5.6-terra", ("medium", "medium", "high", "high", "medium", "high"))
+    assert defaults["think"] == ("gpt-6-astra", ("high", "high"))
 
 
 # ---------------------------------------------------------------------------
@@ -982,7 +985,7 @@ def _detection(ok, offered=(), levels=None, reason=""):
 
 def test_plan_roles_reask_true_when_saved_slug_missing_or_hidden():
     agents = {"build": ["cai_implementer.toml"]}
-    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    defaults = {"build": ("gpt-5.6-terra", ("medium",))}
     detection = _detection(True, offered=("gpt-5.6-terra", "gpt-5.6-sol"))
     saved = {"build": "gpt-reserve"}  # not offered by this detection
 
@@ -991,12 +994,28 @@ def test_plan_roles_reask_true_when_saved_slug_missing_or_hidden():
     assert plans["build"].reask is True
     assert plans["build"].in_effect == "gpt-reserve"
     assert plans["build"].offer[0] == "gpt-5.6-terra"  # cai default, offered
-    assert plans["build"].effort == "medium"  # fallback_effort(own, None) == own
+    assert plans["build"].efforts == ("medium",)  # fallback_effort(own, None) == own
+
+
+def test_plan_roles_falls_back_each_agents_own_effort_separately():
+    agents = {"build": ["cai_implementer.toml", "cai_reviewer.toml"]}
+    defaults = {"build": ("gpt-5.6-terra", ("medium", "high"))}
+    saved = {"build": "gpt-5.6-sol"}
+
+    offers_high = _detection(True, offered=("gpt-5.6-sol",),
+                             levels={"gpt-5.6-sol": ("low", "medium", "high")})
+    stops_at_medium = _detection(True, offered=("gpt-5.6-sol",),
+                                 levels={"gpt-5.6-sol": ("low", "medium")})
+
+    assert install_codex.plan_roles(
+        agents, defaults, offers_high, saved)["build"].efforts == ("medium", "high")
+    assert install_codex.plan_roles(
+        agents, defaults, stops_at_medium, saved)["build"].efforts == ("medium", "medium")
 
 
 def test_plan_roles_offer0_is_first_offered_when_default_not_offered():
     agents = {"build": ["cai_implementer.toml"]}
-    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    defaults = {"build": ("gpt-5.6-terra", ("medium",))}
     detection = _detection(True, offered=("gpt-5.6-sol", "gpt-5.6-nova"))
     saved = {"build": "gpt-reserve"}  # not offered; default also not offered
 
@@ -1009,7 +1028,7 @@ def test_plan_roles_offer0_is_first_offered_when_default_not_offered():
 
 def test_plan_roles_reask_false_when_saved_slug_still_offered():
     agents = {"build": ["cai_implementer.toml"]}
-    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    defaults = {"build": ("gpt-5.6-terra", ("medium",))}
     detection = _detection(True, offered=("gpt-5.6-sol", "gpt-5.6-terra"))
     saved = {"build": "gpt-5.6-sol"}
 
@@ -1022,7 +1041,7 @@ def test_plan_roles_reask_false_when_saved_slug_still_offered():
 
 def test_plan_roles_unlisted_default_only_for_unsaved_role_on_success():
     agents = {"build": ["cai_implementer.toml"], "chore": ["cai_explorer.toml"]}
-    defaults = {"build": ("gpt-5.6-terra", "medium"), "chore": ("gpt-5.6-luna", "low")}
+    defaults = {"build": ("gpt-5.6-terra", ("medium",)), "chore": ("gpt-5.6-luna", ("low",))}
     detection = _detection(True, offered=("gpt-5.6-sol",))
     saved = {"chore": "gpt-5.6-sol"}  # chore saved; build unsaved, default unlisted
 
@@ -1034,7 +1053,7 @@ def test_plan_roles_unlisted_default_only_for_unsaved_role_on_success():
 
 def test_plan_roles_unlisted_default_never_set_when_detection_failed():
     agents = {"build": ["cai_implementer.toml"]}
-    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    defaults = {"build": ("gpt-5.6-terra", ("medium",))}
     detection = _detection(False, reason="boom")
     saved = {}
 
@@ -1047,7 +1066,7 @@ def test_plan_roles_unlisted_default_never_set_when_detection_failed():
 
 def test_plan_roles_drops_saved_role_not_present_in_agents():
     agents = {"build": ["cai_implementer.toml"]}
-    defaults = {"build": ("gpt-5.6-terra", "medium")}
+    defaults = {"build": ("gpt-5.6-terra", ("medium",))}
     detection = _detection(True, offered=("gpt-5.6-terra",))
     saved = {"build": "gpt-5.6-terra", "ghost-role": "gpt-5.6-sol"}
 
@@ -1059,7 +1078,7 @@ def test_plan_roles_drops_saved_role_not_present_in_agents():
 def test_ask_directive_ok_detection_is_keep_or_switch():
     detection = _detection(True, offered=("gpt-5.6-sol",))
     plans = {"build": install_codex.RolePlan(
-        "build", (), "gpt-5.6-terra", "medium", "gpt-5.6-terra", False, "medium",
+        "build", (), "gpt-5.6-terra", (), "gpt-5.6-terra", False, (),
         False, False, ("gpt-5.6-terra",))}
 
     assert install_codex.ask_directive(plans, detection) == "ask: keep-or-switch"
@@ -1068,11 +1087,11 @@ def test_ask_directive_ok_detection_is_keep_or_switch():
 def test_ask_directive_failed_detection_lists_unsaved_roles_in_role_order():
     detection = _detection(False, reason="boom")
     plans = {
-        "chore": install_codex.RolePlan("chore", (), "m", "low", "m", True, "low",
+        "chore": install_codex.RolePlan("chore", (), "m", (), "m", True, (),
                                          False, False, ()),
-        "build": install_codex.RolePlan("build", (), "m", "medium", "m", False, "medium",
+        "build": install_codex.RolePlan("build", (), "m", (), "m", False, (),
                                          False, False, ()),
-        "think": install_codex.RolePlan("think", (), "m", "high", "m", False, "high",
+        "think": install_codex.RolePlan("think", (), "m", (), "m", False, (),
                                          False, False, ()),
     }
 
@@ -1082,9 +1101,9 @@ def test_ask_directive_failed_detection_lists_unsaved_roles_in_role_order():
 def test_ask_directive_failed_detection_all_saved_is_nothing():
     detection = _detection(False, reason="boom")
     plans = {
-        "chore": install_codex.RolePlan("chore", (), "m", "low", "m", True, "low",
+        "chore": install_codex.RolePlan("chore", (), "m", (), "m", True, (),
                                          False, False, ()),
-        "build": install_codex.RolePlan("build", (), "m", "medium", "m", True, "medium",
+        "build": install_codex.RolePlan("build", (), "m", (), "m", True, (),
                                          False, False, ()),
     }
 
@@ -1118,11 +1137,22 @@ def test_agent_bytes_saved_role_is_rewritten():
 
     shipped = (CAI_CODEX_ROOT / "agents" / "cai_implementer.toml").read_bytes()
     expected = install_codex.rewrite_model_lines(
-        shipped, "gpt-5.6-sol", plans["build"].effort)
+        shipped, "gpt-5.6-sol", plans["build"].efforts[0])
     assert contents["cai_implementer.toml"] == expected
     # an unsaved role's file in the same tree stays shipped
     assert contents["cai_architect.toml"] == (
         CAI_CODEX_ROOT / "agents" / "cai_architect.toml").read_bytes()
+
+
+def test_agent_bytes_saved_role_keeps_each_agents_own_effort():
+    # A saved build model used to rewrite every build agent with the first
+    # TOML's effort, so the review agents dropped from high to medium.
+    plans = _real_plans({"build": "gpt-5.6-sol"})
+
+    contents = install_codex.agent_bytes(CAI_CODEX_ROOT, plans)
+
+    assert b'model_reasoning_effort = "high"' in contents["cai_reviewer.toml"]
+    assert b'model_reasoning_effort = "medium"' in contents["cai_implementer.toml"]
 
 
 def test_agent_bytes_covers_every_shipped_toml():
@@ -1159,8 +1189,13 @@ def test_install_agents_writes_given_contents(tmp_path):
 
 def _plan(role, agents, default_model, default_effort, in_effect, saved, effort,
           reask, unlisted_default, offer):
-    return install_codex.RolePlan(role, agents, default_model, default_effort, in_effect,
-                                   saved, effort, reask, unlisted_default, offer)
+    """`default_effort`/`effort` are one effort for every agent in `agents`,
+    or a tuple giving each agent its own."""
+    def per_agent(value):
+        return value if isinstance(value, tuple) else (value,) * len(agents)
+    return install_codex.RolePlan(role, agents, default_model, per_agent(default_effort),
+                                   in_effect, saved, per_agent(effort), reask,
+                                   unlisted_default, offer)
 
 
 def test_render_mapping_models_line_ok_with_fetched_at():
@@ -1211,13 +1246,15 @@ def test_render_mapping_full_sample_matches_design():
         ("gpt-5.6-luna", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.5"),
         {}, 7, 0, "2026-09-22T08:13:21.014621200Z")
     plans = {
-        "chore": _plan("chore", ("cai_explorer.toml", "cai_shipper.toml", "cai_test-runner.toml"),
+        "chore": _plan("chore", ("cai_explorer.toml", "cai_test-runner.toml"),
                         "gpt-5.6-luna", "low", "gpt-5.6-luna", False, "low", False, False,
                         ("gpt-5.6-luna", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-terra", "gpt-5.5")),
         "build": _plan("build", ("cai_implementer.toml", "cai_refactoring-detector.toml",
                                   "cai_reviewer.toml", "cai_security-reviewer.toml",
-                                  "cai_verifier.toml"),
-                        "gpt-5.6-terra", "medium", "gpt-reserve", True, "medium", True, False,
+                                  "cai_shipper.toml", "cai_verifier.toml"),
+                        "gpt-5.6-terra", ("medium", "medium", "high", "high", "medium", "high"),
+                        "gpt-reserve", True, ("medium", "medium", "high", "high", "medium", "high"),
+                        True, False,
                         ("gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra", "gpt-5.6-luna", "gpt-5.5")),
         "think": _plan("think", ("cai_architect.toml", "cai_designer.toml"),
                         "gpt-5.6-terra", "high", "gpt-5.6-terra", False, "high", False, False,
@@ -1230,10 +1267,10 @@ def test_render_mapping_full_sample_matches_design():
         f"models: detected 5 of 7 from {chome / 'models_cache.json'} "
         "(fetched 2026-09-22T08:13:21.014621200Z)",
         "role chore: gpt-5.6-luna / low (cai default) -- "
-        "cai_explorer, cai_shipper, cai_test-runner",
-        "role build: gpt-reserve / medium (saved; cai default gpt-5.6-terra) -- "
-        "cai_implementer, cai_refactoring-detector, cai_reviewer, "
-        "cai_security-reviewer, cai_verifier",
+        "cai_explorer, cai_test-runner",
+        "role build: gpt-reserve (saved; cai default gpt-5.6-terra) -- "
+        "cai_implementer / medium, cai_refactoring-detector / medium, cai_reviewer / high, "
+        "cai_security-reviewer / high, cai_shipper / medium, cai_verifier / high",
         "role think: gpt-5.6-terra / high (cai default) -- cai_architect, cai_designer",
         "offer chore: gpt-5.6-luna (in effect, cai default), gpt-5.6-sol, gpt-6-astra, "
         "gpt-5.6-terra, gpt-5.5",
@@ -1473,7 +1510,10 @@ def test_cli_models_shows_a_saved_role_as_saved(tmp_path):
     result = run_models(env)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "role build: gpt-5.6-sol / medium (saved; cai default gpt-5.6-terra)" in result.stdout
+    # build's agents differ in effort, so the line names each one's.
+    assert ("role build: gpt-5.6-sol (saved; cai default gpt-5.6-terra) -- "
+            "cai_implementer / medium, ") in result.stdout
+    assert "cai_reviewer / high" in result.stdout
 
 
 def test_cli_models_invalid_saved_choice_exits_1(tmp_path):
@@ -1657,14 +1697,13 @@ def test_cli_apply_m1_no_detection_accepts_typed_slug_with_own_effort(tmp_path):
     result = run_apply(env)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    build_default_effort = install_codex.shipped_defaults(
-        CAI_CODEX_ROOT, install_codex.role_agents(CAI_CODEX_ROOT))["build"][1]
     agents = install_codex.role_agents(CAI_CODEX_ROOT)
     for name in agents["build"]:
+        shipped_effort = (CAI_CODEX_ROOT / "agents" / name).read_bytes().split(b"\n")[4]
         rewritten = (chome / "agents" / name).read_bytes()
         lines = rewritten.split(b"\n")
         assert lines[3] == b'model = "gpt-9-custom"'
-        assert lines[4] == f'model_reasoning_effort = "{build_default_effort}"'.encode()
+        assert lines[4] == shipped_effort
 
 
 @pytest.mark.skipif(

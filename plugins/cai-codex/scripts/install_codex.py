@@ -573,17 +573,23 @@ def _extract_anchor(header: bytes, pattern: bytes, name: str) -> str:
     return m.group(1).decode("utf-8")
 
 
-def shipped_defaults(root: Path, agents: dict[str, list[str]]) -> dict[str, tuple[str, str]]:
-    """Role -> (model, effort) read from the first (sorted) TOML installed
-    for that role."""
-    result: dict[str, tuple[str, str]] = {}
+def shipped_defaults(root: Path,
+                     agents: dict[str, list[str]]) -> dict[str, tuple[str, tuple[str, ...]]]:
+    """Role -> (model, efforts): the model read from the first (sorted) TOML
+    installed for that role, and every TOML's own effort in `agents` order --
+    agents sharing a role need not share an effort (a reviewer at high beside
+    an implementer at medium)."""
+    result: dict[str, tuple[str, tuple[str, ...]]] = {}
     for role, tomls in agents.items():
-        toml_bytes = (root / "agents" / tomls[0]).read_bytes()
-        split = re.search(_DEVELOPER_INSTRUCTIONS_RE, toml_bytes, re.MULTILINE)
-        header = toml_bytes[:split.start()] if split else toml_bytes
-        model = _extract_anchor(header, _MODEL_RE, "model")
-        effort = _extract_anchor(header, _EFFORT_RE, "model_reasoning_effort")
-        result[role] = (model, effort)
+        headers = []
+        for name in tomls:
+            toml_bytes = (root / "agents" / name).read_bytes()
+            split = re.search(_DEVELOPER_INSTRUCTIONS_RE, toml_bytes, re.MULTILINE)
+            headers.append(toml_bytes[:split.start()] if split else toml_bytes)
+        model = _extract_anchor(headers[0], _MODEL_RE, "model")
+        efforts = tuple(_extract_anchor(h, _EFFORT_RE, "model_reasoning_effort")
+                        for h in headers)
+        result[role] = (model, efforts)
     return result
 
 
@@ -595,26 +601,28 @@ class RolePlan(NamedTuple):
     role: str
     agents: tuple[str, ...]
     default_model: str
-    default_effort: str
+    default_efforts: tuple[str, ...]  # each agent's shipped effort, `agents` order
     in_effect: str           # saved slug, else default_model
     saved: bool
-    effort: str              # fallback_effort(default_effort, levels.get(in_effect))
+    efforts: tuple[str, ...]  # fallback_effort(each default effort, levels.get(in_effect))
     reask: bool              # detection.ok and saved and in_effect not in offered
     unlisted_default: bool   # detection.ok and not saved and default_model not in offered
     offer: tuple[str, ...]   # () when not detection.ok
 
 
-def plan_roles(agents: dict[str, list[str]], defaults: dict[str, tuple[str, str]],
+def plan_roles(agents: dict[str, list[str]],
+                defaults: dict[str, tuple[str, tuple[str, ...]]],
                 detection: Detection, saved: dict[str, str]) -> dict[str, RolePlan]:
     """A role plan per role in `agents` (role order preserved). A `saved`
     role name not present in `agents` is silently dropped (D13)."""
     plans: dict[str, RolePlan] = {}
     for role, agent_list in agents.items():
-        default_model, default_effort = defaults[role]
+        default_model, default_efforts = defaults[role]
         saved_slug = saved.get(role)
         is_saved = saved_slug is not None
         in_effect = saved_slug if is_saved else default_model
-        effort = fallback_effort(default_effort, detection.levels.get(in_effect))
+        levels = detection.levels.get(in_effect)
+        efforts = tuple(fallback_effort(own, levels) for own in default_efforts)
         reask = detection.ok and is_saved and in_effect not in detection.offered
         unlisted_default = (detection.ok and not is_saved
                              and default_model not in detection.offered)
@@ -632,8 +640,8 @@ def plan_roles(agents: dict[str, list[str]], defaults: dict[str, tuple[str, str]
                     offer_list.append(slug)
             offer = tuple(offer_list)
 
-        plans[role] = RolePlan(role, tuple(agent_list), default_model, default_effort,
-                                in_effect, is_saved, effort, reask, unlisted_default, offer)
+        plans[role] = RolePlan(role, tuple(agent_list), default_model, default_efforts,
+                                in_effect, is_saved, efforts, reask, unlisted_default, offer)
     return plans
 
 
@@ -652,20 +660,21 @@ def ask_directive(plans: dict[str, RolePlan], detection: Detection) -> str:
 
 def agent_bytes(root: Path, plans: dict[str, RolePlan]) -> dict[str, bytes]:
     """Every shipped `cai_*.toml` name -> bytes: a saved role's files are
-    `rewrite_model_lines(shipped, plan.in_effect, plan.effort)`; every other
-    file (role not saved, or a TOML not listed in any plan's `agents`) is
-    the shipped bytes unchanged. Read-only -- no writes."""
-    agent_to_plan: dict[str, RolePlan] = {}
+    `rewrite_model_lines(shipped, plan.in_effect, <that agent's effort>)`;
+    every other file (role not saved, or a TOML not listed in any plan's
+    `agents`) is the shipped bytes unchanged. Read-only -- no writes."""
+    agent_to_plan: dict[str, tuple[RolePlan, str]] = {}
     for plan in plans.values():
-        for name in plan.agents:
-            agent_to_plan[name] = plan
+        for name, effort in zip(plan.agents, plan.efforts):
+            agent_to_plan[name] = (plan, effort)
 
     result: dict[str, bytes] = {}
     for p in sorted((root / "agents").glob("cai_*.toml")):
         shipped = p.read_bytes()
-        plan = agent_to_plan.get(p.name)
-        if plan is not None and plan.saved:
-            result[p.name] = rewrite_model_lines(shipped, plan.in_effect, plan.effort)
+        entry = agent_to_plan.get(p.name)
+        if entry is not None and entry[0].saved:
+            plan, effort = entry
+            result[p.name] = rewrite_model_lines(shipped, plan.in_effect, effort)
         else:
             result[p.name] = shipped
     return result
@@ -692,8 +701,14 @@ def render_mapping(plans: dict[str, RolePlan], detection: Detection, chome: Path
 
     for role, plan in plans.items():
         tag = "cai default" if not plan.saved else f"saved; cai default {plan.default_model}"
-        agent_names = ", ".join(name[:-len(".toml")] for name in plan.agents)
-        lines.append(f"role {role}: {plan.in_effect} / {plan.effort} ({tag}) -- {agent_names}")
+        names = [name[:-len(".toml")] for name in plan.agents]
+        if len(set(plan.efforts)) == 1:
+            lines.append(f"role {role}: {plan.in_effect} / {plan.efforts[0]} ({tag}) -- "
+                         f"{', '.join(names)}")
+        else:
+            # One effort for the role would be wrong for some of its agents.
+            per_agent = ", ".join(f"{n} / {e}" for n, e in zip(names, plan.efforts))
+            lines.append(f"role {role}: {plan.in_effect} ({tag}) -- {per_agent}")
 
     if full and detection.ok:
         for role, plan in plans.items():

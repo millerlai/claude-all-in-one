@@ -22,6 +22,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "gen-codex.py"
 
@@ -682,9 +684,31 @@ def test_emit_writes_ten_agent_tomls_with_the_tier_table_and_a_version_stamp(tmp
         assert f'name = "cai_{short}"' in text
         tier = tiers[roles[f"agents/{short}.md"]]
         assert f'model = "{tier["model"]}"' in text
-        assert f'model_reasoning_effort = "{tier["effort"]}"' in text
+        source = (REAL_SOURCE / f"agents/{short}.md").read_text(encoding="utf-8")
+        own = re.search(r"^effort:\s*(\S+)\s*$", source.split("\n---", 1)[0], re.MULTILINE)
+        effort = own.group(1) if own else tier["effort"]
+        assert f'model_reasoning_effort = "{effort}"' in text
         assert "sandbox_mode = " in text
         assert "developer_instructions = '''" in text
+
+
+def test_agent_toml_effort_is_the_sources_own_when_it_sets_one():
+    # The Claude side raises effort per agent (reviewer: high) inside a tier
+    # whose Codex effort is lower; a per-tier effort alone flattened that.
+    tiers = {"build": {"model": "gpt-x", "effort": "medium"}}
+    with_own = "---\nname: r\ndescription: d\ntools: Read\nmodel: sonnet\neffort: high\n---\nbody\n"
+    without = "---\nname: i\ndescription: d\ntools: Read\nmodel: sonnet\n---\nbody\n"
+
+    assert 'model_reasoning_effort = "high"' in gen_codex._agent_toml("r", with_own, "build", tiers, "1.0.0")
+    assert 'model_reasoning_effort = "medium"' in gen_codex._agent_toml("i", without, "build", tiers, "1.0.0")
+
+
+def test_agent_toml_rejects_an_effort_codex_does_not_know():
+    tiers = {"build": {"model": "gpt-x", "effort": "medium"}}
+    source = "---\nname: r\ndescription: d\ntools: Read\nmodel: sonnet\neffort: turbo\n---\nbody\n"
+
+    with pytest.raises(ValueError, match="turbo"):
+        gen_codex._agent_toml("r", source, "build", tiers, "1.0.0")
 
 
 def test_stages_json_agents_are_all_prefixed(tmp_path):

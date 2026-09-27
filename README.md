@@ -88,20 +88,18 @@ flowchart TB
     DE(["designer · think<br/>+ Write"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
     VE(["verifier · build<br/>tests + git reads + Agent"])
-    SH(["shipper · chore<br/>git + gh"])
+    SH(["shipper · build<br/>git + gh"])
 
     classDef stage fill:#e8eefc,stroke:#4a6fb5,color:#17335f
     classDef human fill:#fff3cd,stroke:#c79100,color:#6b4e00
     classDef think fill:#efe6f7,stroke:#7d5ba6,color:#3d2757
     classDef build fill:#e6eef3,stroke:#4a7c94,color:#1f3f4d
-    classDef chore fill:#eceff1,stroke:#78909c,color:#37474f
     classDef ends fill:#ffffff,stroke:#9aa5b1,color:#33404d
 
     class S1,S2,S3,S4,S5,S6 stage
     class HG1,HG2 human
     class AR,DE think
-    class IM,VE build
-    class SH chore
+    class IM,VE,SH build
     class START,DONE ends
 ```
 
@@ -174,8 +172,8 @@ stage or by one of the tools above.
 |---|---|---|
 | `explorer` | `chore` | Read-only scouting. |
 | `test-runner` | `chore` | Runs the repo's own automated checks. |
-| `shipper` | `chore` | The `ship` stage. |
 | `implementer` | `build` | The `build` stage, `/cai:build`, `/cai:goal`. |
+| `shipper` | `build` | The `ship` stage. |
 | `reviewer` | `build` | The `verify` stage, `/cai:verify` — three at once, one lens each: correctness, conformance, coverage. |
 | `security-reviewer` | `build` | The `verify` stage's fourth lens: shell execution, what reaches an argument vector, secrets in what is kept, guard bypass — those four and no fifth. |
 | `refactoring-detector` | `build` | Parallel smell analysis across module groups during a refactoring scan. |
