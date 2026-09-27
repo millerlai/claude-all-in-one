@@ -312,6 +312,10 @@ ticket mirroring makes, so this menu — like the two sign-off gates — never
 puts a thumb on the scale. Anything but "Close #<number>" leaves the issue
 open.
 
+`done` ends by naming the routine for after the PR merges — switch to the
+base branch, `git pull`, then `/cai:git-sweep` to see which branches can be
+deleted — without running any of it for you.
+
 ## Running one stage alone
 
 Every stage is also a command: `/cai:intake`, `/cai:discover`, `/cai:design`,

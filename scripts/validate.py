@@ -2199,7 +2199,13 @@ if os.path.isfile(VERIFY_REF):
 # requires, keeping the same two-line gap below the ceiling rather than
 # spending it -- #203 is expected to spend it next, raising this ceiling
 # again rather than landing on it.
-TRACK_SKILL_MAX = 131
+#
+# 131 -> 132 on 2026-09-26 (#203): one line ends `/cai:track done` with the
+# post-merge routine (switch to the base branch, `git pull`, `/cai:git-sweep`)
+# instead of leaving it to be typed by hand. Moved together with the pinned
+# body-line count in tests/test_track_skill_ticket_pointer.py, keeping the
+# same two-line gap.
+TRACK_SKILL_MAX = 132
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)
