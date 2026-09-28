@@ -49,9 +49,9 @@ SAFE_INTERPOLATIONS = frozenset({
     "m.cls", "alertCls", "ackedCls", "mode", "row.platform",
     "platLabel", "kindHTML", "branchHTML", "sinceNote", "ackBtn",
     "activityHTML(row)",
-    # summary(): hotCls is '' or 'hot'; pad(...) numeric; unreadHTML
-    # prebuilt from a numeric count and literal HTML only.
-    "hotCls", "pad(human.length)", "unreadHTML", "pad(work)",
+    # summary(): hotCls is '' or 'hot', doneCls/workCls '' or 'lit';
+    # pad(...) numeric.
+    "hotCls", "doneCls", "workCls", "pad(waiting)", "pad(done)", "pad(work)",
     # rowHTML() (D2 rule 2's restored 「經過」): tl is prebuilt the same way
     # as recentHTML/subsHTML above -- esc()-wrapped pieces only, joined with
     # plain '+'. expandBtn is prebuilt from a fixed two-literal ternary
@@ -225,7 +225,7 @@ def test_string_tables_have_the_same_keys():
     en = json.loads(en_match.group(1))
     zh = json.loads(zh_match.group(1))
     assert set(en.keys()) == set(zh.keys())
-    assert len(en) == 64
+    assert len(en) == 65
 
 
 def test_no_cjk_outside_the_zh_hant_table():
@@ -291,3 +291,56 @@ def test_attention_notes_put_codes_before_raw_text():
     assert "row.noteCodes" in line
     assert "row.notes" in line
     assert line.index("row.noteCodes") < line.index("row.notes")
+
+
+# ================= top summary: the same three words the cards use ========
+
+def _summary_body():
+    js_text = _script_body(viewer.PAGE_HTML)
+    match = re.search(r"function summary\(\)\{(.*?)\n\}", js_text, re.S)
+    assert match, "expected a `function summary(){...}` block"
+    return match.group(1)
+
+
+def test_summary_shows_waiting_done_and_working_chips():
+    body = _summary_body()
+    for key in ("summary.waiting", "summary.done", "state.working"):
+        assert "tr('%s')" % key in body
+    assert "tr('title.waiting', {n: waiting})" in body
+
+
+def test_summary_waiting_count_leaves_done_rows_out():
+    """「等待處理」 is every card that needs you except 「完成，等指示」,
+    which has its own 「完成」 count next to it."""
+    assert "r.state !== 'done' && META[r.state].human" in _summary_body()
+
+
+def test_summary_does_not_count_seen_rows():
+    """已讀 only stops a card flashing; the numbers up top follow the cards'
+    state alone, so pressing it on a card must not change any of them."""
+    assert "acks" not in _summary_body()
+    strings_en = _strings_en()
+    assert "summary.unread" not in strings_en
+    assert "title.unread" not in strings_en
+
+
+def test_done_and_working_chips_take_their_cards_colours():
+    """完成 and 執行中 light up in their cards' colours (.s-done / .s-work
+    set --c) whenever they count anything, the way 等待處理 already does."""
+    body = _summary_body()
+    assert "const doneCls = done ? 'lit' : '';" in body
+    assert "const workCls = work ? 'lit' : '';" in body
+    assert '<span class="chip s-done ${doneCls}">' in body
+    assert '<span class="chip s-work ${workCls}">' in body
+    assert ".chip.lit{border-color:var(--c);color:var(--c)}" in viewer.PAGE_HTML
+    assert ".chip.lit b{color:var(--c)}" in viewer.PAGE_HTML
+
+
+def test_zh_hant_summary_labels_are_the_three_categories():
+    js_text = _script_body(viewer.PAGE_HTML)
+    match = re.search(r"const STRINGS_ZH_HANT = (\{.*?\n\});", js_text, re.S)
+    assert match, "expected a `const STRINGS_ZH_HANT = {...};` object literal"
+    zh = json.loads(match.group(1))
+    assert zh["summary.waiting"] == "等待處理"
+    assert zh["summary.done"] == "完成"
+    assert zh["state.working"] == "執行中"
