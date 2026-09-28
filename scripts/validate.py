@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate marketplace/plugin manifests, component frontmatter, and guard
 behavior. Zero deps."""
+import atexit
 import glob
 import json
 import os
@@ -13,6 +14,31 @@ import tempfile
 
 FAIL = 0
 PLUGIN = "plugins/cai"
+
+
+def rmtree(path):
+    """git marks loose objects read-only and Windows refuses to delete those,
+    so ignore_errors would silently leave a temp repo behind on every run — and
+    the PostToolUse hook runs this script on every edit under plugins/cai/."""
+    def retry(func, target, _):
+        os.chmod(target, stat.S_IWRITE)
+        func(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=retry)
+    else:
+        shutil.rmtree(path, onerror=retry)
+
+
+# Every scratch directory this run makes lands under one root, removed at exit
+# (#234). The fixed list of eight paths this replaces missed every fixture added
+# after it was written, and as top-level code at the very end it never ran when
+# a check raised first -- 206k directories piled up in one %TEMP% in six days
+# of hook runs. As the default `dir` of every mkdtemp, the root cannot be
+# forgotten by the next fixture; atexit also runs on an uncaught exception.
+RUN_ROOT = tempfile.mkdtemp(prefix="cai-validate-")
+tempfile.tempdir = RUN_ROOT
+atexit.register(rmtree, RUN_ROOT)
 
 
 def check(label, cond):
@@ -2642,24 +2668,6 @@ else:
     # CAI_VALIDATE_NESTED in the environment reports success for a run that
     # skipped six checks.
     print("SKIP hook self-tests (CAI_VALIDATE_NESTED=1)")
-
-def rmtree(path):
-    """git marks loose objects read-only and Windows refuses to delete those,
-    so ignore_errors would silently leave a temp repo behind on every run — and
-    the PostToolUse hook runs this script on every edit under plugins/cai/."""
-    def retry(func, target, _):
-        os.chmod(target, stat.S_IWRITE)
-        func(target)
-
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=retry)
-    else:
-        shutil.rmtree(path, onerror=retry)
-
-
-for path in (WORK, MAIN, NOT_A_REPO, DETACHED, UNBORN, PROBE_DIR, PREFLIGHT_PROJECT,
-             TRACK_FIXTURE_ROOT):
-    rmtree(path)
 
 # plugins/cai/evals/ is CLAUDE.md's third category: "shipped but not theirs"
 # -- it reaches every installed copy (the marketplace ships everything under
