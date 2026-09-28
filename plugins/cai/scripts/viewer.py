@@ -361,9 +361,10 @@ h1{font-size:17px;margin:0;letter-spacing:.03em;
 .chip{display:flex;align-items:baseline;gap:7px;padding:5px 12px;border-radius:8px;background:var(--panel2);
   border:1px solid var(--border);font-size:12px;color:var(--muted)}
 .chip b{font:600 16px var(--mono);color:var(--text)}
-.chip em{font-style:normal;font-size:11.5px}
 .chip.human.hot{border-color:var(--ask);color:var(--ask);box-shadow:0 0 16px color-mix(in srgb,var(--ask) 30%,transparent)}
 .chip.human.hot b{color:var(--ask);text-shadow:var(--label-glow)}
+.chip.lit{border-color:var(--c);color:var(--c)}
+.chip.lit b{color:var(--c)}
 .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
 .toggle.on{border-color:var(--work);color:var(--work)}
 .controls label{display:flex;gap:5px;align-items:center;color:var(--muted);cursor:pointer}
@@ -596,8 +597,9 @@ const STRINGS_EN = {
   "expand.close": "▴ Collapse",
   "copy.title": "Copy the resume command",
   "empty.list": "No agents in this view right now",
-  "summary.unread": "{n} unread",
-  "title.unread": "({n}) Needs you · Agent Viewer",
+  "summary.waiting": "Waiting for you",
+  "summary.done": "Done",
+  "title.waiting": "({n}) Waiting for you · Agent Viewer",
   "stale.note": "Data stopped at {time}",
   "since.wait": "Waiting {time}",
   "since.run": "This turn {time}",
@@ -662,8 +664,9 @@ const STRINGS_ZH_HANT = {
   "expand.close": "▴ 收起",
   "copy.title": "複製 resume 指令",
   "empty.list": "這個分類目前沒有 agent",
-  "summary.unread": "未讀 {n}",
-  "title.unread": "({n}) 需要你 · Agent Viewer",
+  "summary.waiting": "等待處理",
+  "summary.done": "完成",
+  "title.waiting": "({n}) 等待處理 · Agent Viewer",
   "stale.note": "資料停在 {time}",
   "since.wait": "已等 {time}",
   "since.run": "本輪 {time}",
@@ -961,16 +964,19 @@ function render(){
   tick();
 }
 
+// The chips count by the same state the cards show; "Seen" only stops a card flashing, so it never moves a number here.
 function summary(){
-  const human = rows.filter(r => META[r.state].human);
-  const unread = human.filter(r => !acks.has(r.key)).length;
+  const waiting = rows.filter(r => r.state !== 'done' && META[r.state].human).length;
+  const done = rows.filter(r => r.state === 'done').length;
   const work = rows.filter(r => r.state === 'working').length;
-  const hotCls = unread ? 'hot' : '';
-  const unreadHTML = unread ? '<em>' + esc(tr('summary.unread', {n: unread})) + '</em>' : '';
+  const hotCls = waiting ? 'hot' : '';
+  const doneCls = done ? 'lit' : '';
+  const workCls = work ? 'lit' : '';
   document.getElementById('summary').innerHTML =
-    `<span class="chip human ${hotCls}">${esc(tr('common.needsYou'))}<b>${pad(human.length)}</b>${unreadHTML}</span>
-     <span class="chip">${esc(tr('state.working'))}<b>${pad(work)}</b></span>`;
-  document.title = unread ? tr('title.unread', {n: unread}) : 'Agent Viewer';
+    `<span class="chip human ${hotCls}">${esc(tr('summary.waiting'))}<b>${pad(waiting)}</b></span>
+     <span class="chip s-done ${doneCls}">${esc(tr('summary.done'))}<b>${pad(done)}</b></span>
+     <span class="chip s-work ${workCls}">${esc(tr('state.working'))}<b>${pad(work)}</b></span>`;
+  document.title = waiting ? tr('title.waiting', {n: waiting}) : 'Agent Viewer';
 }
 
 function checkStale(){
