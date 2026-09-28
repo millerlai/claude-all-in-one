@@ -11,6 +11,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 FAIL = 0
 PLUGIN = "plugins/cai"
@@ -30,12 +31,30 @@ def rmtree(path):
         shutil.rmtree(path, onerror=retry)
 
 
+# A run killed outright -- a hook timeout, a closed terminal -- never reaches
+# atexit, so its root stays behind. No run lasts anywhere near a day, so a
+# root that old belongs to no live run, even one going on concurrently.
+STALE_ROOT_AGE_S = 24 * 60 * 60
+
+
+def sweep_stale_roots(temp_dir, now):
+    with os.scandir(temp_dir) as entries:
+        roots = [entry for entry in entries if entry.name.startswith("cai-validate-")]
+    for root in roots:
+        try:
+            if root.is_dir() and now - root.stat().st_mtime >= STALE_ROOT_AGE_S:
+                rmtree(root.path)
+        except OSError:
+            pass  # a concurrent run removed it first, or a file in it is still open
+
+
 # Every scratch directory this run makes lands under one root, removed at exit
 # (#234). The fixed list of eight paths this replaces missed every fixture added
 # after it was written, and as top-level code at the very end it never ran when
 # a check raised first -- 206k directories piled up in one %TEMP% in six days
 # of hook runs. As the default `dir` of every mkdtemp, the root cannot be
 # forgotten by the next fixture; atexit also runs on an uncaught exception.
+sweep_stale_roots(tempfile.gettempdir(), time.time())
 RUN_ROOT = tempfile.mkdtemp(prefix="cai-validate-")
 tempfile.tempdir = RUN_ROOT
 atexit.register(rmtree, RUN_ROOT)
