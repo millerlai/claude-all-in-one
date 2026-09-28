@@ -19,10 +19,11 @@ directories -- see _copy_repo) avoids that: every unrelated check still
 passes against the copy exactly as it does against the real tree, so the
 only checks that ever go red are the ones each test deliberately breaks. The
 tradeoff is that each `python scripts/validate.py` run here costs roughly as
-long as running it for real (on the order of a minute), which is why this
-file keeps the test count small.
+long as running it for real without its hook self-tests (about twenty
+seconds), which is why this file keeps the test count small.
 """
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -43,8 +44,12 @@ def _copy_repo(tmp_path):
 
 
 def _run_validate(repo):
+    # The hook self-tests re-run validate.py twice -- two thirds of a run --
+    # and nothing here reads them. Built per call, not at import: conftest's
+    # autouse fixtures set this test's CAI_USAGE_LEDGER in os.environ.
     return subprocess.run([sys.executable, "scripts/validate.py"],
-                          cwd=repo, capture_output=True, encoding="utf-8")
+                          cwd=repo, capture_output=True, encoding="utf-8",
+                          env={**os.environ, "CAI_VALIDATE_NESTED": "1"})
 
 
 def _product_version(repo):

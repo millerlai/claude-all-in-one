@@ -27,11 +27,16 @@ VALIDATE = os.path.join(REPO_ROOT, "scripts", "validate.py")
 _VALIDATE_RESULT = []
 
 
+# Both validate.py runs in this file skip the hook self-tests, which re-run
+# validate.py twice -- two thirds of a run -- and which nothing here reads.
+# The env is built per call: conftest's autouse fixtures set this test's
+# CAI_USAGE_LEDGER in os.environ.
 def _run_validate():
     if not _VALIDATE_RESULT:
         _VALIDATE_RESULT.append(subprocess.run(
             [sys.executable, VALIDATE], cwd=REPO_ROOT,
-            capture_output=True, text=True, encoding="utf-8"))
+            capture_output=True, text=True, encoding="utf-8",
+            env={**os.environ, "CAI_VALIDATE_NESTED": "1"}))
     return _VALIDATE_RESULT[0]
 
 
@@ -128,7 +133,8 @@ def test_uc4_report_check_is_anchored_to_the_real_heading(tmp_path):
         fh.write(mutated)
     result = subprocess.run(
         [sys.executable, os.path.join("scripts", "validate.py")], cwd=repo,
-        capture_output=True, text=True, encoding="utf-8")
+        capture_output=True, text=True, encoding="utf-8",
+        env={**os.environ, "CAI_VALIDATE_NESTED": "1"})
     report_lines = [
         l for l in result.stdout.splitlines()
         if "Report section still asks for parked" in l]

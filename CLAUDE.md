@@ -109,15 +109,14 @@ PASS no evals file contains a ghp_ (0 found)
 PASS no evals file contains a home-directory path (0 found)
 ```
 
-Run `python -m pytest -n auto` too — the tests under `tests/`, which exercise
-what the scripts in `plugins/cai/scripts/` actually do. `-n auto` runs the
-suite on one worker per CPU, which is what CI runs and what
-`scripts/release.py`'s local gate switches to when it finds `pytest-xdist`.
-It needs `pytest` installed (`pip install pytest`), this repo's only required
-development-time dependency; `-n` also needs the optional `pytest-xdist`
-(`pip install pytest-xdist`). Without it pytest stops at once with
-`error: unrecognized arguments: -n` — run plain `python -m pytest` instead,
-which runs the same tests one at a time. `tests/`
+Run `python -m pytest` too — the tests under `tests/`, which exercise
+what the scripts in `plugins/cai/scripts/` actually do. `pyproject.toml`'s
+`addopts` adds `-n auto`, so it runs the suite on one worker per CPU, which
+is what CI and `scripts/release.py`'s local gate run too. It needs `pytest`
+and `pytest-xdist` installed (`pip install pytest pytest-xdist`), this repo's
+only development-time dependencies; without `pytest-xdist` pytest stops at
+once with `error: unrecognized arguments: -n`. `--pdb` and `-s` need a
+single process: add `-n0` when debugging. `tests/`
 sits at the repo root rather than under `plugins/cai/` so that neither it nor
 pytest ever reaches an installed copy: `.claude-plugin/marketplace.json:11`
 ships `./plugins/cai` and nothing else. A healthy run ends with a line like:

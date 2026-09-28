@@ -36,17 +36,22 @@ def _copy_repo(tmp_path):
     return dest
 
 
+# Both runs skip the hook self-tests, which re-run validate.py twice -- two
+# thirds of a run -- and which nothing here reads. The env is built per call:
+# conftest's autouse fixtures set this test's CAI_USAGE_LEDGER in os.environ.
 def _run_validate_in(repo):
     return subprocess.run(
         [sys.executable, os.path.join("scripts", "validate.py")], cwd=repo,
-        capture_output=True, text=True, encoding="utf-8")
+        capture_output=True, text=True, encoding="utf-8",
+        env={**os.environ, "CAI_VALIDATE_NESTED": "1"})
 
 
 def _run_validate():
     if not _VALIDATE_RESULT:
         _VALIDATE_RESULT.append(subprocess.run(
             [sys.executable, VALIDATE], cwd=REPO_ROOT,
-            capture_output=True, text=True, encoding="utf-8"))
+            capture_output=True, text=True, encoding="utf-8",
+            env={**os.environ, "CAI_VALIDATE_NESTED": "1"}))
     return _VALIDATE_RESULT[0]
 
 
