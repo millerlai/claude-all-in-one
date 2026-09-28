@@ -707,5 +707,9 @@ Maintainer tools, which no shipped component runs:
   `scripts/review-benchmark-procedure.md`.
 - `/gap-analysis` (`.claude/skills/gap-analysis/`) — compares cai against an
   external practice and writes the result under `docs/design/`.
+- `/cut-release` (`.claude/skills/cut-release/`) — runs the four
+  `scripts/release.py` steps in "Releasing" above, with the version choice,
+  the CHANGELOG rewrite and the confirmations before the tag push and the
+  `--merge` of the release PR.
 - `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
   — a track's peak main-session context occupancy, read from local transcripts.
