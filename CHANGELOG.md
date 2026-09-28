@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.41.0 — 2026-09-28
+
+The Agent Viewer's top bar now counts cards by the state they show instead of by whether Seen was pressed, and `/cai:git` keeps its message files out of your repository.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.40.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.40.0 to 1.41.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected: neither `state.md` nor the ledger changed.
+- A viewer started before the update keeps serving the old top bar. Run `/cai:viewer stop`, then `/cai:viewer` (on Codex, `$viewer stop`, then `$viewer`).
+
+### Viewer
+
+- The top bar shows three chips named with the words the cards use: **Waiting for you** (question, permission and attention cards), **Done**, and **Running** — 等待處理, 完成 and 執行中 in Traditional Chinese. They replace "Needs you N / N unread". (#240)
+- The numbers follow each card's state only. Pressing Seen on a card still stops it flashing, but no longer changes any number. (#240)
+- A chip takes its cards' colour while its count is above zero and stays grey at zero; Waiting for you still glows as the one alert. (#240)
+- The browser tab title reads "(N) Waiting for you", N being the waiting count. (#240)
+
+### Git
+
+- `/cai:git` is now told to write a multi-line commit message or PR body to a file in the system temp directory, never inside your repository, and to delete that file once the command has run. Before, such a file could stay in the work tree as an untracked file the next `git status` reported. (#238)
+
 ## v1.40.0 — 2026-09-27
 
 `/cai:track` now starts each new track on its own branch, ship no longer blocks on untracked files, and the guard keeps direct pushes off `main`/`master`.
