@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Parallel by default (pytest-xdist): one worker per CPU, the same run CI
+# makes. `--pdb` and `-s` need a single process: add `-n0` when debugging.
+# worksteal, not the default `load`: a few tests run validate.py whole and
+# take 20-100 s while the rest take milliseconds, and `load` can queue several
+# slow ones on one worker while the others sit idle. Measured on 14 workers
+# (2026-09-28): 193 s and 200 s with `load`, 144 s and 155 s with worksteal.
+addopts = ["-n", "auto", "--dist", "worksteal"]

@@ -19,7 +19,6 @@ scripts/gen-codex.py:24-26's split.
 """
 import argparse
 import datetime
-import importlib.util
 import json
 import os
 import re
@@ -250,21 +249,14 @@ def tool_versions() -> dict:
     return result
 
 
-def _has_xdist() -> bool:
-    """A seam like _which, so tests can pick either branch of local_gate.
-    Asked of this interpreter because it is the one that runs pytest."""
-    return importlib.util.find_spec("xdist") is not None
-
-
 def local_gate(repo: Path) -> list:
     failures = []
     validate_done = run([sys.executable, "scripts/validate.py"], cwd=repo, timeout=None)
     if validate_done.returncode != 0:
         failures.append("FAIL validate.py:\n" + _tail(validate_done))
-    # pytest-xdist is optional (#221): with it the suite runs on one worker
-    # per CPU, without it the gate still runs the same tests in one process.
-    pytest_argv = [sys.executable, "-m", "pytest"] + (["-n", "auto"] if _has_xdist() else [])
-    pytest_done = run(pytest_argv, cwd=repo, timeout=None)
+    # No -n here: pyproject.toml's addopts already runs the suite on one
+    # worker per CPU, and without pytest-xdist this fails like any other test.
+    pytest_done = run([sys.executable, "-m", "pytest"], cwd=repo, timeout=None)
     if pytest_done.returncode != 0:
         failures.append("FAIL pytest:\n" + _tail(pytest_done))
     return failures

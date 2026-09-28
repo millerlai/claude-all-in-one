@@ -57,7 +57,7 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
    - 標題 `## vX.Y.Z — <日期>` 保持原樣：`cut` 和 `publish` 都靠它找到這一段。
 5. **先確認，再 `cut`。**
    - 先用問題工具問一次，內容包括：版號和理由、CHANGELOG 各節的標題，並說明 tag 推出去之後，這個號碼就不能撤回。
-   - 對方同意後，在背景跑 `PYTHONUTF8=1 python scripts/release.py cut X.Y.Z`，中途不要打斷。沒裝 pytest-xdist 時本機 gate 是序列跑，2026-09-28 量到約 21 分鐘。
+   - 對方同意後，在背景跑 `PYTHONUTF8=1 python scripts/release.py cut X.Y.Z`，中途不要打斷。本機 gate 要先裝好 pytest-xdist，沒裝會在 pytest 那步直接失敗。
    - 一印出 `PASS vX.Y.Z pushed`，這個號碼就用掉了。之後的安裝驗證如果失敗：
      - 網路之類的暫時問題：跑 `python scripts/release.py verify X.Y.Z` 重試；
      - 其他原因：先修好，再用下一個號碼從步驟 3 整個重走（包括本步驟的確認），並在 CHANGELOG 註明跳過了哪個號碼。

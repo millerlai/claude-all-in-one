@@ -676,10 +676,11 @@ reach the model unbidden) hasn't grown past what it measured last. It's a
 ratchet, not a target: it can only shrink or hold, never quietly drift back up.
 
 `pytest` runs `tests/`, which exercises what the scripts under
-`plugins/cai/scripts/` actually do; it is this repo's only required
-development-time dependency (`pip install pytest`). `pytest-xdist` is
-optional: with it installed, `python -m pytest -n auto` runs the suite on one
-worker per CPU. CI runs both on every pull request, on
+`plugins/cai/scripts/` actually do. It and `pytest-xdist` are this repo's
+only development-time dependencies (`pip install pytest pytest-xdist`):
+`pyproject.toml` makes `python -m pytest` run the suite on one worker per
+CPU, and without `pytest-xdist` it stops at `unrecognized arguments: -n`.
+CI runs both on every pull request, on
 Linux, with `-n auto`. Windows is covered only by running them by hand; macOS
 not at all.
 

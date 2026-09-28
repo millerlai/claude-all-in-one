@@ -25,6 +25,9 @@ def test_validate_writes_nothing_to_the_default_central_ledger(tmp_path):
     env.pop("CAI_USAGE_LEDGER", None)
     env.pop("CLAUDE_CODE_SESSION_ID", None)
     env["CLAUDE_CONFIG_DIR"] = str(tmp_path)
+    # The hook self-tests only re-run this same script, whose own preflight
+    # fixtures already make every ledger.append() call under test.
+    env["CAI_VALIDATE_NESTED"] = "1"
 
     subprocess.run([sys.executable, VALIDATE], cwd=REPO_ROOT, env=env,
                    capture_output=True, text=True, encoding="utf-8")
