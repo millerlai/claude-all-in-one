@@ -83,7 +83,14 @@ def test_read_tail_caches_until_the_file_changes(tmp_path, monkeypatch):
     assert second == first
     assert calls == []  # cache hit: no re-open
 
+    before = path.stat()
     path.write_text(json.dumps({"a": 2}) + "\n", encoding="utf-8")
+    # Same size, so only mtime_ns can change the cache key. Two writes often
+    # land on one clock tick, so set a later mtime instead of hoping for one.
+    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+    after = path.stat()
+    assert after.st_size == before.st_size
+    assert after.st_mtime_ns != before.st_mtime_ns
     third = viewer.read_tail(str(path), 65536)
     assert third == [{"a": 2}]
 
