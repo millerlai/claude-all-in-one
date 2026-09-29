@@ -74,7 +74,10 @@ def retier(path, alias):
     was = m.group(1)
     if was == alias:
         return None
-    path.write_text(fm[: m.start(1)] + alias + fm[m.end(1) :] + rest, encoding="utf-8")
+    # newline="" so Windows does not turn every LF into CRLF: the rest of the
+    # file must stay byte for byte as it was.
+    path.write_text(fm[: m.start(1)] + alias + fm[m.end(1) :] + rest,
+                    encoding="utf-8", newline="")
     return was
 
 

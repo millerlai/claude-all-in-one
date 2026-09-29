@@ -481,14 +481,56 @@ def test_our_hook_entry_command_does_not_expand_a_dollar_subexpression():
         "'/usr/bin/python3' '/home/evil$(echo PWNED)/.codex/cai/launcher.py' guard")
 
 
+def _find_real_bash():
+    """The bash the three real-bash tests below should run, or None if the
+    machine has none.
+
+    On Windows `shutil.which("bash")` can be the WSL launcher in System32,
+    which cannot see `C:/...` paths, so prefer Git for Windows' own
+    `bin\\bash.exe` (`usr\\bin\\bash.exe` has no `touch`). Whichever bash is
+    picked must also be able to create a file, else the tests that only
+    assert a marker is *absent* would pass without testing anything.
+    POSIX keeps a plain `which("bash")`."""
+    import shutil as _shutil
+    import tempfile
+    if platform.system() != "Windows":
+        return _shutil.which("bash")
+    bash = None
+    git = _shutil.which("git")
+    if git:
+        parts = [p.lower() for p in Path(git).parts]
+        if parts[-2:] == ["cmd", "git.exe"]:
+            root = Path(git).parents[1]
+        elif parts[-3:] == ["mingw64", "bin", "git.exe"]:
+            root = Path(git).parents[2]
+        else:
+            root = None
+        if root is not None and (root / "bin" / "bash.exe").is_file():
+            bash = str(root / "bin" / "bash.exe")
+    if bash is None:
+        bash = _shutil.which("bash")
+        if bash is None:
+            return None
+        system32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+        if system32.resolve() in Path(bash).resolve().parents:
+            pytest.skip(f"{bash} is the WSL launcher, which cannot see C:/ paths; "
+                        "Git Bash is needed")
+    with tempfile.TemporaryDirectory() as td:
+        probe = Path(td) / "probe"
+        subprocess.run([bash, "-c", f"touch {probe.as_posix()}"],
+                       capture_output=True, encoding="utf-8")
+        if not probe.exists():
+            pytest.skip(f"{bash} cannot create a file with touch")
+    return bash
+
+
 def test_our_hook_entry_command_survives_a_dollar_subexpression_through_real_bash(tmp_path):
     """Proves the non-expansion above against a real POSIX shell, not just a
     string comparison: a `$(...)` in the launcher path must reach `bash -c`
     as literal text and never run, regardless of what the resulting command
     line does afterward (here, fail to find the program -- irrelevant,
     since shell expansion happens before that lookup)."""
-    import shutil as _shutil
-    bash = _shutil.which("bash")
+    bash = _find_real_bash()
     if bash is None:
         pytest.skip("no bash on PATH")
     marker = tmp_path / "PWNED_POSIX_COMMAND"
@@ -547,8 +589,7 @@ def test_posix_quote_survives_a_dollar_subexpression_through_real_bash():
     """POSIX equivalent of the PowerShell proof above: `sh` still expands
     `$(...)` inside a double-quoted string, so single-quoting must pass a
     path containing one through as literal text and never run it."""
-    import shutil as _shutil
-    bash = _shutil.which("bash")
+    bash = _find_real_bash()
     if bash is None:
         pytest.skip("no bash on PATH")
     value = "evil$(echo PWNED)tail"
@@ -688,8 +729,7 @@ def test_cai_command_line_windows_form_runs_the_real_launcher_through_powershell
 
 
 def test_cai_command_line_posix_form_runs_the_real_launcher_through_bash():
-    import shutil as _shutil
-    bash = _shutil.which("bash")
+    bash = _find_real_bash()
     if bash is None:
         pytest.skip("no bash on PATH -- macOS itself was not exercised by this test")
 

@@ -107,6 +107,23 @@ def test_uc4_stage_verify_pinned_clause_checks_still_run():
         assert fragment in out, fragment
 
 
+# stage-build.md's prose guards in validate.py, by how many check() calls
+# carry each fragment (three loop iterations, two, and one). Deleting one
+# leaves validate.py exit 0, so the count is what has to be pinned (#186).
+BUILD_GUARD_COUNTS = (
+    ("keeps build out of the signed-off design", 3),
+    ("names the diagnosis path's", 2),
+    ("treats a NOT RUN test file as red", 1),
+)
+
+
+def test_stage_build_prose_guards_still_run():
+    lines = _run_validate().stdout.splitlines()
+    for fragment, expected in BUILD_GUARD_COUNTS:
+        found = [l for l in lines if fragment in l]
+        assert len(found) == expected, (fragment, found)
+
+
 def test_uc4_report_check_is_anchored_to_the_real_heading(tmp_path):
     """Regression for an unanchored-find() bug in validate.py's
     verify_section(): stage-verify.md's own Report section quotes
