@@ -269,14 +269,15 @@ Claude Code 內建的 auto memory 會把每個專案的筆記存在 `~/.claude/p
 
 ## 貢獻／開發
 
-從本機 checkout 加入 marketplace，再安裝以測試你的變更：
+測試你的變更時，讓 Claude Code 直接讀你 checkout 裡尚未安裝的 plugin 目錄：
 
 ```
-/plugin marketplace add /path/to/claude-all-in-one
-/plugin install cai@claude-all-in-one
+claude --plugin-dir /path/to/claude-all-in-one/plugins/cai
 ```
 
-使用者收到的一切都在 `plugins/cai/` 底下——plugin 快取只複製那個目錄，所以它以外的東西永遠不會送到安裝者手上。寫一個新檔案之前，先決定它屬於哪一邊：[`CLAUDE.md`](CLAUDE.md) 的「Who a file is for」劃出了「會出貨的」與「只用來維護這個 repo 的」（`docs/`、`scripts/`、`tests/`、`.github/`、`.claude/skills/`）之間的界線。plugin 快取以版本號為鍵，所以任何修改 `plugins/cai/` 的 pull request 都要一併提升 `plugins/cai/.claude-plugin/plugin.json` 裡的 `version`——不升版，`/plugin update` 會繼續提供舊的副本。
+從本機 checkout 加入 marketplace 再安裝，測不到你的變更：`.claude-plugin/marketplace.json` 裡的項目是固定在最新發版標籤的 `git-subdir` 來源，所以 `/plugin install` 會從 GitHub 抓那個標籤，而不是你的工作目錄。
+
+使用者收到的一切都在 `plugins/cai/` 底下——plugin 快取只複製那個目錄，所以它以外的東西永遠不會送到安裝者手上。寫一個新檔案之前，先決定它屬於哪一邊：[`CLAUDE.md`](CLAUDE.md) 的「Who a file is for」劃出了「會出貨的」與「只用來維護這個 repo 的」（`docs/`、`scripts/`、`tests/`、`.github/`、`.claude/skills/`）之間的界線。plugin 快取以版本號為鍵——但 pull request 已經不再修改 `plugins/cai/.claude-plugin/plugin.json` 裡的 `version`；`scripts/release.py` 會在發版時寫入一次，見英文版 README 的 [Releasing](README.md#releasing)。
 
 要新增的是指引而不是程式碼？[GUIDE.md](GUIDE.md) 說明該由哪個元件承載它——慣例、程序或限制——以及放錯地方為什麼會讓它悄悄失效。這套判斷同樣適用於你自己的 `~/.claude/` 設定。
 
