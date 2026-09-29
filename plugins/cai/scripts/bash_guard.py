@@ -127,21 +127,18 @@ NON_BASH = [
 # but the boundary has to admit the shapes a commit really arrives in: an env
 # prefix (`GIT_EDITOR=true git commit`), a subshell, a command substitution, and
 # git's own global options.
-COMMIT = re.compile(r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*" + GIT + r"commit\b")
+COMMIT = re.compile(r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*(?P<git>" + GIT + r")commit\b")
 PROTECTED = ("main", "master")
 
 # Same command boundary as COMMIT, but captures the push's own arguments (to
-# read its destination) and a `-C <dir>` global option by itself (to read
-# *that* directory's branch instead of the hook's cwd -- #194's own worktree
-# session is exactly the case that needs this: the main checkout sits on
-# main while the work happens in `git -C <worktree> push` from elsewhere).
+# read its destination). Which directory's branch a bare push sends is
+# target_dir()'s job, shared with the commit and discard rules.
 # Args stop at `)` too, on top of ARGS's `;&|` and newline: a push scrubbed
 # out of a `$(...)` substitution keeps that closing paren in the same line,
 # and reading it as part of a refspec would corrupt the destination.
 PUSH_ARGS = r"[^\n;&|)]*"
 PUSH = re.compile(
-    r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*git\s+"
-    r"(?:-C\s+(?P<cdir>" + OPT_VALUE + r")\s+|-[cC]\s+\S+\s+|--\S+\s+)*"
+    r"(?:^|\n|[;&|(`]\s*|\$\()\s*(?:\w+=\S*\s+)*(?P<git>" + GIT + r")"
     r"push\b(?P<args>" + PUSH_ARGS + r")"
 )
 
@@ -205,6 +202,63 @@ def _unquote(value):
     if value and len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
         return value[1:-1]
     return value
+
+
+# A directory change at a command boundary, the way COMMIT/PUSH anchor git.
+# PowerShell spells it Set-Location/sl/Push-Location as well, in any case.
+CD = re.compile(
+    r"(?:^|\n|[;&|(`]\s*|\$\()\s*"
+    r"(?i:cd|pushd|popd|set-location|sl|push-location|pop-location)"
+    r"(?=[\s;&|)]|$)(?P<args>[^\n;&|)]*)")
+
+GIT_C = re.compile(r"-([cC])\s+(" + OPT_VALUE + r")|--\S+")
+
+# A directory this guard cannot know without running the shell: `cd "$DIR"`,
+# `cd -`, `popd`. Kept apart from None, which already means "the hook's own
+# working directory" to git().
+UNRESOLVED = object()
+
+
+def _resolve(base, path):
+    if not path or path == "-" or any(c in path for c in "$`%"):
+        return UNRESOLVED
+    path = os.path.expanduser(path)
+    if os.path.isabs(path):
+        return path
+    if base is UNRESOLVED:
+        return UNRESOLVED
+    return os.path.join(base, path) if base else path
+
+
+def target_dir(cwd, code, git_start):
+    """The directory the git invocation starting at `code[git_start]` acts on
+    (#233): its own `-C <dir>`s, applied on top of the last `cd`s before it
+    on the line, applied on top of the session `cwd`. Judging the session cwd
+    alone let `cd <main-checkout> && git commit` through from a feature
+    worktree and blocked `git -C <worktree> commit` from a session on main.
+
+    Anything that cannot be read statically falls back to `cwd` -- the
+    guard's behaviour before #233 -- and every rule names the directory it
+    read, so a wrong verdict stays diagnosable."""
+    prefix = code[:git_start]
+    # A group that closed before this git ran in a subshell of its own, so
+    # a cd inside it moved nothing here: `(cd x && make); git commit`.
+    while True:
+        stripped = re.sub(r"\([^()]*\)", " ", prefix)
+        if stripped == prefix:
+            break
+        prefix = stripped
+    where = cwd
+    for m in CD.finditer(prefix):
+        tokens = [_unquote(t) for t in re.findall(OPT_VALUE, m.group("args"))]
+        # `-` alone is `cd -`, not an option; `-P`, `-Path` and the like are.
+        paths = [t for t in tokens if t == "-" or not t.startswith("-")]
+        where = _resolve(where, paths[0] if paths else None)
+    opts = re.match(GIT, code[git_start:]).group(0)
+    for m in GIT_C.finditer(opts):
+        if m.group(1) == "C":
+            where = _resolve(where, _unquote(m.group(2)))
+    return cwd if where is UNRESOLVED else where
 
 
 # Options that take a separate value, so that value is not misread as the
@@ -287,14 +341,13 @@ def push_targets(args):
     return targets
 
 
-def has_remote_ref(cwd, git_dir, branch):
+def has_remote_ref(cwd, branch):
     """Whether some remote is already tracked as having `branch` --
     `refs/remotes/*/<branch>`. Only used to exempt a non-force push that
     would create the branch on a remote that has none: the unborn-commit
     exemption above (:407-410) mirrored for push, since "open a PR" is
     unfollowable when the remote has no main yet to open one into."""
-    global_args = ["-C", git_dir] if git_dir else []
-    done = git(cwd, *global_args, "for-each-ref", f"refs/remotes/*/{branch}")
+    done = git(cwd, "for-each-ref", f"refs/remotes/*/{branch}")
     return bool(done and done.returncode == 0 and done.stdout.strip())
 
 # A quoted heredoc body is data the command writes out, not commands it runs.
@@ -598,23 +651,18 @@ def git(cwd, *args):
         return None
 
 
-def current_branch(cwd, git_dir=None):
+def current_branch(cwd):
     """Branch name, or None when git can't answer: no git, no repo, detached
     HEAD, or no commits yet.
-
-    `git_dir` is a `-C <dir>` seen in the command itself (push only, so far);
-    passing it to git lets git resolve a relative path against `cwd` itself,
-    rather than this function guessing how to join the two.
 
     The unborn case has to fail open. symbolic-ref happily names the branch of
     a freshly-init'd repo, so checking it alone blocks the very first commit -
     and the advice to branch first is unfollowable when there is no history to
     branch from."""
-    global_args = ["-C", git_dir] if git_dir else []
-    head = git(cwd, *global_args, "rev-parse", "--verify", "HEAD")
+    head = git(cwd, "rev-parse", "--verify", "HEAD")
     if head is None or head.returncode != 0:
         return None
-    done = git(cwd, *global_args, "symbolic-ref", "--short", "HEAD")
+    done = git(cwd, "symbolic-ref", "--short", "HEAD")
     return done.stdout.strip() if done and done.returncode == 0 else None
 
 
@@ -689,18 +737,19 @@ def main() -> int:
         advice = SUBSTITUTION if verdict in (SUBSTITUTED, UNPARSED_SUBSTITUTION) else BACKTICK
         return deny(verdict, command, advice)
 
-    # The branch comes from the session's cwd, which is not necessarily where
-    # the command runs -- `cd sub && git commit` and `git -C ../other commit`
-    # both land elsewhere. Naming the directory makes a wrong verdict
-    # diagnosable instead of baffling.
+    # The session's cwd is only where the command starts -- `cd sub && git
+    # commit` and `git -C ../other commit` both land elsewhere, so each rule
+    # below reads target_dir() of the invocation it matched (#233). Naming
+    # that directory makes a wrong verdict diagnosable instead of baffling.
     cwd = payload.get("cwd")
 
-    # Pattern first, git second, and the git call made at most once: `git
-    # status` is a subprocess, and asking it on every Bash call would tax
-    # every command in the session to decide two of them.
-    discard = next(((r, a) for p, r, a in DISCARD if re.search(p, code)), None)
-    if discard and worktree_dirty(cwd):
-        return deny(discard[0], command, discard[1])
+    # Pattern first, git second: `git status` is a subprocess, and asking it
+    # on every Bash call would tax every command in the session to decide
+    # two of them.
+    for pattern, reason, advice in DISCARD:
+        for m in re.finditer(pattern, code):
+            if worktree_dirty(target_dir(cwd, code, m.start())):
+                return deny(reason, command, advice)
 
     # A push that reaches main/master bypasses the same PR the commit rule
     # below protects, just one step later -- #194. `--force`/`-f`/`+refspec`
@@ -708,24 +757,26 @@ def main() -> int:
     # or a plain push whose destination resolves to a protected branch.
     for m in PUSH.finditer(code):
         push_args = m.group("args")
-        git_dir = _unquote(m.group("cdir"))
+        where = target_dir(cwd, code, m.start("git"))
         lease = bool(re.search(r"(?:^|\s)--force-with-lease\b", push_args))
         branch = None
         for target in push_targets(push_args):
             if target is None:
                 if branch is None:
-                    branch = current_branch(cwd, git_dir) or ""
+                    branch = current_branch(where) or ""
                 target = branch
             if target not in PROTECTED:
                 continue
-            if lease or has_remote_ref(cwd, git_dir, target):
-                where = f"{git_dir} (git -C)" if git_dir else (cwd or "the hook working directory")
+            if lease or has_remote_ref(where, target):
                 return deny(f"push to protected branch '{target}'", command,
-                            f"Branch read from {where}. " + PUSH_PROTECTED_ADVICE)
+                            f"Branch read from {where or 'the hook working directory'}. "
+                            + PUSH_PROTECTED_ADVICE)
 
-    if COMMIT.search(code) and current_branch(cwd) in PROTECTED:
-        return deny("committing directly to a protected branch", command,
-                    f"Branch read from {cwd or 'the hook working directory'}. " + BRANCH)
+    for m in COMMIT.finditer(code):
+        where = target_dir(cwd, code, m.start("git"))
+        if current_branch(where) in PROTECTED:
+            return deny("committing directly to a protected branch", command,
+                        f"Branch read from {where or 'the hook working directory'}. " + BRANCH)
 
     # Checked last: every rule above is a deny, and a command that trips one
     # of them stays denied even if it also merges -- ask never weakens a
