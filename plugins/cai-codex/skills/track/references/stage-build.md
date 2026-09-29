@@ -234,7 +234,10 @@ git worktree add ../<repo>-<unit-slug> -b <current-branch>-<unit-slug>
 
 Each `cai_implementer` gets the worktree's absolute path plus the same brief as
 Step 3 — the "must not touch" row especially, since nothing mechanical
-enforces the boundary. It commits there.
+enforces the boundary. It commits there, and the brief also says never to
+`git stash`: every worktree of a repo shares one stash, so a lane that
+stashes can pop the other lane's work into its own tree. Work that has to be
+set aside becomes a WIP commit on the lane branch.
 
 ```bash
 git merge --no-ff <current-branch>-<unit-slug>

@@ -988,7 +988,9 @@ def ship(track_dir, project_dir):
                                "only untracked files, which the squash neither "
                                "includes nor touches)")
             else:
-                clean_check = (False, "clean_tree (%s -- commit or stash them)"
+                # Not a bare "or stash": linked worktrees share one stash (#230).
+                clean_check = (False, "clean_tree (%s -- commit them; stash only "
+                               "if `git worktree list` shows a single worktree)"
                                % _named_paths(changed, "tracked file(s) with "
                                               "uncommitted changes"))
         branch = current_branch(project_dir)
