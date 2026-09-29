@@ -118,21 +118,23 @@ def test_r4_passes_on_an_unmodified_copy(tmp_path):
 # Legacy / pin-form matrix
 # ---------------------------------------------------------------------------
 
-FORM_LABEL = "marketplace entries use one consistent source form (legacy string, or git-subdir)"
+FORM_LABEL = "every marketplace entry uses a git-subdir source"
 
 
-def test_legacy_string_form_passes(tmp_path):
-    """Baseline: with both marketplace files in the legacy string form (main
-    before the first release), a copy must pass both marketplace-form checks,
-    and validate.py overall must exit 0."""
+def test_legacy_string_form_fails(tmp_path):
+    """Stance I5: main holds git-subdir sources only. A PR that reverts both
+    marketplace files to the legacy string must FAIL the form check, name
+    each file's form, and never reach the pin checks."""
     repo = _copy_repo(tmp_path)
     _set_legacy_form(repo)
 
     result = _run_validate(repo)
 
-    assert result.returncode == 0, result.stdout[-4000:]
-    assert f"PASS {FORM_LABEL}" in result.stdout
-    assert "pins cai" not in result.stdout  # Check B is skipped for the legacy form
+    assert result.returncode != 0
+    assert f"FAIL {FORM_LABEL}" in result.stdout
+    assert f"{CAI_MARKETPLACE}: legacy" in result.stdout
+    assert f"{CODEX_MARKETPLACE}: legacy" in result.stdout
+    assert "pins cai" not in result.stdout  # the pin checks are gated on the form check
 
 
 def test_consistent_git_subdir_form_passes(tmp_path):
@@ -154,7 +156,7 @@ def test_consistent_git_subdir_form_passes(tmp_path):
 
 def test_mixed_form_fails_check_a(tmp_path):
     """One marketplace file pinned to git-subdir, the other left as the
-    legacy string -- the two disagree on form, so Check A must FAIL."""
+    legacy string -- one entry is legacy, so Check A must FAIL."""
     repo = _copy_repo(tmp_path)
     _set_legacy_form(repo)
     url = _repository_url(repo)
@@ -185,13 +187,11 @@ def test_uc5_validate_check_loop_reaches_a_third_marketplace_row(tmp_path):
     git-subdir scenario, per the finding's documented allowance): the third
     row points at a marketplace file that does not exist in the copy, so it
     lands in validate.py's own except-unreadable branch. The two real rows
-    are set to the legacy string form, so the mismatched third row's
-    "unreadable" form makes the consistent-form check disagree and FAIL --
-    proving the loop actually reached a row it was never specifically coded
-    for.
+    are git-subdir and the third is unreadable, so the git-subdir check FAILs
+    only because of the third row -- proving the loop actually reached a row
+    it was never specifically coded for.
     """
     repo = _copy_repo(tmp_path)
-    _set_legacy_form(repo)
     release_py = repo / "scripts" / "release.py"
     text = release_py.read_text(encoding="utf-8")
     anchor = ")\nPRODUCT_MANIFEST"
@@ -212,7 +212,7 @@ def test_uc5_validate_check_loop_reaches_a_third_marketplace_row(tmp_path):
 def test_wrong_ref_fails_check_b(tmp_path):
     """Both marketplace files consistently pinned to git-subdir, but one
     ref does not match "v" + the product version -- Check A passes (both
-    rows use the same form) while Check B FAILs on the mismatched row."""
+    entries are git-subdir) while Check B FAILs on the mismatched row."""
     repo = _copy_repo(tmp_path)
     url = _repository_url(repo)
     version = _product_version(repo)

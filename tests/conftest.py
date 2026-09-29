@@ -6,7 +6,7 @@ design. So a test that wants `import ledger` needs the directory itself on
 the path, which is what this does.
 
 `tests/` lives at the repo root rather than under `plugins/cai/` on purpose:
-`.claude-plugin/marketplace.json:11` ships `./plugins/cai` and nothing else,
+`.claude-plugin/marketplace.json:14` ships `plugins/cai` and nothing else,
 so neither these tests nor pytest can reach an installed copy.
 """
 import os

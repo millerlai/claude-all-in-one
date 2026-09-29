@@ -20,8 +20,8 @@ per-user in `~/.claude/rules/` by `/cai:setup`.
 ## Who a file is for
 
 Two trees ship: `plugins/cai/` to Claude Code (`.claude-plugin/marketplace.json`
-names `./plugins/cai`), and `plugins/cai-codex/` to Codex
-(`.agents/plugins/marketplace.json` names `./plugins/cai-codex`). Everything
+points at `plugins/cai`), and `plugins/cai-codex/` to Codex
+(`.agents/plugins/marketplace.json` points at `plugins/cai-codex`). Everything
 else (`docs/`, `scripts/`, `tests/`, `.github/`, `.claude/skills/`, this file)
 maintains the repo and never reaches an installed copy. Decide which side a
 new file is on before writing it, not after.
@@ -118,8 +118,8 @@ only development-time dependencies; without `pytest-xdist` pytest stops at
 once with `error: unrecognized arguments: -n`. `--pdb` and `-s` need a
 single process: add `-n0` when debugging. `tests/`
 sits at the repo root rather than under `plugins/cai/` so that neither it nor
-pytest ever reaches an installed copy: `.claude-plugin/marketplace.json:11`
-ships `./plugins/cai` and nothing else. A healthy run ends with a line like:
+pytest ever reaches an installed copy: `.claude-plugin/marketplace.json:14`
+ships `plugins/cai` and nothing else. A healthy run ends with a line like:
 
 ```
 ======================= 399 passed in 217.95s (0:03:37) =======================

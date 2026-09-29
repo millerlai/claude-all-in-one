@@ -1851,10 +1851,8 @@ product_manifest_text = read_text(release.PRODUCT_MANIFEST)
 
 # release.pinned_ref returns None for the legacy bare-string `source` and the
 # pinned ref for the git-subdir object form, so it doubles as the form probe.
-# Transitional: both marketplace files are still legacy-string on this branch
-# (the real pin only happens when `release.py prepare` cuts a release), so
-# accepting that form here is deliberate; a later unit removes it once the
-# first release lands.
+# Only the git-subdir form passes (stance I5); the legacy string FAILs. UC4's
+# full revert (detail.md:657) reverts this change first.
 forms = {}
 for market in release.MARKETPLACES:
     try:
@@ -1863,14 +1861,13 @@ for market in release.MARKETPLACES:
     except (OSError, json.JSONDecodeError, ValueError):
         forms[market.file] = "unreadable"
 
-consistent_form = len(set(forms.values())) == 1 and "unreadable" not in forms.values()
-check("marketplace entries use one consistent source form (legacy string, or git-subdir)",
-      consistent_form)
-if not consistent_form:
+all_subdir = all(form == "subdir" for form in forms.values())
+check("every marketplace entry uses a git-subdir source", all_subdir)
+if not all_subdir:
     for file, form in forms.items():
         print(f"     {file}: {form}")
 
-if consistent_form and next(iter(forms.values())) == "subdir":
+if all_subdir:
     expected_url = release.repository_git_url(product_manifest_text)
     expected_ref = "v" + release.product_version(product_manifest_text)
     for market in release.MARKETPLACES:

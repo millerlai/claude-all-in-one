@@ -342,8 +342,9 @@ codex plugin marketplace add millerlai/claude-all-in-one
 codex plugin add cai-codex@claude-all-in-one
 ```
 
-The `owner/repo` form is the one Codex documents; this build exercised the
-equivalent local form, `codex plugin marketplace add <path to a clone>`.
+The `owner/repo` form is the one Codex documents and was exercised end to end
+during the v1.39.0 release; an earlier build exercised the equivalent local
+form, `codex plugin marketplace add <path to a clone>`.
 
 Requires `codex-cli` 0.157.1 or later — check with `codex --version`. An
 older codex-cli won't see this plugin at all: it drops the marketplace entry
@@ -382,9 +383,9 @@ Then run `$setup` inside Codex. Re-running `add` alone is enough to move to
 a new version once the marketplace is upgraded — no separate `remove` step
 needed. The first line refreshes Codex's copy of this repository ("Refresh
 configured Git marketplace snapshots", in `codex plugin marketplace
---help`); it has not yet been exercised end to end against the real
-GitHub-hosted marketplace, only `add` against a local-path marketplace,
-which is read fresh on every add.
+--help`). Both lines were exercised end to end against the GitHub-hosted
+marketplace at v1.39.0, moving an install from 1.38.1 to 1.39.0 on
+codex-cli 0.157.1.
 
 ### Uninstall
 
