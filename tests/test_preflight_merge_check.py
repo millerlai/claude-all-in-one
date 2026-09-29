@@ -302,6 +302,55 @@ def test_merge_tree_timeout_is_not_checked(tmp_path):
     assert result == (True, "merges_cleanly (not checked: git merge-tree did not answer)")
 
 
+@needs_merge_tree
+def test_merge_tree_failure_escapes_control_chars(tmp_path):
+    """#192: merge-tree's stderr is text git hands back, so a control
+    character in it must not reach the label raw."""
+    work, remote, other = conflict_fixture(tmp_path)
+    real_git = preflight.git
+
+    def fake_git(cwd, *args, encoding=None):
+        if args and args[0] == "merge-tree":
+            return subprocess.CompletedProcess(
+                ["git", "merge-tree"], 128, "", "fatal: bad \x1b[2K\x08 path\n")
+        return real_git(cwd, *args, encoding=encoding)
+
+    try:
+        preflight.git = fake_git
+        result = preflight.merges_cleanly(work)
+    finally:
+        preflight.git = real_git
+
+    assert result == (True, "merges_cleanly (not checked: git merge-tree exited 128: "
+                            "fatal: bad \\x1b[2K\\x08 path)")
+
+
+@needs_merge_tree
+@pytest.mark.parametrize("silent", [
+    ("symbolic-ref", "refs/remotes/origin/HEAD"),
+    ("rev-parse", "--verify", "--quiet", "refs/remotes/origin/main^{commit}"),
+    ("rev-parse", "--verify", "--quiet", "HEAD^{commit}"),
+], ids=["origin-head", "origin-main", "head"])
+def test_base_or_head_no_answer_is_not_checked(tmp_path, silent):
+    """git not answering a base or HEAD lookup means "could not check", not
+    "this ref does not exist" -- the next candidate must not be tried."""
+    work, remote, other = conflict_fixture(tmp_path)
+    real_git = preflight.git
+
+    def fake_git(cwd, *args, encoding=None):
+        if args == silent:
+            return None
+        return real_git(cwd, *args, encoding=encoding)
+
+    try:
+        preflight.git = fake_git
+        result = preflight.merges_cleanly(work)
+    finally:
+        preflight.git = real_git
+
+    assert result == (True, "merges_cleanly (not checked: git did not answer)")
+
+
 @pytest.mark.parametrize("text,expected", [
     ("git version 2.39.2.windows.1", (2, 39)),
     ("git version 2.38.0\n", (2, 38)),

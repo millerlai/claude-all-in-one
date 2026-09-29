@@ -35,18 +35,22 @@ def git(cwd, *args, timeout=5):
     GIT_TERMINAL_PROMPT=0 so a credential prompt cannot hang the script, and
     the pull needs a much longer timeout than the rest -- two things
     preflight.git() does not parametrize because none of its own callers
-    need them."""
+    need them. Decodes as UTF-8 with errors="replace" for the same reason
+    preflight.git() does: the console locale is strict, and a name it cannot
+    read left stdout None (#190)."""
     env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
     try:
         return subprocess.run(["git", *args], cwd=cwd or None, env=env,
-                              capture_output=True, text=True, timeout=timeout)
+                              capture_output=True, encoding="utf-8",
+                              errors="replace", timeout=timeout)
     except (OSError, subprocess.SubprocessError):
         return None
 
 
 def first_line(done):
     text = (done.stderr or done.stdout or "").strip()
-    return text.splitlines()[0] if text else "no message"
+    return (preflight._escape_control_chars(text.splitlines()[0])
+            if text else "no message")
 
 
 def ref_exists(project_dir, ref):
@@ -88,7 +92,10 @@ def start(track_dir, project_dir):
     checks: not knowing is a reason to stop, not to guess."""
     feature = os.path.basename(os.path.normpath(track_dir))
 
-    if not preflight.is_git_repo(project_dir):
+    repo = preflight.is_git_repo(project_dir)
+    if repo is preflight.GIT_DID_NOT_ANSWER:
+        return 2, "git did not answer -- stopping"
+    if not repo:
         return 0, "%s is not a git repository -- leaving branch alone" % project_dir
 
     branch = preflight.current_branch(project_dir)
