@@ -10,9 +10,11 @@ what git itself does across a fast-forward, a diverged pull, and an unborn
 HEAD, not what a fake would be told to say.
 """
 import json
+import locale
 import os
 import pathlib
 import subprocess
+import sys
 
 import pytest
 
@@ -112,6 +114,41 @@ def test_pull_failure_stops_and_creates_nothing(tmp_path):
     _, rc = git(repo, "rev-parse", "--verify", "--quiet", "refs/heads/track/feat-c")
     assert rc != 0
     assert not os.path.isdir(track_dir)
+
+
+@pytest.mark.skipif(sys.flags.utf8_mode, reason="UTF-8 mode ignores the locale encoding")
+def test_non_ascii_upstream_name_does_not_raise(tmp_path, monkeypatch):
+    """#190's shape in this script's own git(): `text=True` decoded with the
+    console locale, strictly, so an upstream branch that locale could not
+    read left `upstream.stdout` None (Windows) or raised (POSIX)."""
+    remote = tmp_path / "remote.git"
+    repo = init_repo_with_remote(tmp_path / "repo", remote)
+    git(repo, "push", "-u", "origin", "main:測試")
+    monkeypatch.setattr(locale, "getencoding", lambda: "ascii")
+
+    code, message = track_start.start(track_dir_for(tmp_path, "feat-n"), str(repo))
+
+    assert code == 0, message
+    assert "pulled origin/測試 before branching" in message
+
+
+def test_pull_failure_escapes_control_chars(tmp_path, monkeypatch):
+    """#192: git's stderr is quoted into a message Gate 2 may repeat, so a
+    control character in it must not arrive raw."""
+    remote = tmp_path / "remote.git"
+    repo = init_repo_with_remote(tmp_path / "repo", remote)
+    real_git = track_start.git
+
+    def fake_git(cwd, *args, timeout=5):
+        if args[0] == "pull":
+            return subprocess.CompletedProcess(
+                ["git", *args], 1, "", "fatal: bad \x1b[2K\x08 path\n")
+        return real_git(cwd, *args, timeout=timeout)
+
+    monkeypatch.setattr(track_start, "git", fake_git)
+
+    assert track_start.start(track_dir_for(tmp_path, "feat-o"), str(repo)) == (
+        2, "git pull --ff-only failed: fatal: bad \\x1b[2K\\x08 path")
 
 
 def test_existing_local_branch_stops(tmp_path):

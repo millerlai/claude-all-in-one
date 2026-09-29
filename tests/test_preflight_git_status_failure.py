@@ -136,6 +136,19 @@ def test_verify_status_exit_128_never_says_nothing_to_review(tmp_path):
     assert result == [(False, "has_changes (git status failed: fatal: simulated failure)")]
 
 
+def test_status_failure_escapes_control_chars(tmp_path):
+    """#192: stderr is text git hands back, so it gets the same escape a
+    filename does -- it lands in a label Gate 2 quotes verbatim."""
+    repo = make_repo(tmp_path, with_diff=False)
+    fake_git, real_git = stub_status(128, "", "fatal: bad \x1b[2K\x08 path\n")
+    try:
+        preflight.git = fake_git
+        result = preflight.verify(str(tmp_path / "track"), str(repo))
+    finally:
+        preflight.git = real_git
+    assert result == [(False, "has_changes (git status failed: fatal: bad \\x1b[2K\\x08 path)")]
+
+
 def test_verify_status_no_answer_with_base_diff_fails(tmp_path):
     repo = make_repo(tmp_path, with_diff=True)
     fake_git, real_git = stub_status(None)

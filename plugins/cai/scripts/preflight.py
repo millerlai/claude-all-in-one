@@ -307,26 +307,38 @@ def design_signed_off(track_dir, project_dir):
 
 
 def git(cwd, *args, encoding=None):
-    """Same shape as bash_guard.py's own git() helper -- duplicated rather
-    than imported, since bash_guard is out of scope for this change and the
-    two would otherwise couple two independently-versioned CLI surfaces.
+    """Runs git and returns the CompletedProcess, or None when git could not
+    be run or timed out. Output is always decoded as UTF-8 with
+    errors="replace" (`encoding=None` and omitting it are the same): the
+    console-locale decode `text=True` uses is strict, so a non-ASCII name
+    that locale cannot read turned stdout into `None` beside a real
+    returncode on Windows and raised UnicodeDecodeError on POSIX (#190).
+    With replace, undecodable bytes become U+FFFD instead of failing.
+    stderr is decoded the same way.
 
-    `encoding` exists because `text=True` decodes with the console locale,
-    and non-ASCII filenames under cp950 turn stdout into `None`."""
+    Not the same shape as bash_guard.py's git(), which still uses
+    `text=True`."""
     try:
-        if encoding is None:
-            return subprocess.run(["git", *args], cwd=cwd or None,
-                                  capture_output=True, text=True, timeout=5)
         return subprocess.run(["git", *args], cwd=cwd or None,
-                              capture_output=True, encoding=encoding,
+                              capture_output=True, encoding=encoding or "utf-8",
                               errors="replace", timeout=5)
     except (OSError, subprocess.SubprocessError):
         return None
 
 
+# A module-level object() like UNKNOWN_BRANCH, and truthy like it: a caller
+# that tests `if not is_git_repo(...)` alone reads "git did not answer" as "is
+# a repository", so every caller compares against it with `is` first.
+GIT_DID_NOT_ANSWER = object()
+
+
 def is_git_repo(cwd):
+    """True or False, or GIT_DID_NOT_ANSWER when git could not be asked --
+    "not a repository" is an answer, a timeout or a missing git is not."""
     done = git(cwd, "rev-parse", "--is-inside-work-tree")
-    return bool(done and done.returncode == 0)
+    if done is None:
+        return GIT_DID_NOT_ANSWER
+    return done.returncode == 0
 
 
 UNKNOWN_BRANCH = object()
@@ -362,7 +374,10 @@ def active_tracks(track_root):
 
 
 def intake(track_dir, project_dir):
-    if not is_git_repo(project_dir):
+    repo = is_git_repo(project_dir)
+    if repo is GIT_DID_NOT_ANSWER:
+        branch_check = (False, "not_main_branch (git did not answer)")
+    elif not repo:
         branch_check = (False, "not_main_branch (%s is not a git repository)" % project_dir)
     else:
         branch = current_branch(project_dir)
@@ -399,13 +414,19 @@ def track_ignored(track_dir, project_dir):
 
     Not a gate: plenty of people will not care, and a track is still perfectly
     usable in a repo that commits it."""
-    if not is_git_repo(project_dir):
+    repo = is_git_repo(project_dir)
+    if repo is GIT_DID_NOT_ANSWER:
+        return True, "track_ignored (git did not answer)"
+    if not repo:
         return True, "track_ignored (%s is not a git repository)" % project_dir
     done = git(project_dir, "check-ignore", "-q", track_dir)
     if done is None:
         return True, "track_ignored (git did not answer)"
     if done.returncode == 0:
         return True, "track_ignored (%s)" % track_dir
+    # check-ignore: 1 is "none of the paths are ignored", 128 a fatal error.
+    if done.returncode != 1:
+        return True, "track_ignored (git check-ignore failed: %s)" % _stderr_line(done)
     return True, ("track_ignored (%s is NOT ignored -- add `.claude/track/` to "
                   ".gitignore; an untracked track file does not block ship "
                   "(#198), but committing one and then changing it does, "
@@ -594,13 +615,21 @@ def find_base_ref(cwd):
     """The first usable base ref: the remote's default branch if origin
     answers, else a local main or master. stage-verify.md walks the
     same chain to pick a ref a human would review against; this only needs to
-    know whether a base exists at all, so it stops at the first hit."""
+    know whether a base exists at all, so it stops at the first hit.
+
+    None means no base ref; GIT_DID_NOT_ANSWER means git could not be asked,
+    and ends the walk -- trying the next candidate would read "did not
+    answer" as "no such ref"."""
     done = git(cwd, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
-    if done and done.returncode == 0:
+    if done is None:
+        return GIT_DID_NOT_ANSWER
+    if done.returncode == 0:
         return done.stdout.strip()
     for ref in ("origin/main", "origin/master", "main", "master"):
         done = git(cwd, "rev-parse", "--verify", "--quiet", ref)
-        if done and done.returncode == 0:
+        if done is None:
+            return GIT_DID_NOT_ANSWER
+        if done.returncode == 0:
             return ref
     return None
 
@@ -616,9 +645,12 @@ def parse_git_version(text):
 
 
 def resolve_commit(cwd, ref):
-    """A ref's full commit SHA, or `None` when it does not resolve to one."""
+    """A ref's full commit SHA, `None` when it does not resolve to one, or
+    GIT_DID_NOT_ANSWER when git could not be asked."""
     done = git(cwd, "rev-parse", "--verify", "--quiet", ref + "^{commit}")
-    if done is not None and done.returncode == 0 and done.stdout.strip():
+    if done is None:
+        return GIT_DID_NOT_ANSWER
+    if done.returncode == 0 and done.stdout.strip():
         return done.stdout.strip()
     return None
 
@@ -627,15 +659,21 @@ def remote_base_ref(cwd):
     """The first candidate base ref that resolves to a commit, as
     `(short_name, sha)` -- `origin/HEAD`'s own target first, then the two
     `BASE_REF_CANDIDATES`, so a dangling or absent `origin/HEAD` falls
-    through to the plain branch names instead of reading as a conflict."""
+    through to the plain branch names instead of reading as a conflict.
+    GIT_DID_NOT_ANSWER when any lookup got no answer from git: the walk
+    stops there instead of trying the next candidate."""
     candidates = []
     done = git(cwd, "symbolic-ref", "refs/remotes/origin/HEAD")
-    if done and done.returncode == 0:
+    if done is None:
+        return GIT_DID_NOT_ANSWER
+    if done.returncode == 0:
         candidates.append(done.stdout.strip())
     candidates.extend(BASE_REF_CANDIDATES)
 
     for candidate in candidates:
         sha = resolve_commit(cwd, candidate)
+        if sha is GIT_DID_NOT_ANSWER:
+            return sha
         if sha is not None:
             name = candidate[len("refs/remotes/"):] if candidate.startswith(
                 "refs/remotes/") else candidate
@@ -651,14 +689,22 @@ def conflicted_paths(stdout):
 
 
 def _escape_control_chars(name):
-    """A conflicted path is a git tree-entry name, not a ref name -- it can
-    carry control characters (an embedded newline, say) that a ref name
-    cannot. Escaping them here keeps a crafted filename from forging extra
-    lines inside this script's own PASS/FAIL output, which Gate 2 quotes
-    verbatim into the ledger's `--note`."""
+    """Text git hands back -- a conflicted path, or an error message -- can
+    carry control characters (an embedded newline, say): a path is a git
+    tree-entry name, not a ref name, and stderr quotes whatever it was given.
+    Escaping them here keeps crafted text from forging extra lines inside
+    this script's own PASS/FAIL output, which Gate 2 quotes verbatim into
+    the ledger's `--note`."""
     return "".join(c if c.isprintable() else
                    ("\\x%02x" % ord(c) if ord(c) < 0x100 else "\\u%04x" % ord(c))
                    for c in name)
+
+
+def _stderr_line(done):
+    """The first line of a CompletedProcess's stderr, escaped, or
+    `no message` when it has none."""
+    text = (done.stderr or "").strip()
+    return _escape_control_chars(text.splitlines()[0]) if text else "no message"
 
 
 def merges_cleanly(cwd):
@@ -680,11 +726,15 @@ def merges_cleanly(cwd):
                        "merge-tree --write-tree, needs 2.38+)" % version)
 
     base = remote_base_ref(cwd)
+    if base is GIT_DID_NOT_ANSWER:
+        return True, "merges_cleanly (not checked: git did not answer)"
     if base is None:
         return True, ("merges_cleanly (not checked: none of origin/HEAD, "
                        "origin/main, origin/master resolves to a commit)")
 
     head = resolve_commit(cwd, "HEAD")
+    if head is GIT_DID_NOT_ANSWER:
+        return True, "merges_cleanly (not checked: git did not answer)"
     if head is None:
         return True, "merges_cleanly (not checked: HEAD has no commit yet)"
 
@@ -712,10 +762,8 @@ def merges_cleanly(cwd):
                        "resolve the conflicts, then run verify again)"
                        % (base[0], base[1][:7], n, shown, base[0]))
 
-    msg = ((done.stderr or "").strip().splitlines()[0]
-           if (done.stderr or "").strip() else "no message")
     return True, ("merges_cleanly (not checked: git merge-tree exited %d: %s)"
-                  % (done.returncode, msg))
+                  % (done.returncode, _stderr_line(done)))
 
 
 def change_size(cwd, *rev):
@@ -750,14 +798,15 @@ def _status_problem(status):
     if status is None:
         return "git status did not answer"
     if status.returncode != 0:
-        msg = ((status.stderr or "").strip().splitlines()[0]
-               if (status.stderr or "").strip() else "no message")
-        return "git status failed: %s" % msg
+        return "git status failed: %s" % _stderr_line(status)
     return None
 
 
 def verify(track_dir, project_dir):
-    if not is_git_repo(project_dir):
+    repo = is_git_repo(project_dir)
+    if repo is GIT_DID_NOT_ANSWER:
+        return [(False, "has_changes (git did not answer)")]
+    if not repo:
         return [(False, "has_changes (%s is not a git repository)" % project_dir)]
 
     status = git(project_dir, "status", "--porcelain")
@@ -767,9 +816,21 @@ def verify(track_dir, project_dir):
     dirty = bool(status.stdout.strip())
 
     base = find_base_ref(project_dir)
+    if base is GIT_DID_NOT_ANSWER:
+        if not dirty:
+            return [(False, "has_changes (git did not answer while finding the base ref)")]
+        base = None  # a dirty tree passes on its own; there is no base diff to add
     diff = False
     if base:
         done = git(project_dir, "diff", "--quiet", "%s...HEAD" % base)
+        # --quiet exits 0 for no diff and 1 for a diff; anything else is git
+        # failing, which on a clean tree must not read as "nothing to review".
+        # A dirty tree passes on its own, so it never needs the answer.
+        if not dirty:
+            if done is None:
+                return [(False, "has_changes (git diff did not answer)")]
+            if done.returncode not in (0, 1):
+                return [(False, "has_changes (git diff failed: %s)" % _stderr_line(done))]
         diff = bool(done and done.returncode == 1)
 
     ok = dirty or diff
@@ -894,7 +955,10 @@ def untracked_since_start(track_dir, project_dir):
 
     Excludes the track's own directory and its recorded artifacts -- neither
     is "code this track produced" in the sense Gate 2 cares about."""
-    if not is_git_repo(project_dir):
+    repo = is_git_repo(project_dir)
+    if repo is GIT_DID_NOT_ANSWER:
+        return True, "untracked_since_start (not checked: git did not answer)"
+    if not repo:
         return True, ("untracked_since_start (not checked: %s is not a git "
                       "repository)" % project_dir)
 
@@ -942,7 +1006,10 @@ def docs_not_in_git(track_dir, project_dir):
     referenced decisions document) exist on disk but git does not track --
     a reminder the main session names after ship, since a gitignored `docs/`
     (as in this repo) means the person has to be told rather than shown."""
-    if not is_git_repo(project_dir):
+    repo = is_git_repo(project_dir)
+    if repo is GIT_DID_NOT_ANSWER:
+        return True, "docs_not_in_git (not checked: git did not answer)"
+    if not repo:
         return True, ("docs_not_in_git (not checked: %s is not a git "
                       "repository)" % project_dir)
 
@@ -971,7 +1038,12 @@ def ship(track_dir, project_dir):
     status_check = (status in ledger.COUNTS_AS_FINISHED,
                      "verify_status (verify row's status is %s)" % (status or "empty"))
 
-    if not is_git_repo(project_dir):
+    repo = is_git_repo(project_dir)
+    if repo is GIT_DID_NOT_ANSWER:
+        clean_check = (False, "clean_tree (git did not answer)")
+        branch_check = (False, "not_main_branch (git did not answer)")
+        merge_check = (True, "merges_cleanly (not checked: git did not answer)")
+    elif not repo:
         clean_check = (False, "clean_tree (%s is not a git repository)" % project_dir)
         branch_check = (False, "not_main_branch (%s is not a git repository)" % project_dir)
         merge_check = (True, "merges_cleanly (not checked: %s is not a git repository)"
