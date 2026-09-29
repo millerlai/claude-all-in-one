@@ -32,7 +32,10 @@
   Elaborating an approved diagnosis instead: name it below and drop the
   traceability table -- a diagnosis numbers no use cases, so the probe
   passes this check as not applicable; build starts from its
-  `## Failing test`.
+  `## Failing test`. Two probe lines check that path instead:
+  `diagnosis_is_approved` (its `## Status` reads `approved <date>`) and
+  `failing_test_referenced` (this document writes the first test path its
+  `## Failing test` names, spelled as it is there).
 -->
 
 Stance doc: docs/design/<YYYY-MM-DD>-<topic>-stance.md

@@ -288,6 +288,31 @@ def test_reference_with_no_stance_at_all_fails_with_a_named_reason(tmp_path):
     assert "no referenced .md is a stance" in label
 
 
+# One stray `## Optimises for` is not a stance: #179 reports the probe taking
+# any file carrying that one heading, and so reading the wrong `## Status`.
+STRAY_OPTIMISES = "\n## Optimises for\n\nSpeed, in the author's own words.\n"
+
+
+def stance_listed_second_with_stray(tmp_path, first_status):
+    (tmp_path / "intake.md").write_text(
+        (NOT_A_STANCE % first_status) + STRAY_OPTIMISES, encoding="utf-8")
+    return replace_section(decisions_doc(), "Reference",
+                           "- Intake: `intake.md`\n- Stance: `stance.md`")
+
+
+def test_an_approved_non_stance_with_a_stray_optimises_for_does_not_pass_a_draft_stance(tmp_path):
+    doc, roots = written(
+        tmp_path, stance_listed_second_with_stray(tmp_path, "approved 2026-09-16"),
+        stance=STANCE)
+    assert verdicts("decisions", doc, roots)["stance_is_approved"] is False
+
+
+def test_a_draft_non_stance_with_a_stray_optimises_for_does_not_block_an_approved_stance(tmp_path):
+    doc, roots = written(
+        tmp_path, stance_listed_second_with_stray(tmp_path, "draft"))
+    assert verdicts("decisions", doc, roots)["stance_is_approved"] is True
+
+
 # --- the legacy kind --------------------------------------------------------
 
 def test_a_high_level_design_carrying_build_spec_headings_fails():

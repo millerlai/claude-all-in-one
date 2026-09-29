@@ -360,3 +360,167 @@ def test_stance_without_use_cases_with_a_stray_failing_test_still_fails(tmp_path
     ok, label = traceability_verdict(detail_text, (str(tmp_path), str(tmp_path)))
     assert ok is False
     assert "numbers no use cases" in label
+
+
+def detail_lines(text, roots):
+    """Every (ok, label) `detail_probes` yields, for asserting that a line is
+    present or absent -- `probe_label` stops at the first match and raises when
+    there is none."""
+    return list(design_probe.PROBES["detail"](design_probe.sections(text), text, roots))
+
+
+def find_line(name, lines):
+    return next(((ok, label) for ok, label in lines
+                 if label.startswith(name + " ")), None)
+
+
+def test_a_detail_over_a_draft_diagnosis_fails(tmp_path):
+    """#180: a detail design built on a diagnosis nobody signed off used to
+    pass, so build could start from an unapproved root cause."""
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(DIAGNOSIS, encoding="utf-8")
+    lines = detail_lines("## Reference\n\nt-diagnosis.md\n", (str(tmp_path), str(tmp_path)))
+    got = find_line("diagnosis_is_approved", lines)
+    assert got is not None
+    ok, label = got
+    assert ok is False
+    assert str(diag_path) in label and "still draft" in label
+
+
+def test_a_detail_over_an_approved_diagnosis_passes_the_approval_line(tmp_path):
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(approved_diagnosis(), encoding="utf-8")
+    lines = detail_lines("## Reference\n\nt-diagnosis.md\n", (str(tmp_path), str(tmp_path)))
+    got = find_line("diagnosis_is_approved", lines)
+    assert got is not None
+    ok, label = got
+    assert ok is True
+    assert str(diag_path) in label and "is approved" in label
+
+
+def test_a_mixed_reference_runs_neither_new_line(tmp_path):
+    """D2 = A, D5: a stance that numbers use cases makes traceability a real
+    check, so the diagnosis beside it gets no extra lines -- the output stays
+    what it was before the two lines existed."""
+    (tmp_path / "t-stance.md").write_text(STANCE_MIN, encoding="utf-8")
+    (tmp_path / "t-diagnosis.md").write_text(DIAGNOSIS, encoding="utf-8")
+    text = "## Reference\n\nt-stance.md\nt-diagnosis.md\n\nUC1 is satisfied here.\n"
+    lines = detail_lines(text, (str(tmp_path), str(tmp_path)))
+    assert find_line("traceability", lines) is not None
+    assert find_line("diagnosis_is_approved", lines) is None
+    assert find_line("failing_test_referenced", lines) is None
+
+
+def referenced(detail_text, tmp_path):
+    """(ok, label) of `failing_test_referenced` -- fails, rather than raising
+    StopIteration, when the line is missing."""
+    lines = detail_lines(detail_text, (str(tmp_path), str(tmp_path)))
+    got = find_line("failing_test_referenced", lines)
+    assert got is not None
+    return got
+
+
+def test_a_detail_must_name_its_diagnosis_failing_test(tmp_path):
+    """#185: build starts from the diagnosis's failing test, and nothing made
+    the detail design say which one that is."""
+    (tmp_path / "t-diagnosis.md").write_text(approved_diagnosis(), encoding="utf-8")
+    reference = "## Reference\n\nt-diagnosis.md\n"
+
+    ok, label = referenced(reference + "\nThe fix is at the handler.\n", tmp_path)
+    assert ok is False
+    assert "tests/test_window.py" in label and "appears nowhere here" in label
+
+    ok, label = referenced(reference + "\nFirst red: tests/test_window.py.\n", tmp_path)
+    assert ok is True
+    assert "tests/test_window.py appears here" in label
+
+
+def test_the_failing_test_path_matches_across_slash_styles(tmp_path):
+    (tmp_path / "t-diagnosis.md").write_text(approved_diagnosis(), encoding="utf-8")
+    ok, _ = referenced("## Reference\n\nt-diagnosis.md\n\nFirst red: tests\\test_window.py.\n",
+                       tmp_path)
+    assert ok is True
+
+
+def test_two_diagnoses_each_need_their_failing_test_named(tmp_path):
+    (tmp_path / "a-diagnosis.md").write_text(approved_diagnosis(), encoding="utf-8")
+    (tmp_path / "b-diagnosis.md").write_text(
+        approved_diagnosis().replace("tests/test_window.py", "tests/test_other.py"),
+        encoding="utf-8")
+    reference = "## Reference\n\na-diagnosis.md\nb-diagnosis.md\n"
+
+    ok, label = referenced(reference + "\nFirst red: tests/test_window.py.\n", tmp_path)
+    assert ok is False
+    assert "tests/test_other.py" in label and "tests/test_window.py" not in label
+
+    ok, label = referenced(reference + "\ntests/test_window.py, tests/test_other.py\n",
+                           tmp_path)
+    assert ok is True
+    assert "appear here" in label
+
+
+def test_an_approved_diagnosis_naming_no_test_path_fails_the_new_line(tmp_path):
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(
+        replace_section(approved_diagnosis(), "Failing test",
+                        "It obviously should not do that, and everyone agrees."),
+        encoding="utf-8")
+    ok, label = referenced("## Reference\n\nt-diagnosis.md\n", tmp_path)
+    assert ok is False
+    assert str(diag_path) in label and "names no test path" in label
+
+
+def test_a_stance_with_heading_but_no_ids_names_its_path(tmp_path):
+    """R1: the FAIL used to call the upstream a high-level design whatever it
+    was; it now says which file it read."""
+    stance_path = tmp_path / "t-stance.md"
+    stance_path.write_text("# t - stance\n\n## Use cases / Issues\n\n"
+                            "Nothing numbered here yet.\n", encoding="utf-8")
+    ok, label = traceability_verdict("## Reference\n\nStance doc: t-stance.md\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert str(stance_path) in label and "numbers no use cases" in label
+    assert "high-level design" not in label
+
+
+def test_decisions_with_a_stray_failing_test_names_its_path(tmp_path):
+    decisions_path = tmp_path / "t-decisions.md"
+    decisions_path.write_text(
+        DECISIONS_MIN + "\n## Failing test\n\ntests/test_x.py::test_y fails.\n",
+        encoding="utf-8")
+    ok, label = traceability_verdict("## Reference\n\nt-decisions.md\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert str(decisions_path) in label and "numbers no use cases" in label
+    assert "high-level design" not in label
+
+
+def test_two_documents_without_use_cases_take_the_plural_wording(tmp_path):
+    """R6: with two upstreams the FAIL lists both and reads `number`, not
+    `numbers` -- the branch no test reached before."""
+    first, second = tmp_path / "a-decisions.md", tmp_path / "b-decisions.md"
+    first.write_text(DECISIONS_MIN, encoding="utf-8")
+    second.write_text(DECISIONS_MIN, encoding="utf-8")
+    ok, label = traceability_verdict("## Reference\n\na-decisions.md\nb-decisions.md\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is False
+    assert str(first) in label and str(second) in label
+    assert "number no use cases" in label
+    assert "high-level design" not in label
+
+
+def test_decisions_with_a_stray_failing_test_beside_an_approved_diagnosis_traces_only_the_diagnosis(tmp_path):
+    """A decisions file with one stray heading is not a diagnosis, so the
+    label stays singular and names only the real one."""
+    decisions_path = tmp_path / "t-decisions.md"
+    decisions_path.write_text(
+        DECISIONS_MIN + "\n## Failing test\n\ntests/test_x.py::test_y fails.\n",
+        encoding="utf-8")
+    diag_path = tmp_path / "t-diagnosis.md"
+    diag_path.write_text(approved_diagnosis(), encoding="utf-8")
+    ok, label = traceability_verdict("## Reference\n\nt-decisions.md\nt-diagnosis.md\n",
+                                      (str(tmp_path), str(tmp_path)))
+    assert ok is True
+    assert "is a diagnosis" in label and "its ## Failing test" in label
+    assert str(diag_path) in label and str(decisions_path) not in label
+    assert "are diagnoses" not in label

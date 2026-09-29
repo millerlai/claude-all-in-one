@@ -219,6 +219,19 @@ def probe_headings(secs, required):
     return not note, "headings_complete (%s)" % ("; ".join(note) or "all present")
 
 
+def has_shape(secs, headings):
+    # One heading is not a kind of document -- an intake can carry `## Optimises
+    # for` and a decisions file `## Failing test` -- so an upstream is taken for
+    # a stance or a diagnosis only when every heading of its template is there.
+    return all(h in secs for h in headings)
+
+
+def is_approved(secs):
+    status = COMMENT.sub("", secs.get("Status", ""))
+    return bool(re.search(r"^approved\s+\d{4}-\d{2}-\d{2}", status.strip(),
+                          re.I | re.M))
+
+
 def verdict_of(row):
     low = row.lower()
     if "unverified" in low:
@@ -404,18 +417,19 @@ def decisions_probes(secs, text, roots):
         for p in resolved:
             with open(p, encoding="utf-8") as fh:
                 parsed.append((p, sections(fh.read())))
-        # The stance is whichever referenced file actually carries the stance
-        # template's own section, not whichever is listed first -- a
-        # diagnosis or an intake ahead of it in that list is not a stance,
-        # and picking it by position alone read the wrong ## Status.
-        stance = next((s for _, s in parsed if "Optimises for" in s), None)
+        # The stance is whichever referenced file carries every heading of the
+        # stance template, not whichever is listed first -- a diagnosis or an
+        # intake ahead of it in that list is not a stance, and picking it by
+        # position alone read the wrong ## Status. One heading is not enough
+        # either: `## Optimises for` alone turns up outside a stance (#179).
+        stance = next((s for _, s in parsed if has_shape(s, STANCE_HEADINGS)),
+                      None)
         if stance is None:
             yield False, ("stance_is_approved (no referenced .md is a stance -- "
-                          "none of %d carries ## Optimises for)" % len(resolved))
+                          "none of %d carries every ## heading of the stance "
+                          "template)" % len(resolved))
         else:
-            status = COMMENT.sub("", stance.get("Status", ""))
-            ok = bool(re.search(r"^approved\s+\d{4}-\d{2}-\d{2}", status.strip(),
-                                re.I | re.M))
+            ok = is_approved(stance)
             # Weighing options against a trade nobody has agreed to is how a
             # stance gets decided one implementation detail at a time.
             yield ok, "stance_is_approved (%s)" % (
@@ -517,6 +531,10 @@ def detail_probes(secs, text, roots):
         hld or "## Reference names no readable .md")
 
     if resolved:
+        # Filled only on the branch where traceability passes as not applicable:
+        # beside a stance that numbers use cases, the diagnosis is not what
+        # build starts from, so its two lines below are not asked of it.
+        diagnosed = []
         parsed = []
         for p in resolved:
             with open(p, encoding="utf-8") as fh:
@@ -525,12 +543,15 @@ def detail_probes(secs, text, roots):
         # use cases, not whichever the ## Reference lists first -- a diagnosis
         # or a decisions document ahead of it in that list numbers nothing on
         # its own, and picking it by position alone FAILed every time.
-        source = next((s for _, s in parsed if "Use cases / Issues" in s), None)
+        source_path, source = next(((p, s) for p, s in parsed
+                                    if "Use cases / Issues" in s), (None, None))
         if source is not None:
             want = set(UC_ID.findall(source.get("Use cases / Issues", "")))
             missing = sorted(want - set(UC_ID.findall(text)))
             if not want:
-                note, ok = "the high-level design numbers no use cases", False
+                # The upstream may be a stance, not a high-level design, so
+                # the FAIL names the file it actually read.
+                note, ok = "%s numbers no use cases" % source_path, False
             elif missing:
                 note, ok = "%d unreferenced: %s" % (
                     len(missing), ", ".join(missing[:5])), False
@@ -544,8 +565,9 @@ def detail_probes(secs, text, roots):
             # document that happens to carry that one heading (decisions, a
             # stance); only every heading of the template together is the
             # shape a diagnosis is written from.
-            diagnoses = [p for p, s in parsed
-                         if all(h in s for h in DIAGNOSIS_HEADINGS)]
+            diagnosed = [(p, s) for p, s in parsed
+                         if has_shape(s, DIAGNOSIS_HEADINGS)]
+            diagnoses = [p for p, _ in diagnosed]
             if diagnoses:
                 if len(diagnoses) == 1:
                     note = ("not applicable -- %s is a diagnosis and numbers "
@@ -557,8 +579,42 @@ def detail_probes(secs, text, roots):
                              "Failing test") % ", ".join(diagnoses)
                 ok = True
             else:
-                note, ok = "the high-level design numbers no use cases", False
+                paths = [p for p, _ in parsed]
+                note, ok = ("%s numbers no use cases" % paths[0] if len(paths) == 1
+                            else "%s number no use cases" % ", ".join(paths)), False
         yield ok, "traceability (%s)" % note
+
+        # A diagnosis still `draft` is a root cause nobody has signed, and
+        # traceability passing it as not applicable says nothing about that.
+        unapproved = [p for p, s in diagnosed if not is_approved(s)]
+        if diagnosed:
+            shown = unapproved or [p for p, _ in diagnosed]
+            plural = len(shown) > 1
+            yield not unapproved, "diagnosis_is_approved (%s %s)" % (
+                ", ".join(shown),
+                ("are" if plural else "is") + (" still draft" if unapproved
+                                               else " approved"))
+
+            # Build starts from the diagnosis's failing test, so the detail
+            # design has to say which one that is. Only the first path is
+            # asked for (the same one `failing_test_named` reads): demanding
+            # every path would misfire on the promise a test merely cites, and
+            # a miss costs less than a false reject here.
+            body = COMMENT.sub("", text).replace("\\", "/")
+            wants, problems = [], []
+            for p, s in diagnosed:
+                m = TEST_PATH.search(COMMENT.sub("", s.get("Failing test", "")))
+                if m is None:
+                    problems.append("%s names no test path in its ## Failing "
+                                    "test" % p)
+                    continue
+                wants.append(m.group(0))
+                if m.group(0).replace("\\", "/") not in body:
+                    problems.append("%s appears nowhere here" % m.group(0))
+            yield not problems, "failing_test_referenced (%s)" % (
+                "; ".join(problems) or
+                ", ".join(wants) + (" appear here" if len(wants) > 1
+                                    else " appears here"))
 
     glo = items(secs.get("Glossary", ""))
     bad = [p for p in (citation_problem(row, roots) for row in glo) if p]

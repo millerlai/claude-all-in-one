@@ -442,9 +442,11 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    `## Tier 1` entries each carry a `Decided:` line. Any failing, stop and say
    which. (A legacy high-level design instead: `## Status` approved,
    `## Open questions` empty or every entry answered, use cases numbered.)
-   (An approved diagnosis instead: `## Status` approved with a date. It
-   numbers no use cases, so the probe passes traceability as not applicable;
-   build starts from its `## Failing test`.)
+   (An approved diagnosis instead: `## Status` approved with a date, which
+   the probe's `diagnosis_is_approved` line checks. It numbers no use cases,
+   so the probe passes traceability as not applicable; build starts from its
+   `## Failing test`, and this document names the first test path there --
+   the probe's `failing_test_referenced` line checks that.)
 
    An unanswered Tier 1 entry is an architecture question this document would
    otherwise settle by accident, one implementation detail at a time.
