@@ -1020,6 +1020,19 @@ CASES = [
     # A repo with no commits yet reports branch `main`, but blocking its first
     # commit is unescapable: you cannot branch off a history that isn't there.
     ("Bash", "git commit -m 'chore: initial commit'", 0, UNBORN),
+    # #233: every rule reads the directory the git invocation acts on -- a
+    # `cd <dir>` earlier on the line or its own `-C <dir>` -- not the session
+    # cwd. Each pair gets the verdict backwards when only the cwd is read.
+    ("Bash", f'cd "{MAIN}" && git commit -m x', 2, WORK),
+    ("Bash", f'git -C "{MAIN}" commit -m x', 2, WORK),
+    ("Bash", f'cd "{WORK}" && git commit -m x', 0, MAIN),
+    ("Bash", f'git -C "{WORK}" commit -m x', 0, MAIN),
+    ("PowerShell", f'Set-Location "{MAIN}"; git commit -m x', 2, WORK),
+    ("Bash", f'cd "{DIRTY}" && git restore tracked.txt', 2, WORK),
+    ("Bash", f'git -C "{WORK}" restore tracked.txt', 0, DIRTY),
+    ("Bash", f'cd "{MAIN_REMOTE}" && git push', 2, WORK),
+    # A subshell that already closed moved nothing for the git after it.
+    ("Bash", f'(cd "{MAIN}" && git status); git commit -m x', 0, WORK),
     # Discarding uncommitted work. Both halves of the gate matter: blocked on
     # a dirty tree, allowed on a clean one, where the same command throws
     # nothing away and refusing it would be the guard blocking ordinary work.
