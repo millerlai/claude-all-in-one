@@ -592,18 +592,17 @@ instructions belong in the rules; hard constraints belong in hooks.
 
 ## Contributing / developing
 
-Add the marketplace from a local checkout, then install to test your changes:
-
-```
-/plugin marketplace add /path/to/claude-all-in-one
-/plugin install cai@claude-all-in-one
-```
+Test your changes from your checkout, not from an installed copy — see
+`### Testing unreleased changes` below. Adding this repo as a marketplace
+from a local checkout and installing from it does not do that: the entry in
+`.claude-plugin/marketplace.json` is a `git-subdir` source pinned to the
+latest release tag, so `/plugin install` fetches that tag from GitHub, not
+your working tree.
 
 ### Testing unreleased changes
 
-Claude Code testers can skip the install step above entirely and point
-`claude` straight at an uninstalled tree with `--plugin-dir
-/path/to/claude-all-in-one/plugins/cai`.
+Claude Code testers can point `claude` straight at an uninstalled tree with
+`--plugin-dir /path/to/claude-all-in-one/plugins/cai`.
 
 Codex testers can add a second, differently-named local marketplace entry —
 `cai-dev`, say — pointed at their working checkout, to try changes without
