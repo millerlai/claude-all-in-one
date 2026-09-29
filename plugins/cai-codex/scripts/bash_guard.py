@@ -43,7 +43,10 @@ BRANCH = (
 
 COMMIT_FIRST = (
     "The working tree has uncommitted changes and this throws them away. "
-    "Commit them, or `git stash` so they stay recoverable, and run it again. "
+    "Commit them so they stay recoverable -- a WIP commit on this branch is "
+    "fine -- and run it again. Use `git stash` only if `git worktree list` "
+    "shows a single worktree: every worktree of a repo shares one stash, so "
+    "another one can pop yours (#230). "
     "If the user explicitly asked to discard them, tell them the guard "
     "blocked it and ask them to run it manually."
 )
