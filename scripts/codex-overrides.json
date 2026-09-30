@@ -844,7 +844,7 @@
         "| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |"
       ],
       "replacement": [
-        "| Step 0.5 parallel lane | Left unanswered; no lane is started. |"
+        "| Step 0.5 parallel lane | Left unanswered; no parallel lane is started; execution stays sequential. |"
       ],
       "why": "An unsubmitted cursor selection on timeout is not an answer to the lane question."
     },

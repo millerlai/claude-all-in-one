@@ -515,7 +515,7 @@ def test_generated_timeout_policy_never_uses_cursor_selection(tmp_path):
     gates = (out / "skills/track/references/approval-gates.md").read_text(encoding="utf-8")
     mirror = (out / "skills/track/references/ticket-mirror.md").read_text(encoding="utf-8")
 
-    assert "| Step 0.5 parallel lane | Left unanswered; no lane is started. |" in gates
+    assert "| Step 0.5 parallel lane | Left unanswered; no parallel lane is started; execution stays sequential. |" in gates
     assert "| The track-directory name (`ticket-mirror.md`) | Left unanswered; no directory is created or pointed. |" in gates
     assert "even if the result reports a cursor-selected option" in gates
     assert "no directory is created or pointed without a submitted answer" in mirror

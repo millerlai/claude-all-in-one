@@ -237,7 +237,7 @@ in this file does about one:
 | Gate 1 | Nothing is written. No `approved`, no `--gate human` row. `build` does not start. |
 | Gate 2, the squash, the ticket comment | None of it runs. |
 | Step 0.5 commit per unit | Treated as no, so the parallel lane stays off. |
-| Step 0.5 parallel lane | Left unanswered; no lane is started. |
+| Step 0.5 parallel lane | Left unanswered; no parallel lane is started; execution stays sequential. |
 | Step 0.5 glossary | No project term joins `CONTEXT.md`; the file is left untouched. |
 | The track-directory name (`ticket-mirror.md`) | Left unanswered; no directory is created or pointed. |
 | The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.claude/track/current` is not written. Left unanswered. |
