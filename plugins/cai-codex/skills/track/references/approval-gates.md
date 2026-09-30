@@ -10,9 +10,10 @@ a menu is the one thing this file is about.
 
 `SKILL.md`'s "Human gates" says *where* the track stops for a person. This
 says *how* it asks, and the answer is the same everywhere: if
-`request_user_input` is in your tool list, ask with it — a menu the person
-clicks; only when it is not in your tool list, ask with numbered options
-in text instead. Either way,
+`request_user_input` is in your tool list and the current mode permits it,
+ask with it; otherwise ask with numbered options in text instead.
+Follow `rules/epistemics.md` for waiting, cancellation and system approvals.
+Either way,
 two to four labelled options, the reasoning in full in the same message, before the options (#74).
 
 **Why a menu rather than "reply `approved` when you've read it".** That
@@ -236,9 +237,9 @@ in this file does about one:
 | Gate 1 | Nothing is written. No `approved`, no `--gate human` row. `build` does not start. |
 | Gate 2, the squash, the ticket comment | None of it runs. |
 | Step 0.5 commit per unit | Treated as no, so the parallel lane stays off. |
-| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
+| Step 0.5 parallel lane | Left unanswered; no parallel lane is started; execution stays sequential. |
 | Step 0.5 glossary | No project term joins `CONTEXT.md`; the file is left untouched. |
-| The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |
+| The track-directory name (`ticket-mirror.md`) | Left unanswered; no directory is created or pointed. |
 | The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.claude/track/current` is not written. Left unanswered. |
 | Closing the ticket at `$track done` (`ticket-mirror.md`) | `transition` does not run. Left unanswered: asked again when the person next writes in this session; a new session never asks it, since the track is already under `done/` and `current` is cleared. |
 | Every other stop in this file's list, or handed up under `pending-questions.md` | Left unanswered. |
@@ -252,17 +253,11 @@ was already in. The menu is asked again only after the person next writes,
 never inside the same turn the timeout arrived in. Text typed into the
 free-text entry before the clock ran out still counts as nothing selected,
 the same as if the person had never touched the menu — a partial draft is not
-a pick. When a result reports nothing selected, Claude never substitutes the
-`(recommended)` option as if the person had chosen it — a recommendation is a
-suggestion for a person to accept, not a default Claude reaches for on a
-timeout's behalf. That is not the same as the two rows above that already use
-whichever option a timeout does report selected, recommended label or not.
+a pick. No timeout counts as a submitted answer, even if the result reports a cursor-selected option.
+Never substitute the `(recommended)` option as if the person had chosen it.
 
 Because a timed-out menu can pass silently otherwise, the run says one line
-per menu that timed out, naming the stop and the outcome applied above. At
-the two stops where a selected option is used rather than left unanswered —
-the parallel lane and the track-directory name — that line also names the
-option used, since the result reporting an option "selected" may just be
-reporting wherever the cursor happened to be resting, not a real choice.
+per menu that timed out, naming the stop and the outcome applied above.
+A cursor position in the result is not a submitted choice.
 Nothing here turns the setting on, and the track does not need it on to run;
 it only has to know what to do the day it happens to be.

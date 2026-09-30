@@ -78,8 +78,7 @@ Follow the `ask:` line exactly:
 - `ask: nothing` — ask no question at all. (Step 5's report says the saved
   choice was reused, and why.)
 
-Menus for these questions follow the same rule Step 3 already states: a
-menu tool if one is available, else numbered text.
+Menus for these questions follow the same waiting-menu policy as Step 3 below.
 
 ### Apply the answers
 
@@ -129,12 +128,19 @@ default`.
 
 ## Step 3 — Set the response language
 
-Ask the user which language they want responses in. If a menu tool is
-available, offer English, Traditional Chinese (繁體中文), and Japanese
+Use only `request_user_input` for all ordinary menus in this skill, and only
+if it is in your tool list and the current mode permits it.
+Do not use `request_user_input_async`. Wait for the tool's answer before
+acting on that decision. Otherwise list numbered text options, then
+end the turn and wait for the person's answer. A result with
+no answer or cancellation is never consent; do not apply an unanswered choice.
+System-required operation approvals follow the system's approval mechanism.
+
+Ask the user which language they want responses in. Offer
+English, Traditional Chinese (繁體中文), and Japanese
 (日本語), plus an explicit "other" choice for anything not listed — do not
-assume the tool adds a free-text choice on its own. If no menu tool is
-available, list the same choices as numbered text and accept whatever number
-or free text the user answers with.
+assume the tool adds a free-text choice on its own. For the text fallback,
+accept whatever number or free text the user answers with.
 
 Then edit the language line inside the `<!-- cai-codex:begin -->` /
 `<!-- cai-codex:end -->` block the installer just wrote into

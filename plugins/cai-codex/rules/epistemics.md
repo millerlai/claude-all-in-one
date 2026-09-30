@@ -22,7 +22,13 @@
 - One decision per turn. Several pending ones queue: ask the one that constrains
   the rest, act on the answer, then ask the next. A turn carrying two questions
   carries none — the second gets answered against a guess about the first.
-- Ask through the question tool, not prose the reader has to type a reply to.
+- Use only `request_user_input` for ordinary menus, and only if it is in
+  your tool list and the current mode permits it. Do not use `request_user_input_async`.
+  Wait for the tool's answer before acting on that decision. If the tool is
+  unavailable or disallowed, list numbered text options, then end the turn and wait for the person's answer.
+  A result with no answer or cancellation is never consent; do not act on
+  an unanswered decision. System-required operation approvals follow the
+  system's approval mechanism, not this ordinary-menu rule.
   Two to four labelled options, the recommended one first and said to be. A
   free-text choice must be available — add one yourself if the tool does not, so "none of these" needs no option of its own.
 - Its labels are too short to carry the reasoning. Put the background, and

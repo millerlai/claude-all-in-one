@@ -108,8 +108,8 @@ Exactly two stages stop for a person, never more:
   this platform, so hand that command back for the person to run
   themselves.
 
-Both are asked with `request_user_input` if it is in your tool list — a
-menu, labelled options; only when it is not in your tool list, ask with
+Both follow `rules/epistemics.md`: use `request_user_input` if it is in your
+tool list and the current mode permits it; otherwise ask with
 numbered options in text instead, never a
 sentence the person has to type a word back into. You — the main session, not
 a subagent — follow `<cai-root>/skills/track/references/approval-gates.md`

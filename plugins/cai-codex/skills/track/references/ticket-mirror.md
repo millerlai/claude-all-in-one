@@ -53,8 +53,9 @@ not a directory name — a URL cannot be one on Windows at all. So do not create
    a name a listed claim carries: when the title gives one, add `-2`, then
    `-3`, until none does — a second track under a claimed name would edit
    that claim's comment in place.
-3. **Ask.** If `request_user_input` is in your tool list, ask with it —
-   otherwise ask with numbered options in text. Offer the proposed name plus
+3. **Ask.** Follow `rules/epistemics.md`: use `request_user_input` if it is in
+   your tool list and the current mode permits it; otherwise ask with
+   numbered options in text. Offer the proposed name plus
    an explicit free-text/"other" choice yourself — whether the tool also
    adds one is untested. This directory name appears in every
    `$track status` from here on, so it is the person's to pick, and asking
@@ -65,9 +66,9 @@ not a directory name — a URL cannot be one on Windows at all. So do not create
 A proposed name here can also close on its own before either ask resolves —
 this one and the mirroring-off ask below it are the two places this file
 asks for the directory name. `references/approval-gates.md`'s "A menu that
-closes on its own" section covers both: a selected option creates and
-points the directory the way step 4 describes, and no selection creates
-nothing, asking again only after the person next writes.
+closes on its own" section covers both: no directory is created or pointed without a submitted answer.
+A timeout leaves the name unanswered, even if the result reports a selected
+option; ask again only after the person next writes.
 
 4. **Create the track under the confirmed name, then point it, before the
    first stage runs.**
