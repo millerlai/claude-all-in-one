@@ -149,4 +149,4 @@ Once the PR has merged, tell the person to switch to the base branch, `git pull`
 ## `$track cancel --reason "<why>"`
 
 For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.claude/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/` and delete `current` as `done` does, whatever the rows say.
-Run none of `done`'s other steps: say in one line that a mirrored ticket, the branch and any PR stay as they are, for the person to close by hand if they want.
+Run none of `done`'s other steps: say in one line that the branch, any PR and whatever `references/ticket-mirror.md` mirrored stay as they are — what happens to them is the person's call.

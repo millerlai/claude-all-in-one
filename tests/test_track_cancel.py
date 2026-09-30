@@ -67,4 +67,4 @@ def test_does_not_project_or_close_a_mirrored_ticket():
     section = _flat(_section())
     assert "--final" not in section
     assert "transition" not in section
-    assert "ticket" in section and "stay as they are" in section
+    assert "ticket-mirror.md" in section and "stay as they are" in section
