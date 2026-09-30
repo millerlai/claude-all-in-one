@@ -44,6 +44,14 @@ setup language question and the track's two human gates to render as a
 clickable menu; without it, Codex's default mode has no question tool at
 all, and cai asks in numbered text instead.
 
+Ordinary menus use only `request_user_input` when the tool is available and
+the current mode permits it; they never use `request_user_input_async`.
+Otherwise cai lists numbered text options and ends the turn to wait for an
+answer. No answer or cancellation is never consent. This policy does not
+guarantee that the CLI keeps a menu visible; system operation approvals use
+the system's own approval mechanism. The viewer still recognizes async
+question records from existing or other sessions.
+
 **The two human gates.** Exactly two points in a `$track` run stop for you:
 after `design`, before any code exists, and before the irreversible
 operations in `ship` — merging, tagging, publishing. Answer with the menu

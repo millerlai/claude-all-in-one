@@ -160,9 +160,10 @@
       ],
       "replacement": [
         "says *how* it asks, and the answer is the same everywhere: if",
-        "`request_user_input` is in your tool list, ask with it — a menu the person",
-        "clicks; only when it is not in your tool list, ask with numbered options",
-        "in text instead. Either way,"
+        "`request_user_input` is in your tool list and the current mode permits it,",
+        "ask with it; otherwise ask with numbered options in text instead.",
+        "Follow `rules/epistemics.md` for waiting, cancellation and system approvals.",
+        "Either way,"
       ],
       "why": "D10, tightened after C11 (PARTIAL): the live run showed the tool being available did not stop the model from asking in plain text, so the generated text now states an explicit if/else on the model's own tool list instead of a soft \"when available\"."
     },
@@ -329,8 +330,8 @@
         "Both are asked as a menu — `AskUserQuestion`, labelled options, never a"
       ],
       "replacement": [
-        "Both are asked with `request_user_input` if it is in your tool list — a",
-        "menu, labelled options; only when it is not in your tool list, ask with",
+        "Both follow `rules/epistemics.md`: use `request_user_input` if it is in your",
+        "tool list and the current mode permits it; otherwise ask with",
         "numbered options in text instead, never a"
       ],
       "why": "D10, tightened after C11 (PARTIAL): the live run showed the tool being available did not stop the model from asking in plain text, so the generated text now states an explicit if/else on the model's own tool list instead of a soft \"as a menu\" claim."
@@ -461,8 +462,9 @@
         "   the tool adds anyway. This directory name appears in every"
       ],
       "replacement": [
-        "3. **Ask.** If `request_user_input` is in your tool list, ask with it —",
-        "   otherwise ask with numbered options in text. Offer the proposed name plus",
+        "3. **Ask.** Follow `rules/epistemics.md`: use `request_user_input` if it is in",
+        "   your tool list and the current mode permits it; otherwise ask with",
+        "   numbered options in text. Offer the proposed name plus",
         "   an explicit free-text/\"other\" choice yourself — whether the tool also",
         "   adds one is untested. This directory name appears in every"
       ],
@@ -792,6 +794,22 @@
     {
       "target": "rules/epistemics.md",
       "anchor": [
+        "- Ask through the question tool, not prose the reader has to type a reply to."
+      ],
+      "replacement": [
+        "- Use only `request_user_input` for ordinary menus, and only if it is in",
+        "  your tool list and the current mode permits it. Do not use `request_user_input_async`.",
+        "  Wait for the tool's answer before acting on that decision. If the tool is",
+        "  unavailable or disallowed, list numbered text options, then end the turn and wait for the person's answer.",
+        "  A result with no answer or cancellation is never consent; do not act on",
+        "  an unanswered decision. System-required operation approvals follow the",
+        "  system's approval mechanism, not this ordinary-menu rule."
+      ],
+      "why": "Make Codex's ordinary menu policy explicit: one waiting tool, a mode-aware text fallback, and no consent inferred from unanswered or cancelled questions."
+    },
+    {
+      "target": "rules/epistemics.md",
+      "anchor": [
         "  free-text choice is always added, so \"none of these\" needs no option of its own."
       ],
       "replacement": [
@@ -819,6 +837,70 @@
         "of this section describes."
       ],
       "why": "AC6/C6: the feasibility ledger records \"Codex's question tool closes a question on its own: UNVERIFIED\", so the generated text drops the Claude-specific recognition signal (naming AskUserQuestion and the away-from-keyboard wording) and states only that a result reporting no answer is what this section treats as a timeout."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |"
+      ],
+      "replacement": [
+        "| Step 0.5 parallel lane | Left unanswered; no lane is started. |"
+      ],
+      "why": "An unsubmitted cursor selection on timeout is not an answer to the lane question."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "| The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |"
+      ],
+      "replacement": [
+        "| The track-directory name (`ticket-mirror.md`) | Left unanswered; no directory is created or pointed. |"
+      ],
+      "why": "An unsubmitted name on timeout must not create or point a track directory."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "a pick. When a result reports nothing selected, Claude never substitutes the",
+        "`(recommended)` option as if the person had chosen it — a recommendation is a",
+        "suggestion for a person to accept, not a default Claude reaches for on a",
+        "timeout's behalf. That is not the same as the two rows above that already use",
+        "whichever option a timeout does report selected, recommended label or not."
+      ],
+      "replacement": [
+        "a pick. No timeout counts as a submitted answer, even if the result reports a cursor-selected option.",
+        "Never substitute the `(recommended)` option as if the person had chosen it."
+      ],
+      "why": "Remove the timeout exception that treated cursor position as a submitted answer."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "per menu that timed out, naming the stop and the outcome applied above. At",
+        "the two stops where a selected option is used rather than left unanswered —",
+        "the parallel lane and the track-directory name — that line also names the",
+        "option used, since the result reporting an option \"selected\" may just be",
+        "reporting wherever the cursor happened to be resting, not a real choice."
+      ],
+      "replacement": [
+        "per menu that timed out, naming the stop and the outcome applied above.",
+        "A cursor position in the result is not a submitted choice."
+      ],
+      "why": "Do not describe acting on an unsubmitted timeout selection after forbidding it."
+    },
+    {
+      "target": "skills/track/references/ticket-mirror.md",
+      "anchor": [
+        "closes on its own\" section covers both: a selected option creates and",
+        "points the directory the way step 4 describes, and no selection creates",
+        "nothing, asking again only after the person next writes."
+      ],
+      "replacement": [
+        "closes on its own\" section covers both: no directory is created or pointed without a submitted answer.",
+        "A timeout leaves the name unanswered, even if the result reports a selected",
+        "option; ask again only after the person next writes."
+      ],
+      "why": "Keep directory creation behind a submitted name instead of a cursor-selected timeout result."
     }
   ]
 }

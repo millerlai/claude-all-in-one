@@ -480,6 +480,49 @@ def test_zero_plugin_root_tokens_in_a_generated_temp_tree(tmp_path):
 # list instead of a soft "when it's available".
 # ---------------------------------------------------------------------------
 
+def test_generated_menu_policy_uses_only_waiting_question_tool(tmp_path):
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    policy = (out / "rules/epistemics.md").read_text(encoding="utf-8")
+    assert "Use only `request_user_input`" in policy
+    assert "Do not use `request_user_input_async`" in policy
+    assert "current mode permits it" in policy
+    assert "end the turn and wait for the person's answer" in policy
+    assert "no answer or cancellation is never consent" in policy
+    assert "System-required operation approvals" in policy
+
+    for rel in ("skills/track/references/approval-gates.md",
+                "skills/track/SKILL.md",
+                "skills/track/references/ticket-mirror.md"):
+        text = (out / rel).read_text(encoding="utf-8")
+        assert "current mode permits it" in text
+        assert "rules/epistemics.md" in text
+
+
+def test_hand_written_setup_uses_the_same_waiting_menu_policy():
+    setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
+    assert "Use only `request_user_input`" in setup
+    assert "Do not use `request_user_input_async`" in setup
+    assert "current mode permits it" in setup
+    assert "end the turn and wait for the person's answer" in setup
+    assert "no answer or cancellation is never consent" in setup
+
+
+def test_generated_timeout_policy_never_uses_cursor_selection(tmp_path):
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+    gates = (out / "skills/track/references/approval-gates.md").read_text(encoding="utf-8")
+    mirror = (out / "skills/track/references/ticket-mirror.md").read_text(encoding="utf-8")
+
+    assert "| Step 0.5 parallel lane | Left unanswered; no lane is started. |" in gates
+    assert "| The track-directory name (`ticket-mirror.md`) | Left unanswered; no directory is created or pointed. |" in gates
+    assert "even if the result reports a cursor-selected option" in gates
+    assert "no directory is created or pointed without a submitted answer" in mirror
+    assert "Whichever option the result reports as selected" not in gates
+    assert "selected option creates" not in mirror
+
+
 def test_generated_tree_states_the_ask_rule_unambiguously(tmp_path):
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
@@ -495,9 +538,9 @@ def test_generated_tree_states_the_ask_rule_unambiguously(tmp_path):
     track_skill = (out / "skills/track/SKILL.md").read_text(encoding="utf-8")
     ticket_mirror = (out / "skills/track/references/ticket-mirror.md").read_text(encoding="utf-8")
 
-    assert "if" in approval_gates and "is in your tool list, ask with it" in approval_gates
-    assert "asked with `request_user_input` if it is in your tool list" in track_skill
-    assert "If `request_user_input` is in your tool list, ask with it" in ticket_mirror
+    assert "`request_user_input` is in your tool list and the current mode permits it" in approval_gates
+    assert "use `request_user_input` if it is in your" in track_skill
+    assert "use `request_user_input` if it is in" in ticket_mirror
 
 
 # ---------------------------------------------------------------------------
