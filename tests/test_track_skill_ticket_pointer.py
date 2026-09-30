@@ -110,7 +110,7 @@ def test_validate_reports_the_same_body_line_count_as_computed_here():
     assert reported <= ceiling
 
 
-def test_skill_md_body_is_130_lines():
+def test_skill_md_body_is_136_lines():
     """120 before ticket mirroring, plus one pointer line each for it and
     for `references/pending-questions.md` (2026-09-03), plus five for
     `references/approval-gates.md` (#74).
@@ -147,8 +147,13 @@ def test_skill_md_body_is_130_lines():
     post-merge routine (switch to the base branch, `git pull`,
     `/cai:git-sweep`) that used to be typed by hand every time. TRACK_SKILL_MAX
     moved 131 -> 132 in the same change, keeping the two-line gap this test's
-    own docstring asks for."""
-    assert _skill_body_lines() == 130
+    own docstring asks for.
+
+    130 -> 136 on 2026-09-30 (#253): `/cai:track cancel --reason "<why>"`,
+    a way out for a track that will not finish, which `done` refuses -- one
+    usage line plus its own four-line section and the blank before it.
+    TRACK_SKILL_MAX moved 132 -> 138 in the same change, keeping the gap."""
+    assert _skill_body_lines() == 136
 
 
 # --- '## Human gates' still says what it has always said --------------------

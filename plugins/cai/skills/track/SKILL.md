@@ -1,7 +1,7 @@
 ---
 name: track
 description: "One feature carried through every SDLC stage — intake, discover, design, build, verify, ship — with its state kept in .claude/track/ so a later session can resume where it stopped. Usage: /cai:track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
-argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done]"
+argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done|cancel --reason \"<why>\"]"
 ---
 
 ```
@@ -10,6 +10,7 @@ argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done]"
 /cai:track status        list tracks, where this one stopped, next step, what was skipped
 /cai:track skip <stage> --reason "<why>"   record the reason, then advance
 /cai:track done          print what was left open, then move into done/, clear `current`
+/cai:track cancel --reason "<why>"   end it unfinished: record why, move into done/, clear `current`
 ```
 
 There is no `advance` subcommand. A gate that passes writes the next row
@@ -132,3 +133,8 @@ First run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and re
 Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
 Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `/cai:git-sweep`, which shows its table before deleting anything — run none of this yourself.
+
+## `/cai:track cancel --reason "<why>"`
+
+For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.claude/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/` and delete `current` as `done` does, whatever the rows say.
+Run none of `done`'s other steps: say in one line that the branch, any PR and whatever `references/ticket-mirror.md` mirrored stay as they are — what happens to them is the person's call.

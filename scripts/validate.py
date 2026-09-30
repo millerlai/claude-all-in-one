@@ -2409,7 +2409,13 @@ if os.path.isfile(VERIFY_REF):
 # instead of leaving it to be typed by hand. Moved together with the pinned
 # body-line count in tests/test_track_skill_ticket_pointer.py, keeping the
 # same two-line gap.
-TRACK_SKILL_MAX = 132
+#
+# 132 -> 138 on 2026-09-30 (#253): `/cai:track cancel --reason "<why>"` ends
+# a track that will not finish, which `done` refuses while a row is empty or
+# `in-progress`. Six lines: one in the usage block, and a section of its own,
+# because it deliberately skips every step of `done` but the move. Moved
+# together with the pinned body-line count, keeping the two-line gap.
+TRACK_SKILL_MAX = 138
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)
