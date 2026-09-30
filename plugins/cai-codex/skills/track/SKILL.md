@@ -1,7 +1,7 @@
 ---
 name: track
 description: "One feature carried through every SDLC stage — intake, discover, design, build, verify, ship — with its state kept in .claude/track/ so a later session can resume where it stopped. Usage: $track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
-argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done]"
+argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done|cancel --reason \"<why>\"]"
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
 
@@ -12,6 +12,7 @@ $track               resume whatever .claude/track/current names
 $track status        list tracks, where this one stopped, next step, what was skipped
 $track skip <stage> --reason "<why>"   record the reason, then advance
 $track done          print what was left open, then move into done/, clear `current`
+$track cancel --reason "<why>"   end it unfinished: record why, move into done/, clear `current`
 ```
 
 There is no `advance` subcommand. A gate that passes writes the next row
@@ -144,3 +145,8 @@ First run `<cai> track_state left-open` and relay its output verbatim, then foll
 Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
 Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `$git-sweep`, which shows its table before deleting anything — run none of this yourself.
+
+## `$track cancel --reason "<why>"`
+
+For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.claude/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/` and delete `current` as `done` does, whatever the rows say.
+Run none of `done`'s other steps: say in one line that a mirrored ticket, the branch and any PR stay as they are, for the person to close by hand if they want.
