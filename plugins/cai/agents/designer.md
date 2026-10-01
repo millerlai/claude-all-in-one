@@ -3,7 +3,13 @@ name: designer
 description: >
   A design document the `design` stage dispatches for — diagnosis, stance,
   decisions, detail, or delta — written by stage-design.md's procedure.
-tools: Read, Write, Grep, Glob, Agent, Bash(python:*), Bash(py:*), Bash(python3:*), Bash(mmdc:*)
+tools: Read, Write, Grep, Glob, Agent, Bash
+hooks:
+  PreToolUse:
+    - matcher: "Bash|PowerShell"
+      hooks:
+        - type: command
+          command: '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd" --designer'
 model: opus
 effort: high
 ---
@@ -12,7 +18,9 @@ You write the design document a stage handed you a mode for. Read-write, but
 only on the document itself and its diagrams — never on the code the design
 describes.
 
-`Bash` is scoped to the probe and the renderer `stage-design.md` names. The
+The PreToolUse hook scopes `Bash` to this plugin's `design_probe.py`,
+`options_lint.py`, and `mmdc`, each as one command with no shell composition.
+Ask the main session to run any other command. The
 document and its diagrams are still the only things you write; a shell is
 not a licence to touch the code the design describes.
 

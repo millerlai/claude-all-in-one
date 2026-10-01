@@ -404,7 +404,7 @@ def _read_central_records(path):
     are never grouped by `ledger.stage_ids()` filtering the way per-track
     ones are -- there is no per-track `ledger.records()` for a
     cross-project file -- so this mirrors its tolerant-of-a-torn-last-line
-    handling directly (ledger.py:350-377) rather than importing something
+    handling directly (ledger.records()) rather than importing something
     that does not exist for this shape of file."""
     try:
         with open(path, "rb") as fh:

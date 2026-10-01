@@ -140,6 +140,10 @@ not contain it — link `## Implementation spec`'s `Where it lives` to unit
 names. A path landing under two units is not a mapping problem; it is two
 units that cannot run in parallel, and possibly a boundary the design drew
 wrong, which goes to the user.
+Without a detail design, locate the paths named by `## Fix` or by the
+approved intake criteria and signed decisions in the current source, and
+assign each affected path to a unit explicitly. This substitutes for
+`## Implementation spec`; do not invent a missing section.
 
 ## Step 2 — Who does what
 
@@ -170,6 +174,13 @@ For each unit, in schedule order:
    `## Verification` rows), the numbers it is built against (`##
    Budgets`), and **what it must not touch** — every path the ownership map
    gives to another unit, listed explicitly.
+   When there is no detail design, do not invent missing sections. On the
+   diagnosis path, quote `## Fix`, `## Failing test`, and
+   `## Invariants preserved` from the diagnosis for the contract, proof,
+   and constraints. On a decisions-only path, quote intake's numbered
+   acceptance criteria and the signed decisions applicable to this unit.
+   Carry any stated budgets verbatim; if none are stated, say so. The
+   dependency interfaces and allowed/forbidden files are still required.
 3. **Implement, test-first.** No production code without a failing test
    first. Write the test, run it, and watch it actually fail before writing
    the code that makes it pass — a test you did not watch fail proves
@@ -339,6 +350,14 @@ Units all green is not done:
    Gate 1 already left a sign-off fingerprint on it; through a detail
    design, it is not the fingerprinted file, but is still the human-approved
    root cause.
+   When the design has no `UC`/`R` ids and is not a diagnosis, trace every
+   numbered acceptance criterion from the approved intake (AC1, AC2, ...)
+   instead. Each row names the criterion, the `file:line` satisfying it,
+   and the test/check with its observed result. A criterion without a
+   satisfying location is unimplemented, not silently omitted. If a legacy
+   intake has no ids, assign AC1, AC2, ... in its original order in the
+   table, quote each criterion verbatim, and leave the signed intake
+   unchanged. The conformance lens checks these same criteria.
 2. **Write the merged terms into `<top>/CONTEXT.md`**, before verify. Skip
    entirely — no file created, nothing said about it in the report — when no
    glossary term ended up merged (the third menu was never asked, was
@@ -356,7 +375,8 @@ Units all green is not done:
    does, when Step 0.5 answered commit-per-unit yes; otherwise leave it in
    the working tree.
 3. **Run `stage-verify.md`** over the whole branch, passing the design
-   document as the requirement its conformance lens reviews against, and
+   document and the approved intake as the requirements its conformance
+   lens reviews against (including the AC rows when no UC/R ids exist), and
    Step 0.5's glossary answer as recorded in `implementation-notes.md`. Fix
    Blocker/Major per that stage's rules; leave Minor documented; its
    requirement decisions go to the user.

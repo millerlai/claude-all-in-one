@@ -5,9 +5,12 @@ is monkeypatched so `ledger.append()` never touches a real transcript, and
 `ledger._now()` is monkeypatched to a fixed timestamp so cycle times are
 deterministic (ledger.py:108-109).
 """
+import datetime
 import os
 import subprocess
 import sys
+
+import pytest
 
 import ledger
 import usage_report
@@ -25,6 +28,18 @@ def _append(track, stage, outcome, monkeypatch, ts, artifact=None, gate="auto",
 
 def _line(report, stage):
     return [l for l in report.splitlines() if l.startswith(stage)][0]
+
+
+@pytest.fixture
+def metrics_clock(monkeypatch):
+    # Fixed records must not age out of a report that uses the host clock.
+    class FixedDatetime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            value = cls(2026, 9, 2, tzinfo=datetime.timezone.utc)
+            return value.astimezone(tz) if tz is not None else value.replace(tzinfo=None)
+
+    monkeypatch.setattr(usage_report.datetime, "datetime", FixedDatetime)
 
 
 # --- (a) fixed sample: every case in one ledger -----------------------------
@@ -275,12 +290,12 @@ def test_an_approve_of_another_document_is_still_its_own_attempt(tmp_path, monke
 
 # --- (d) central aggregation over two tracks --------------------------------
 
-def test_central_metrics_aggregates_across_tracks(tmp_path, monkeypatch):
+def test_central_metrics_aggregates_across_tracks(tmp_path, monkeypatch, metrics_clock):
     central_path = tmp_path / "central" / "usage.jsonl"
     monkeypatch.setenv("CAI_USAGE_LEDGER", str(central_path))
     # Pre-write the import-day marker (D10) to a date before the fixed
     # 2026-09-01 timestamps below -- otherwise ledger.append()'s own
-    # _mark_data_start() would stamp it with the real host clock's today,
+    # _mark_data_start() would stamp it with the frozen clock's date,
     # which would postdate our fixed-past records and exclude them from
     # the --days window.
     os.makedirs(central_path.parent, exist_ok=True)
@@ -326,7 +341,7 @@ def test_central_metrics_no_central_ledger_exits_with_no_data_message(tmp_path):
 
 # --- (e) human_signed is gated -- issue #200 --------------------------------
 
-def test_ungated_stage_with_attempts_prints_na_in_both_reports(tmp_path, monkeypatch):
+def test_ungated_stage_with_attempts_prints_na_in_both_reports(tmp_path, monkeypatch, metrics_clock):
     """intake/build/verify have no human gate at all (GATE_WALKED_STAGES ==
     design/ship only), so a stage with attempts but no gate prints n/a, not
     a ratio that always reads 0 -- design and ship still print a ratio."""

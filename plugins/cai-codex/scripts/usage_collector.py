@@ -16,10 +16,10 @@ things that make this correct rather than merely plausible:
     a zero -- zero would claim "no usage happened", which is a fact this
     module is not in a position to assert.
 
-It imports nothing from this repo, on purpose, matching ledger.py:15-19: it
+It imports nothing from this repo, on purpose, matching ledger's import rule: it
 is a leaf. ledger.py, usage_report.py, and context_peak.py all import it.
 
-Bad-line tolerance and UTF-8 reading are copied from ledger.py:216-231
+Bad-line tolerance and UTF-8 reading are copied from ledger.records()
 (Claude Code may still be appending to the transcript this module is
 reading).
 """
@@ -191,9 +191,11 @@ def read_window(path, since_ms, until_ms, problems):
     module now calls it, which the usage-accounting design explicitly
     allows (2026-08-30-track-usage-accounting-detail.md:419).
 
-    OSError and unparseable lines are swallowed, per ledger.py:216-231:
+    OSError and unparseable lines are swallowed, per ledger.records():
     reading tolerates a file Claude Code may still be appending to, and
-    notes why in `problems` rather than raising."""
+    notes why in `problems` rather than raising. Untimestamped problems
+    cannot be assigned to a window; summarize each kind once per file so
+    repeated windows do not carry one entry for every stale bad line."""
     try:
         with open(path, "rb") as fh:
             raw = fh.read()
@@ -202,6 +204,10 @@ def read_window(path, since_ms, until_ms, problems):
         return []
 
     out = []
+    bad_lines = 0
+    bad_timestamps = 0
+    first_bad_line = None
+    first_bad_timestamp = None
     # split("\n"), not splitlines(): the transcript's own line boundary is
     # LF, but splitlines() also breaks on U+2028, U+2029 and U+0085, which
     # can appear unescaped inside a legal JSON string and would otherwise
@@ -213,20 +219,30 @@ def read_window(path, since_ms, until_ms, problems):
         try:
             row = json.loads(text)
         except ValueError:
-            problems.append("unparseable line %d in %s" % (number, path))
+            bad_lines += 1
+            if first_bad_line is None:
+                first_bad_line = number
             continue
         if not isinstance(row, dict) or row.get("type") != "assistant":
             continue
         timestamp = row.get("timestamp")
         ts_ms = _safe_parse_ms(timestamp) if timestamp else None
         if ts_ms is None:
-            problems.append("missing or unparseable timestamp in %s line %d" % (path, number))
+            bad_timestamps += 1
+            if first_bad_timestamp is None:
+                first_bad_timestamp = number
             continue
         if since_ms is not None and ts_ms <= since_ms:
             continue
         if until_ms is not None and ts_ms > until_ms:
             continue
         out.append(text)
+    if bad_lines:
+        problems.append("%d unparseable lines in %s (first: line %d)"
+                        % (bad_lines, path, first_bad_line))
+    if bad_timestamps:
+        problems.append("%d missing or unparseable timestamps in %s (first: line %d)"
+                        % (bad_timestamps, path, first_bad_timestamp))
     return out
 
 

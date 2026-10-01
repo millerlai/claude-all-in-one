@@ -62,6 +62,10 @@ each, plus the `cai_security-reviewer` agent for the fourth. Four and not more �
 
 Give each agent the base ref, the file list, and the requirement it is
 reviewing against — the plan, issue, or the user's own words. Before
+dispatching, run `git diff <base-ref>` and supply its full output as text
+or a readable file, including uncommitted changes when those are the review
+scope. Supply any needed `git log`/`git show` output too: the lenses have
+only Read/Grep/Glob and cannot fetch a diff or run tests themselves. Before
 dispatching, check whether `<top>/AGENTS.md`
 exist and give the conformance lens that path if it does. `@path` imports
 are not followed, and `CLAUDE.local.md` does not count — only a line inside

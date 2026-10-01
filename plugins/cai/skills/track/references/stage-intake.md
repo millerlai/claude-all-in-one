@@ -111,6 +111,9 @@ session. Do not add the command here; add the capability first, in the open
 
 **Do not start implementing.** Hand back the problem statement, the
 acceptance criteria it implies, and the recommended approach, then stop.
+Give every acceptance criterion a stable id (AC1, AC2, ...), retained
+through design, build, and verification. Each criterion states an
+observable outcome and how to check it; do not renumber approved criteria.
 The next stage — `discover` when the solution space is still unclear, or
 `design` when it is not — only starts once the user has said yes to this
 one. Typing the request is not agreement to whatever was inferred from it.

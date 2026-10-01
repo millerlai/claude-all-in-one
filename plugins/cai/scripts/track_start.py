@@ -4,7 +4,7 @@ Zero deps.
 
 `/cai:track <feature>` used to create `state.md` and go straight to intake,
 which FAILs `not_main_branch` whenever the branch is `main`/`master`
-(preflight.py:358-366) -- `rules/workflow.md` says to branch first, but
+(preflight.intake()) -- `rules/workflow.md` says to branch first, but
 nothing in the track procedure did it, so every first attempt on `main` was
 recorded `blocked` and the branch was made by hand (#193). This script is
 that step: on `main`/`master` it fast-forwards from upstream (skipped, with a

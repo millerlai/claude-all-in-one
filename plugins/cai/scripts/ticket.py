@@ -14,7 +14,7 @@ allowed under AC22: `ticket_backend` is this feature's other half, not a
 third-party dependency).
 
 Where this sits in `ticket` -> `preflight` -> `ledger` -> `usage_collector`
-(one direction, no cycle, per `plugins/cai/scripts/ledger.py:15-23`): this
+(one direction, no cycle, per `ledger`'s module import rule): this
 file imports `preflight` for its table parsing and `ticket_backend` for the
 capability interface, and nothing here imports back up the chain -- in
 particular this file never imports `ledger` (DD2): a projection failure is
@@ -190,7 +190,7 @@ def _feature_from_track_dir(track_dir):
     """The feature name a marker line and `render_comment` need, taken from
     the directory name rather than passed in separately -- every caller
     already has `track_dir` as `.claude/track/<feature>` (see
-    `plugins/cai/scripts/track_state.py:56`), so this avoids a second
+    `track_state.resolve()`), so this avoids a second
     argument that could disagree with the first."""
     return os.path.basename(os.path.normpath(track_dir))
 
@@ -524,7 +524,7 @@ class ArgParser(argparse.ArgumentParser):
     # preflight.py uses it to mean "blocked", and a stray 2 from here would
     # eventually be recorded as blocked, counting toward the five-attempt
     # lockout a network blip must never cause. A usage mistake gets 1
-    # instead, copying plugins/cai/scripts/ledger.py:515-521.
+    # instead, copying ledger.ArgParser.error().
     def error(self, message):
         self.print_usage(sys.stderr)
         print("%s: error: %s" % (self.prog, message), file=sys.stderr)
@@ -532,7 +532,7 @@ class ArgParser(argparse.ArgumentParser):
 
 
 def main():
-    # Same reasoning as plugins/cai/scripts/ledger.py:524-532: a piped
+    # Same reasoning as ledger.main(): a piped
     # stdout defaults to the ANSI codepage on Windows, and this script prints
     # whatever alphabet state.md's own notes were written in.
     sys.stdout.reconfigure(encoding="utf-8")

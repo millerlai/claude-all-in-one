@@ -24,8 +24,8 @@ CATEGORIES = ("ok", "auth-failed", "ticket-not-found",
 TIMEOUT_SECONDS = 10
 
 # The test seam: a subprocess only sees its own environment, not a
-# monkeypatch (tests/conftest.py:56), so this follows CAI_USAGE_LEDGER's
-# shape (usage_collector.py:44) rather than reaching for one. A value
+# monkeypatch (tests/conftest.py's _isolated_central_ledger()), so this follows
+# usage_collector.central_ledger_path()'s CAI_USAGE_LEDGER shape. A value
 # starting with `[` is a JSON argv array; anything else is a single
 # executable path.
 CLI_ENV = "CAI_TICKET_CLI"
@@ -122,7 +122,7 @@ def run(args, cwd=None):
     """Runs the ticket CLI with `args` appended to its configured prefix.
     Returns (CompletedProcess | None, category). Never raises: the two
     exceptions a hung or absent CLI can produce are caught right here and
-    turned into "unreachable", matching preflight.py:212-220's shape for
+    turned into "unreachable", matching preflight.git()'s shape for
     calling an external process without going through a shell.
 
     encoding="utf-8" is explicit rather than `text=True`'s console-locale

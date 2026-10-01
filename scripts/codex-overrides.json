@@ -1,6 +1,21 @@
 {
   "overrides": [
     {
+      "target": "agents/designer.md",
+      "anchor": [
+        "The PreToolUse hook scopes `Bash` to this plugin's `design_probe.py`,",
+        "`options_lint.py`, and `mmdc`, each as one command with no shell composition.",
+        "Ask the main session to run any other command. The"
+      ],
+      "replacement": [
+        "Codex does not enforce the source agent's PreToolUse hook. Treat the",
+        "shell boundary as an instruction: run only this plugin's `design_probe.py`,",
+        "`options_lint.py`, or `mmdc`, each as a single command. Ask the main",
+        "session to run any other command. The"
+      ],
+      "why": "#181: Claude agent hooks do not carry over to Codex; do not claim an enforced role-specific boundary."
+    },
+    {
       "target": "skills/track/references/stage-verify.md",
       "anchor": [
         "This file is read two ways: by the subagent the track dispatches to run this",

@@ -18,14 +18,15 @@ if not errorlevel 1 goto usepython
 
 REM No interpreter: allow the command through rather than blocking every Bash
 REM call. `/cai:setup` verifies the guard actually fires.
+if "%~1"=="--designer" exit /b 2
 exit /b 0
 
 :usepy
-py -3 "%GUARD%"
+py -3 "%GUARD%" %*
 exit /b %ERRORLEVEL%
 
 :usepython
-python "%GUARD%"
+python "%GUARD%" %*
 exit /b %ERRORLEVEL%
 CMDBLOCK
 
@@ -33,8 +34,11 @@ GUARD="$(cd "$(dirname "$0")" && pwd)/../scripts/bash_guard.py"
 
 for interpreter in python3 python; do
     if command -v "$interpreter" >/dev/null 2>&1; then
-        exec "$interpreter" "$GUARD"
+        exec "$interpreter" "$GUARD" "$@"
     fi
 done
 
+if [ "$1" = "--designer" ]; then
+    exit 2
+fi
 exit 0

@@ -5,7 +5,7 @@ state.md keeps one row per stage and the track overwrites it, so a stage that
 runs twice leaves no trace of the first run. This file is the record that does
 not get overwritten: one JSON object per line, appended, never edited.
 
-Why this script writes when track_state.py:6 says the scripts only read: that
+Why this script writes when track_state's module docstring says the scripts only read: that
 rule exists because state.md's note is prose the model wrote, so the model owns
 the row. Every field here except note is a reproducible computation -- a
 timestamp, a closed-set enum, a SHA-256 of bytes on disk -- and handing those
@@ -76,7 +76,7 @@ NO_ARTIFACT = "—"
 # (docs/design/2026-08-27-cai-sdlc-restructure-detail.md:477). It sits here
 # rather than beside the table parser in preflight.py for the same reason
 # NO_ARTIFACT does: this file is the bottom of the import chain
-# (preflight.py:23-26), so every reader can have it without a new edge.
+# (preflight's module imports), so every reader can have it without a new edge.
 # Not OUTCOMES above: that is the ledger's own vocabulary, and writing one
 # of its words into this column is exactly the bug this constant exists to
 # catch.
@@ -138,7 +138,7 @@ def _window_since(session_id):
     except OSError:
         return since
     # split("\n"), not splitlines(): the writer's only line boundary is LF
-    # (ledger.py:183-185), but splitlines() also breaks on U+2028, U+2029 and
+    # (append()), but splitlines() also breaks on U+2028, U+2029 and
     # U+0085 -- characters json.dumps(..., ensure_ascii=False) writes
     # unescaped, and which can appear inside a legal JSON string -- so a
     # single record used to be split into two unparseable halves.
@@ -400,8 +400,9 @@ def _fit(record, limit=MAX_RECORD):
     if len(line) <= limit:
         return line, "note truncated to fit %d bytes" % limit
 
-    # Step 2: usage_problems has no ceiling either -- one per bad line,
-    # missing timestamp, or unreadable file (usage_collector.py:200,211,218)
+    # Step 2: usage_problems has no ceiling either -- read_window() now
+    # summarizes bad lines/timestamps per file, but files and the problems
+    # usage_collector.usage_records() finds are still unbounded
     # -- and cutting it before the artifact path keeps that path whole for as
     # long as possible, since `artifact_unchanged` (preflight.py) needs the
     # full path, not just the basename, to find the file on disk. Find the
