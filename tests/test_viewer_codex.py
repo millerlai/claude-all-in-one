@@ -182,6 +182,39 @@ def test_in_progress_with_resolved_call_is_working():
     assert out["state"] == "working"
 
 
+@pytest.mark.parametrize("elapsed,returned,expected", [
+    (1000, False, "working"),
+    (30000, False, "working"),
+    (30001, False, "permission"),
+    (60000, True, "working"),
+])
+def test_custom_exec_call_tracks_pending_permission(elapsed, returned, expected):
+    tail = [_rollout_line(1, "response_item", {
+        "type": "custom_tool_call", "name": "exec", "call_id": "custom-1",
+        "input": 'await tools.exec_command({sandbox_permissions: "require_escalated"})',
+    }, ms=BASE_MS)]
+    if returned:
+        tail.append(_rollout_line(2, "response_item", {
+            "type": "custom_tool_call_output", "call_id": "custom-1", "output": "ok",
+        }, ms=BASE_MS + elapsed))
+    out = viewer.classify_codex("inProgress", tail, BASE_MS + elapsed, BASE_MS)
+    assert out["state"] == expected
+    if expected == "permission":
+        assert out["certainty"] == "inferred"
+        assert out["entryId"] == "custom-1"
+        assert out["permission"] == {"tool": "exec"}
+
+
+def test_new_custom_call_replaces_older_unresolved_function_call():
+    tail = [_function_call(1, "old-1", "send_message", ms=BASE_MS - 60000),
+            _rollout_line(2, "response_item", {
+                "type": "custom_tool_call", "name": "exec", "call_id": "custom-2",
+                "input": "await tools.exec_command({cmd: 'test'})",
+            }, ms=BASE_MS)]
+    out = viewer.classify_codex("inProgress", tail, BASE_MS + 1000, BASE_MS)
+    assert out["state"] == "working"
+
+
 def test_in_progress_uses_last_unresolved_call_not_first():
     tail = [_function_call(1, "call-5", "send_message", ms=BASE_MS),
            _function_call_output(2, "call-5", ms=BASE_MS),

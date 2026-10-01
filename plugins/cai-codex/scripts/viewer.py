@@ -1981,22 +1981,22 @@ def _codex_in_progress(turn_status, tail):
 
 
 def _unresolved_function_calls(tail):
-    """response_item/function_call entries (payload.type == "function_call")
-    with no matching function_call_output (matched by call_id) appearing
-    later in the tail, in tail order."""
+    """Function and custom tool calls without a matching later output,
+    matched by call_id and output type, in tail order."""
     unresolved = []
     for i, item in enumerate(tail):
         payload = item.get("payload")
         if item.get("type") != "response_item" or not isinstance(payload, dict):
             continue
-        if payload.get("type") != "function_call":
+        call_type = payload.get("type")
+        if call_type not in ("function_call", "custom_tool_call"):
             continue
         call_id = payload.get("call_id")
         resolved = False
         for later in tail[i + 1:]:
             later_payload = later.get("payload")
             if (later.get("type") == "response_item" and isinstance(later_payload, dict)
-                    and later_payload.get("type") == "function_call_output"
+                    and later_payload.get("type") == call_type + "_output"
                     and later_payload.get("call_id") == call_id):
                 resolved = True
                 break
