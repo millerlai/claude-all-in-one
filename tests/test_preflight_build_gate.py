@@ -8,14 +8,83 @@ editing the heading in, landed after sign-off and tripped artifact_unchanged
 on the next run. These tests hold both halves shut.
 """
 import os
+import json
 import subprocess
 import sys
 
 import ledger
 import preflight
 import usage_collector
+import pytest
 
 PREFLIGHT_PY = os.path.join(os.path.dirname(ledger.__file__), "preflight.py")
+
+
+@pytest.mark.parametrize("decided,ts,exempt", [
+    ("2026-09-25", "2026-09-26T00:00:00Z", True),
+    ("2026-09-26", "2026-09-26T23:59:59Z", False),
+    ("2026-09-27", "2026-09-26T00:00:00Z", False),
+    ("", "2026-09-26T00:00:00Z", False),
+    ("2026-02-30", "2026-09-26T00:00:00Z", False),
+    ("20260925", "2026-09-26T00:00:00Z", False),
+    ("2026-09-25", "broken", False),
+    ("2026-09-25", None, False),
+])
+def test_reused_decision_draft_exemption(tmp_path, decided, ts, exempt):
+    if ts is not None:
+        (tmp_path / "ledger.jsonl").write_text(
+            json.dumps({"ts": ts, "stage": "intake", "outcome": "passed"}) + "\n",
+            encoding="utf-8")
+    text = "## Tier 1\n### D1 -- choice\nDecided: %s\n" % decided
+    checks = preflight.options_drafts(text, "old-decisions.md", str(tmp_path))
+    assert all(ok for ok, _ in checks) is exempt, checks
+
+
+def test_reused_decisions_keep_new_entries_subject_to_draft_check(tmp_path):
+    (tmp_path / "ledger.jsonl").write_text(
+        '{"ts":"2026-09-26T00:00:00Z"}\n'
+        '{"ts":"2026-09-30T00:00:00Z"}\n', encoding="utf-8")
+    text = ("## Tier 1\n### D1 -- inherited\n"
+            "- **Decided:** A, chosen by the user, 2026-09-25.\n"
+            "### D2 -- current\n- **Decided:** B, 2026-09-27.\n")
+    checks = preflight.options_drafts(text, "old-decisions.md", str(tmp_path))
+    assert len(checks) == 1
+    assert not checks[0][0]
+    assert "missing options-D2.md" in checks[0][1]
+
+
+@pytest.mark.parametrize("body", [
+    "No decision date.\n",
+    "Decided: 2026-09-24, revised 2026-09-25\n",
+    "Decided: 2026-09-24\nDecided: 2026-09-25\n",
+    "Decided: 2026-09-25-invalid\n",
+    "Decided: A, date not recorded (see docs/design/2026-09-25-diagnosis.md)\n",
+])
+def test_ambiguous_decision_dates_require_drafts(tmp_path, body):
+    (tmp_path / "ledger.jsonl").write_text(
+        '{"ts":"2026-09-26T00:00:00Z"}\n', encoding="utf-8")
+    checks = preflight.options_drafts(
+        "## Tier 1\n### D1 -- choice\n" + body, "old-decisions.md", str(tmp_path))
+    assert not checks[0][0]
+
+
+def test_malformed_first_ledger_record_does_not_exempt_decisions(tmp_path):
+    (tmp_path / "ledger.jsonl").write_text(
+        'broken\n{"ts":"2026-09-26T00:00:00Z"}\n', encoding="utf-8")
+    checks = preflight.options_drafts(
+        "## Tier 1\n### D1 -- choice\nDecided: 2026-09-25\n",
+        "old-decisions.md", str(tmp_path))
+    assert not checks[0][0]
+
+
+def test_decision_date_ignores_dates_in_cited_paths(tmp_path):
+    (tmp_path / "ledger.jsonl").write_text(
+        '{"ts":"2026-09-27T00:00:00Z"}\n', encoding="utf-8")
+    text = ("## Tier 1\n### D1 -- inherited\n"
+            "- **Decided:** A, 2026-09-26; see "
+            "`docs/design/2026-09-26-viewer-live-status-diagnosis.md:56`.\n")
+    checks = preflight.options_drafts(text, "old-decisions.md", str(tmp_path))
+    assert all(ok for ok, _ in checks), checks
 
 HLD = "# x\n\n## Status\napproved 2026-08-30\n"
 DETAIL = HLD + "\n## Work breakdown\n\n| # | Unit |\n|---|---|\n| 1 | a |\n"
@@ -549,9 +618,20 @@ def test_a_decisions_reference_that_resolves_nowhere_fails_and_names_it(tmp_path
 
 # --- #208: a track that reuses another track's signed decisions ---
 #
-# options_drafts stays strict -- every Tier 1 entry still owes a draft in
-# *this* track's dir, decided elsewhere or not -- but the FAIL message now
-# tells the person the two ways out, instead of only naming the missing path.
+# Without an unambiguous earlier date, a reused entry still owes a local
+# draft; the failure message names the two ways forward.
+
+
+def test_build_reuses_earlier_signed_decisions_without_local_drafts(tmp_path, monkeypatch):
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1 +
+                    "- **Decided:** A, chosen by the user, 2026-09-25.\n")
+    track = make_track(tmp_path, "d-decisions.md")
+    monkeypatch.setattr(ledger, "_now", lambda: "2026-09-26T00:00:00Z")
+    ledger.append(track, "intake", "passed")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    done = run(track, str(tmp_path))
+    assert done.returncode == 0, done.stdout
+    assert "0 draft(s) checked; 1 earlier decision(s) reused" in done.stdout
 
 def test_the_missing_draft_message_names_a_way_out_for_a_decision_asked_elsewhere(tmp_path):
     doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
