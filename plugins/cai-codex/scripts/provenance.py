@@ -34,9 +34,7 @@ def entries(text):
     """Parse the ledger's full text into a list of entry dicts. Never raises
     -- a malformed entry is represented with missing/None fields instead, so
     each probe can report its own defect independently rather than one bad
-    entry blocking every check (same convention as
-    scripts/validate.py:339-368's provenance_entries(), not imported from
-    here since this file must not import anything from scripts/)."""
+    entry blocking every check."""
     segments = re.split(r"^## ", text, flags=re.MULTILINE)[1:]
     out = []
     for segment in segments:
@@ -89,8 +87,7 @@ def entries(text):
 def normalise(text):
     """String equivalence for comparing a rule sentence against a section's
     prose. Order matters: fold whitespace, strip backticks, then en dash to
-    hyphen. U+2014 (em dash) is deliberately left alone -- same reasoning as
-    scripts/validate.py:457-462: an em-dash-heavy file's headings would
+    hyphen. U+2014 (em dash) is deliberately left alone: an em-dash-heavy file's headings would
     otherwise widen this comparison's blast radius for no reason connected
     to what it is checking."""
     text = " ".join(text.split())
@@ -125,10 +122,10 @@ def section_of(text, heading):
     the next line that is itself a Markdown heading of the same or shallower
     level -- or end-of-file if there is none. `heading` is the heading's own
     full line, `#` characters included (e.g. "## Report"), matching the
-    convention scripts/validate.py:1893-1914's verify_section() uses.
+    convention scripts/validate.py's verify_section() uses.
 
     Anchored to the start of a line, same anchoring lesson as verify_section
-    (scripts/validate.py:1892-1913): an unanchored search would also match
+    (scripts/validate.py's verify_section()): an unanchored search would also match
     the heading text quoted elsewhere, e.g. inline in backticks. That alone
     does not rule out a decoy that is itself a whole line starting with `#`
     at column 0 inside a fenced code block giving an illustrative example
@@ -205,7 +202,7 @@ def _resolve_heading(path, heading, project_dir):
 
 def probes(entries, project_dir):
     """Yields (ok, label) tuples, one per probe -- same convention as
-    plugins/cai/scripts/options_lint.py:201's probes(). Only reads files,
+    options_lint.probes(). Only reads files,
     writes nothing, and never lets an exception escape: an unreadable file
     is a FAIL detail, not a crash."""
     incomplete = [e["id"] or "(untitled)" for e in entries
@@ -310,7 +307,7 @@ def main():
     # FAIL lines quote the ledger's own rule sentences, which contain
     # Chinese punctuation and em dashes; a piped Windows stdout defaults to
     # the ANSI codepage. Same reasoning as
-    # plugins/cai/scripts/options_lint.py:186-187.
+    # options_lint.main().
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 

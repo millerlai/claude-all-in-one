@@ -36,8 +36,8 @@ record, not part of the collection, and lives in the scratchpad.
    written requirement, if one exists, and the paths of whichever of
    `<top>/CLAUDE.md` and `<top>/.claude/CLAUDE.md` exist in the tree step 2
    checked out; with neither, `conformance` is skipped and the other three
-   still run (`stage-verify.md:59-72`). Give `security-reviewer` the four
-   hunt items from `finding-severity.md` instead (`stage-verify.md:74-78`).
+   still run (`stage-verify.md:59-76`). Give `security-reviewer` the four
+   hunt items from `finding-severity.md` instead (`stage-verify.md:78-82`).
 
 4. In that same dispatch message, additionally ask each lens to append a
    fenced JSON block, with the same fields as a `findings` record, after its

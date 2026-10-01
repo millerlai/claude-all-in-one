@@ -236,7 +236,7 @@ full, and lower them when the answer is no.
    **Inside a track, steps 1–4 sometimes need a command or a temporary
    change `cai_designer` cannot run itself** — Step 1's reproduction command,
    Step 3's tagged boundary log, or Step 4's one small test. `cai_designer`'s
-   own Bash is `python`/`py`/`python3`/`mmdc` only, and it writes no code
+   own Bash runs only `design_probe.py`, `options_lint.py`, or `mmdc`, and it writes no code
    (`designer.md`). This does not apply standing alone: outside a track
    this stage is the main session, and it already runs everything itself.
 
@@ -510,6 +510,11 @@ branch's own record (commit messages, PR description, comments the change
 added), or neither — write `UNVERIFIED` and leave it in the document. An
 invented but plausible reason is worse than a blank: it outlives everyone
 who could have corrected it.
+
+When dispatched to `cai_designer`, the main session runs the git/gh commands
+in steps 1-3 and supplies their output as text or readable files. The
+designer reads those inputs; its probe/renderer hook does not allow git/gh.
+If an input is missing, ask the caller for it before writing the delta.
 
 1. **Fix the scope.** Find the base ref (given, or
    `git symbolic-ref --short refs/remotes/origin/HEAD`, or `origin/main`).

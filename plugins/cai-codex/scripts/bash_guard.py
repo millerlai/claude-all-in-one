@@ -796,4 +796,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--designer"]:
+        import designer_guard
+        sys.exit(designer_guard.main())
     sys.exit(main())

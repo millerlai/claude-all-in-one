@@ -5,9 +5,12 @@ model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
-Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git show:*)
+Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob
 
 You review one lens of one diff. Read-only. You will be told which lens.
+
+The caller supplies the diff and any needed history as text or a readable
+file. If either is missing, request it from the caller; do not run commands.
 
 - Read the files the diff lands in, not only the diff. A hunk hides the code
   around it, and most real defects live in that gap.

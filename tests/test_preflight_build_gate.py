@@ -566,6 +566,21 @@ def test_the_missing_draft_message_names_a_way_out_for_a_decision_asked_elsewher
     assert "copy that track's options-D1.md" in line
 
 
+def test_reused_signed_decisions_pass_after_copying_the_original_draft(tmp_path):
+    doc = write_doc(tmp_path, "d-decisions.md", DECISIONS_ONE_TIER1)
+    original = tmp_path / "earlier-track"
+    original.mkdir()
+    (original / "options-D1.md").write_text(VALID_DRAFT, encoding="utf-8")
+    track = make_track(tmp_path, "d-decisions.md")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human")
+    assert run(track, str(tmp_path)).returncode == 2
+    (tmp_path / "track" / "options-D1.md").write_bytes(
+        (original / "options-D1.md").read_bytes())
+    done = run(track, str(tmp_path))
+    assert done.returncode == 0, done.stdout
+    assert "PASS options_drafts (1 draft(s) checked)" in done.stdout
+
+
 def test_a_passed_human_record_signs_off_the_design(tmp_path):
     doc = write_doc(tmp_path, "d-high-level.md", HLD)
     track = make_track(tmp_path, "d-high-level.md")

@@ -5,7 +5,7 @@ model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
-Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob, Bash(git diff:*), Bash(git log:*), Bash(git show:*)
+Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob
 
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
 

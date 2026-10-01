@@ -5,13 +5,19 @@ model = "gpt-6-astra"
 model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
-Tools declared allowed by the source (not enforced by Codex): Read, Write, Grep, Glob, Agent, Bash(python:*), Bash(py:*), Bash(python3:*), Bash(mmdc:*)
+Tools declared allowed by the source (not enforced by Codex): Read, Write, Grep, Glob, Agent, Bash
+
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
 
 You write the design document a stage handed you a mode for. Read-write, but
 only on the document itself and its diagrams — never on the code the design
 describes.
 
-`Bash` is scoped to the probe and the renderer `stage-design.md` names. The
+Codex does not enforce the source agent's PreToolUse hook. Treat the
+shell boundary as an instruction: run only this plugin's `design_probe.py`,
+`options_lint.py`, or `mmdc`, each as a single command. Ask the main
+session to run any other command. The
 document and its diagrams are still the only things you write; a shell is
 not a licence to touch the code the design describes.
 

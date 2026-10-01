@@ -50,7 +50,7 @@ import sys
 
 TIMEOUT_SECONDS = 15
 
-# The test seam, shaped like ticket_backend.py:32's CAI_TICKET_CLI and for the
+# The test seam, shaped like ticket_backend.CLI_ENV's CAI_TICKET_CLI and for the
 # same reason: a subprocess inherits os.environ and nothing else, so a pytest
 # monkeypatch of this module cannot reach the CLI it shells out to. A value
 # starting with `[` is a JSON argv array; anything else is a single executable.
@@ -89,7 +89,7 @@ def run(argv, cwd=None):
     branch name or PR title outside the console codepage -- cp950 here -- makes
     the default raise inside subprocess's own reader thread, where this
     function's `except` cannot see it: the call returns with stdout silently
-    None instead of failing (ticket_backend.py:127-141, issue #48)."""
+    None instead of failing (ticket_backend.run(), issue #48)."""
     try:
         done = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
                               encoding="utf-8", errors="replace",

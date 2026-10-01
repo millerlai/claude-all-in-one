@@ -324,4 +324,4 @@ def test_show_prints_every_record_and_names_the_broken_lines(tmp_path):
 # --- D1: the reason this script writes at all stays next to the code ------
 
 def test_the_module_docstring_keeps_the_write_exception_on_the_record():
-    assert "track_state.py:6" in ledger.__doc__
+    assert "track_state's module docstring" in ledger.__doc__
