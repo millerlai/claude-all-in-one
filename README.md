@@ -711,6 +711,9 @@ Maintainer tools, which no shipped component runs:
 - `/cut-release` (`.claude/skills/cut-release/`) — runs the four
   `scripts/release.py` steps in "Releasing" above, with the version choice,
   the CHANGELOG rewrite and the confirmations before the tag push and the
-  `--merge` of the release PR.
+  `--merge` of the release PR. Codex CLI uses `$cut-release [X.Y.Z]` via
+  `.agents/skills/cut-release/`, which reads the same workflow and adds
+  PowerShell execution guidance. Both entries are repository-only maintainer
+  tools, not shipped plugin skills.
 - `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
   — a track's peak main-session context occupancy, read from local transcripts.
