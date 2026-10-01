@@ -10,6 +10,7 @@ Usage:  preflight.py <stage-id> --track-dir DIR [--project-dir DIR]
 Exit:   0 passed, 2 blocked, 1 usage error (unknown stage, missing --track-dir).
 """
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -457,14 +458,28 @@ def _tier1_id(title, position):
     return cleaned or str(position)
 
 
+def _decision_predates_track(body, started):
+    if started is None:
+        return False
+    lines = re.findall(r"^\s*(?:-\s+)?(?:\*\*)?Decided:(?:\*\*)?([^\n]*)", body, re.M)
+    if len(lines) != 1:
+        return False
+    # Citation filenames and malformed date tokens are not decision dates.
+    dates = re.findall(r"(?<![A-Za-z0-9_/\\-])\d{4}-\d{2}-\d{2}(?![A-Za-z0-9_/\\-])", lines[0])
+    if len(dates) != 1:
+        return False
+    try:
+        return datetime.date.fromisoformat(dates[0]) < started
+    except ValueError:
+        return False
+
+
 def options_drafts(text, artifact, track_dir):
     """UC2/R2: whether every `## Tier 1` entry in a decisions document has a
     six-field options draft on disk that passes options_lint's probes.
 
-    Pure function of its three arguments -- it does not open `text` itself,
-    reusing what `build()` already read. Whether to check at all is answered
-    by two facts on disk, not by judgement: `artifact`'s suffix, and how
-    many `### ` entries `## Tier 1` carries."""
+    Entries decided before this track's first ledger record owe no local
+    draft. Ambiguous dates keep the draft requirement."""
     if not artifact.endswith("-decisions.md"):
         return [(True, "options_drafts (artifact is not a decisions document)")]
 
@@ -474,8 +489,21 @@ def options_drafts(text, artifact, track_dir):
 
     failed = []
     checked = 0
+    inherited = 0
+    records = ledger.records(track_dir)
+    started = None
+    if records:
+        try:
+            started = datetime.datetime.strptime(
+                records[0].get("ts", ""), "%Y-%m-%dT%H:%M:%SZ").date()
+        except (ValueError, TypeError):
+            pass
     seen = {}
-    for position, (title, _body) in enumerate(tier1, start=1):
+    for position, (title, body) in enumerate(tier1, start=1):
+        # A date-only decision cannot establish ordering within the same day.
+        if _decision_predates_track(body, started):
+            inherited += 1
+            continue
         id_ = _tier1_id(title, position)
         if id_ in seen:
             # Two distinct decisions must not be satisfiable by one shared
@@ -493,11 +521,7 @@ def options_drafts(text, artifact, track_dir):
             with open(path, encoding="utf-8") as fh:
                 draft = fh.read()
         except (OSError, UnicodeDecodeError) as exc:
-            # #208: the one observed miss was not a missing draft -- it was a
-            # decision asked and drafted in an *earlier* track, whose signed
-            # decisions document this track only reused. The veto stays
-            # strict (this track still owes its own copy), so the fix is
-            # telling the person the way out instead of only the dead end.
+            # Uncertain provenance still needs a local draft and a way forward.
             failed.append((False, (
                 "options_drafts (missing options-%s.md -- pending-questions.md's "
                 "Step 0 saves the options shown to the person there before this stage can pass; "
@@ -512,6 +536,9 @@ def options_drafts(text, artifact, track_dir):
 
     if failed:
         return failed
+    if inherited:
+        return [(True, "options_drafts (%d draft(s) checked; %d earlier decision(s) reused)"
+                 % (checked, inherited))]
     return [(True, "options_drafts (%d draft(s) checked)" % checked)]
 
 
