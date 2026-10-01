@@ -2023,14 +2023,8 @@ def classify_codex(turn_status, tail, now_ms, tail_mtime_ms):
     tail. Mirrors classify_claude()'s convention: always returns
     question/permission/current keys (None when not applicable).
 
-    entryId scheme (judgement call -- the design pins the in-progress
-    question/permission cases to the triggering function_call's call_id, but
-    is silent on the "done turn with a dangling request_user_input_async"
-    case, where there may be no unresolved call_id to anchor on since
-    presence anywhere in the last turn is what matters, not resolution):
-    that case uses "question:<turn_status or 'done'>:<tail_mtime_ms>",
-    deterministic per (status, file state) the same way classify_claude's
-    "done:%s" % since is deterministic per registry state.
+    Async question entries keep the triggering call_id across background work
+    and turn completion, so the page rings once per question.
     """
     in_progress, in_progress_certainty = _codex_in_progress(turn_status, tail)
     result = {"question": None, "permission": None, "current": None, "noteCodes": []}
@@ -2038,6 +2032,26 @@ def classify_codex(turn_status, tail, now_ms, tail_mtime_ms):
     if not tail:
         result.update(since=tail_mtime_ms, state="unknown", certainty="confirmed",
                       entryId="unknown:%d" % tail_mtime_ms, notes=[])
+        return result
+
+    # Async tools return before the user answers. A tool result or further
+    # background work therefore must not hide the question in this turn.
+    started_idx = _last_task_started_index(tail)
+    last_turn = tail[started_idx:] if started_idx is not None else tail
+    async_calls = [
+        item for item in last_turn
+        if item.get("type") == "response_item"
+        and isinstance(item.get("payload"), dict)
+        and item["payload"].get("type") == "function_call"
+        and item["payload"].get("name") == "request_user_input_async"]
+    if async_calls:
+        call_item = async_calls[-1]
+        payload = call_item["payload"]
+        args = _parse_json_object(payload.get("arguments"))
+        result["question"] = _question_payload({"input": args})
+        result.update(since=_codex_event_time_ms(call_item, tail_mtime_ms),
+                      state="question", certainty="confirmed", entryId=payload.get("call_id"),
+                      notes=[])
         return result
 
     if in_progress:
@@ -2064,26 +2078,6 @@ def classify_codex(turn_status, tail, now_ms, tail_mtime_ms):
                 return result
         result.update(since=tail_mtime_ms, state="working", certainty=in_progress_certainty,
                       entryId="working:%d" % tail_mtime_ms, notes=[])
-        return result
-
-    # Not in progress: a dangling request_user_input_async anywhere in the
-    # last turn (resolved or not -- presence is what matters here).
-    started_idx = _last_task_started_index(tail)
-    last_turn = tail[started_idx:] if started_idx is not None else tail
-    async_calls = [
-        item for item in last_turn
-        if item.get("type") == "response_item"
-        and isinstance(item.get("payload"), dict)
-        and item["payload"].get("type") == "function_call"
-        and item["payload"].get("name") == "request_user_input_async"]
-    if async_calls:
-        # D2 rule 4, same decode as the in-progress/sync case above; the
-        # last dangling call in the turn is the one still open.
-        args = _parse_json_object(async_calls[-1].get("payload", {}).get("arguments"))
-        result["question"] = _question_payload({"input": args})
-        result.update(since=tail_mtime_ms, state="question", certainty="confirmed",
-                      entryId="question:%s:%d" % (turn_status or "done", tail_mtime_ms),
-                      notes=[])
         return result
 
     codes = ["previous-turn-failed"] if turn_status in ("failed", "interrupted") else []

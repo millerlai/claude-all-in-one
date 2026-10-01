@@ -10,6 +10,8 @@ import json
 import os
 import sqlite3
 
+import pytest
+
 import viewer
 
 BASE_MS = 1_800_000_000_000  # an arbitrary fixed "now" for deterministic math
@@ -203,6 +205,35 @@ def test_not_in_progress_with_dangling_async_question_in_last_turn():
     out = viewer.classify_codex("completed", tail, BASE_MS, BASE_MS)
     assert out["state"] == "question"
     assert out["certainty"] == "confirmed"
+
+
+@pytest.mark.parametrize("status", ["inProgress", "completed"])
+@pytest.mark.parametrize("returned", [False, True])
+def test_async_question_waits_even_while_agent_continues(status, returned):
+    args = json.dumps({"questions": [{"header": "Pick", "question": "Which?",
+                                     "options": []}]})
+    tail = [_task_started(1, BASE_MS - 5000),
+            _function_call(2, "async-1", "request_user_input_async", ms=BASE_MS,
+                           arguments=args)]
+    if returned:
+        tail.extend([_function_call_output(3, "async-1", ms=BASE_MS + 1000),
+                     _function_call(4, "work-1", "exec_command", ms=BASE_MS + 2000)])
+    out = viewer.classify_codex(status, tail, BASE_MS + 60000, BASE_MS + 2000)
+    assert out["state"] == "question"
+    assert out["certainty"] == "confirmed"
+    assert out["entryId"] == "async-1"
+    assert out["since"] == BASE_MS
+    assert out["question"]["text"] == "Which?"
+
+
+def test_async_question_from_previous_turn_does_not_keep_waiting():
+    tail = [_task_started(1, BASE_MS - 5000),
+            _function_call(2, "async-old", "request_user_input_async", ms=BASE_MS),
+            _function_call_output(3, "async-old", ms=BASE_MS),
+            _task_complete(4, BASE_MS),
+            _task_started(5, BASE_MS + 1000)]
+    out = viewer.classify_codex("inProgress", tail, BASE_MS + 2000, BASE_MS + 1000)
+    assert out["state"] == "working"
 
 
 def test_not_in_progress_no_signal_is_done():
