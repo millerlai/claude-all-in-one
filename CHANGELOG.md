@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.42.0 — 2026-09-30
+
+You can now cancel an unfinished track with a recorded reason. Track checks, command guards and Codex question handling also get fixes.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.41.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.41.0 to 1.42.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its existing state and ledger records; neither format changed. Design checks now require an approved diagnosis and its first failing-test path when a detail design is based on a diagnosis. (#247)
+- Restart a running viewer to pick up the question-handling fix: `/cai:viewer stop`, then `/cai:viewer` (on Codex, `$viewer stop`, then `$viewer`). (#258)
+
+### Track
+
+- `/cai:track cancel --reason "<why>"` (Codex: `$track cancel --reason "<why>"`) records the date and reason in `cancelled.md`, archives the track under `done/`, and clears `current` even when stages are unfinished. The branch, PR and mirrored ticket stay as they are. (#254)
+- Checks no longer demand a new local options draft for a Tier 1 decision whose `Decided` date strictly predates the track's first ledger record. Same-day, missing, invalid or ambiguous dates still require a draft. (#257)
+- A detail design based on a diagnosis must reference an approved diagnosis and name its first failing-test path. Stance detection now checks the full template headings, and failures name the upstream documents that were read. (#247)
+- Build handoffs now include ownership, a brief and acceptance criteria when no detail design exists. Read-only agents have narrower tool access; Claude Code also enforces the designer's command boundary through a hook. Codex does not enforce those source-agent hooks. (#256)
+- Git failures stop intake, verify and ship checks with an explicit reason instead of being mistaken for normal answers. Non-ASCII filenames no longer crash these checks, and diagnostic text cannot forge extra PASS/FAIL lines. (#248)
+- Parallel build lanes use a temporary commit to set work aside. Git and ship instructions recommend a stash only when the repository has a single worktree, since linked worktrees share it. (#246)
+
+### Guard
+
+- Commit, discard and push checks use the directory targeted by the command, including supported directory changes and `git -C`, rather than always using the session directory. Denials name the directory checked, and multiple commit or discard commands on one line are each checked. (#245)
+
+### Codex and Viewer
+
+- Codex menus require a submitted answer; cancellation, timeout or a preselected choice never counts as consent. When a blocking question tool is unavailable, the agent shows numbered options and waits for a reply. (#255)
+- The Agent Viewer shows an asynchronous Codex question as waiting while the turn is still running. Background updates and turn completion preserve the question's identity to avoid repeated chimes; questions from earlier turns are cleared. (#258)
+
+### Usage and Models
+
+- Malformed transcript lines and missing timestamps are summarized per file and kind, reducing repeated problems in usage records. (#256)
+- Changing an agent's model tier on Windows preserves its existing line endings. (#249)
+
 ## v1.41.0 — 2026-09-28
 
 The Agent Viewer's top bar now counts cards by the state they show instead of by whether Seen was pressed, and `/cai:git` keeps its message files out of your repository.
