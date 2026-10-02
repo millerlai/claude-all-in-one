@@ -1004,11 +1004,11 @@ def test_shipped_defaults_matches_the_real_tree():
 
     defaults = install_codex.shipped_defaults(CAI_CODEX_ROOT, agents)
 
-    assert defaults["chore"] == ("gpt-5.6-luna", ("low", "low"))
+    assert defaults["chore"] == ("gpt-6-luna", ("low", "low"))
     # implementer, refactoring-detector, reviewer, security-reviewer, shipper,
     # verifier: the three review agents keep the high their source sets.
     assert defaults["build"] == (
-        "gpt-5.6-terra", ("medium", "medium", "high", "high", "medium", "high"))
+        "gpt-6.1-sol", ("medium", "medium", "high", "high", "medium", "high"))
     assert defaults["think"] == ("gpt-6-astra", ("high", "high"))
 
 
@@ -1551,7 +1551,7 @@ def test_cli_models_shows_a_saved_role_as_saved(tmp_path):
 
     assert result.returncode == 0, result.stdout + result.stderr
     # build's agents differ in effort, so the line names each one's.
-    assert ("role build: gpt-5.6-sol (saved; cai default gpt-5.6-terra) -- "
+    assert ("role build: gpt-5.6-sol (saved; cai default gpt-6.1-sol) -- "
             "cai_implementer / medium, ") in result.stdout
     assert "cai_reviewer / high" in result.stdout
 
@@ -1784,3 +1784,212 @@ def test_cli_unknown_argument_exits_2(tmp_path):
     result = subprocess.run([sys.executable, str(SCRIPT), "--bogus"],
                              capture_output=True, encoding="utf-8", env=env)
     assert result.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# User-selected reasoning effort, alongside legacy model-only choices
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("role,effort", [
+    ("chore", "medium"), ("build", "xhigh"), ("think", "ultra"),
+])
+def test_cli_apply_effort_override_survives_setup(tmp_path, role, effort):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    defaults = install_codex.shipped_defaults(CAI_CODEX_ROOT, agents)
+    choice = {"model": defaults[role][0], "effort": effort}
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {role: choice}}))
+
+    applied = run_apply(env)
+
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    saved = json.loads((chome / install_codex.CHOICE_NAME).read_text(encoding="utf-8"))
+    assert saved["roles"] == {role: choice}
+    assert not (chome / install_codex.ANSWERS_NAME).exists()
+    # Reinstallation copies fresh shipped agents, then reapplies the choice.
+    reinstalled = run(env)
+    assert reinstalled.returncode == 0, reinstalled.stdout + reinstalled.stderr
+    for name in agents[role]:
+        assert (chome / "agents" / name).read_bytes() == install_codex.rewrite_model_lines(
+            (CAI_CODEX_ROOT / "agents" / name).read_bytes(), choice["model"], effort)
+    for other_role in agents.keys() - {role}:
+        for name in agents[other_role]:
+            assert (chome / "agents" / name).read_bytes() == (
+                CAI_CODEX_ROOT / "agents" / name).read_bytes()
+
+
+def test_saved_effort_choices_roundtrip_with_legacy_choices(tmp_path):
+    choices = {"chore": "gpt-5.6-sol",
+               "build": {"model": "gpt-5.6-sol", "effort": "high"}}
+    install_codex.save_choice(tmp_path, choices)
+
+    assert install_codex.load_choice(tmp_path) == choices
+
+
+@pytest.mark.parametrize("choice", [
+    {"model": "gpt-5.6-sol", "effort": "bogus"},
+    {"model": "gpt-5.6-sol", "effort": 'high"\nmodel = "other'},
+    {"model": "gpt-5.6-sol", "effort": 5},
+    {"model": "gpt-5.6-sol", "effort": []},
+    {"model": "bad slug", "effort": "high"},
+    {"effort": "high"},
+    {"model": "gpt-5.6-sol", "effort": "high", "unexpected": True},
+])
+def test_cli_apply_bad_effort_choice_is_rejected_before_writes(tmp_path, choice):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": choice}}))
+
+    applied = run_apply(env)
+
+    assert applied.returncode == 1, applied.stdout + applied.stderr
+    assert "answers not applied:" in applied.stdout
+    assert not (chome / install_codex.CHOICE_NAME).exists()
+    assert not (chome / "agents").exists()
+    assert (chome / install_codex.ANSWERS_NAME).exists()
+    write(chome, install_codex.CHOICE_NAME,
+          json.dumps({"format": 1, "roles": {"build": choice}}))
+    with pytest.raises(install_codex.ChoiceParseError):
+        install_codex.load_choice(chome)
+
+
+def test_cli_apply_effort_not_supported_by_model_is_rejected(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [{"slug": "gpt-5.6-sol", "visibility": "list",
+                        "supported_reasoning_levels": [{"effort": "medium"}]}])
+    write(chome, install_codex.ANSWERS_NAME, json.dumps({"format": 1, "roles": {
+        "build": {"model": "gpt-5.6-sol", "effort": "high"},
+    }}))
+
+    applied = run_apply(env)
+
+    assert applied.returncode == 1, applied.stdout + applied.stderr
+    assert "high is not supported by gpt-5.6-sol" in applied.stdout
+    assert not (chome / install_codex.CHOICE_NAME).exists()
+    assert not (chome / "agents").exists()
+
+
+@pytest.mark.parametrize("supported", ["high", "medium"])
+def test_cli_model_only_answer_preserves_and_validates_saved_effort(tmp_path, supported):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    old = {"model": "gpt-old", "effort": "high"}
+    choice_path = write(chome, install_codex.CHOICE_NAME,
+                        json.dumps({"format": 1, "roles": {"build": old}}))
+    original = choice_path.read_bytes()
+    fake_cache(chome, [{"slug": "gpt-new", "visibility": "list",
+                        "supported_reasoning_levels": [{"effort": supported}]}])
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": "gpt-new"}}))
+
+    applied = run_apply(env)
+
+    if supported != "high":
+        assert applied.returncode == 1, applied.stdout + applied.stderr
+        assert "high is not supported by gpt-new" in applied.stdout
+        assert choice_path.read_bytes() == original
+        assert not (chome / "agents").exists()
+        return
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert json.loads(choice_path.read_text(encoding="utf-8"))["roles"] == {
+        "build": {"model": "gpt-new", "effort": "high"}}
+    for name in install_codex.role_agents(CAI_CODEX_ROOT)["build"]:
+        assert b'model_reasoning_effort = "high"' in (chome / "agents" / name).read_bytes()
+
+
+@pytest.mark.parametrize("reset_model", [False, True])
+def test_cli_reset_effort_restores_each_agents_default(tmp_path, reset_model):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)
+    default_model = install_codex.shipped_defaults(CAI_CODEX_ROOT, agents)["build"][0]
+    write(chome, install_codex.CHOICE_NAME, json.dumps({"format": 1, "roles": {
+        "build": {"model": "gpt-custom", "effort": "xhigh"},
+    }}))
+    # A full reset must work even when the shipped default is not in the catalog.
+    fake_cache(chome, [{"slug": "gpt-custom", "visibility": "list",
+                        "supported_reasoning_levels": []}])
+    target_model = default_model if reset_model else "gpt-custom"
+    write(chome, install_codex.ANSWERS_NAME, json.dumps({"format": 1, "roles": {
+        "build": {"model": target_model, "effort": None},
+    }}))
+
+    applied = run_apply(env)
+
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    expected = {} if reset_model else {"build": "gpt-custom"}
+    assert install_codex.load_choice(chome) == expected
+    for name in agents["build"]:
+        shipped = (CAI_CODEX_ROOT / "agents" / name).read_bytes()
+        rewritten = (chome / "agents" / name).read_bytes()
+        assert rewritten.split(b"\n")[3] == f'model = "{target_model}"'.encode()
+        assert rewritten.split(b"\n")[4] == shipped.split(b"\n")[4]
+
+
+def test_cli_models_lists_supported_efforts_and_reports_saved_fallback(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    choice_path = write(chome, install_codex.CHOICE_NAME, json.dumps({"format": 1,
+                        "roles": {"build": {"model": "gpt-5.6-sol", "effort": "high"}}}))
+    assert run(env).returncode == 0
+    agents = install_codex.role_agents(CAI_CODEX_ROOT)["build"]
+    installed = {name: (chome / "agents" / name).read_bytes() for name in agents}
+    fake_cache(chome, [{"slug": "gpt-5.6-sol", "visibility": "list",
+                        "supported_reasoning_levels": [
+                            {"effort": "low"}, {"effort": "medium"}]}])
+    before = choice_path.read_bytes()
+
+    shown = run_models(env)
+
+    assert shown.returncode == 0, shown.stdout + shown.stderr
+    assert "effort offer gpt-5.6-sol: low, medium" in shown.stdout
+    assert "effort choice build: high" in shown.stdout
+    assert "effort fallback build: requested high; would apply medium" in shown.stdout
+    assert choice_path.read_bytes() == before
+    assert installed == {name: (chome / "agents" / name).read_bytes() for name in agents}
+    reinstalled = run(env)
+    assert reinstalled.returncode == 0, reinstalled.stdout + reinstalled.stderr
+    assert "effort fallback build: requested high; applied medium" in reinstalled.stdout
+    for name in agents:
+        assert b'model_reasoning_effort = "medium"' in (chome / "agents" / name).read_bytes()
+
+
+@pytest.mark.parametrize("levels", [[], [{"effort": "turbo"}, {"effort": "ultra-plus"}]])
+def test_cli_apply_effort_with_unknown_support_is_accepted(tmp_path, levels):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    fake_cache(chome, [{"slug": "gpt-custom", "visibility": "list",
+                        "supported_reasoning_levels": levels}])
+    choice = {"model": "gpt-custom", "effort": "high"}
+    write(chome, install_codex.ANSWERS_NAME,
+          json.dumps({"format": 1, "roles": {"build": choice}}))
+
+    applied = run_apply(env)
+
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert install_codex.load_choice(chome) == {"build": choice}
+    for name in install_codex.role_agents(CAI_CODEX_ROOT)["build"]:
+        assert b'model_reasoning_effort = "high"' in (chome / "agents" / name).read_bytes()
+
+
+def test_cli_models_without_cache_offers_every_saved_role_but_setup_does_not(tmp_path):
+    env = fake_env(tmp_path)
+    chome = tmp_path / ".codex"
+    choices = {"chore": "gpt-6-luna", "build": "gpt-6.1-sol", "think": "gpt-6.1-sol"}
+    choice_path = write(chome, install_codex.CHOICE_NAME,
+                        json.dumps({"format": 1, "roles": choices}))
+    before = choice_path.read_bytes()
+
+    shown = run_models(env)
+
+    assert shown.returncode == 0, shown.stdout + shown.stderr
+    assert "ask: keep-or-type chore build think" in shown.stdout
+    assert choice_path.read_bytes() == before
+    assert not (chome / "agents").exists()
+    installed = run(env)
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+    assert "ask: nothing" in installed.stdout

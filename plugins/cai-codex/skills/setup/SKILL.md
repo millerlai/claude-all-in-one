@@ -49,8 +49,10 @@ what went wrong.
 
 The installer's own stdout ends with a mapping block: a `models:` line
 (and, when it applies, a `models: ignored ...` line), one `role <role>: ...`
-line per role, then, when detection succeeded, `offer <role>: ...` lines
-per role, then zero or more `ask again <role>:` and `not offered <role>:`
+line per role (with optional `effort choice <role>:` and `effort fallback
+<role>:` lines), then, when detection succeeded, `offer <role>: ...` lines
+per role and `effort offer <model>:` lines for models with known efforts,
+then zero or more `ask again <role>:` and `not offered <role>:`
 lines, then an `ask:` line, then an `answers file:` line. Read these lines
 back out of the output you just captured.
 
@@ -58,6 +60,9 @@ Show the user the `role <role>: ...` lines as the current mapping. Show
 every `ask again <role>:` line and every `not offered <role>:` line too,
 each on its own line, verbatim — this file holds no rule about what they
 mean beyond what they say.
+Show every `effort fallback <role>:` line too: a saved effort is retained,
+but the cached model list requires a supported fallback for the installed
+agents. `$models <role> effort <effort>` changes that choice.
 
 ### Ask what the `ask:` line says to ask
 
@@ -121,7 +126,8 @@ Otherwise, capture and read this `--apply` run's own stdout the same way
 you read run 1's in "Read the mapping block" above. The roles written to
 the answers file are not necessarily the roles actually saved — the
 installer drops a role from the saved file when the answered slug equals
-that role's cai default. Determine which roles were actually saved from
+that role's cai default and no effort override remains. A model-only answer
+retains a saved effort override. Determine which roles were actually saved from
 this apply run's own `role <role>: ...` lines: a role is saved this run
 only if its tag reads `saved; cai default <default>`, not plain `cai
 default`.

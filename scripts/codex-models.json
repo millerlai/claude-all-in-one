@@ -11,11 +11,16 @@
     "side (reviewer at high inside build) is not flattened on Codex.",
     "",
     "Re-tiering is a one-line edit here; a slug",
-    "retired or hidden for an account (C19) breaks dispatch for that user."
+    "retired or hidden for an account (C19) breaks dispatch for that user.",
+    "",
+    "Defaults refreshed 2026-10-01: preserve each workload's tier and effort.",
+    "OpenAI's GPT-6 guide recommends Luna for focused high-volume tasks,",
+    "GPT-6.1 Sol for complex work at lower cost, and Astra for demanding reasoning.",
+    "https://developers.openai.com/api/docs/guides/latest-model"
   ],
   "roles": {
-    "chore": { "model": "gpt-5.6-luna", "effort": "low" },
-    "build": { "model": "gpt-5.6-terra", "effort": "medium" },
+    "chore": { "model": "gpt-6-luna", "effort": "low" },
+    "build": { "model": "gpt-6.1-sol", "effort": "medium" },
     "think": { "model": "gpt-6-astra", "effort": "high" }
   }
 }

@@ -69,6 +69,7 @@ MODELS_CACHE_NAME = "models_cache.json"
 CHOICE_NAME = "cai-model-choice.json"      # chosen by the person 2026-09-22 (P1)
 ANSWERS_NAME = "cai-model-answers.json"    # chosen by the person 2026-09-22 (P1)
 FORMAT = 1
+ModelChoice = str | dict[str, str | None]
 
 
 class HooksParseError(Exception):
@@ -454,9 +455,25 @@ def detect(chome: Path) -> Detection:
 # Saved choice -- load_choice, save_choice
 # ---------------------------------------------------------------------------
 
-def load_choice(chome: Path) -> dict[str, str]:
-    """The role -> slug map that survives plugin updates. `{}` when the file
-    is absent."""
+def choice_parts(value: ModelChoice) -> tuple[str, str | None]:
+    """Read a legacy model name or a model/effort pair. A null effort clears
+    the override in an answer, restoring each agent's own shipped effort."""
+    if isinstance(value, str):
+        model, effort = value, None
+    elif isinstance(value, dict) and set(value) == {"model", "effort"}:
+        model, effort = value["model"], value["effort"]
+    else:
+        raise ValueError("expected a model name or an object with model and effort")
+    if not isinstance(model, str) or not SLUG_RE.match(model):
+        raise ValueError(f"invalid role slug: {model!r}")
+    if effort is not None and effort not in EFFORT_ORDER:
+        raise ValueError(f"invalid reasoning effort: {effort!r}")
+    return model, effort
+
+
+def load_choice(chome: Path) -> dict[str, ModelChoice]:
+    """The role -> model/effort choices that survive plugin updates. Legacy
+    model-only strings remain valid; `{}` when the file is absent."""
     path = chome / CHOICE_NAME
     if not path.is_file():
         return {}
@@ -471,15 +488,14 @@ def load_choice(chome: Path) -> dict[str, str]:
         if not isinstance(roles, dict):
             raise ValueError("roles is not an object")
         for value in roles.values():
-            if not isinstance(value, str) or not SLUG_RE.match(value):
-                raise ValueError(f"invalid role slug: {value!r}")
+            choice_parts(value)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as e:
         raise ChoiceParseError(f"{path}: {e}") from e
 
     return roles
 
 
-def save_choice(chome: Path, roles: dict[str, str]) -> Path:
+def save_choice(chome: Path, roles: dict[str, ModelChoice]) -> Path:
     path = chome / CHOICE_NAME
     body = json.dumps({"format": FORMAT, "roles": roles}, indent=2, sort_keys=True) + "\n"
     _atomic_write_bytes(path, body.encode("utf-8"))
@@ -490,10 +506,11 @@ def save_choice(chome: Path, roles: dict[str, str]) -> Path:
 # Answers -- read_answers, merge_answers
 # ---------------------------------------------------------------------------
 
-def read_answers(chome: Path, roles: tuple[str, ...], detection: Detection) -> dict[str, str]:
-    """The role -> slug map from `cai-model-answers.json`, validated against
-    `roles` (the known role names) and, when `detection.ok`, `detection.offered`.
-    Raises `AnswersError` on the first failing role."""
+def read_answers(chome: Path, roles: tuple[str, ...], detection: Detection,
+                 saved: dict[str, ModelChoice],
+                 defaults: dict[str, tuple[str, tuple[str, ...]]]) -> dict[str, ModelChoice]:
+    """Validate model/effort answers, including an effort retained by a
+    model-only answer. Reject known unsupported pairs before any write."""
     path = chome / ANSWERS_NAME
     if not path.is_file():
         raise AnswersError(f"{path} is missing")
@@ -510,31 +527,48 @@ def read_answers(chome: Path, roles: tuple[str, ...], detection: Detection) -> d
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as e:
         raise AnswersError(f"{path} cannot be parsed: {e}") from e
 
-    result: dict[str, str] = {}
+    result: dict[str, ModelChoice] = {}
     for role, value in answer_roles.items():
         if role not in roles:
             raise AnswersError(f"unknown role {role!r}")
-        if not isinstance(value, str) or not SLUG_RE.match(value):
+        try:
+            model, effort = choice_parts(value)
+        except ValueError as e:
+            raise AnswersError(f"rejected {role}: {e}") from e
+        if isinstance(value, str) and role in saved:
+            effort = choice_parts(saved[role])[1]
+        # A reset restores shipped bytes even if that model is no longer listed.
+        reset = isinstance(value, dict) and effort is None and model == defaults[role][0]
+        if detection.ok and model not in detection.offered and not reset:
             raise AnswersError(
-                f"rejected {role}: {value!r} is not a model name (allowed: {SLUG_RE.pattern})")
-        if detection.ok and value not in detection.offered:
-            raise AnswersError(
-                f"rejected {role}: {value} is not offered by this detection; "
+                f"rejected {role}: {model} is not offered by this detection; "
                 "run $models to pick one it offers")
+        levels = tuple(level for level in detection.levels.get(model, ())
+                       if level in EFFORT_ORDER)
+        if effort is not None and levels and effort not in levels:
+            raise AnswersError(
+                f"rejected {role}: {effort} is not supported by {model}; "
+                f"supported efforts: {', '.join(levels)}")
         result[role] = value
     return result
 
 
-def merge_answers(saved: dict[str, str], answers: dict[str, str],
-                   defaults: dict[str, tuple[str, str]]) -> dict[str, str]:
-    """`saved` with each `answers` role applied: choosing the cai default
-    (D6) removes any saved entry for that role instead of storing it."""
+def merge_answers(saved: dict[str, ModelChoice], answers: dict[str, ModelChoice],
+                   defaults: dict[str, tuple[str, tuple[str, ...]]]) -> dict[str, ModelChoice]:
+    """Model-only answers retain an existing effort override. A model/effort
+    pair explicitly replaces it; null clears it. Only a fully default role
+    is removed from the saved choices."""
     merged = dict(saved)
-    for role, slug in answers.items():
-        if slug == defaults[role][0]:
+    for role, value in answers.items():
+        model, effort = choice_parts(value)
+        if isinstance(value, str) and role in saved:
+            effort = choice_parts(saved[role])[1]
+        if effort is not None:
+            merged[role] = {"model": model, "effort": effort}
+        elif model == defaults[role][0]:
             merged.pop(role, None)
         else:
-            merged[role] = slug
+            merged[role] = model
     return merged
 
 
@@ -608,21 +642,23 @@ class RolePlan(NamedTuple):
     reask: bool              # detection.ok and saved and in_effect not in offered
     unlisted_default: bool   # detection.ok and not saved and default_model not in offered
     offer: tuple[str, ...]   # () when not detection.ok
+    effort_override: str | None = None
 
 
 def plan_roles(agents: dict[str, list[str]],
                 defaults: dict[str, tuple[str, tuple[str, ...]]],
-                detection: Detection, saved: dict[str, str]) -> dict[str, RolePlan]:
+                detection: Detection, saved: dict[str, ModelChoice]) -> dict[str, RolePlan]:
     """A role plan per role in `agents` (role order preserved). A `saved`
     role name not present in `agents` is silently dropped (D13)."""
     plans: dict[str, RolePlan] = {}
     for role, agent_list in agents.items():
         default_model, default_efforts = defaults[role]
-        saved_slug = saved.get(role)
-        is_saved = saved_slug is not None
-        in_effect = saved_slug if is_saved else default_model
+        is_saved = role in saved
+        in_effect, effort_override = (choice_parts(saved[role]) if is_saved
+                                       else (default_model, None))
         levels = detection.levels.get(in_effect)
-        efforts = tuple(fallback_effort(own, levels) for own in default_efforts)
+        efforts = tuple(fallback_effort(effort_override or own, levels)
+                        for own in default_efforts)
         reask = detection.ok and is_saved and in_effect not in detection.offered
         unlisted_default = (detection.ok and not is_saved
                              and default_model not in detection.offered)
@@ -641,7 +677,8 @@ def plan_roles(agents: dict[str, list[str]],
             offer = tuple(offer_list)
 
         plans[role] = RolePlan(role, tuple(agent_list), default_model, default_efforts,
-                                in_effect, is_saved, efforts, reask, unlisted_default, offer)
+                                in_effect, is_saved, efforts, reask, unlisted_default,
+                                offer, effort_override)
     return plans
 
 
@@ -685,9 +722,10 @@ def agent_bytes(root: Path, plans: dict[str, RolePlan]) -> dict[str, bytes]:
 # ---------------------------------------------------------------------------
 
 def render_mapping(plans: dict[str, RolePlan], detection: Detection, chome: Path,
-                    full: bool) -> list[str]:
+                    full: bool, preview: bool = False) -> list[str]:
     """The roles and questions, in a form both a person and `SKILL.md` can
-    read line by line. `full=True` for run 1, `False` for the apply run."""
+    read line by line. `full=True` for run 1, `False` for the apply run;
+    `preview=True` for the read-only models run."""
     lines: list[str] = []
 
     if detection.ok:
@@ -709,6 +747,13 @@ def render_mapping(plans: dict[str, RolePlan], detection: Detection, chome: Path
             # One effort for the role would be wrong for some of its agents.
             per_agent = ", ".join(f"{n} / {e}" for n, e in zip(names, plan.efforts))
             lines.append(f"role {role}: {plan.in_effect} ({tag}) -- {per_agent}")
+        if plan.effort_override is not None:
+            lines.append(f"effort choice {role}: {plan.effort_override}")
+            if any(effort != plan.effort_override for effort in plan.efforts):
+                applied = ", ".join(dict.fromkeys(plan.efforts))
+                action = "would apply" if preview else "applied"
+                lines.append(f"effort fallback {role}: requested {plan.effort_override}; "
+                             f"{action} {applied}")
 
     if full and detection.ok:
         for role, plan in plans.items():
@@ -721,6 +766,11 @@ def render_mapping(plans: dict[str, RolePlan], detection: Detection, chome: Path
                     marks.append("cai default")
                 entries.append(f"{slug} ({', '.join(marks)})" if marks else slug)
             lines.append(f"offer {role}: {', '.join(entries)}")
+        for model in detection.offered:
+            levels = [effort for effort in detection.levels.get(model, ())
+                      if effort in EFFORT_ORDER]
+            if levels:
+                lines.append(f"effort offer {model}: {', '.join(levels)}")
 
     for role, plan in plans.items():
         if plan.reask:
@@ -733,7 +783,10 @@ def render_mapping(plans: dict[str, RolePlan], detection: Detection, chome: Path
                           "detection does not list it")
 
     if full:
-        lines.append(ask_directive(plans, detection))
+        # Setup can reuse every saved choice; $models still needs to offer edits.
+        directive = ("ask: keep-or-type " + " ".join(plans)
+                     if preview and not detection.ok else ask_directive(plans, detection))
+        lines.append(directive)
         lines.append(f"answers file: {chome / ANSWERS_NAME}")
     else:
         n = sum(1 for plan in plans.values() if plan.saved)
@@ -768,7 +821,7 @@ def apply_answers(root: Path, chome: Path) -> int:
         return 1
 
     try:
-        answers = read_answers(chome, tuple(agents.keys()), detection)
+        answers = read_answers(chome, tuple(agents.keys()), detection, saved, defaults)
     except AnswersError as e:
         print(f"answers not applied: {e}")
         return 1
@@ -839,7 +892,7 @@ def show_models(root: Path, chome: Path) -> int:
         return 1
 
     plans = plan_roles(agents, defaults, detection, saved)
-    for line in render_mapping(plans, detection, chome, full=True):
+    for line in render_mapping(plans, detection, chome, full=True, preview=True):
         print(line)
     return 0
 
