@@ -167,6 +167,15 @@ def test_in_progress_with_unresolved_other_call_past_threshold_is_permission():
     assert out["entryId"] == "call-2"
 
 
+def test_in_progress_with_unresolved_spawn_agent_past_threshold_is_working():
+    tail = [_function_call(1, "agent-call", "spawn_agent", ms=BASE_MS,
+                           arguments=json.dumps({"agent_type": "reviewer"}))]
+    out = viewer.classify_codex("inProgress", tail, BASE_MS + 30001, BASE_MS)
+    assert out["state"] == "working"
+    assert out["permission"] is None
+    assert viewer._codex_tail_subagents(tail) == ["reviewer"]
+
+
 def test_in_progress_with_unresolved_other_call_within_threshold_is_working():
     tail = [_function_call(1, "call-3", "send_message", ms=BASE_MS)]
     now_ms = BASE_MS + 1000

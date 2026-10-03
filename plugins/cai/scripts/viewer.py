@@ -1936,6 +1936,7 @@ def claude_rows(config_root, now_ms):
 CODEX_ROLLOUT_TAIL_MAX = 262144
 CODEX_ROLLOUT_FIRST_LINE_MAX = 65536
 CODEX_PERMISSION_THRESHOLD_MS = 30000
+CODEX_SUBAGENT_TOOL = "spawn_agent"
 CODEX_FALLBACK_MAX_AGE_MS = 24 * 3600 * 1000
 CODEX_FALLBACK_MAX_FILES = 200
 CODEX_LOCK_DIR = "thread-writer-locks"
@@ -2071,7 +2072,9 @@ def classify_codex(turn_status, tail, now_ms, tail_mtime_ms):
                 result.update(since=event_time, state="question", certainty="confirmed",
                               entryId=call_id, notes=[])
                 return result
-            if now_ms - event_time > CODEX_PERMISSION_THRESHOLD_MS:
+            # An unresolved spawn_agent call waits for its child, not a permission.
+            if (name != CODEX_SUBAGENT_TOOL
+                    and now_ms - event_time > CODEX_PERMISSION_THRESHOLD_MS):
                 result["permission"] = {"tool": name}
                 result.update(since=event_time, state="permission", certainty="inferred",
                               entryId=call_id, notes=[])
@@ -2152,9 +2155,6 @@ def _recent_codex_actions(tail, tail_mtime_ms):
 # local rollout data that actually called it. The primary (sqlite) path
 # overrides this with thread_spawn_edges instead -- see
 # _codex_subagents_by_parent() -- which is authoritative when it's there.
-
-CODEX_SUBAGENT_TOOL = "spawn_agent"
-
 
 def _codex_tail_subagents(tail):
     names = []
