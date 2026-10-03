@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.43.0 — 2026-10-03
+
+Codex roles can now save a reasoning-effort choice alongside their model, and the Agent Viewer handles pending tool approvals and agent waits more accurately.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.42.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.42.0 to 1.43.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected: neither `state.md` nor the ledger format changed.
+- Restart a running viewer to pick up the Codex status fixes: `/cai:viewer stop`, then `/cai:viewer` (on Codex, `$viewer stop`, then `$viewer`). (#261, #263)
+
+### Codex Models
+
+- `$models <role> <model> [<effort>]` saves a model and optional reasoning effort for that role; `$models <role> effort <effort>` changes only the effort. An explicit effort applies to every agent in the role. Model-only changes preserve a saved effort, `default` restores each agent's shipped effort, and `$models reset <role>` restores both model and effort defaults. Existing saved model choices remain supported and later `$setup` runs re-apply them. (#262)
+- Choices are checked against supported effort levels when the cached model list provides them. When a saved effort is no longer supported, the installer retains the saved choice and reports the supported fallback it writes; menu previews distinguish that future write from settings already applied. (#262)
+- The default model for `chore` is now `gpt-6-luna` with low effort, and `build` uses `gpt-6.1-sol` with medium effort, retaining high effort for reviewers. `think` remains `gpt-6-astra` with high effort. (#262)
+
+### Viewer
+
+- Codex custom tool calls now count as pending until their matching output arrives. After 30 seconds, a pending call can show an inferred permission wait; this remains a time-based inference, so a long-running tool can also show that state. (#261)
+- An unresolved Codex `spawn_agent` call keeps the session shown as running instead of becoming an inferred permission wait after 30 seconds. (#263)
+
 ## v1.42.0 — 2026-09-30
 
 You can now cancel an unfinished track with a recorded reason. Track checks, command guards and Codex question handling also get fixes.
