@@ -640,6 +640,71 @@ never served is simply skipped — the next release uses the next number, and
 the CHANGELOG notes what was skipped. A GitHub tag ruleset, set up once by
 the repo owner, protects `v*` tags from being moved or deleted.
 
+### Releasing with GitHub Actions
+
+The `cut-release` workflow automates the work after the maintainer chooses
+the version and reviews the release notes. It reuses `scripts/release.py`;
+the local procedure above remains available. It does not choose a version
+or turn commit subjects into final release notes.
+
+One-time repository setup:
+
+- Install a GitHub App on this repository only, with **Contents** and
+  **Pull requests** read/write, and **Actions** and **Checks** read access.
+  The App token lets the release PR and merge push trigger normal CI;
+  do not grant it a bypass for the `v*` tag ruleset.
+- Create environments named `release-tag` and `release-merge`. On each,
+  configure a required maintainer reviewer, restrict deployment branches to
+  `main`, and disable administrator bypass. Leave self-review enabled if
+  the only maintainer also starts the workflow. An environment name in YAML
+  does not by itself configure these protections.
+- In both environments, set variable `RELEASE_APP_ID` and secret
+  `RELEASE_APP_PRIVATE_KEY` to the App's ID and PEM private key. The workflow
+  requests only the token permissions needed by each step. No model API
+  keys are used: platform verification installs plugins without a model run.
+- Keep the `validate` workflow enabled and merge commits permitted. The App
+  must satisfy any branch protection; it does not approve its own PR.
+
+For each release:
+
+1. Follow the maintainer skill's preflight, version choice, `prepare`, and
+   CHANGELOG review. Keep the candidate as **one** commit directly on the
+   current `origin/main`, changing only the normal release files:
+
+   ```sh
+   git add -- plugins/cai/.claude-plugin/plugin.json .claude-plugin/marketplace.json .agents/plugins/marketplace.json plugins/cai-codex CHANGELOG.md
+   git commit -m 'chore(release): vX.Y.Z'
+   git push -u origin release/vX.Y.Z
+   git rev-parse HEAD
+   ```
+
+2. In Actions, run `cut-release` **on main**, with version `X.Y.Z` and the
+   complete SHA printed above. The initial check verifies the candidate and
+   the successful `validate` push run for its main parent. Its summary shows
+   the exact release notes. If main advances before the first tag push,
+   rebuild the candidate from current main and start a new run with its SHA.
+3. Review that summary and approve `release-tag`. The job validates and tests
+   even an already committed candidate, pushes the immutable tag, verifies
+   actual installs with both platform CLIs, creates the release PR, waits
+   for that exact head's CI, and publishes the GitHub Release. CLI versions
+   are pinned to the platform floors in `scripts/release.py`; update the
+   workflow's installation step when those floors change.
+4. Approve `release-merge` only after reviewing the PR and published Release.
+   It uses `--merge --match-head-commit`, confirms the tag is an ancestor of
+   main, and waits for the merge commit's own `validate` push run.
+
+Re-run a failed workflow with the same version and SHA for transient
+failures. If the tag is already on the remote, it reruns `verify` instead of
+trying to tag again; a published Release is reused. The release branch was
+saved before tagging, so recovery does not depend on a previous runner's
+disk. If merge succeeded but its CI wait failed, re-running the **failed
+merge job** checks the existing merge instead of merging twice. A changed
+branch head or conflicting tag is refused. A real installation defect still
+burns the version: fix it on main, explicitly retire the failed release
+branch after review, and prepare the next number, recording the skipped
+version in CHANGELOG. Never move or delete its tag. Runs are serialized and
+do not automatically cancel an in-progress release.
+
 ### Stable fallback
 
 If a platform's update path breaks and the fix isn't ready yet, the
