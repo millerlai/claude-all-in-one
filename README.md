@@ -5,11 +5,12 @@ Codex CLI counterpart, `cai-codex` — that installs a working set of everyday
 capabilities — cheaper model routing, safer git, and a shared set of
 behavioural rules — into every project on your machine.
 
-Three documents, and they answer different questions. This one is what the
-pieces are. [`MANUAL.md`](MANUAL.md) is how to drive them — what to type, what
-happens next, and what every refusal means. [`GUIDE.md`](GUIDE.md) is where a
-new piece of guidance belongs when you are extending the plugin rather than
-using it.
+Four documents, and they answer different questions. This one is what the
+pieces are and how to install them. [`MANUAL.md`](MANUAL.md) is how to drive
+them — what to type, what happens next, and what every refusal means.
+[`GUIDE.md`](GUIDE.md) is where a new piece of guidance belongs when you are
+extending the plugin rather than using it. [`CONTRIBUTING.md`](CONTRIBUTING.md)
+is for changing this repo: testing, checks before pushing, and releases.
 
 ## The shape of it
 
@@ -34,7 +35,7 @@ Four layers, plus one underneath all of them.
   picking Approve, and again if the design document changed since.
 - **The tools.** Reachable any time, with no track running: `/cai:refactor`,
   `/cai:debug`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`,
-  `/cai:options`, `/cai:usage`, `/cai:models`.
+  `/cai:options`, `/cai:usage`, `/cai:models`, `/cai:viewer`.
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards under `refactoring-catalog/`, the
   smell-to-refactoring routing table, the six stage procedures above, and a
@@ -158,9 +159,9 @@ both converging on the same test-and-report step. It still ships and still
 works, but `/cai:track` is meant to replace it, and `goal`'s own routing
 already overlaps what the `design` → `build` → `verify` stages now do more
 explicitly. It was to stay only until someone had run a track end to end;
-that has happened many times over (eleven finished tracks by 2026-09-14),
-so its retirement is now its own change, not a condition still waiting. If
-you're starting fresh, reach for `/cai:track` instead.
+that has long since happened, so its retirement is now its own change, not a
+condition still waiting. If you're starting fresh, reach for `/cai:track`
+instead.
 
 ### Subagents
 
@@ -199,30 +200,13 @@ the project turns it on in `.claude/cai.json`:
 ```
 
 Then start a track from the issue itself — `/cai:track
-https://github.com/<owner>/<repo>/issues/123`. An argument containing `://`,
-or made only of digits, is read as a ticket rather than used as a directory
-name: the issue is read first, a name is proposed from its title for you to
-confirm, and the pointer is written before the first stage runs. If another
-cai track already claims the issue, this read lists every claim first, as a
-claim menu, and offers to resume your own in-progress one instead of starting
-a second track on it. The two-step
-form (`ticket.py point --track-dir … --ref …`) still works when you want to
-choose the name yourself; both, and a worked example from an issue link to a
-merged PR, are in [`MANUAL.md`](MANUAL.md).
-From there `intake` reads the issue as its starting request **and routes it**:
-it tries to write a test that fails now and would pass if an existing promise
-held, and what comes out decides whether the design stage runs `diagnosis` or
-`stance`. The issue's own wording does not decide that — "add a retry" reads
-like a feature and is often a symptom. Then every passing stage row and every
-skip updates one comment on the issue — a status line (`status: in-progress`,
-then `status: done`), the six stage rows, not the local
-artifact paths — and `ship` asks, on its own turn, whether to
-project its own row. Closing the issue is not ship's job: `/cai:track done`
-rewrites the comment one last time after the track archives and, only if a
-ticket number resolves, asks its own close menu. It
-uses the `gh` CLI against the repo's own remote. A projection that fails is
-recorded in the track's `ticket.json` and never fails a stage or counts toward
-the retry cap.
+https://github.com/<owner>/<repo>/issues/123`. `intake` reads the issue as
+its starting request and routes it by evidence, not by its wording; every
+passing stage and every skip rewrites one comment on the issue; and
+`/cai:track done` asks whether to close it. It uses the `gh` CLI against the
+repo's own remote, and a failed update never fails a stage. What each stage
+does with the issue, and a worked example from an issue link to a merged PR,
+are in [`MANUAL.md`](MANUAL.md#mirroring-a-track-into-a-github-issue).
 
 ## What it deliberately leaves out
 
@@ -315,8 +299,14 @@ re-serves the cached commit:
 /plugin update cai
 ```
 
-Re-run `/cai:setup` afterwards to pick up rule changes, and restart the
-session — running sessions don't hot-reload plugin agents or hooks.
+Restart the session — running sessions don't hot-reload plugin agents or
+hooks. If the update changed the rules, run `/cai:setup` to copy them into
+`~/.claude/rules/` and restart once more, since rules are read at startup.
+
+The installed copy lives under `~/.claude/plugins/cache/`, keyed by version,
+and tracks the marketplace's default branch on GitHub, not a local checkout:
+editing a clone of this repo changes nothing your sessions run until the
+change is merged and released.
 
 If the cache looks corrupted:
 
@@ -590,195 +580,9 @@ Claude Code's built-in auto memory keeps per-project notes in
 `~/.claude/projects/<project>/memory/` — inspect with `/memory`. Curated
 instructions belong in the rules; hard constraints belong in hooks.
 
-## Contributing / developing
+## Contributing
 
-Test your changes from your checkout, not from an installed copy — see
-`### Testing unreleased changes` below. Adding this repo as a marketplace
-from a local checkout and installing from it does not do that: the entry in
-`.claude-plugin/marketplace.json` is a `git-subdir` source pinned to the
-latest release tag, so `/plugin install` fetches that tag from GitHub, not
-your working tree.
-
-### Testing unreleased changes
-
-Claude Code testers can point `claude` straight at an uninstalled tree with
-`--plugin-dir /path/to/claude-all-in-one/plugins/cai`.
-
-Codex testers can add a second, differently-named local marketplace entry —
-`cai-dev`, say — pointed at their working checkout, to try changes without
-disturbing the real `claude-all-in-one` marketplace entry. This is a
-maintainer workaround with known limits, not a fully general local-dev setup.
-
-Everything users receive lives under `plugins/cai/` — the plugin cache
-copies only that directory, so anything outside it never reaches an installer.
-Decide which side a new file is on before writing it: [`CLAUDE.md`](CLAUDE.md)'s
-"Who a file is for" draws the line between what ships and what only maintains
-this repo (`docs/`, `scripts/`, `tests/`, `.github/`, `.claude/skills/`). The
-plugin cache is keyed by version — no pull request changes `version` in
-`plugins/cai/.claude-plugin/plugin.json` any more; `scripts/release.py`
-writes it once, when a release is cut. See `### Releasing` below.
-
-### Releasing
-
-`scripts/release.py` has four subcommands, run in order:
-
-1. `python scripts/release.py prepare X.Y.Z [--base REF]` drafts a
-   `release/vX.Y.Z` branch and a `CHANGELOG.md` section. Edit that section
-   by hand before continuing.
-2. `python scripts/release.py cut X.Y.Z` writes the version, tags it, and
-   calls `verify` automatically.
-3. `python scripts/release.py verify X.Y.Z` can also be run standalone, to
-   retry a check without cutting again.
-4. `python scripts/release.py publish X.Y.Z` publishes the GitHub Release.
-
-There's no fixed schedule — the maintainer cuts a release whenever they
-decide to, typically after a `fix:` lands. The release PR merges with
-`--merge` (a real merge commit), the one exception to this repo's usual
-squash-merge habit: reverting it must never look like reverting the version
-bump alone. A version number that got tagged but failed its checks and was
-never served is simply skipped — the next release uses the next number, and
-the CHANGELOG notes what was skipped. A GitHub tag ruleset, set up once by
-the repo owner, protects `v*` tags from being moved or deleted.
-
-### Releasing with GitHub Actions
-
-The `cut-release` workflow automates the work after the maintainer chooses
-the version and reviews the release notes. It reuses `scripts/release.py`;
-the local procedure above remains available. It does not choose a version
-or turn commit subjects into final release notes.
-
-One-time repository setup:
-
-- Install a GitHub App on this repository only, with **Contents** and
-  **Pull requests** read/write, and **Actions** and **Checks** read access.
-  The App token lets the release PR and merge push trigger normal CI;
-  do not grant it a bypass for the `v*` tag ruleset.
-- Create environments named `release-tag` and `release-merge`. On each,
-  configure a required maintainer reviewer, restrict deployment branches to
-  `main`, and disable administrator bypass. Leave self-review enabled if
-  the only maintainer also starts the workflow. An environment name in YAML
-  does not by itself configure these protections.
-- In both environments, set variable `RELEASE_APP_ID` and secret
-  `RELEASE_APP_PRIVATE_KEY` to the App's ID and PEM private key. The workflow
-  requests only the token permissions needed by each step. No model API
-  keys are used: platform verification installs plugins without a model run.
-- Keep the `validate` workflow enabled and merge commits permitted. The App
-  must satisfy any branch protection; it does not approve its own PR.
-
-For each release:
-
-1. Follow the maintainer skill's preflight, version choice, `prepare`, and
-   CHANGELOG review. Keep the candidate as **one** commit directly on the
-   current `origin/main`, changing only the normal release files:
-
-   ```sh
-   git add -- plugins/cai/.claude-plugin/plugin.json .claude-plugin/marketplace.json .agents/plugins/marketplace.json plugins/cai-codex CHANGELOG.md
-   git commit -m 'chore(release): vX.Y.Z'
-   git push -u origin release/vX.Y.Z
-   git rev-parse HEAD
-   ```
-
-2. In Actions, run `cut-release` **on main**, with version `X.Y.Z` and the
-   complete SHA printed above. The initial check verifies the candidate and
-   the successful `validate` push run for its main parent. Its summary shows
-   the exact release notes. If main advances before the first tag push,
-   rebuild the candidate from current main and start a new run with its SHA.
-3. Review that summary and approve `release-tag`. The job validates and tests
-   even an already committed candidate, pushes the immutable tag, verifies
-   actual installs with both platform CLIs, creates the release PR, waits
-   for that exact head's CI, and publishes the GitHub Release. CLI versions
-   are pinned to the platform floors in `scripts/release.py`; update the
-   workflow's installation step when those floors change.
-4. Approve `release-merge` only after reviewing the PR and published Release.
-   It uses `--merge --match-head-commit`, confirms the tag is an ancestor of
-   main, and waits for the merge commit's own `validate` push run.
-
-Re-run a failed workflow with the same version and SHA for transient
-failures. If the tag is already on the remote, it reruns `verify` instead of
-trying to tag again; a published Release is reused. The release branch was
-saved before tagging, so recovery does not depend on a previous runner's
-disk. If merge succeeded but its CI wait failed, re-running the **failed
-merge job** checks the existing merge instead of merging twice. A changed
-branch head or conflicting tag is refused. A real installation defect still
-burns the version: fix it on main, explicitly retire the failed release
-branch after review, and prepare the next number, recording the skipped
-version in CHANGELOG. Never move or delete its tag. Runs are serialized and
-do not automatically cancel an in-progress release.
-
-### Stable fallback
-
-If a platform's update path breaks and the fix isn't ready yet, the
-maintainer can point a `stable` branch at the last known-good tag, with both
-marketplace files reverted to the old relative-path form, so installs fall
-back to that tag instead of a broken `main` HEAD. This is a manual,
-maintainer-run procedure — `scripts/release.py` does not automate it.
-
-Adding guidance rather than code? [GUIDE.md](GUIDE.md) covers which component
-should hold it — a convention, a procedure, or a constraint — and why putting it
-in the wrong one makes it quietly stop working. It applies just as well to your
-own `~/.claude/` setup.
-
-Before pushing, run both:
-
-```bash
-python scripts/validate.py
-python -m pytest
-```
-
-`validate.py` checks the manifests, that every agent and skill has the
-frontmatter Claude Code needs to load it, that hook commands point at files
-that exist, that the guard still blocks what it should, that every rule file
-and the `track` and `goal` skills stay within their line ceilings, that every
-`.cmd` file is pure ASCII and no text file starts with a UTF-8 BOM, that the
-eval graders are well-formed and carry no secrets, and — through
-`plugins/cai/scripts/provenance.py` — that
-every entry in `docs/rule-provenance.md` still cites text that exists and that
-every place restating a rule still agrees with it. Because every `description`
-the model can match on is sent to it in every session, it also checks that the
-combined size of every agent's and skill's `description` (skipping the 72
-refactoring cards, which carry `disable-model-invocation: true` and so never
-reach the model unbidden) hasn't grown past what it measured last. It's a
-ratchet, not a target: it can only shrink or hold, never quietly drift back up.
-
-`pytest` runs `tests/`, which exercises what the scripts under
-`plugins/cai/scripts/` actually do. It and `pytest-xdist` are this repo's
-only development-time dependencies (`pip install pytest pytest-xdist`):
-`pyproject.toml` makes `python -m pytest` run the suite on one worker per
-CPU, and without `pytest-xdist` it stops at `unrecognized arguments: -n`.
-CI runs both on every pull request, on
-Linux, with `-n auto`. Windows is covered only by running them by hand; macOS
-not at all.
-
-You rarely need to run `validate.py` yourself while editing:
-`.claude/settings.json` registers a `PostToolUse` hook that runs it whenever the
-Edit or Write tool touches `plugins/cai/` or `.claude-plugin/`, and reports
-what failed. A file rewritten through the shell does not trigger it.
-
-When a change touches `plugins/cai/{skills,agents,hooks,rules,evals}/`, an
-optional local eval run is worth doing — about US$0.24 a run. Point
-`--output-dir` outside the repo, or the results land inside the tree that
-ships:
-
-```
-claude plugin eval plugins/cai --ablation none --max-cost-usd 1 --threshold 0 \
-  --trust-plugin --no-publish --model haiku --output-dir <path outside this repo>
-```
-
-Maintainer tools, which no shipped component runs:
-
-- `scripts/activation.py` — which skills and agents were installed, and on how
-  many days each one actually ran.
-- `tests/review-benchmark/` with `scripts/review_benchmark_score.py` — labelled
-  diffs that measure what the four `verify` lenses catch; the paid half is
-  `scripts/review-benchmark-procedure.md`.
-- `/gap-analysis` (`.claude/skills/gap-analysis/`) — compares cai against an
-  external practice and writes the result under `docs/design/`.
-- `/cut-release` (`.claude/skills/cut-release/`) — runs the four
-  `scripts/release.py` steps in "Releasing" above, with the version choice,
-  the CHANGELOG rewrite and the confirmations before the tag push and the
-  `--merge` of the release PR. Codex CLI uses `$cut-release [X.Y.Z]` via
-  `.agents/skills/cut-release/`, which reads the same workflow and adds
-  PowerShell execution guidance. Both entries are repository-only maintainer
-  tools, not shipped plugin skills.
-- `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
-  — a track's peak main-session context occupancy, read from local transcripts.
+Changing the plugin rather than using it? [`CONTRIBUTING.md`](CONTRIBUTING.md)
+covers testing an unreleased checkout, the checks to run before pushing, and
+cutting a release; [`GUIDE.md`](GUIDE.md) covers which component a new piece
+of guidance belongs in.
