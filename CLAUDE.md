@@ -39,8 +39,8 @@ and must not be hand-edited except its nine hand-written files:
 `scripts/codex-*.json` data are Ours.
 
 No PR changes `version` in `plugins/cai/.claude-plugin/plugin.json`;
-`scripts/release.py` writes it when a release is cut (see README,
-`### Releasing`).
+`scripts/release.py` writes it when a release is cut (see CONTRIBUTING.md,
+`## Releasing`).
 
 **Theirs** is an agent, skill, rule, template, or a script some shipped
 component actually invokes. It runs on a machine we will never see, against a
@@ -98,57 +98,34 @@ unconditionally in `/cai:track`'s `verify` stage, since it ships under
 Editing any rule sentence that `docs/rule-provenance.md` cites (a `Cited by:`
 target) must update that ledger entry in the same edit.
 
-A healthy run's last few lines look like this (checks vary; the shape is what
-matters — every line `PASS`, no `FAIL`, exit code 0):
-
-```
-PASS plugins/cai/evals\options-six-fields\graders\reads-options-references.md frontmatter has an allowed type (found: 'tool_used')
-PASS plugins/cai/evals\track-status-runs-the-script\graders\names-track-state-script.md frontmatter has an allowed type (found: 'regex')
-PASS no evals file contains a sk-ant- (0 found)
-PASS no evals file contains a ghp_ (0 found)
-PASS no evals file contains a home-directory path (0 found)
-```
+A healthy run prints every line `PASS`, no `FAIL`, and exits 0.
 
 Run `python -m pytest` too — the tests under `tests/`, which exercise
 what the scripts in `plugins/cai/scripts/` actually do. `pyproject.toml`'s
-`addopts` adds `-n auto`, so it runs the suite on one worker per CPU, which
-is what CI and `scripts/release.py`'s local gate run too. It needs `pytest`
-and `pytest-xdist` installed (`pip install pytest pytest-xdist`), this repo's
-only development-time dependencies; without `pytest-xdist` pytest stops at
-once with `error: unrecognized arguments: -n`. `--pdb` and `-s` need a
-single process: add `-n0` when debugging. `tests/`
-sits at the repo root rather than under `plugins/cai/` so that neither it nor
-pytest ever reaches an installed copy: `.claude-plugin/marketplace.json:14`
-ships `plugins/cai` and nothing else. A healthy run ends with a line like:
+`addopts` adds `-n auto`, which is what CI and `scripts/release.py`'s local
+gate run too. It needs `pytest` and `pytest-xdist` installed
+(`pip install pytest pytest-xdist`); without `pytest-xdist` pytest stops at once with
+`error: unrecognized arguments: -n`. `--pdb` and `-s` need a single process:
+add `-n0` when debugging.
 
-```
-======================= 399 passed in 217.95s (0:03:37) =======================
-```
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has sample healthy output for both, the
+optional local `claude plugin eval` run (worth doing when a change touches
+`plugins/cai/{skills,agents,hooks,rules,evals}/`; its `--output-dir` must
+point outside the repo), releasing, and the maintainer tools.
 
-An optional local run: `claude plugin eval plugins/cai --ablation none
---max-cost-usd 1 --threshold 0 --trust-plugin --no-publish --model haiku
---output-dir <path outside this repo>`, worth doing when a change touches
-`plugins/cai/{skills,agents,hooks,rules,evals}/`. `--output-dir` has to point
-outside the repo — the default lands under `plugins/cai/evals/results/`,
-inside the tree the marketplace ships to every install. One run costs about
-US$0.24 on a subscription (`docs/design/2026-09-12-pb02-plugin-evals-measurement.md:103`).
-This is deliberately not wired into CI — the suite is too thin (3 cases, 11
-graders) to carry a red/green gate yet; see issue #86 for the reopen
-condition.
-
-You should rarely need to run it by hand: `.claude/settings.json` registers a
+You should rarely need to run `validate.py` by hand: `.claude/settings.json` registers a
 `PostToolUse` hook that runs it whenever the **Edit or Write tool** touches
 `plugins/cai/` or `.claude-plugin/`, and reports the failures. The matcher is
 those two tools only — a file rewritten through Bash (redirection, a script,
 `git apply`) does not trigger it, so run the script by hand after those. It goes through
 `scripts/run-validate-hook.cmd`, the same polyglot launcher the shipped bash
 guard uses, so it finds `py`/`python` on Windows and `python3`/`python`
-elsewhere. Hook changes only take effect after a session restart.
+elsewhere. Hook changes only take effect after a session restart. The hook
+cannot block the edit — `PostToolUse` runs after the write — so it tells you
+rather than stopping you.
 
 Keep every `.cmd` file pure ASCII — CMD.exe reads them through the OEM codepage
 and one multi-byte character mangles every line after it. `validate.py` checks.
-The hook cannot block the edit — `PostToolUse` runs after the write — so it
-tells you rather than stopping you.
 
 No text file may start with a UTF-8 BOM, and `validate.py` checks that too. A
 BOM is invisible in an editor but the three bytes are still the start of the
@@ -164,10 +141,6 @@ checks the plugin's shape and the guard, `tests/` checks what the scripts do.
 Platform coverage: Linux is covered by CI on every PR, which runs both
 `validate.py` and `pytest`. Windows is covered only by the developer running
 both by hand, as described above. macOS has no coverage at all.
-
-Running `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
-prints that track's main-session peak context occupancy; it only reads local
-transcripts and writes nothing.
 
 ## Mistakes Claude repeats here
 

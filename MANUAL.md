@@ -1,8 +1,10 @@
 # Driving cai
 
-`README.md` says what the pieces are. `GUIDE.md` says which component a new
-piece of guidance belongs in. This file says how to actually use the thing:
-what to type, what happens next, and what to do when it refuses.
+[`README.md`](README.md) says what the pieces are and how to install them.
+[`GUIDE.md`](GUIDE.md) says which component a new piece of guidance belongs
+in. [`CONTRIBUTING.md`](CONTRIBUTING.md) is for changing this repo. This file
+says how to actually use the thing: what to type, what happens next, and what
+to do when it refuses.
 
 Nothing here is required reading before you start. `/cai:track <feature>` and
 answering its questions gets you a long way; come back when something blocks
@@ -609,7 +611,7 @@ fields.** Fixed in cai 1.27.1 and cai-codex 0.1.1: the linted text is now sent
 in full as the message that asks. The file under
 `.claude/track/<feature>/options-*.md` is where the lint and `preflight.py`
 read it, not a substitute for the message. Seeing the old shape means an older
-installed copy — update (below) and restart.
+installed copy — update ([README's Updating](README.md#updating)) and restart.
 
 ## Limits worth knowing
 
@@ -633,15 +635,5 @@ installed copy — update (below) and restart.
 
 ## Updating
 
-```
-/plugin marketplace update claude-all-in-one
-/plugin update cai
-# restart the session
-/cai:setup          # only if rules/ changed
-# restart again — rules are read at startup
-```
-
-The installed copy lives under `~/.claude/plugins/cache/`, keyed by version,
-and tracks the marketplace's default branch on GitHub, not your local
-checkout. Editing this repo does not change what your session runs until the
-change is merged, the version is bumped, and the marketplace is refreshed.
+The commands, and the two restarts a rule change needs, are in
+[README's Updating](README.md#updating).
