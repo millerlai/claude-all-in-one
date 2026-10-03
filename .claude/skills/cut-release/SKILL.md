@@ -55,6 +55,7 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
      - 上一版的 `chore(release)` commit。
    - `plugins/cai/skills/track/SKILL.md` 或 `plugins/cai/scripts/ledger.py` 只要有 diff，`prepare` 就會自動加上一句 "Finish any track in progress before updating..."。先查證：讀 `git diff <上一個 tag> origin/main -- plugins/cai/skills/track/SKILL.md plugins/cai/scripts/ledger.py`，看 `state.md` 的欄位或 ledger 每筆記錄的欄位有沒有增減、改名。沒有就刪掉這句，改成一句說明進行中的 track 更新後實際會怎樣；完全沒影響，就寫沒影響。
    - 標題 `## vX.Y.Z — <日期>` 保持原樣：`cut` 和 `publish` 都靠它找到這一段。
+   - 儲存庫已設定自動化發佈（GitHub Actions）時，步驟 1–4 完成後，依 README 的 `### Releasing with GitHub Actions` 保存並推送候選提交，再從 `main` 啟動流程。版本號與更新紀錄仍由本技能審核；後續步驟 5–8 由流程執行，推標籤與合併的確認改在受保護環境中核准。尚未設定時，繼續下列本機流程。
 5. **先確認，再 `cut`。**
    - 先用問題工具問一次，內容包括：版號和理由、CHANGELOG 各節的標題，並說明 tag 推出去之後，這個號碼就不能撤回。
    - 對方同意後，在背景跑 `PYTHONUTF8=1 python scripts/release.py cut X.Y.Z`，中途不要打斷。本機 gate 要先裝好 pytest-xdist，沒裝會在 pytest 那步直接失敗。

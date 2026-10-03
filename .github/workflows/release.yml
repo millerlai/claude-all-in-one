@@ -1,0 +1,137 @@
+name: cut-release
+run-name: Release v${{ inputs.version }} at ${{ inputs.head }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Reviewed version (X.Y.Z, without v)
+        required: true
+        type: string
+      head:
+        description: Full SHA of the reviewed chore(release) commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+# One release at a time, including both approval waits. Never cancel a run
+# automatically after it might have pushed an immutable tag.
+concurrency:
+  group: cut-release
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: "1"
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_HEAD: ${{ inputs.head }}
+
+jobs:
+  check:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check candidate and main CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release_actions.py check "$RELEASE_VERSION" "$RELEASE_HEAD" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  cut:
+    needs: check
+    environment: release-tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: python -m pip install --disable-pip-version-check pytest pytest-xdist
+      - name: Install the platform floors used by release.py
+        run: npm install --global @anthropic-ai/claude-code@2.1.283 @openai/codex@0.157.1
+      - name: Validate and test before obtaining write credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release_actions.py gate "$RELEASE_VERSION" "$RELEASE_HEAD"
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Configure Git authentication and tag identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh auth setup-git
+          git config user.name 'release automation'
+          git config user.email 'release@users.noreply.github.com'
+      - name: Push tag, verify both installs, and open release PR
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: python scripts/release_actions.py cut "$RELEASE_VERSION" "$RELEASE_HEAD"
+
+      # Mint again after installs: installation tokens expire after one hour.
+      - uses: actions/create-github-app-token@v2
+        id: publish-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: read
+          permission-actions: read
+          permission-checks: read
+      - name: Wait for release CI and publish
+        timeout-minutes: 45
+        env:
+          GH_TOKEN: ${{ steps.publish-token.outputs.token }}
+        run: python scripts/release_actions.py publish "$RELEASE_VERSION" "$RELEASE_HEAD"
+
+  merge:
+    needs: cut
+    environment: release-merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-actions: read
+          permission-checks: read
+      - name: Merge the approved head and verify main
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: python scripts/release_actions.py merge "$RELEASE_VERSION" "$RELEASE_HEAD"
