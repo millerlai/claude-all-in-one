@@ -71,7 +71,10 @@ def test_verify_quotepath_false_non_ascii_name_does_not_raise(tmp_path, monkeypa
 
     result = preflight.verify(str(tmp_path / "track"), str(repo))
 
-    assert result == [(True, "has_changes (uncommitted changes)")]
+    assert result == [
+        (True, "has_changes (uncommitted changes)"),
+        (True, "merges_cleanly (not checked: none of origin/HEAD, "
+               "origin/main, origin/master resolves to a commit)")]
 
 
 def test_current_branch_non_ascii_branch(tmp_path, monkeypatch):

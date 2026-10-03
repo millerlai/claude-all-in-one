@@ -871,7 +871,13 @@ def verify(track_dir, project_dir):
                    else "diff from %s" % base)
     else:
         detail = "nothing to review"
-    return [(ok, "has_changes (%s)" % detail)]
+    checks = [(ok, "has_changes (%s)" % detail)]
+    # Only once there is something to review: a conflict found here saves the
+    # four lenses a review of code that will not merge as written. No fetch,
+    # and only the committed HEAD is tried; ship still re-checks after Gate 2's fetch.
+    if ok:
+        checks.append(merges_cleanly(project_dir))
+    return checks
 
 
 def _tracked_changed_paths(porcelain_z_stdout):
