@@ -4,6 +4,18 @@ This file is read two ways: by the subagent the track dispatches to run this
 stage, and by `/cai:verify` when someone runs the stage standing alone, with
 no track underneath it. The procedure below is the same either way.
 
+**Asking is the one thing that is not.** Dispatched by the track you are a
+subagent, and the platform gives no subagent an interactive tool. Every place below that waits on the person — a
+requirement decision, a parked proposal, `provenance.py` exiting 2 — then
+means: stop there, and end the report with the `## Pending questions` section
+`references/pending-questions.md` specifies. The main session puts it to the
+person and re-dispatches this stage with the answer. Standing alone you are
+the main session — ask directly. Re-dispatched with an answer: when the
+round's report came from Step 0.5's stop, no lens has run and there are no
+findings to take, so start again at Step 0; otherwise take the findings from
+the round's report, apply the answer under Fixing, and do not run Steps 0.5
+to 2 again.
+
 One reviewer reading a diff finds what that reviewer is tuned to find. The
 misses are not random: a reader hunting off-by-one errors is not, in the
 same pass, asking whether the feature was worth building. Splitting the
@@ -39,7 +51,10 @@ An empty diff, or one that is entirely generated files, stops here. Say so.
 
 Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py` once, unconditionally
 -- not gated on the diff being empty, unlike Step 0's early-stop. Exit 2 is a
-Blocker: report it and stop right there. Never edit the ledger's citations or
+Blocker: report it and stop right there, handing up one question under
+`## Pending questions` -- the claim that drifted, and two ways forward: the
+person re-confirms it, updates the ledger themselves and re-runs verify, or
+stops. Never edit the ledger's citations or
 a restated file to turn the red green -- a drift needs a person to re-confirm
 the claim first, not a string edit that proves nothing.
 
@@ -74,6 +89,14 @@ lenses still run, as before. With a requirement but no convention file,
 compare only against the requirement, as before. With a convention file but
 no requirement, conformance still runs and compares only against the
 convention files. With both, compare against both.
+
+When the dispatch brief names a requirement, that is the requirement. When it
+names none, under a track it is the documents the design row of the track's
+state table (`.claude/track/<feature>/`) names, plus the numbered acceptance
+criteria in `.claude/track/<feature>/intake.md` (`.claude/track/current`
+holds the feature name). Read them yourself; the dispatch brief does not have
+to carry them. When none can be read, conformance has no requirement and Step
+3's `Not covered` says so.
 
 The three severity words Step 2 ranks by, and the security lens's four hunt
 items, are defined in one place:
@@ -118,7 +141,8 @@ worth another subagent run.
    element, the requirement it implies as one sentence, and what follows
    from yes and from no. Not optional and not the findings list: code that
    does more than was asked is a decision someone made silently, and
-   deleting it yourself is a second one. Surface it, don't take it.
+   deleting it yourself is a second one. Surface it, don't take it: under a
+   track each one goes into `## Pending questions`, one question per element.
 4. **Not covered.** What the lenses could not check, and why — including
    "no written requirement" or "no written conventions" when either was
    missing from conformance's inputs.
@@ -131,10 +155,18 @@ then fix it and **run it again and read the output showing it pass**. A fix
 with no test run you watched is a fix you cannot prove, whatever it looks
 like on the screen.
 
-Leave `Minor` documented and unfixed unless asked. Wait for answers on
-section 3 before touching anything in it. Fix nothing Step 2 could not
+Leave `Minor` documented and unfixed unless asked. Touch nothing in section 3
+until it is answered: hand each decision up under `## Pending questions`, fix
+the Blocker/Major findings the answer does not block, and let the main
+session re-dispatch this stage with the answer. Fix nothing Step 2 could not
 trace to a requirement — a parked proposal stays parked until the user
-answers, and must not be swept in together with ordinary `Minor` findings.
+answers, and must not be swept in together with ordinary `Minor` findings. A
+parked proposal goes up the same way as a requirement decision, and its
+question says which requirement it would need to stop being parked.
+
+A change made from an answer is tested like any other fix, but it is not
+re-reviewed by the four lenses: the report's left-open items say that changes
+made from an answer were not reviewed by the four lenses.
 
 ## When not to use this
 
@@ -146,7 +178,8 @@ answers, and must not be swept in together with ordinary `Minor` findings.
 
 - **Checking your own understanding of the diff, rather than its quality** —
   that is `/cai:quiz`, which stops and asks you questions. This stage never
-  stops for an answer, because inside a track it has to run to completion.
+  waits for an answer, because inside a track it has to run to completion;
+  what needs a person goes up under `## Pending questions` instead.
 - **Reviewing a plan rather than code** — that is `plan-review`.
 
 ## Report
@@ -161,9 +194,18 @@ of the ledger's `--note`; you write no track file at all.
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered
 - what remains unfixed and why
-- what is left open -- every Minor left unfixed and every parked proposal, one item each
+- what is left open -- every Minor left unfixed, every parked proposal, and
+  the changes made from an answer (not reviewed by the four lenses), one item each
 - what got parked as a proposal, and which requirement it would need to
   stop being parked
+- every path you changed or added, new test files included, one per line,
+  across every round of this stage (a re-dispatch takes the earlier rounds'
+  paths from the report it was given), and a line saying you did not commit:
+  you cannot. Step 0.5 of `stage-build.md` decided who does. After a
+  commit "yes" the main session adds exactly those paths
+  (`references/approval-gates.md`, "Verify's changes, inside a track"); after
+  "no" they stay in the working tree, `ship`'s Step 1 `clean_tree` check stops
+  on the tracked ones, and the person commits
 
 Evidence goes in the artifact this stage already produces, never pasted
 in here. 4000 characters is the ceiling for this section: the largest

@@ -8,9 +8,10 @@ no track underneath it. The procedure below is the same either way.
 subagent, and the platform removes `AskUserQuestion` from every subagent
 whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends
 architecture decisions to the user, then mean: finish what the answer does
-not block — the four sizing lines are not blocked — and end the report with
-the `## Pending questions` section `references/pending-questions.md`
-specifies. Standing alone you are the main session — ask directly.
+not block and end the report with the `## Pending questions` section
+`references/pending-questions.md` specifies. Step 0.5 blocks every unit, so
+under a track the first pass stops there: no unit starts until the answers
+come back. Standing alone you are the main session — ask directly.
 
 Long runs do not fail gracefully. A session limit, a token limit, or a
 dropped connection lands wherever it lands, and the cost is set entirely by
@@ -58,18 +59,33 @@ them can run alongside another, the verify command each will have to pass,
 and anything in the document you already know you will have to ask about.
 A long pass nobody sized is a long pass nobody agreed to.
 
-Then up to three answers, once for the whole run and not per unit. Up to
-three decisions, so up to three menus on as many turns —
+Then up to three answers, once for the whole run and not per unit, before
+anything is started. Under a track the first pass is Step 0, those four
+lines, and Step 1's state table (the lane question needs its `Alongside`
+column); it then ends with all the questions below in one `## Pending
+questions` report and nothing else done: no unit starts, no commit is made.
+That is one round of `references/pending-questions.md`'s three, and the
+main session re-dispatches you with the answers. Up to three decisions, so
+up to three menus on as many turns —
 `references/approval-gates.md` holds the shape, and none is a sentence the
 person types a word back into:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
   procedure needs one commit per verified unit, and the parallel lane below
-  cannot work at all without them. Ask once for the whole run. If no, the
-  parallel lane is off and an interruption costs a revert — say so plainly.
-- **The parallel lane itself.** Buys wall-clock, costs a worktree per lane
-  plus a merge. For three or four small units it is not worth it.
-  Recommend, let the user decide, default to sequential.
+  cannot work at all without them. Ask once for the whole run: the answer
+  covers the verify stage's changes too, and the person is not asked again
+  there. If yes, the main session commits verify's changes by the paths
+  verify reports (`references/approval-gates.md`, "Verify's changes"). If no,
+  the parallel lane is off and an interruption costs a revert — say so
+  plainly — and every change stays in the working tree, build's and
+  verify's: `ship`'s Step 1 stops on the tracked ones (`clean_tree`) and the
+  person commits.
+- **The parallel lane itself.** Asked only when the `Alongside` column names a
+  pair of units whose sides of the ownership map do not intersect; with no
+  such pair there is no menu, and the four lines say "sequential" in one
+  line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
+  four small units it is not worth it. Recommend, let the user decide,
+  default to sequential.
 - **Which glossary terms join `CONTEXT.md`.** Only when the document is a
   Detail design and its `## Glossary` has at least one data row that is not
   the template's placeholder. Group the terms into **propose to merge**
@@ -120,6 +136,9 @@ which design document the table belongs to.
 Step 0.5's glossary answer belongs here too: once decided, record the terms
 that ended up merged, the definition each will write, and any definition
 each replaces — a resumed session needs this at Step 6 without re-asking.
+Record the other two answers the same way (commit yes or no, and whether a
+lane was approved). A re-dispatch after any later stop reads all three from
+the notes and never asks Step 0.5 again.
 
 Under a track the notes go in `.claude/track/<feature>/`, beside the
 `state.md` a cold session resumes from. Check `.gitignore` covers
@@ -134,11 +153,25 @@ Order the units: riskiest one with no unmet dependency first. Check
 upstream blockers here too — a unit waiting on another team's endpoint is
 `blocked` now, not on the morning someone starts it.
 
+**A stop mid-run stops only what it touches.** Wherever this file says
+something goes to the person, the affected units are the stuck unit, every
+unit reached from it along the `Depends on` column, and every unit whose side
+of the ownership map intersects the stuck unit's. Mark those `blocked` in the
+state table; the others keep going in schedule order, committed as usual. A
+blocked unit's uncommitted edits stay out of every later commit: commit each
+unit by its own paths, never `git add -A` or `git commit -a`, and name them
+under "In flight" if the run stops. When nothing that can run is left, end the report with the question under `##
+Pending questions` (`references/pending-questions.md`), its `Blocks:` line
+naming the blocked units. The main session re-dispatches you with the answer,
+and the table says where to resume. Standing alone you are the main session —
+ask directly, with the same units held back meanwhile.
+
 **Derive the ownership map: which unit owns which paths.** The design does
 not contain it — link `## Implementation spec`'s `Where it lives` to unit
 names. A path landing under two units is not a mapping problem; it is two
 units that cannot run in parallel, and possibly a boundary the design drew
-wrong, which goes to the user.
+wrong, which goes to the user: both units are `blocked` and the question is
+handed up, as above.
 Without a detail design, locate the paths named by `## Fix` or by the
 approved intake criteria and signed decisions in the current source, and
 assign each affected path to a unit explicitly. This substitutes for
@@ -157,6 +190,10 @@ resolves to lives only in `plugins/cai/models.json`.
 | Running a unit's verify command, reporting pass/fail | `test-runner` (chore) | mechanical |
 | Reviewing the finished diff | `stage-verify.md`'s lenses (build) | judgement |
 | Any architecture decision the document didn't make | **the user** | `AskUserQuestion`, never resolved here |
+
+That last row is a stop: the units it touches are `blocked`, the others keep
+going, and the decision is handed up under `## Pending questions` (Step 1's
+rule above).
 
 ## Step 3 — One unit
 
@@ -184,8 +221,9 @@ For each unit, in schedule order:
    first. Write the test, run it, and watch it actually fail before writing
    the code that makes it pass — a test you did not watch fail proves
    nothing, because a test that would pass against the old code too is not
-   testing the change. Tell `implementer` to stop and report rather than
-   guess when the spec is ambiguous. On the diagnosis path, the unit that
+   testing the change. Tell `implementer` to report back rather than guess
+   when the spec is ambiguous; that unit is then `blocked` and the ambiguity
+   is handed up under `## Pending questions`, per Step 1. On the diagnosis path, the unit that
    carries the fix starts from the test its diagnosis's `## Failing test`
    names — that is the first failing test, before any other; run it, and
    keep the red output, because Step 6.1 needs it.
@@ -196,7 +234,9 @@ For each unit, in schedule order:
      failures reported.
    - Green → continue.
    - Red → back to `implementer` once with the actual failure text. Still
-     red → stop and report. No unbounded fix loop.
+     red → that unit is `blocked`, and so are the others Step 1 names; the
+     rest keep going, and the failure is handed up under
+     `## Pending questions`. No unbounded fix loop.
 5. **Commit**, write the id into the table beside `done`, and re-read the
    table before starting the next unit.
 
@@ -262,7 +302,9 @@ git branch -d <current-branch>-<unit-slug>
 **If `remove` refuses, do not reach for `--force`.** It refuses only on
 untracked files — run `git -C ../<repo>-<unit-slug> status` and look. Either
 the file belongs to the unit (commit it, merge again) or it's a stray (say
-so before forcing).
+so before forcing). A stray you cannot account for is a stop: that lane's
+unit is `blocked`, the other units go on sequentially, and the question is
+handed up under `## Pending questions`.
 
 Run these as separate commands — no shell variables, `sed`, or
 `${VAR:-default}` piped together; this has to work on Windows.
@@ -280,7 +322,8 @@ for. Log rather than silently re-scope:
 
 Take the conservative option, log it, keep going. A deviation that changes
 an interface another unit depends on goes to the user before the dependent
-unit starts.
+unit starts: that unit and those depending on it are `blocked`, the others
+keep going, and the question is handed up under `## Pending questions`.
 
 ## Step 5.5 — Stopping before you are finished
 
@@ -369,7 +412,10 @@ Units all green is not done:
    the same file. Commit this write on its own, the same way Step 3's commit
    does, when Step 0.5 answered commit-per-unit yes; otherwise leave it in
    the working tree.
-3. **Run `stage-verify.md`** over the whole branch, passing the design
+3. **Review.** Under a track, skip this step: the branch is reviewed by the
+   verify stage, which runs next over this same diff, and a second pass of the
+   four lenses would only repeat it. Standing alone there is no verify stage after this
+   one. Run `stage-verify.md` over the whole branch, passing the design
    document and the approved intake as the requirements its conformance
    lens reviews against (including the AC rows when no UC/R ids exist), and
    Step 0.5's glossary answer as recorded in `implementation-notes.md`. Fix
@@ -377,8 +423,10 @@ Units all green is not done:
    requirement decisions go to the user.
 4. **Report.** What each unit built and where it landed, the traceability
    table, every deviation, every `CONTEXT.md` definition replaced with the
-   old text quoted, the review verdict, and what could not be verified
-   automatically as numbered manual steps.
+   old text quoted, the review verdict (under a track: reviewed by the verify
+   stage), and what could not be verified automatically as numbered manual
+   steps. Each deviation that changed an interface goes in as an item of its
+   own among those, so the main session's `Left open:` carries it to Gate 2.
 
 ## Report
 
@@ -392,8 +440,8 @@ of the ledger's `--note`; you write no track file at all.
 - every deviation
 - anything skipped
 - every `CONTEXT.md` definition replaced, old text quoted
-- what is left open -- every step Step 6.4 names as a manual step, one item
-  each
+- what is left open -- every step Step 6.4 names as a manual step, and every
+  deviation that changed an interface, one item each
 
 The in-flight `unit <N> of <total>` row is still written by Step 5.5
 above, not here -- this section is what you hand back once the whole
