@@ -90,10 +90,10 @@ an argument that names the program to run (`go test -exec`, `cargo test
 --config` with a runner), and that passes as well. That limit is accepted, not
 an oversight, and no further rule is added for it.
 
-The hook also needs a working Python. With none found on `PATH` the dispatcher
-blocks these agents' Bash outright; an interpreter that is found but broken (the
-Windows Store `python` stub) is not detected, so the call goes through, as it
-already does for the guard's general rules.
+The hook also needs a working Python. With none working, the dispatcher blocks
+these agents' Bash outright; if the interpreter it recorded fails partway
+through a call, that call is blocked for every caller, and the next call looks
+for one again.
 
 Three habits are blocked outright, so do not start them: appending a
 redirection such as `2>&1` (the Bash tool already returns stderr), `cd`-ing

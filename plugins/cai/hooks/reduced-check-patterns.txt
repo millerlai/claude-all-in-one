@@ -1,0 +1,20 @@
+agent_type.: *.cai:test-runner.
+agent_type.: *.cai:verifier.
+agent_type.: *.cai:designer.
+\<git [^;&|]*push[^;&|]* --force[^-]
+\<git [^;&|]*push[^;&|]* -f[^a-zA-Z0-9_]
+\<git [^;&|]*push[^;&|]* +[^ +]
+\<git [^;&|]*reset [^;&|]*--hard
+\<git [^;&|]*clean  *-[a-z]*f
+\<git [^;&|]*clean  *--force
+\<git [^;&|]*--no-verify
+\<rm[^;&|]* -[a-zA-Z]*[rR][a-zA-Z]*f
+\<rm[^;&|]* -[a-zA-Z]*f[a-zA-Z]*[rR]
+\<rm[^;&|]* -[a-zA-Z]*[rR][^;&|]* -[a-zA-Z]*f
+\<rm[^;&|]* -[a-zA-Z]*f[^;&|]* -[a-zA-Z]*[rR]
+\<rm[^;&|]* --recursive[^;&|]* -[a-zA-Z]*f
+\<rm[^;&|]* -[a-zA-Z]*f[^;&|]* --recursive
+\<rm[^;&|]* -[a-zA-Z]*[rR][^;&|]* --force
+\<rm[^;&|]* --force[^;&|]* -[a-zA-Z]*[rR]
+\<rm[^;&|]* --recursive[^;&|]* --force
+\<rm[^;&|]* --force[^;&|]* --recursive

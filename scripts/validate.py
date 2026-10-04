@@ -772,6 +772,29 @@ for path in sorted(glob.glob("**/*.cmd", recursive=True)):
         non_ascii = [b for b in fh.read() if b > 127]
     check(f"{path} is pure ASCII ({len(non_ascii)} byte(s) over 127)", not non_ascii)
 
+# CMD finds the label of a `goto` or `call :` by reading the batch file in
+# 512-byte pieces, counted from the end of the jump line, and an LF-only file
+# (which this one has to be, for sh) loses a label whose colon-and-name straddles
+# a piece boundary: "cannot find the batch label", on Windows only, after some
+# later edit shifted a few bytes. Measured on Windows 11 with goto and call, a
+# 1- and a 13-character name: it fails for exactly those distances. Only forward
+# jumps are modelled, so a backward one counts as a failure too.
+with open(DISPATCHER, "rb") as fh:
+    cmd_block = fh.read().split(b"\nCMDBLOCK\n")[0]
+cmd_labels = {m.group(1).lower(): m.start() for m in re.finditer(rb"^:(\w+)", cmd_block, re.M)}
+lost_labels = []
+for m in re.finditer(rb"^(?!REM\b)[^\n]*?\b(?:goto\s+:?|call\s+:)(\w+)[^\n]*\n", cmd_block, re.M | re.I):
+    name = m.group(1).lower()
+    if name == b"eof":
+        continue
+    start = cmd_labels.get(name)
+    if start is None or start < m.end() or (start - m.end()) % 512 + len(name) >= 512:
+        lost_labels.append(name.decode())
+check(f"{DISPATCHER} has no goto or call label CMD can lose at a 512-byte boundary "
+      f"({len(lost_labels)} found)", not lost_labels)
+for name in lost_labels[:5]:
+    print("     label:", name)
+
 # A UTF-8 BOM is invisible in an editor and breaks readers that expect the file
 # to start with content: mermaid-cli refuses the diagram outright ("Parse error
 # on line 1"), and CMD.exe prints the three bytes before the first line runs.
@@ -792,6 +815,34 @@ for root, dirs, files in os.walk("."):
 check(f"no text file carries a UTF-8 BOM ({len(bom_files)} found)", not bom_files)
 for path in bom_files[:5]:
     print("     BOM:", path)
+
+# The reduced check hands one pattern file to both `findstr /R /G:` and
+# `grep -f`. A blank line makes grep match every call, a CR leaves a stray \r on
+# every Linux pattern, and a `\>` before the last two characters makes findstr
+# silently skip the line (E6: every rm rule went missing, no error). The BOM
+# check above only scans TEXT's extensions, so this file gets its own.
+PATTERNS = f"{PLUGIN}/hooks/reduced-check-patterns.txt"
+check("reduced-check-patterns.txt ships with the plugin", os.path.isfile(PATTERNS))
+if os.path.isfile(PATTERNS):
+    # findstr /G: holds the file against every reader while it runs, and a
+    # parallel pytest worker may be inside one -- wait it out rather than crash.
+    for _attempt in range(20):
+        try:
+            with open(PATTERNS, "rb") as fh:
+                pattern_bytes = fh.read()
+            break
+        except PermissionError:
+            time.sleep(0.05)
+    else:
+        raise SystemExit(f"cannot read {PATTERNS}")
+    pattern_lines = pattern_bytes.decode("latin-1").split("\n")[:-1]
+    check("reduced-check-patterns.txt is ASCII without a BOM",
+          all(b < 128 for b in pattern_bytes) and not pattern_bytes.startswith(BOM))
+    check("reduced-check-patterns.txt is LF only", b"\r" not in pattern_bytes)
+    check("reduced-check-patterns.txt has no blank line and one final LF",
+          pattern_bytes.endswith(b"\n") and all(pattern_lines))
+    check("reduced-check-patterns.txt never puts a backslash-greater-than mid-pattern",
+          not any("\\>" in line[:-2] for line in pattern_lines))
 
 
 # A component that tells the model to run `plugins/cai/scripts/...` works only
@@ -1191,13 +1242,17 @@ CASES = [
 ]
 
 
-def run(argv, cmd, tool="Bash", cwd="", agent=None):
+def run_process(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
     payload = {"tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}
     if agent:
         payload["agent_type"] = agent
     return subprocess.run(
-        argv, input=json.dumps(payload), capture_output=True, text=True,
-    ).returncode
+        argv, input=json.dumps(payload), capture_output=True, text=True, env=env,
+    )
+
+
+def run(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
+    return run_process(argv, cmd, tool, cwd, agent, env).returncode
 
 
 for tool, cmd, expected, cwd, *agent in CASES:
@@ -1209,11 +1264,45 @@ for tool, cmd, expected, cwd, *agent in CASES:
 # platform would take, so a broken interpreter lookup or a swallowed exit code
 # fails here instead of silently disarming the guard.
 dispatch = ["cmd", "/c", DISPATCHER.replace("/", "\\")] if os.name == "nt" else ["sh", DISPATCHER]
+# The dispatcher writes a launcher record under the config root on a first call.
+# A temporary one keeps every run here off the real ~/.claude/cai/, where the
+# record would make the next run skip the probe these cases are meant to reach.
+dispatch_env = dict(os.environ, CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-"))
 for cmd, expected in [("git reset --hard HEAD~1", 2), ("git status", 0)]:
-    check(f"dispatcher [{cmd}] -> {expected}", run(dispatch, cmd, "Bash", WORK) == expected)
+    check(f"dispatcher [{cmd}] -> {expected}",
+          run(dispatch, cmd, "Bash", WORK, env=dispatch_env) == expected)
 # Through the dispatcher a scoped agent's call reaches runner_guard too.
 check("dispatcher [git status as cai:test-runner] -> 2",
-      run(dispatch, "git status", "Bash", WORK, "cai:test-runner") == 2)
+      run(dispatch, "git status", "Bash", WORK, "cai:test-runner", env=dispatch_env) == 2)
+# A call the guard blocks says so itself: /cai:setup tells it apart from the
+# dispatcher's own lines by that text, since all of them exit 2.
+forced = run_process(dispatch, "git push --force origin main", "Bash", WORK, env=dispatch_env)
+check("dispatcher [git push --force origin main] -> 2 with the guard's own message",
+      forced.returncode == 2 and "bash_guard blocked this command" in forced.stderr)
+
+# With no interpreter on PATH the dispatcher runs its reduced check: exit 2 and
+# a line of its own, never the guard's text (D6, which /cai:setup step 6 reads).
+# Windows: System32 holds neither py nor python. POSIX: a directory linking only
+# the four programs the sh block calls. A config root of its own: the one above
+# now holds a record, and a record skips the probe this case is about.
+if os.name == "nt":
+    bare_dir = os.path.join(os.environ["SystemRoot"], "System32")
+    bare_dispatch = dispatch
+else:
+    bare_dir = tempfile.mkdtemp(prefix="cai-guard-bare-")
+    for tool_name in ("sh", "grep", "dirname", "rm"):
+        os.symlink(shutil.which(tool_name), os.path.join(bare_dir, tool_name))
+    bare_dispatch = [os.path.join(bare_dir, "sh"), DISPATCHER]
+if any(shutil.which(name, path=bare_dir) for name in ("py", "python", "python3")):
+    check("dispatcher without an interpreter: skipped, one is on the reduced PATH", True)
+else:
+    bare = run_process(bare_dispatch, "git push --force origin main", "Bash", WORK,
+                       env=dict(dispatch_env, PATH=bare_dir,
+                                CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-")))
+    check("dispatcher without an interpreter [git push --force origin main] -> 2 "
+          "with its own reduced-check line",
+          bare.returncode == 2 and "cai guard reduced check:" in bare.stderr
+          and "bash_guard blocked this command" not in bare.stderr)
 
 # The SessionStart launcher runs model_choice.py against the plugin root it
 # sits in. Run from here, that root is this repo's own source tree, and a
