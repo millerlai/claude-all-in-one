@@ -60,3 +60,19 @@ def _isolated_central_ledger(tmp_path, monkeypatch):
     itself; it is only the ambient default this removes.
     """
     monkeypatch.setenv("CAI_USAGE_LEDGER", str(tmp_path / "isolated-usage.jsonl"))
+
+
+@pytest.fixture(autouse=True)
+def _git_ceiling_at_tmp_parent(tmp_path, monkeypatch):
+    """Stops `git rev-parse --show-toplevel` from escaping a test's temp dir.
+
+    `resolve_test_command.find_root` asks git for the toplevel; were pytest's
+    basetemp inside some git working tree (a `--basetemp` under a checkout, a
+    TEMP that lives in one), git would answer with that tree and every path
+    assertion built on `tmp_path` would fail. A ceiling at `tmp_path.parent`
+    stops the upward search there, while a repo a test `git init`s at
+    `tmp_path` itself is still found. Through the environment, like the
+    fixture above, so the subprocess tests inherit it. Tests whose cwd is the
+    real repo are unaffected: the ceiling only matters for paths below it.
+    """
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))

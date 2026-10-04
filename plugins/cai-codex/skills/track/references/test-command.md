@@ -92,12 +92,13 @@ an argument that names the program to run (`go test -exec`, `cargo test
 --config` with a runner), and that passes as well. That limit is accepted, not
 an oversight, and no further rule is added for it.
 
-The hook also needs a working Python. With none found on `PATH` the dispatcher
-blocks these agents' Bash outright; an interpreter that is found but broken (the
-Windows Store `python` stub) is not detected, so the call goes through, as it
-already does for the guard's general rules.
+Codex does not enforce the source agent's PreToolUse hook, so the
+agent-scoped boundary above is not enforced on this platform: treat it as an
+instruction. Where the guard hook does run on Codex, it runs through the
+Python interpreter the installer recorded at install time, not through a
+`PATH` search.
 
-Three habits are blocked outright, so do not start them: appending a
-redirection such as `2>&1` (the Bash tool already returns stderr), `cd`-ing
-first (the working directory is already the project root), and exploring with
-`find` or `ls` (run the resolver instead).
+Do not start three habits: appending a redirection such as
+`2>&1` (the shell tool already returns stderr), `cd`-ing first (the working
+directory is already the project root), and exploring with `find` or `ls`
+(run the resolver instead).

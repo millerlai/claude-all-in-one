@@ -4,13 +4,15 @@
       "target": "agents/designer.md",
       "anchor": [
         "The PreToolUse hook scopes `Bash` to this plugin's `design_probe.py`,",
-        "`options_lint.py`, and `mmdc`, each as one command with no shell composition.",
+        "`options_lint.py`, and `mmdc`, each as one command with no shell composition,",
+        "and to exactly `date +%F` and `git rev-parse --show-toplevel`.",
         "Ask the main session to run any other command. The"
       ],
       "replacement": [
         "Codex does not enforce the source agent's PreToolUse hook. Treat the",
         "shell boundary as an instruction: run only this plugin's `design_probe.py`,",
-        "`options_lint.py`, or `mmdc`, each as a single command. Ask the main",
+        "`options_lint.py`, or `mmdc`, each as a single command, and exactly",
+        "`date +%F` and `git rev-parse --show-toplevel`. Ask the main",
         "session to run any other command. The"
       ],
       "why": "#181: Claude agent hooks do not carry over to Codex; do not claim an enforced role-specific boundary."
@@ -395,6 +397,33 @@
         "the only dispatching this stage needs."
       ],
       "why": "D9: verifier reconciles only and never spawns; the main session does the one dispatch this stage needs, before handing verifier the reports."
+    },
+    {
+      "target": "skills/track/references/test-command.md",
+      "anchor": [
+        "The hook also needs a working Python. With none found on `PATH` the dispatcher",
+        "blocks these agents' Bash outright; an interpreter that is found but broken (the",
+        "Windows Store `python` stub) is not detected, so the call goes through, as it",
+        "already does for the guard's general rules.",
+        "",
+        "Three habits are blocked outright, so do not start them: appending a",
+        "redirection such as `2>&1` (the Bash tool already returns stderr), `cd`-ing",
+        "first (the working directory is already the project root), and exploring with",
+        "`find` or `ls` (run the resolver instead)."
+      ],
+      "replacement": [
+        "Codex does not enforce the source agent's PreToolUse hook, so the",
+        "agent-scoped boundary above is not enforced on this platform: treat it as an",
+        "instruction. Where the guard hook does run on Codex, it runs through the",
+        "Python interpreter the installer recorded at install time, not through a",
+        "`PATH` search.",
+        "",
+        "Do not start three habits: appending a redirection such as",
+        "`2>&1` (the shell tool already returns stderr), `cd`-ing first (the working",
+        "directory is already the project root), and exploring with `find` or `ls`",
+        "(run the resolver instead)."
+      ],
+      "why": "#275: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary. Person's decision (verify, 2026-10-04): keep a Python-requirement statement, worded for Codex (interpreter recorded by the installer, install_codex.py:297,328), since the Claude dispatcher paragraph does not apply."
     },
     {
       "target": "agents/test-runner.md",

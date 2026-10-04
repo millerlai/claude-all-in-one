@@ -41,6 +41,19 @@ def test_keeps_the_ticket_key_and_other_test_subkeys(tmp_path):
     assert after["test"] == {"other": [1, 2], "commands": ["python -m pytest"]}
 
 
+def test_existing_file_with_a_utf8_bom_is_merged(tmp_path):
+    before = {"ticket": {"enabled": True, "backend": "github"}}
+    cfg(tmp_path).parent.mkdir(parents=True)
+    cfg(tmp_path).write_bytes(b"\xef\xbb\xbf" + json.dumps(before).encode("utf-8"))
+    rec.record(str(tmp_path), ["make test"])
+    raw = cfg(tmp_path).read_bytes()
+    # Write-back is plain UTF-8: a file that arrived with a BOM leaves without one.
+    assert raw[:3] != b"\xef\xbb\xbf"
+    after = json.loads(raw.decode("utf-8"))
+    assert after["ticket"] == before["ticket"]
+    assert after["test"] == {"commands": ["make test"]}
+
+
 def test_recorded_commands_resolve_as_declared_in_order(tmp_path):
     rec.record(str(tmp_path), ["npm test", "go test ./..."])
     result = rtc.resolve(str(tmp_path))

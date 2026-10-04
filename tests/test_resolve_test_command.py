@@ -30,6 +30,8 @@ def pairs(result):
 
 # --- AC1: every entry and marker file, command and source ------------------
 
+TASKFILE_BODY = "version: '3'\ntasks:\n  build:\n    cmds: [x]\n  test:\n    cmds: [y]\n"
+
 SINGLE = [
     ("Makefile", {"Makefile": "test:\n\tpytest\n"},
      ("make test", "", "none", "Makefile")),
@@ -41,6 +43,18 @@ SINGLE = [
      ("just test", "", "none", "justfile")),
     ("Taskfile", {"Taskfile.yml": "version: '3'\ntasks:\n  build:\n    cmds: [x]\n  test:\n    cmds: [y]\n"},
      ("task test", "", "none", "Taskfile.yml")),
+    *[("Taskfile as " + name, {name: TASKFILE_BODY}, ("task test", "", "none", name))
+      for name in ("taskfile.yml", "Taskfile.yaml", "taskfile.yaml", "Taskfile.dist.yml",
+                   "taskfile.dist.yml", "Taskfile.dist.yaml", "taskfile.dist.yaml")],
+    ("Taskfile.yaml wins over Taskfile.dist.yml",
+     {"Taskfile.yaml": TASKFILE_BODY, "Taskfile.dist.yml": TASKFILE_BODY},
+     ("task test", "", "none", "Taskfile.yaml")),
+    ("Taskfile.yml with a test task wins over a Taskfile.yaml without one",
+     {"Taskfile.yml": TASKFILE_BODY, "Taskfile.yaml": "version: '3'\ntasks:\n  build:\n    cmds: [x]\n"},
+     ("task test", "", "none", "Taskfile.yml")),
+    ("a directory named Taskfile.yml is skipped",
+     {"Taskfile.yml/keep": "", "Taskfile.yaml": TASKFILE_BODY},
+     ("task test", "", "none", "Taskfile.yaml")),
     ("package.json no lockfile", {"package.json": '{"scripts": {"test": "jest"}}'},
      ("npm test", "", "none", "package.json")),
     ("package.json npm", {"package.json": '{"scripts": {"test": "jest"}}', "package-lock.json": "{}"},
@@ -92,9 +106,13 @@ NOT_A_CANDIDATE = [
     ("makefile comment", {"Makefile": "# test:\nbuild:\n"}),
     ("makefile recipe line", {"Makefile": "build:\n\ttest: x\n"}),
     ("makefile variable", {"Makefile": "test := x\n"}),
+    ("makefile simple variable", {"Makefile": "test ::= x\n"}),
+    ("makefile immediate variable", {"Makefile": "test :::= x\n"}),
     ("justfile longer name", {"justfile": "test-x:\n  x\n"}),
     ("justfile variable", {"justfile": "test := 'x'\n"}),
     ("taskfile nested test", {"Taskfile.yml": "tasks:\n  build:\n    test:\n      x: 1\n"}),
+    ("taskfile.yml without test hides a Taskfile.dist.yml that has one",
+     {"Taskfile.yml": "tasks:\n  build:\n    cmds: [x]\n", "Taskfile.dist.yml": TASKFILE_BODY}),
     ("pyproject without pytest section", {"pyproject.toml": "[project]\nname = 'x'\n"}),
     ("gradle without wrapper", {"build.gradle": ""}),
 ]
@@ -106,6 +124,30 @@ def test_not_a_candidate(tmp_path, files):
     result = rtc.resolve(make(tmp_path, files))
     assert result["status"] == "unknown"
     assert result["commands"] == [] and result["candidates"] == []
+
+
+BOM_FILES = [
+    ("Makefile", "Makefile", "test:\n\tx\n",
+     ("make test", "", "none", "Makefile")),
+    ("justfile", "justfile", "test:\n  x\n",
+     ("just test", "", "none", "justfile")),
+    ("Taskfile.yml", "Taskfile.yml", "tasks:\n  test:\n    cmds: [y]\n",
+     ("task test", "", "none", "Taskfile.yml")),
+    ("package.json", "package.json", '{"scripts": {"test": "jest"}}',
+     ("npm test", "", "none", "package.json")),
+    ("pyproject.toml", "pyproject.toml", "[tool.pytest.ini_options]\n",
+     ("python -m pytest", "", "paths", "pyproject.toml")),
+]
+
+
+@pytest.mark.parametrize("name,body,expected", [(n, b, e) for _, n, b, e in BOM_FILES],
+                         ids=[i for i, _, _, _ in BOM_FILES])
+def test_a_utf8_bom_does_not_hide_an_entry(tmp_path, name, body, expected):
+    # U+FEFF is not whitespace, so a BOM left in the text hides a line-1 entry.
+    (tmp_path / name).write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+    result = rtc.resolve(str(tmp_path))
+    assert result["status"] == "resolved"
+    assert pairs(result) == [expected]
 
 
 def test_unparseable_package_json_is_noted_not_raised(tmp_path):
@@ -131,6 +173,19 @@ def test_declaration_wins_over_detection_and_keeps_order(tmp_path):
     assert result["source"] == "declared"
     assert [c["command"] for c in result["commands"]] == ["npm test", "python -m pytest"]
     assert all(c["origin"] == ".claude/cai.json" for c in result["commands"])
+
+
+def test_declaration_with_a_utf8_bom_resolves(tmp_path):
+    cfg = tmp_path / ".claude" / "cai.json"
+    cfg.parent.mkdir()
+    body = json.dumps({"test": {"commands": ["make test"]}})
+    cfg.write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+    result = rtc.resolve(str(tmp_path))
+    assert result["status"] == "resolved" and result["source"] == "declared"
+    assert pairs(result) == [("make test", "", "none", ".claude/cai.json")]
+    # The BOM is stripped, never read as content: a bad body is still invalid.
+    cfg.write_bytes(b"\xef\xbb\xbf{bad")
+    assert rtc.resolve(str(tmp_path))["status"] == "invalid"
 
 
 def test_declared_command_borrows_narrow_from_a_known_default(tmp_path):
@@ -199,8 +254,8 @@ def test_two_lockfiles_are_two_candidates(tmp_path):
     assert [c["command"] for c in result["candidates"]] == ["npm test", "yarn test"]
 
 
-def test_identical_candidates_from_two_layers_count_once(tmp_path):
-    # pyproject.toml and setup.cfg both say pytest: still one candidate.
+def test_pytest_origin_is_the_first_configuring_file(tmp_path):
+    # pyproject.toml and setup.cfg both say pytest: one candidate, the first file.
     result = rtc.resolve(make(tmp_path, {"pyproject.toml": "[tool.pytest.ini_options]\n",
                                          "setup.cfg": "[tool:pytest]\n"}))
     assert result["status"] == "resolved"
@@ -294,11 +349,32 @@ def test_only_the_first_read_limit_bytes_of_a_file_are_judged(tmp_path):
     assert result["status"] == "unknown"
 
 
+@pytest.mark.parametrize("doc", ["README.md", "README.zh-TW.md", "CONTEXT.md"])
+def test_docs_name_every_taskfile_the_resolver_reads(doc):
+    # Three prose places restate TASKFILES; read the code's own value so a ninth
+    # name added to the code fails here until the docs follow.
+    with open(os.path.join(REPO, doc), encoding="utf-8") as fh:
+        text = " ".join(fh.read().split())
+    for name in rtc.TASKFILES:
+        assert name in text, (doc, name)
+
+
 def test_this_repo_resolves_to_pytest():
     result = rtc.resolve(REPO)
     assert result["status"] == "resolved"
     assert result["source"] == "detected"
     assert pairs(result) == [("python -m pytest", "", "paths", "pyproject.toml")]
+
+
+def test_script_prints_non_ascii_under_an_ascii_stdout(tmp_path):
+    # A piped Windows stdout is not UTF-8; the script's own reconfigure is what
+    # lets a non-ASCII project path through. chr() keeps this file ASCII.
+    root = tmp_path / chr(0x6e2c)
+    root.mkdir()
+    proc = subprocess.run([sys.executable, rtc.__file__, "--project-dir", str(root)],
+                          capture_output=True, env=dict(os.environ, PYTHONIOENCODING="ascii:strict"))
+    assert proc.returncode == rtc.EXIT_UNKNOWN == 4
+    assert json.loads(proc.stdout.decode("utf-8"))["root"].endswith(chr(0x6e2c))
 
 
 def test_script_runs_from_the_command_line(tmp_path):

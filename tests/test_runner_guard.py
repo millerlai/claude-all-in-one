@@ -246,6 +246,55 @@ def test_designer_check_exit_codes(tmp_path, capsys):
     assert designer_guard.check({}) == 2
 
 
+UNSAFE_CHARS = [";", "&", "|", "<", ">", "`", "$", "(", ")", "{", "}", "\n", "\r"]
+
+
+@pytest.mark.parametrize("ch", UNSAFE_CHARS, ids=[hex(ord(c)) for c in UNSAFE_CHARS])
+def test_every_unsafe_character_is_refused(tmp_path, ch):
+    # The class is written out twice (runner_guard.UNSAFE, designer_guard.allowed);
+    # dropping a character from either copy must fail here.
+    assert runner_guard.UNSAFE.search(ch)
+    assert designer_guard.allowed("mmdc a" + ch + "b", str(tmp_path)) is False
+
+
+@pytest.mark.parametrize("stdin", [b"{bad", b""], ids=["bad-json", "empty"])
+def test_designer_guard_main_blocks_unreadable_stdin(stdin):
+    proc = subprocess.run([sys.executable, os.path.join(SCRIPTS, "designer_guard.py")],
+                          input=stdin, capture_output=True)
+    assert proc.returncode == 2
+
+
+def test_declared_command_with_repeated_blanks(tmp_path):
+    cwd = project(tmp_path, {".claude/cai.json": json.dumps(
+        {"test": {"commands": ["cargo  test"]}})})
+    assert runner_guard.allowed("cargo test", cwd, RUNNER) is True
+    assert runner_guard.allowed("cargo  test", cwd, RUNNER) is True
+    assert runner_guard.allowed("cargo test; x", cwd, RUNNER) is False
+
+
+def _folded(path):
+    with open(path, encoding="utf-8") as fh:
+        return " ".join(fh.read().split())
+
+
+def test_designer_docs_name_every_command_the_guard_allows():
+    # Two prose places restate the guard's allow-list; #270 added two commands
+    # to the code and neither sentence followed. Read the code's own value.
+    plugin = os.path.dirname(SCRIPTS)
+    wanted = list(designer_guard.FIXED_COMMANDS) + ["design_probe.py", "options_lint.py", "mmdc"]
+    # Scoped to one paragraph and one sentence: stage-design.md names `date +%F`
+    # elsewhere, so a whole-file check would pass without the sentence fixed.
+    with open(os.path.join(plugin, "agents", "designer.md"), encoding="utf-8") as fh:
+        paragraph = next(" ".join(p.split()) for p in fh.read().split("\n\n")
+                         if p.startswith("The PreToolUse hook scopes"))
+    stage = _folded(os.path.join(plugin, "skills", "track", "references", "stage-design.md"))
+    start = stage.index("own Bash runs only")
+    sentence = stage[start:stage.index(". ", start)]
+    for command in wanted:
+        assert command in paragraph, ("designer.md", command)
+        assert command in sentence, ("stage-design.md", command)
+
+
 # --- bash_guard dispatches on agent_type -----------------------------------
 
 def run_guard(command, agent, cwd):

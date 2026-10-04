@@ -25,7 +25,9 @@ def _load(path):
     if not os.path.exists(path):
         return {}
     try:
-        with open(path, encoding="utf-8") as fh:
+        # utf-8-sig: the resolver accepts a BOM here, so merging must too. The
+        # write-back below stays plain utf-8, so a BOM is dropped, not kept.
+        with open(path, encoding="utf-8-sig") as fh:
             data = json.load(fh)
     except ValueError:
         raise ConfigProblem("%s could not be read as JSON" % resolver.CONFIG_REL)

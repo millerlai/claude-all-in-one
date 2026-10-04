@@ -13,7 +13,8 @@ only on the document itself and its diagrams — never on the code the design
 describes.
 
 The PreToolUse hook scopes `Bash` to this plugin's `design_probe.py`,
-`options_lint.py`, and `mmdc`, each as one command with no shell composition.
+`options_lint.py`, and `mmdc`, each as one command with no shell composition,
+and to exactly `date +%F` and `git rev-parse --show-toplevel`.
 Ask the main session to run any other command. The
 document and its diagrams are still the only things you write; a shell is
 not a licence to touch the code the design describes.
