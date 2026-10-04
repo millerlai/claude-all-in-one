@@ -38,6 +38,24 @@ and got nothing back", which is a different and much worse claim.
 
 ## What the main session does with it
 
+**Save the round before asking anything.** Until they are answered the
+questions exist only in this conversation, and a session that ends first
+takes them along. Write the stage's whole report to a file in the system
+temp directory — never inside the repo — and run
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py start --track-dir
+.claude/track/<feature> --stage <stage> --round <1-3> --report-file <that
+file>`. The command takes each question from the report's
+`## Pending questions` section, verbatim, and writes
+`<track-dir>/pending.md` with the report beside them; it is the only thing
+that writes that file, so do not edit it by hand. Exit 2 means it refused
+and wrote nothing: ask the questions anyway and say plainly that this round
+will not outlive the session. The same goes when `start` or `clear` names a
+`pending.md` it cannot read or does not recognise: say so plainly, ask the
+person to delete `<track-dir>/pending.md`, and carry on asking without
+saving this round. A session that opens on a `pending:` section
+in `track_state.py status` starts from "Resuming a saved round" below
+instead.
+
 0. **Lay the options out before asking, and lint them.** `AskUserQuestion`'s
    labels hold a few words each, so the reasoning goes in the message above
    it, in `option-explainer.md`'s six-field shape — the stage handed up
@@ -61,14 +79,47 @@ and got nothing back", which is a different and much worse claim.
    `references/approval-gates.md`'s "A menu that closes on its own" section
    says no round of this file's list runs against it, and whatever else is
    queued behind it waits, in the same order, until it is answered.
+
+   Save each answer before asking the next question: write it to a file in
+   the system temp directory and run
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py answer --track-dir
+   .claude/track/<feature> --question <n> --answer-file <that file>`, which
+   records it verbatim and marks that question `answered`. A menu that closes
+   on its own gets no such call — nothing was answered — so its question
+   stays `open`.
 2. **Re-dispatch the same stage's agent**, quoting both the question and the
    answer verbatim in the brief. The agent that comes back has no memory of
    the one that asked, and a paraphrase of an answer is not the answer.
    Carry the round's whole report in that same brief, not only the answers:
    a stage handed back one line re-derives every citation it had already
-   established, on whatever tier that stage runs on.
+   established, on whatever tier that stage runs on. Once the round was saved
+   the report and every question and answer are in `pending.md`, so a
+   resumed session quotes them from there.
 3. **Three rounds at most.** A fourth means the stage cannot be specified by
    asking: record `failed`, `--note` naming what stayed open.
+
+## Resuming a saved round
+
+`track_state.py status` prints a `pending:` section after `next:` when the
+track holds a `pending.md`: the stage, the round, how many questions are
+answered, one line per question, and `on:`, the branch and short HEAD as
+they are now — the file does not store them, so compare `on:` with the
+branch the track belongs to and say so if they differ. Do not run the
+stage's preflight and dispatch again. Ask the first question marked `open`
+as steps 0 and 1 say, taking its text from `pending.md`; once none is open,
+go straight to step 2. A `pending:` line that ends `ignored` — the file
+could not be read, is in a format this version does not know, or belongs to
+a stage already `done` or `skipped` — is not a round to resume: ask nothing
+from it and run the stage as usual.
+
+## Clearing it
+
+Once `ledger.py append` exits 0 for the stage with `passed`, `failed` or
+`skipped`, run
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py clear --track-dir
+.claude/track/<feature> --stage <stage>`. It removes the file only when it
+is that stage's own. After `blocked` or `unavailable` make no such call: the
+questions are still open, so the file stays.
 
 ## What this is not
 

@@ -152,8 +152,13 @@ def test_skill_md_body_is_136_lines():
     130 -> 136 on 2026-09-30 (#253): `/cai:track cancel --reason "<why>"`,
     a way out for a track that will not finish, which `done` refuses -- one
     usage line plus its own four-line section and the blank before it.
-    TRACK_SKILL_MAX moved 132 -> 138 in the same change, keeping the gap."""
-    assert _skill_body_lines() == 136
+    TRACK_SKILL_MAX moved 132 -> 138 in the same change, keeping the gap.
+
+    136 -> 137 on 2026-10-03: one line for the resume path -- a `pending:`
+    section in `track_state.py status` is asked from the saved round, and
+    `pending.py clear` follows a stage's result. TRACK_SKILL_MAX moved
+    138 -> 139 in the same change, keeping the gap."""
+    assert _skill_body_lines() == 137
 
 
 # --- '## Human gates' still says what it has always said --------------------

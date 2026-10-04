@@ -264,6 +264,12 @@ def test_draft_section_track_format_and_skipped_lines():
     assert "Skipped: v1.37.1 (tagged, failed its check, never served)." in section
 
 
+def test_pending_md_writer_counts_as_a_track_format_file():
+    """An in-progress track's pending.md is read by the next version of
+    pending.py, so a release that changes it carries the reminder."""
+    assert "plugins/cai/scripts/pending.py" in release.TRACK_FORMAT_FILES
+
+
 def test_draft_section_omits_reminder_and_skipped_when_not_asked():
     section = release.draft_section("1.38.0", "2026-10-15", ["fix(cai): x (#1)"],
                                     first=False, track_format_changed=False, skipped=[])

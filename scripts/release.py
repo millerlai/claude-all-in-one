@@ -46,7 +46,8 @@ MARKETPLACES: tuple = (
     Marketplace(".agents/plugins/marketplace.json", "cai-codex", "plugins/cai-codex", ".codex-plugin/plugin.json"),
 )
 PRODUCT_MANIFEST = "plugins/cai/.claude-plugin/plugin.json"
-TRACK_FORMAT_FILES = ("plugins/cai/skills/track/SKILL.md", "plugins/cai/scripts/ledger.py")
+TRACK_FORMAT_FILES = ("plugins/cai/skills/track/SKILL.md", "plugins/cai/scripts/ledger.py",
+                      "plugins/cai/scripts/pending.py")
 FLOORS = (("Claude Code", "2.1.283"), ("codex-cli", "0.157.1"))
 
 
