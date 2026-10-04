@@ -868,6 +868,50 @@ def test_verify_returns_2_when_isolation_does_not_take(monkeypatch, tmp_path):
     assert rc == 2
 
 
+# What `claude plugin marketplace list` prints for an empty CLAUDE_CONFIG_DIR
+# from 2.1.289 on: the built-in directory is always listed.
+BUILT_IN_ONLY_LIST = (
+    "Configured marketplaces:\n\n"
+    "  ❯ anthropic-plugin-directory\n"
+    "    Source: Built in (Anthropic Directory)\n"
+)
+
+
+def _verify_with_marketplace_list(monkeypatch, tmp_path, listing):
+    version = "1.99.0"
+    calls = []
+    monkeypatch.setattr(release, "_git", _fake_git_for_verify(version))
+    monkeypatch.setattr(release, "_tool_path", lambda name: name)
+
+    def fake_run(argv, cwd=None, env=None, timeout=None):
+        calls.append(argv)
+        if argv[1:4] == ["plugin", "marketplace", "list"]:
+            return subprocess.CompletedProcess(argv, 0, listing, "")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(release, "run", fake_run)
+    rc = release.verify(version, repo=tmp_path, temp_root=tmp_path / "cai-check")
+    return rc, calls
+
+
+def test_verify_treats_a_built_in_only_marketplace_list_as_isolated(monkeypatch, tmp_path):
+    rc, calls = _verify_with_marketplace_list(monkeypatch, tmp_path, BUILT_IN_ONLY_LIST)
+
+    assert ["claude", "plugin", "marketplace", "add"] in [argv[:4] for argv in calls]
+
+
+def test_verify_returns_2_when_a_non_built_in_marketplace_is_listed(monkeypatch, tmp_path):
+    listing = BUILT_IN_ONLY_LIST + (
+        "\n  ❯ claude-all-in-one\n"
+        "    Source: GitHub (millerlai/claude-all-in-one)\n"
+    )
+
+    rc, calls = _verify_with_marketplace_list(monkeypatch, tmp_path, listing)
+
+    assert rc == 2
+    assert ["claude", "plugin", "marketplace", "add"] not in [argv[:4] for argv in calls]
+
+
 def test_cut_rerun_after_failed_push_does_not_duplicate_the_commit(monkeypatch, repo_pair):
     origin, work = _prepared_repo(repo_pair)
     monkeypatch.setattr(release, "local_gate", lambda repo: [])

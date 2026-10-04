@@ -717,6 +717,17 @@ PLATFORM_CHECKS: tuple = (
 )
 
 
+def _isolated(listing: str, empty_marker: str) -> bool:
+    """True when `marketplace list` shows a fresh config dir. From Claude
+    Code 2.1.289 an empty CLAUDE_CONFIG_DIR still lists the built-in
+    directory, so a list whose every source is built in counts as empty."""
+    if empty_marker in listing:
+        return True
+    sources = [line.strip() for line in listing.splitlines() if line.strip().startswith("Source:")]
+    return (bool(sources) and "Configured marketplaces:" in listing
+            and all(s.startswith("Source: Built in") for s in sources))
+
+
 def _platform_cache_ok(cache_dir: Path, manifest_rel: str, version: str, expected_files: set) -> bool:
     manifest_path = cache_dir / manifest_rel
     if not manifest_path.is_file():
@@ -790,7 +801,7 @@ def verify(version: str, repo: Path = ROOT, temp_root: Path = None) -> int:
         marketplace_name = marketplace_names[check.market.file]
 
         list_done = run([cli_path, "plugin", "marketplace", "list"], cwd=repo, env=env, timeout=None)
-        if check.empty_marker not in (list_done.stdout or ""):
+        if not _isolated(list_done.stdout or "", check.empty_marker):
             print(f"FAIL {cli}: isolation did not take (CONFIG dir not empty)")
             _print_command_failure(list_done)
             print("nothing installed; your real plugin config was not touched")
