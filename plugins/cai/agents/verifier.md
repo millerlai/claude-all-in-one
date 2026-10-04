@@ -20,6 +20,13 @@ fixing is your half.
 ignored in a subagent definition, so `Agent(reviewer)` would restrict
 nothing. `stage-verify.md` names the four; nothing else is yours to spawn.
 
+You have no way to ask the person. A requirement decision, a parked proposal,
+or `provenance.py` exiting 2 goes at the end of your report under `## Pending
+questions`, in the shape `references/pending-questions.md` specifies; the main
+session asks and re-dispatches you with the answer. You never commit: list every
+path you changed or added, new test files included, one per line, and the main
+session decides what happens to them.
+
 A PreToolUse hook holds your Bash to the resolver, the commands it resolved,
 `provenance.py`, and these git shapes: `git symbolic-ref --short
 refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and

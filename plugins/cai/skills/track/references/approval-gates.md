@@ -109,11 +109,14 @@ already-drafted commit message from Step 4> --body-file <the draft>`
 resolved a number) and fix every FAIL in the draft first. "Confirm the
 release?" is not this question; the commands are.
 
-**Before quoting the commands**, list build's manual steps: run `python
-${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and quote every
-`[build]` line it prints, or say none are recorded if it prints none.
-Standing alone, there is no track to read one from, so say there is nothing
-to read.
+**Before quoting the commands**, list what build and verify left open: run
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and quote
+every `[build]` and `[verify]` line it prints, or say none are recorded if it
+prints none. Build's report lists each deviation that changed an interface
+under what it left open, so those are among the `[build]` lines; quote them as
+printed. The list adds no menu: it is text above the two options below, and it
+stays above whatever menu replaces them. Standing alone, there is no track to
+read one from, so say there is nothing to read.
 
 | Option | What it does |
 |---|---|
@@ -312,6 +315,32 @@ not merged`, and overwrites `state.md`'s ship row. Declining the guard's
 prompt counts as Stop. If `gh pr merge` itself fails, relay the first line of
 its error and record `ship` as `failed`.
 
+## Verify's changes, inside a track
+
+`stage-build.md` Step 0.5 asked once whether this branch may be committed, and
+that answer covers what the verify stage changes too: no menu asks again, and
+verify never has a commit menu of its own. A fix round (`### A fix round`
+above) is not covered here: it commits by its own step 2, whatever Step 0.5
+answered. Verify cannot commit, so its
+report lists every changed path, one per line, and the main session acts on
+the Step 0.5 answer once verify is recorded `passed`:
+
+- **Commit: yes.** If verify reported no changed path, run neither command
+  and say so. Otherwise `git add -- <the paths verify reported>`, then `git
+  commit -m 'fix: apply verify fixes'` — one line, no apostrophe, no backtick. Never
+  `git add -A`. Before the add, compare that list with `git status
+  --porcelain`: an untracked path that is not on the list is named to the
+  person, never swept in. The same notice as a fix round's applies to paths
+  under `.github/` and to dependency manifests and lockfiles. A round that
+  hands a question up commits nothing yet: the Blocker/Major fixes already
+  made wait, and are committed together with the changes made from the answer
+  once the stage is `passed`.
+- **Commit: no.** Nothing is committed. The changes stay in the working tree,
+  `stage-ship.md` Step 1 stops on the tracked ones (`clean_tree`), and the
+  person commits them. `clean_tree` never blocks an untracked file and the
+  squash omits it, so name each reported path that is untracked to the person
+  when verify's outcome is reported. Ship is not asked again.
+
 ## The other stops, which are not gates
 
 `SKILL.md` names exactly two gates and this file does not add a third. These
@@ -339,7 +368,9 @@ is only the shape — a menu, never a sentence to type a word back into:
   gates they **do** carry a `(recommended)` when the evidence supports one.
 - `stage-build.md` Step 0.5 — commit per unit, the parallel lane, and, for a
   detail design whose glossary has project terms, which of them join
-  `CONTEXT.md`. Up to three decisions, so up to three turns.
+  `CONTEXT.md`. Up to three decisions, asked one per turn, all handed up
+  from build's first pass in one round, before any unit starts. The lane is
+  asked only when the `Alongside` column names a pair of units.
 - Gate 2's triage menu, inside a track once the pull request is open
   (`### The triage menu` above) — whether to fix the Blockers and Majors the
   pull request carries. An ordinary choice, so it carries a `(recommended)`:
