@@ -396,6 +396,7 @@ the same way.
     ledger.jsonl             every attempt, appended, never edited
     untracked-at-start.json  untracked paths seen when track_start.py ran, for ship's untracked_since_start
     implementation-notes.md  build's unit table and deviations, once build writes one
+    pending.md               a stage's unanswered questions and answers so far, only while a round is unfinished; pending.py writes it
     ticket.json              the linked issue, only with ticket mirroring on
   done/
     csv-import/              archived; never counts toward the cap
@@ -442,9 +443,15 @@ is dispatched:
 | `/compact`, naming the next stage in it — `/compact next is verify` | Same session, with room made. The summary keeps what you point it at, so name the stage; left to choose, it keeps what looked important at the time, which is not always what that stage comes back to |
 
 Only there, never mid-stage: a stage cut off before its row is written leaves
-none, so a resume runs it again from its preflight, and a pending-questions
-round dies with the conversation — `build` alone stops mid-way on purpose,
-and the `in-progress` status above is its handoff.
+none, so a resume runs it again from its preflight. The exception is a round
+of pending questions a stage handed up: the main session saves it to
+`pending.md` before asking, so a session that ends with questions unanswered
+leaves them on disk, and `/cai:track status` lists them under `pending:` with
+the branch and HEAD as they are now. A question that arrives in a stage's
+`## Pending questions` report is saved, a human gate handed up that way
+included. A menu the main session raises itself, with no stage report behind
+it, is not saved, and one left unanswered goes with the conversation. `build` alone
+stops mid-way on purpose, and the `in-progress` status above is its handoff.
 
 The number to decide by is your own peak, not a threshold from somewhere
 else: `python <plugin-root>/scripts/context_peak.py --track-dir .claude/track/<feature>`

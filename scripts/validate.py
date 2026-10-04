@@ -2415,7 +2415,12 @@ if os.path.isfile(VERIFY_REF):
 # `in-progress`. Six lines: one in the usage block, and a section of its own,
 # because it deliberately skips every step of `done` but the move. Moved
 # together with the pinned body-line count, keeping the two-line gap.
-TRACK_SKILL_MAX = 138
+#
+# 138 -> 139 on 2026-10-03: one line for the resume path -- a `pending:` section
+# in `track_state.py status` is asked from `pending-questions.md`'s saved round,
+# and `pending.py clear` follows a stage's passed/failed/skipped. Moved together
+# with the pinned body-line count (136 -> 137), keeping the two-line gap.
+TRACK_SKILL_MAX = 139
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)

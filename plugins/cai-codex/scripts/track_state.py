@@ -28,6 +28,7 @@ DEFAULT_TRACK_ROOT = os.path.join(".claude", "track")
 sys.path.insert(0, HERE)
 import preflight  # noqa: E402
 import ledger  # noqa: E402
+import pending  # noqa: E402
 
 
 def stage_ids():
@@ -98,6 +99,55 @@ def next_unfinished(track_dir, order):
     return None
 
 
+def head_line(project_dir):
+    """`on: <branch> at <short sha>`, asked of git now: pending.md stores
+    neither, because a stored value would be out of date by the time anyone
+    reads it. Says so when git cannot answer instead of guessing."""
+    branch = preflight.git(project_dir, "rev-parse", "--abbrev-ref", "HEAD")
+    sha = preflight.git(project_dir, "rev-parse", "--short", "HEAD")
+    if branch is None or sha is None:
+        return "  on: unknown (git did not answer)"
+    if branch.returncode != 0 or sha.returncode != 0:
+        return "  on: unknown (not a git repository)"
+    name = branch.stdout.strip()
+    if name == "HEAD":
+        name = "(detached HEAD)"
+    return "  on: %s at %s" % (name, sha.stdout.strip())
+
+
+def pending_lines(track_dir):
+    """The `pending:` section for what a stage handed up and nobody finished
+    answering, or [] when the track has none. Without pending.md this does
+    nothing and asks git nothing; a file that cannot be used costs one line,
+    never the exit code."""
+    path = os.path.join(track_dir, pending.FILE_NAME)
+    if not os.path.isfile(path):
+        return []
+    try:
+        data = pending.load(path)
+    except pending.PendingError as exc:
+        return ["pending: %s; ignored" % exc]
+    row = preflight.state_row(track_dir, data["stage"])
+    status = row[1] if row and len(row) > 1 else ""
+    if status in ("done", "skipped"):
+        return ["pending: %s is for %s, which is already %s; stale, ignored"
+                % (pending.FILE_NAME, data["stage"], status)]
+    answered = sum(1 for q in data["questions"] if q["status"] == "answered")
+    lines = ["pending: %s, round %d, %d of %d answered"
+             % (data["stage"], data["round"], answered, len(data["questions"])),
+             "  file: %s" % path]
+    for q in data["questions"]:
+        # text starts "N. <the decision>"; the number is printed by us.
+        lines.append("  %d. [%s] %s" % (q["n"], q["status"],
+                                        q["text"].split("\n")[0].split(". ", 1)[-1]))
+    # This script runs from the project root (DEFAULT_TRACK_ROOT's assumption).
+    track_root = os.path.abspath(os.path.dirname(track_dir))
+    project_dir = os.path.dirname(os.path.dirname(track_root))
+    lines.append(head_line(project_dir))
+    lines.append("  resume: $track")
+    return lines
+
+
 def format_status(feature, track_dir, order, show_next=True):
     rows = {sid: preflight.state_row(track_dir, sid) for sid in order}
     lines = ["current: %s" % feature]
@@ -134,6 +184,7 @@ def format_status(feature, track_dir, order, show_next=True):
         lines.append("next: %s"
                      % (next_stage[0] if next_stage
                         else "none -- every stage is done or skipped"))
+        lines.extend(pending_lines(track_dir))
     if skipped:
         lines.append("skipped:")
         for sid, note in skipped:
