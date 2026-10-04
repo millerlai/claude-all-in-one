@@ -199,7 +199,15 @@ The six stages, in order:
    secrets in what is kept, guard bypass. Then fixes Blockers and Majors only,
    with a failing test first.
 6. **`ship`** — squashes the branch into one conventional commit and writes a
-   release note.
+   release note. Inside a track it then stops on the pull request instead of
+   merging: it waits for the head commit's checks (a push that shows no check
+   at all gets one more look 30 seconds later), lists the unresolved review
+   threads and check annotations with a severity and a reason each, and lets
+   you have the Blockers and Majors fixed (at most 2 rounds, each through
+   `verify`). Merging has its own menu after that. The listing needs a `gh`
+   that knows `gh api --slurp` (seen working on gh 2.91.0; an older one makes
+   the sources show up as unchecked, never as clean). Standing alone,
+   `/cai:ship` does none of this.
 
 Two of the boundaries stop for a person, and only two: **after `design`**,
 while no code exists yet and changing your mind is cheap, and **before the
@@ -210,7 +218,11 @@ Both arrive as a menu you pick from, never a prompt asking you to type
 `approved`. The design one offers three: approve it, ask for changes (which
 sends `design` round again with what you said, at most three rounds), or
 reject it. Ship's quotes the exact commands about to run, and offers to hand
-them back instead; the squash before it, and — with ticket mirroring on — one
+them back instead. Inside a track, "Run them" covers only the push and the
+`gh pr create` or `gh pr edit`; after the PR opens, a triage menu (only when
+something is worth fixing and rounds are left) and then a merge menu with
+`Merge` and `Stop` follow, so nothing merges before you have read the list.
+The squash before it, and — with ticket mirroring on — one
 last ticket update, are each asked on their own turn, because a yes to
 publishing is not a yes to either of them. Whether to close the issue is not
 asked here at all — that comes later, at `/cai:track done`, once the track

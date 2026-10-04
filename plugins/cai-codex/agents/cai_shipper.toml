@@ -27,6 +27,9 @@ with no shortcuts.
   publish itself, never this stage. Not the merge: the guard denies
   `gh pr merge` on this platform, so the main session hands that
   command back for the person to run themselves too.
+- When the dispatch says a PR is already open, Step 7 updates it with
+  `gh pr edit` — never a second `gh pr create` — and inside a track the merge
+  is not yours: the main session runs it after its own menu.
 - Report exactly what the procedure asks for at each step; do not improvise
   a different git sequence because it looks equivalent.
 - Every sentence you write into a commit message, release note, or PR body

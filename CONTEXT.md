@@ -58,3 +58,11 @@ or specs, and only concepts specific to this project.
 **彙總入口（aggregate entry）**: 入口推出、無法再帶路徑縮小的指令，如 `make test`。
 **縮小方式（narrow）**: 一條指令能不能帶範圍：`paths`、`packages`、`none`。
 **標記檔（marker file）**: 只說明語言或建置工具的根目錄檔案，如 `Cargo.toml`、`go.mod`；和上面的 **Marker**（mirror comment 的第一行）意思不同，兩者並存。
+**Gate 2 前段選單（Gate 2 front）**: Gate 2 裡問「推送並開 PR／更新 PR」的那個選單，選項沿用 `Run them`、`Stop — hand me the commands`。
+**合併選單（merge menu）**: Gate 2 後段，只問合併，選項 `Merge`、`Stop`，都不帶推薦標記。
+**分流（triage）**: main session 把每則留言依 Blocker／Major／Minor 分級並寫理由。
+**分流清單（triage list）**: 分流的結果，逐則編號，列在分流選單或合併選單上方。
+**分流選單（triage menu）**: 清單上有 Blocker/Major 且輪數未滿時問「修不修」的一般停點。
+**修正輪（fix round）**: 選「修」之後 verify 修、main session 提交、ship 重跑、再等再抓的一整圈。
+**輪數上限（round cap）**: 修正輪最多 2 輪，第一次開 PR 不算。
+**未檢查（unchecked）**: 某來源抓不到、某檢查 600 秒內沒跑完，或某檢查結束時沒有結果（逾時、被取消、沒啟動、需要動作、過期）；清單上明列原因，絕不當成 0 則。

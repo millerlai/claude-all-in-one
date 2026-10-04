@@ -164,6 +164,15 @@ gh pr create --title '<title>' --body-file - <<'EOF'
 EOF
 ```
 
+When the dispatch names a pull request that is already open — a fix round
+(`references/approval-gates.md`) — update it instead of opening another:
+
+```bash
+gh pr edit <number> --title '<title>' --body-file - <<'EOF'
+<release note>
+EOF
+```
+
 If this project also keeps a `CHANGELOG.md`, do not write it: hand
 the same paragraph up in your `## Report`, naming the file, and the main
 session writes the entry. Files this stage does not already own are not

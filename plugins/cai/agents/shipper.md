@@ -24,6 +24,9 @@ with no shortcuts.
 - Merging, tagging, or publishing needs the person's confirmation first,
   every time — this is one of the two human gates the track never skips.
   Hand that up the same way: the gate does not move, only who voices it.
+- When the dispatch says a PR is already open, Step 7 updates it with
+  `gh pr edit` — never a second `gh pr create` — and inside a track the merge
+  is not yours: the main session runs it after its own menu.
 - Report exactly what the procedure asks for at each step; do not improvise
   a different git sequence because it looks equivalent.
 - Every sentence you write into a commit message, release note, or PR body
