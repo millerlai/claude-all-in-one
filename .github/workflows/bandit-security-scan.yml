@@ -44,7 +44,11 @@ jobs:
           # Report only issues of a given confidence level or higher. Can be LOW, MEDIUM or HIGH. Default is UNDEFINED (everything)
           # confidence: # optional, default is UNDEFINED
           # comma-separated list of paths (glob patterns supported) to exclude from scan (note that these are in addition to the excluded paths provided in the config file) (default: .svn,CVS,.bzr,.hg,.git,__pycache__,.tox,.eggs,*.egg)
-          # excluded_paths: # optional, default is DEFAULT
+          # Skip the pytest suite: B101 (assert) is its idiom, and its B603/B607/B404
+          # hits are fixture helpers running git with an argv list, no shell, no
+          # external input. Bandit matches these by substring and -x replaces its own
+          # default excludes, so the defaults are repeated and the test dir is "./tests/".
+          excluded_paths: .svn,CVS,.bzr,.hg,.git,__pycache__,.tox,.eggs,*.egg,./tests/
           # comma-separated list of test IDs to skip
           # skips: # optional, default is DEFAULT
           # path to a .bandit file that supplies command line arguments
