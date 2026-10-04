@@ -99,6 +99,112 @@ def run_ship(track, project):
         capture_output=True, encoding="utf-8")
 
 
+def run_verify(track, project):
+    return subprocess.run(
+        [sys.executable, PREFLIGHT_PY, "verify", "--track-dir", track,
+         "--project-dir", project],
+        capture_output=True, encoding="utf-8")
+
+
+@needs_merge_tree
+def test_verify_conflict_blocks_after_has_changes(tmp_path):
+    work, remote, other = conflict_fixture(tmp_path)
+    track = make_track(tmp_path)
+    sha, _ = git(work, "rev-parse", "refs/remotes/origin/main")
+
+    done = run_verify(track, work)
+    assert done.returncode == 2, done.stdout
+    lines = done.stdout.splitlines()
+    assert lines[0].startswith("PASS has_changes (diff from "), done.stdout
+    expected = ("FAIL merges_cleanly (conflicts with origin/main at %s in 1 "
+                "file(s): f.txt -- git fetch origin, merge origin/main into "
+                "this branch, resolve the conflicts, then run verify again)"
+                % sha[:7])
+    assert lines[1] == expected, done.stdout
+
+
+@needs_merge_tree
+def test_verify_clean_branch_passes_with_ref_and_sha(tmp_path):
+    work, remote, other = conflict_fixture(tmp_path, conflict=False)
+    track = make_track(tmp_path)
+    sha, _ = git(work, "rev-parse", "refs/remotes/origin/main")
+
+    done = run_verify(track, work)
+    assert done.returncode == 0, done.stdout
+    assert ("PASS merges_cleanly (origin/main at %s -- merges cleanly)"
+            % sha[:7]) in done.stdout
+
+
+def test_verify_without_a_remote_branch_is_not_checked(tmp_path):
+    work = tmp_path / "feature"
+    subprocess.run(["git", "init", "-b", "feature", str(work)],
+                   capture_output=True, text=True)
+    (work / "f.txt").write_text("x\n", encoding="utf-8")
+    git(work, "add", "f.txt")
+    git(work, "commit", "-m", "root")
+    (work / "f.txt").write_text("dirty\n", encoding="utf-8")
+    track = make_track(tmp_path)
+
+    done = run_verify(track, str(work))
+    assert done.returncode == 0, done.stdout
+    assert ("PASS merges_cleanly (not checked: none of origin/HEAD, "
+            "origin/main, origin/master resolves to a commit)") in done.stdout
+
+
+def test_verify_unborn_head_is_not_checked(tmp_path):
+    _work, remote, _other = conflict_fixture(tmp_path)
+    unborn = tmp_path / "unborn"
+    subprocess.run(["git", "init", "-b", "work", str(unborn)],
+                   capture_output=True, text=True)
+    git(unborn, "remote", "add", "origin", remote)
+    git(unborn, "fetch", "origin")
+    (unborn / "new.txt").write_text("x\n", encoding="utf-8")
+    track = make_track(tmp_path)
+
+    done = run_verify(track, str(unborn))
+    assert done.returncode == 0, done.stdout
+    assert "PASS merges_cleanly (not checked: HEAD has no commit yet)" in done.stdout
+
+
+def test_verify_old_git_is_not_checked(tmp_path, monkeypatch):
+    work, remote, other = conflict_fixture(tmp_path)
+    real_git = preflight.git
+
+    class FakeDone:
+        stdout = "git version 2.37.1"
+        returncode = 0
+
+    def fake_git(cwd, *args, encoding=None):
+        if args == ("--version",):
+            return FakeDone()
+        return real_git(cwd, *args, encoding=encoding)
+
+    monkeypatch.setattr(preflight, "git", fake_git)
+
+    result = preflight.verify(make_track(tmp_path), work)
+
+    assert result[0][0] is True
+    assert result[1] == (True, "merges_cleanly (not checked: git 2.37 has no "
+                               "merge-tree --write-tree, needs 2.38+)")
+
+
+def test_verify_git_not_answering_is_not_checked(tmp_path, monkeypatch):
+    work, remote, other = conflict_fixture(tmp_path)
+    real_git = preflight.git
+
+    def fake_git(cwd, *args, encoding=None):
+        if args == ("--version",):
+            return None
+        return real_git(cwd, *args, encoding=encoding)
+
+    monkeypatch.setattr(preflight, "git", fake_git)
+
+    result = preflight.verify(make_track(tmp_path), work)
+
+    assert result[0][0] is True
+    assert result[1] == (True, "merges_cleanly (not checked: git did not answer)")
+
+
 @needs_merge_tree
 def test_conflict_blocks_and_names_base_and_files(tmp_path):
     work, remote, other = conflict_fixture(tmp_path)
@@ -575,7 +681,7 @@ def test_manual_blocks_table_names_merges_cleanly():
     with open(MANUAL_MD, encoding="utf-8") as fh:
         text = fh.read()
 
-    expected = ('| `merges_cleanly` | `ship`: your branch conflicts with the remote\'s default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Checked when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |')
+    expected = ('| `merges_cleanly` | `verify` and `ship`: your branch conflicts with the remote\'s default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Only the committed HEAD is tried, so uncommitted changes in your working tree are not part of the check. Checked when `verify` starts (without a fetch) and when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |')
     assert expected in text
 
 
