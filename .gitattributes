@@ -9,3 +9,7 @@
 *.yaml text eol=lf
 *.toml text eol=lf
 *.tpl text eol=lf
+
+# `grep -f` reads a blank line as a pattern that matches everything, and CRLF
+# leaves a stray \r on every Linux pattern, so this one .txt is pinned to LF.
+plugins/cai/hooks/reduced-check-patterns.txt text eol=lf

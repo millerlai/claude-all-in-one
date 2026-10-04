@@ -153,13 +153,33 @@ JSON payload as if it were a command, and exits **0** — which is precisely the
 "guard is inert" signal below. The bug reports a healthy guard as a broken one,
 which is worse than not checking at all.
 
-Expected: exit code **2**, with a `bash_guard blocked this command` message on
-stderr. Delete the temporary file afterwards.
+Delete the temporary file afterwards. Read the result by the exit code and the
+stderr together: this input is blocked in every state but the broken one, so
+the exit code alone cannot tell them apart.
 
-If the exit code is **0**, no Python interpreter was found. The guard is inert.
-Tell the user plainly that destructive commands are NOT being blocked, and that
-they need Python 3 on PATH (`python3` on macOS/Linux, `python` or the `py`
-launcher on Windows).
+1. Exit **2**, and stderr holds `bash_guard blocked this command`: healthy. The
+   guard ran and fired.
+2. Exit **2**, and stderr holds `cai guard reduced check:`: degraded. No working
+   Python 3 was found, so the dispatcher fell back to a text check. Tell the
+   user plainly: the three scoped agents (`test-runner`, `verifier`,
+   `designer`) can run no Bash at all, and every other caller is checked only
+   for force pushes, `reset --hard`, `git clean -f`, `--no-verify` and
+   `rm -rf`. Not blocked in this state: a commit or push straight to
+   `main`/`master`, `git checkout --` and `git restore` on a dirty tree, a
+   backtick or `$(…)` that Bash would run, the body of a heredoc, PowerShell
+   here-strings and `Remove-Item`, and the `gh pr merge` prompt. They need
+   Python 3 on PATH (`python3` on macOS/Linux, `python` or the `py` launcher on
+   Windows).
+3. Exit **2**, and stderr holds `cai guard launcher failed:`: the interpreter
+   the dispatcher had recorded failed on this input. Run the same command once
+   more. If the second run reads as 1, report healthy. If it reads as 3 again,
+   report that the recorded interpreter cannot finish the guard on this input,
+   quoting that line as it is, since it names the interpreter and its exit
+   code. If it reads as 2, report it as 2.
+4. Anything else, exit **0** included: the guard is inert. Tell the user plainly
+   that destructive commands are NOT being blocked, and that they need Python 3
+   on PATH (`python3` on macOS/Linux, `python` or the `py` launcher on
+   Windows).
 
 ## Step 7 — Offer the status line
 

@@ -66,3 +66,9 @@ or specs, and only concepts specific to this project.
 **修正輪（fix round）**: 選「修」之後 verify 修、main session 提交、ship 重跑、再等再抓的一整圈。
 **輪數上限（round cap）**: 修正輪最多 2 輪，第一次開 PR 不算。
 **未檢查（unchecked）**: 某來源抓不到、某檢查 600 秒內沒跑完，或某檢查結束時沒有結果（逾時、被取消、沒啟動、需要動作、過期）；清單上明列原因，絕不當成 0 則。
+**分派器（dispatcher）**: hook 實際執行的 CMD／sh 雙語腳本，決定一次呼叫回 0 或 2。
+**啟動方式（launcher）**: 啟動 Python 的那條指令：一個絕對路徑，或 `py -3` 這類名稱。
+**啟動方式紀錄（record）**: 一行 ASCII，寫下可用的啟動方式；CMD 段與 sh 段各一個檔。
+**探測（probe）**: 對一個候選直譯器依序做兩步：第一步以空輸入跑 guard、第二步以空輸入跑寫紀錄程式；與本 repo 的 `design_probe.py` 無關。
+**精簡檢查（reduced check）**: 探測全數失敗時，以樣式檔比對沒被讀過的 hook 輸入；命中或工具出錯 exit 2，否則 0。
+**受限 agent（scoped agent）**: `cai:test-runner`、`cai:verifier`、`cai:designer`。
