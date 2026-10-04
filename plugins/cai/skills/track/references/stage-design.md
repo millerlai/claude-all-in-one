@@ -233,8 +233,8 @@ full, and lower them when the answer is no.
    **Inside a track, steps 1–4 sometimes need a command or a temporary
    change `designer` cannot run itself** — Step 1's reproduction command,
    Step 3's tagged boundary log, or Step 4's one small test. `designer`'s
-   own Bash runs only `design_probe.py`, `options_lint.py`, or `mmdc`, and it writes no code
-   (`designer.md`). This does not apply standing alone: outside a track
+   own Bash runs only `design_probe.py`, `options_lint.py`, `mmdc`, exactly `date +%F`, or exactly
+   `git rev-parse --show-toplevel`, and it writes no code (`designer.md`). This does not apply standing alone: outside a track
    this stage is the main session, and it already runs everything itself.
 
    Hand it up as a `## Pending questions` item, worded as a request rather

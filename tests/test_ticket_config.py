@@ -125,6 +125,16 @@ def test_read_config_malformed_json_is_disabled_with_a_problem(tmp_path):
     assert "not valid json" not in result["problem"]  # never the file's own content
 
 
+def test_read_config_accepts_a_utf8_bom(tmp_path):
+    # The resolver reads this same file as bytes and accepts a BOM; so must this.
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    body = json.dumps({"ticket": {"enabled": True, "backend": "github"}})
+    (claude_dir / "cai.json").write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+    result = ticket.read_config(str(tmp_path))
+    assert result == {"enabled": True, "backend": "github", "problem": None}
+
+
 def test_read_config_wrong_type_is_disabled_with_a_problem(tmp_path):
     _write_cai_json(tmp_path, json.dumps({"ticket": {"enabled": "yes", "backend": "github"}}))
     result = ticket.read_config(str(tmp_path))

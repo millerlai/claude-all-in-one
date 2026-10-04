@@ -65,7 +65,8 @@ def read_config(project_dir):
         return {"enabled": False, "backend": "", "problem": None}
 
     try:
-        with open(path, encoding="utf-8") as fh:
+        # utf-8-sig: the resolver reads this file with a BOM accepted; same verdict here.
+        with open(path, encoding="utf-8-sig") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
         return {"enabled": False, "backend": "",

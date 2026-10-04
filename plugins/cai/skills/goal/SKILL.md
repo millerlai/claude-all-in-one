@@ -104,8 +104,8 @@ rewrite — only which lane it belongs to is now explicit.
 ## Step 4 — The shared verification step
 
 Both lanes arrive here. First run `python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py`
-(never hardcode a command; this file ships to any repo). You are the main session: on exit 3
-or 4 follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/test-command.md` to ask or report.
+(never hardcode a command; this file ships to any repo). You are the main session: on exit 3, 4
+or 5 follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/test-command.md` to ask or report.
 On exit 0 dispatch `cai:test-runner` to run every command it resolved. Report pass/fail with
 the real output; if no automated tests exist, say so rather than leaving the section blank.
 

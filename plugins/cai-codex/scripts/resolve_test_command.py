@@ -38,10 +38,15 @@ KNOWN = [
     ("dotnet test", "", "none"),
 ]
 
-MAKE_TEST = re.compile(r"^test\s*::?(?!=)", re.M)
+# `test ::= x` and `test :::= x` are GNU make's simple and immediate variable
+# assignments, so the lookahead skips every `:=` spelling; `test::` still matches.
+MAKE_TEST = re.compile(r"^test\s*::?(?!:{0,2}=)", re.M)
 # `test` followed by optional parameters, then the colon: `test-x:` is another
 # recipe and `test := x` a variable, neither of which `just test` runs.
 JUST_TEST = re.compile(r"^test(?:[ \t][^:=\n]*)?:(?!=)", re.M)
+# Task's `DefaultTaskfiles`, in the priority order its docs give.
+TASKFILES = ("Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml",
+             "Taskfile.dist.yml", "taskfile.dist.yml", "Taskfile.dist.yaml", "taskfile.dist.yaml")
 TASKS_HEAD = re.compile(r"^tasks:[ \t]*(?:#.*)?$")
 TASK_TEST = re.compile(r"^[ \t]+test[ \t]*:")
 
@@ -62,7 +67,8 @@ def _read(root, name, notes):
     """The first READ_LIMIT bytes of `name` as text, or None (noted)."""
     try:
         with open(os.path.join(root, name), "rb") as fh:
-            return fh.read(READ_LIMIT).decode("utf-8")
+            # utf-8-sig: a BOM is not whitespace and would hide a line-1 entry.
+            return fh.read(READ_LIMIT).decode("utf-8-sig")
     except (OSError, UnicodeDecodeError):
         notes.append("%s: could not be read" % name)
         return None
@@ -146,10 +152,18 @@ def _entry_candidates(root, notes):
         text = _read(root, "justfile", notes)
         if text is not None and JUST_TEST.search(text):
             out.append(_command("just test", "", "none", "justfile"))
-    if has("Taskfile.yml"):
-        text = _read(root, "Taskfile.yml", notes)
+    try:
+        listed = set(os.listdir(root))
+    except OSError:
+        listed = set()
+    # Exact names only, so Windows and Linux agree. The first name present is the
+    # only one read (the maintainer's decision, 2026-10-04); Task's docs say the
+    # names are looked up "in order of priority".
+    taskfile = next((n for n in TASKFILES if n in listed and has(n)), None)
+    if taskfile:
+        text = _read(root, taskfile, notes)
         if text is not None and _task_has_test(text):
-            out.append(_command("task test", "", "none", "Taskfile.yml"))
+            out.append(_command("task test", "", "none", taskfile))
     if has("package.json"):
         text = _read(root, "package.json", notes)
         if text is not None:
@@ -224,12 +238,7 @@ def resolve(project_dir):
     if declared is not None:
         return declared
     notes = []
-    seen, found = set(), []
-    for cand in _entry_candidates(root, notes) + _marker_candidates(root, notes):
-        key = (cand["command"], cand["whole"])
-        if key not in seen:
-            seen.add(key)
-            found.append(cand)
+    found = _entry_candidates(root, notes) + _marker_candidates(root, notes)
     if len(found) == 1:
         return _result(root, "resolved", "detected", commands=found, notes=notes)
     if found:

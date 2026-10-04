@@ -2166,6 +2166,39 @@ if os.path.isfile(STAGES_JSON):
           os.path.isfile(test_command_ref)
           and "any failure fails all" in read_text(test_command_ref).lower())
 
+    # #276: the two scoped agents' tool grants and the three-habit sentences are
+    # restated nowhere else, so nothing else would notice one drifting. An
+    # exact tools set (not just "no runner named", AC10 above) catches a tool
+    # added later; the phrases are folded because they wrap across source lines.
+    for name, wanted in (("test-runner", {"Bash", "Read"}),
+                         ("verifier", {"Read", "Grep", "Glob", "Agent", "Bash", "Write", "Edit"})):
+        agent_ref = f"{PLUGIN}/agents/{name}.md"
+        check(f"{agent_ref}'s tools: line is exactly {', '.join(sorted(wanted))}",
+              os.path.isfile(agent_ref)
+              and {t.strip() for t in (agent_tools_line(agent_ref) or "").split(",")} == wanted)
+    habit_phrases = (
+        (f"{PLUGIN}/agents/test-runner.md",
+         ("do not append a redirection", "do not `cd`", "do not chain commands",
+          "Do not explore with `find` or `ls`")),
+        (f"{PLUGIN}/agents/verifier.md",
+         ("do not append a redirection", "do not prefix `cd <dir> &&`", "do not chain commands",
+          "Do not explore with `find` or `ls`")),
+        (test_command_ref,
+         ("appending a redirection such as `2>&1`", "`cd`-ing first",
+          "exploring with `find` or `ls`")))
+    for path, phrases in habit_phrases:
+        folded = " ".join(read_text(path).split()) if os.path.isfile(path) else ""
+        for phrase in phrases:
+            check(f"{path} keeps its habit sentence ({phrase})", phrase in folded)
+
+    # #275: the resolver has four non-zero exits and the goal skill restated
+    # only 3 and 4, so a main session hitting exit 5 had no instruction. Folded
+    # because the sentence is wrapped across source lines.
+    goal_ref = f"{PLUGIN}/skills/goal/SKILL.md"
+    check(f"{goal_ref} sends resolver exits 3, 4 and 5 to test-command.md",
+          os.path.isfile(goal_ref)
+          and "on exit 3, 4 or 5" in " ".join(read_text(goal_ref).split()))
+
     # AC15: the platform ignores `hooks:` in a plugin agent's frontmatter, so
     # one that carries it is a boundary on paper only. The scoped agents are
     # held by the one global hook, which tells them apart by `agent_type`.

@@ -664,6 +664,25 @@ def test_codex_test_runner_and_verifier_say_the_boundary_is_not_enforced(tmp_pat
         assert "Tools declared allowed by the source (not enforced by Codex): " in toml, name
 
 
+def test_codex_designer_and_test_command_state_the_unenforced_boundary(tmp_path):
+    # #275: the designer override must name the two fixed commands the guard
+    # allows, and test-command.md may not say "blocked outright" on a platform
+    # where the agent-scoped hook does not run.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    def folded(rel):
+        return " ".join((out / rel).read_text(encoding="utf-8").split())
+
+    designer = folded("agents/cai_designer.toml")
+    assert "`date +%F`" in designer and "`git rev-parse --show-toplevel`" in designer
+    test_command = folded("skills/track/references/test-command.md")
+    assert "Codex does not enforce the source agent's PreToolUse hook" in test_command
+    assert "outright" not in test_command
+    assert ("runs through the Python interpreter the installer recorded at install time, "
+            "not through a `PATH` search.") in test_command
+
+
 def test_generated_tree_has_no_bash_only_syntax_left_in_a_fenced_block(tmp_path):
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
