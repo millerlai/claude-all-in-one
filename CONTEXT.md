@@ -51,3 +51,10 @@ or specs, and only concepts specific to this project.
 **時間檢查**: sweep 判斷備份可刪的條件之一：備份最後一個 commit 不晚於來源 PR 的合併時間，用來擋住同名分支重複使用時的誤刪。
 **代碼（note code）**: Agent Viewer 的 server 自己寫的備註改送的短字串，與語言無關，由頁面查字串表翻成所選語言，例如 `reason-unknown`。
 **原文（raw text）**: Agent Viewer 列上平台或使用者寫的文字（`waitingFor`、提問、摘要、工具輸入、路徑），頁面照原樣顯示，不翻譯也不查表。
+**解析器（resolver）**: 只讀的程式，輸入專案目錄，輸出這個專案的測試指令，或「多個／未知／宣告格式錯」。
+**宣告（declaration）**: `.claude/cai.json` 裡 `test.commands` 這個非空字串清單。
+**候選（candidate）**: 沒有宣告時，解析器從根目錄某個檔案推出的一條指令。
+**入口（entry）**: 把測試包成一個名字的根目錄檔案：Makefile、justfile、Taskfile.yml、package.json、tox.ini、noxfile.py。
+**彙總入口（aggregate entry）**: 入口推出、無法再帶路徑縮小的指令，如 `make test`。
+**縮小方式（narrow）**: 一條指令能不能帶範圍：`paths`、`packages`、`none`。
+**標記檔（marker file）**: 只說明語言或建置工具的根目錄檔案，如 `Cargo.toml`、`go.mod`；和上面的 **Marker**（mirror comment 的第一行）意思不同，兩者並存。

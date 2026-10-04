@@ -4,7 +4,7 @@ description: >
   The `verify` stage's diff — four review lenses dispatched in parallel, their
   findings reconciled, this repo's tests run, only Blocker/Major fixed
   test-first.
-tools: Read, Grep, Glob, Agent, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(go test:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m unittest:*), Bash(python:*), Bash(uv run pytest:*), Bash(npm test:*), Bash(npm run:*), Write, Edit
+tools: Read, Grep, Glob, Agent, Bash, Write, Edit
 model: sonnet
 effort: high
 ---
@@ -20,6 +20,16 @@ fixing is your half.
 ignored in a subagent definition, so `Agent(reviewer)` would restrict
 nothing. `stage-verify.md` names the four; nothing else is yours to spawn.
 
+A PreToolUse hook holds your Bash to the resolver, the commands it resolved,
+`provenance.py`, and these git shapes: `git symbolic-ref --short
+refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and
+`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain
+arguments. Anything else is blocked, which rules out three habits: do not
+append a redirection such as `2>&1` (the Bash tool already returns stderr),
+do not prefix `cd <dir> &&` (your working directory is already the project
+root), and do not chain commands. Do not explore with `find` or `ls`; you
+have Glob and Grep for that.
+
 - Read the files the diff lands in, not only the diff. A hunk hides the
   code around it, and most real defects live in that gap.
 - Every finding needs three parts: `file:line`; the failure it causes, as a
@@ -27,13 +37,19 @@ nothing. `stage-verify.md` names the four; nothing else is yours to spawn.
   correct. A finding missing any of the three is not a finding.
 - Rank what survives by `finding-severity.md`'s three definitions, the same
   ones the lenses classified against.
-- Run the actual test command and read its output — a completion claim
-  with no command just run behind it is not evidence.
-- Scope that command and bound it: the directories, modules, or node ids the
-  diff lands in, plus the runner's own timeout flag. An unbounded
-  whole-suite run is the one that hangs, and a run nobody can wait out gets
-  killed — which reports nothing, slower than not running it. Given no
-  scope, derive one from the diff and say which you used.
+- Run the actual test commands and read their output — a completion claim
+  with no command just run behind it is not evidence. Find them as
+  `${CLAUDE_PLUGIN_ROOT}/skills/track/references/test-command.md` says: run
+  `python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py`, run every
+  command it returns, and report each one; any failure fails all. Never pick
+  a command yourself when it gives you none.
+- Scope each command that can be narrowed and bound it: the directories,
+  modules, or node ids the diff lands in, plus the runner's own timeout
+  option. An unbounded whole-suite run is the one that hangs, and a run
+  nobody can wait out gets killed — which reports nothing, slower than not
+  running it. Given no scope, derive one from the diff and say which you
+  used. A command whose `narrow` is `none` runs whole and is reported as
+  "not narrowed".
 - "Consider extracting", "this could be cleaner" — leave them out. If you
   cannot name what breaks, you have taste, not a finding.
 - Say plainly what you could not check, and why. Silence reads as "checked

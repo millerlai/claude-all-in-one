@@ -186,9 +186,35 @@ stage or by one of the tools above.
 
 | | |
 |---|---|
-| **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes (`--force`, `-f`, a `+refspec`, or `--force-with-lease`), `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, any push — force or not — whose destination resolves to `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. In Bash it also blocks a backtick that Bash would run as a command, in double quotes or an unquoted heredoc, where it silently rewrites a commit message, and a `$(…)` that a stray apostrophe left outside the single quotes it was written in, and it reads the parts of a heredoc that Bash executes, so a force push inside one, or behind a quoted `<<EOF` that only looks like one, is still caught. It also blocks `git checkout -- <paths>` and `git restore` **when the working tree is dirty**, which is the shape of a verification step eating the fix it was meant to check; on a clean tree those discard nothing and go straight through. `gh pr merge`, and a `gh api` call to the same merge endpoint, are neither blocked nor let through silently: merging is a person's call, so Claude Code gets a permission prompt instead; Codex parses but does not act on that "ask" decision, so there the guard denies it and hands back the exact command for the person to run themselves. Hands the command back with the fix rather than just a refusal. |
+| **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes (`--force`, `-f`, a `+refspec`, or `--force-with-lease`), `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, any push — force or not — whose destination resolves to `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. In Bash it also blocks a backtick that Bash would run as a command, in double quotes or an unquoted heredoc, where it silently rewrites a commit message, and a `$(…)` that a stray apostrophe left outside the single quotes it was written in, and it reads the parts of a heredoc that Bash executes, so a force push inside one, or behind a quoted `<<EOF` that only looks like one, is still caught. It also blocks `git checkout -- <paths>` and `git restore` **when the working tree is dirty**, which is the shape of a verification step eating the fix it was meant to check; on a clean tree those discard nothing and go straight through. On Claude Code, `test-runner`, `verifier` and `designer` are held to commands of their own on top of all that: the resolver and the test commands it resolved (the verifier also a few read-only git shapes and `provenance.py`), and for the designer its probes, its renderer, `date +%F` and `git rev-parse --show-toplevel`; anything else is blocked. When no `py`, `python` or `python3` is found on `PATH`, those three agents can run no Bash at all. An interpreter that is found but broken, such as the Windows Store `python` stub, is not detected: the guard then fails and the call goes through. `gh pr merge`, and a `gh api` call to the same merge endpoint, are neither blocked nor let through silently: merging is a person's call, so Claude Code gets a permission prompt instead; Codex parses but does not act on that "ask" decision, so there the guard denies it and hands back the exact command for the person to run themselves. Hands the command back with the fix rather than just a refusal. |
 | **Shared rules** | Eight instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, write docs, and lay out options. Installed to user scope by `/cai:setup`. |
 | **Attempt ledger** | Every stage attempt a track makes — `passed`, `failed`, `blocked`, `skipped`, or `unavailable` when the provider refused to serve it — is appended to `.claude/track/<feature>/ledger.jsonl` with its gate (`auto` or `human`), the SHA-256 of the artifact it named, and the tokens the session spent since the last record. A copy carrying the project and track name goes to `~/.claude/cai/usage.jsonl`, which is what `/cai:usage` reads across projects. Five failed or blocked attempts since a stage last passed or was skipped cap it, and the refusal prints the three ways out; `unavailable` never counts. |
+
+### Which test command runs — resolved, never guessed
+
+Every stage that runs tests — `build`, `verify`, `/cai:goal`, `/cai:refactor`,
+and the `test-runner` and `verifier` agents — asks one read-only program for
+the command instead of picking one itself. It looks, in this order:
+
+1. **A declaration.** `test.commands` in `.claude/cai.json`, a non-empty list.
+   Every command in it runs, in order, and any failure fails the whole run.
+2. **Detection**, only when there is no declaration, and only at the project
+   root (subdirectories are not searched). It reads entry files — a
+   `Makefile`, `justfile` or `Taskfile.yml` with a `test` target, a
+   `package.json` with a real `scripts.test`, `tox.ini`, `noxfile.py` — and
+   marker files — pytest configuration, `go.mod`, `Cargo.toml`, `pom.xml`,
+   `build.gradle` with `gradlew`, a `.sln` or `.csproj`. It never runs
+   anything it finds.
+
+```json
+{ "test": { "commands": ["python -m pytest", "npm test"] } }
+```
+
+When detection finds more than one command, nothing runs: the main session asks
+you which, and the answer is written to `test.commands` for next time (other
+keys in the file, such as `ticket`, are kept). When it finds none, the stage
+says so rather than guessing, and a `.claude/cai.json` that cannot be read as
+JSON is reported as it is, with no fallback to detection.
 
 ### Ticket mirroring — opt-in, per project
 

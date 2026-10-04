@@ -221,6 +221,26 @@ def test_rewrite_script_call_only_file_still_gets_the_preamble():
     assert "<cai> track_state left-open" in out["a.md"]
 
 
+def test_rewrite_never_puts_a_markdown_preamble_in_front_of_python_source():
+    # bash_guard.py imports runner_guard.py and designer_guard.py; a blockquote
+    # on line 1 makes them a SyntaxError, so the import crashes before any
+    # general rule runs.
+    files = {"scripts/g.py": 'ROOT = "${CLAUDE_PLUGIN_ROOT}"\n'}
+
+    out = gen_codex.rewrite(files)
+
+    assert out["scripts/g.py"] == 'ROOT = "<cai-root>"\n'
+
+
+def test_every_generated_python_script_compiles(tmp_path):
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+    scripts = sorted(out.rglob("*.py"))
+    assert scripts
+    for script in scripts:
+        compile(script.read_text(encoding="utf-8"), str(script), "exec")
+
+
 def test_rewrite_leaves_a_file_with_no_plugin_root_token_alone():
     files = {"a.md": "nothing to rewrite here\n"}
 
@@ -625,6 +645,23 @@ def test_generated_agent_and_stage_text_never_tells_a_subagent_to_dispatch(tmp_p
 
     assert "you never dispatch" in designer.lower()
     assert "dispatch `explorer`" not in stage_design
+
+
+def test_codex_test_runner_and_verifier_say_the_boundary_is_not_enforced(tmp_path):
+    # #267 AC9: the Claude hook that holds these two agents' Bash does not run
+    # under Codex, so the generated agents say so instead of claiming it, and
+    # the old per-runner `tools:` list is gone from their opening line.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    for name in ("cai_test-runner", "cai_verifier"):
+        # Whitespace folded: the sentences are wrapped across source lines.
+        toml = " ".join((out / "agents" / (name + ".toml")).read_text(encoding="utf-8").split())
+        assert "Codex does not enforce the source agent's PreToolUse hook" in toml, name
+        assert "Treat the boundary as an instruction" in toml, name
+        assert "A PreToolUse hook holds your Bash" not in toml, name
+        assert "Bash(go test:*)" not in toml and "Bash(pytest:*)" not in toml, name
+        assert "Tools declared allowed by the source (not enforced by Codex): " in toml, name
 
 
 def test_generated_tree_has_no_bash_only_syntax_left_in_a_fenced_block(tmp_path):

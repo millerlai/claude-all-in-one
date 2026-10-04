@@ -132,8 +132,30 @@ def test_read_config_wrong_type_is_disabled_with_a_problem(tmp_path):
     assert result["problem"]
 
 
-def test_read_config_missing_ticket_key_is_disabled_with_a_problem(tmp_path):
-    _write_cai_json(tmp_path, json.dumps({"something_else": True}))
+def test_read_config_missing_ticket_key_is_disabled_and_silent(tmp_path):
+    # A cai.json that only carries other keys (e.g. `test`) never tried to
+    # turn the mirror on, so it is silent like a missing file (AC7).
+    _write_cai_json(tmp_path, json.dumps({"test": {"commands": ["make test"]}}))
+    result = ticket.read_config(str(tmp_path))
+    assert result == {"enabled": False, "backend": "", "problem": None}
+
+
+def test_missing_ticket_key_makes_the_project_subcommand_print_nothing(tmp_path, capsys):
+    _write_cai_json(tmp_path, json.dumps({"test": {"commands": ["make test"]}}))
+    assert ticket.project(str(tmp_path), str(tmp_path)) is None
+    out = capsys.readouterr()
+    assert out.out == "" and out.err == ""
+
+
+def test_read_config_ticket_not_an_object_still_has_a_problem(tmp_path):
+    _write_cai_json(tmp_path, json.dumps({"ticket": "github"}))
+    result = ticket.read_config(str(tmp_path))
+    assert result["enabled"] is False
+    assert result["problem"]
+
+
+def test_read_config_top_level_not_an_object_still_has_a_problem(tmp_path):
+    _write_cai_json(tmp_path, "[]")
     result = ticket.read_config(str(tmp_path))
     assert result["enabled"] is False
     assert result["problem"]

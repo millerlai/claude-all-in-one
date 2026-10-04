@@ -30,8 +30,10 @@ refactoring first.
 
 Run this loop for **every** refactoring, no exceptions.
 
-1. **Establish the net.** Find the test command and confirm the relevant tests
-   pass *before* touching anything. If there is no coverage for the target, stop
+1. **Establish the net.** Find the test command — run
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py` and follow
+   `${CLAUDE_PLUGIN_ROOT}/skills/track/references/test-command.md` — and confirm
+   the relevant tests pass *before* touching anything. If there is no coverage for the target, stop
    and build characterisation tests first (see `references/procedure-safety-net.md`).
 2. **Take one small step.** One named refactoring, one target. Not two.
 3. **Compile / typecheck.**

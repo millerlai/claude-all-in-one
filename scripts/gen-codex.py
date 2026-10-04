@@ -282,7 +282,9 @@ def rewrite(files: dict) -> dict:
         if PLUGIN_ROOT_TOKEN in new:
             new = new.replace(PLUGIN_ROOT_TOKEN, "<cai-root>")
             needs_preamble = True
-        if needs_preamble:
+        # A blockquote on line 1 of a .py file is a SyntaxError, and
+        # bash_guard.py imports two such files; the token swap above is enough.
+        if needs_preamble and not path.endswith(".py"):
             at = _split_frontmatter(new)
             new = new[:at] + CAI_ROOT_PREAMBLE + "\n\n" + new[at:]
         new = new.replace("/cai:", "$")

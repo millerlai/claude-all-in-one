@@ -10,9 +10,11 @@ Target: `$ARGUMENTS` (default: current directory).
 ## Steps
 
 **1. Establish scope and language.**
-Identify the language, build system and test command. Determine whether the
-target is a single class, a file, a module, or the whole project. If the test
-command cannot be found, say so in the report instead of guessing one.
+Identify the language and build system. Get the test command by running
+`<cai> resolve_test_command` and following
+`<cai-root>/skills/track/references/test-command.md`; when it exits
+non-zero, say so in the report instead of guessing one. Determine whether the
+target is a single class, a file, a module, or the whole project.
 If `<top>/CONTEXT.md` exists — `<top>` being what `git rev-parse
 --show-toplevel` prints — read it first and use its terms. If it does not
 exist, or that command fails, say nothing about it and do not suggest

@@ -303,16 +303,6 @@
       "why": "D16/C18: drops the bash-only `$(...)`/`2>/dev/null`/`${VAR:-default}` pipeline for the same two-command, carry-the-value-yourself form `stage-ship.md`/`stage-verify.md` already use."
     },
     {
-      "target": "skills/refactor/references/selection.md",
-      "anchor": [
-        "ls Makefile package.json pyproject.toml build.gradle pom.xml Cargo.toml go.mod 2>/dev/null"
-      ],
-      "replacement": [
-        "ls Makefile package.json pyproject.toml build.gradle pom.xml Cargo.toml go.mod"
-      ],
-      "why": "D16/C18: `2>/dev/null` is bash-only; this is a manual exploration hint, not scripted logic, so dropping the redirect changes nothing but the noise."
-    },
-    {
       "target": "skills/track/SKILL.md",
       "anchor": [
         "A report ending in `## Pending questions` is not an outcome: before step 3, you — the main session, not a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/pending-questions.md`, because the platform removes `AskUserQuestion` from every subagent whatever its `tools:` says."
@@ -405,6 +395,53 @@
         "the only dispatching this stage needs."
       ],
       "why": "D9: verifier reconciles only and never spawns; the main session does the one dispatch this stage needs, before handing verifier the reports."
+    },
+    {
+      "target": "agents/test-runner.md",
+      "anchor": [
+        "A PreToolUse hook holds your Bash to the resolver and the commands it",
+        "resolved. Anything else is blocked, which rules out three habits: do not",
+        "append a redirection such as `2>&1` (the Bash tool already returns stderr),",
+        "do not `cd` (your working directory is already the project root), and do not",
+        "chain commands. Do not explore with `find` or `ls` either; the resolver is",
+        "how you learn what to run."
+      ],
+      "replacement": [
+        "Codex does not enforce the source agent's PreToolUse hook. Treat the",
+        "boundary as an instruction: run only the resolver and the commands it",
+        "resolved, each followed by plain arguments at most. Do not append a",
+        "redirection such as `2>&1` (the shell tool already returns stderr), do not",
+        "`cd` (your working directory is already the project root), do not chain",
+        "commands, and do not explore with `find` or `ls`; the resolver is how you",
+        "learn what to run."
+      ],
+      "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary."
+    },
+    {
+      "target": "agents/verifier.md",
+      "anchor": [
+        "A PreToolUse hook holds your Bash to the resolver, the commands it resolved,",
+        "`provenance.py`, and these git shapes: `git symbolic-ref --short",
+        "refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and",
+        "`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain",
+        "arguments. Anything else is blocked, which rules out three habits: do not",
+        "append a redirection such as `2>&1` (the Bash tool already returns stderr),",
+        "do not prefix `cd <dir> &&` (your working directory is already the project",
+        "root), and do not chain commands. Do not explore with `find` or `ls`; you",
+        "have Glob and Grep for that."
+      ],
+      "replacement": [
+        "Codex does not enforce the source agent's PreToolUse hook. Treat the",
+        "boundary as an instruction: run only the resolver, the commands it",
+        "resolved, `provenance.py`, and these git shapes: `git symbolic-ref --short",
+        "refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and",
+        "`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain",
+        "arguments. Do not append a redirection such as `2>&1` (the shell tool",
+        "already returns stderr), do not prefix `cd <dir> &&` (your working",
+        "directory is already the project root), do not chain commands, and do not",
+        "explore with `find` or `ls`."
+      ],
+      "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary."
     },
     {
       "target": "agents/implementer.md",

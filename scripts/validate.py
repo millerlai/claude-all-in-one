@@ -890,9 +890,39 @@ SPACED_MAIN_REMOTE = remote_ref_repo("main", spaced=True)
 FEATURE_WITH_LOCAL_MAIN = remote_ref_repo("main")
 subprocess.run(["git", "-C", FEATURE_WITH_LOCAL_MAIN, "checkout", "-b", "feature"],
                capture_output=True, text=True)
+# Only a Cargo.toml and no `git init`, so the runner guard's root falls back to
+# the directory itself and the one resolved command is `cargo test`.
+CARGO = tempfile.mkdtemp(prefix="cai-guard-cargo-")
+with open(os.path.join(CARGO, "Cargo.toml"), "w", encoding="utf-8") as fh:
+    fh.write('[package]\nname = "probe"\nversion = "0.1.0"\n')
 
 CASES = [
-    # (tool_name, command, expected, cwd)
+    # (tool_name, command, expected, cwd[, agent_type])
+    # The scoped agents, by the `agent_type` the platform puts in the hook
+    # input. AC8: only the resolver and the command it resolved get through
+    # for test-runner; the last two of this block are habits the old agents
+    # had (`2>&1`, `cd <dir> &&`) that the new rule blocks. D7: what the
+    # verifier may also run. AC15: designer, which never had a working hook.
+    ("Bash", "cargo test", 0, CARGO, "cai:test-runner"),
+    ("Bash", "cargo test my_test", 0, CARGO, "cai:test-runner"),
+    ("Bash", "cargo test", 2, WORK, "cai:test-runner"),
+    ("Bash", "rm -rf target", 2, CARGO, "cai:test-runner"),
+    ("Bash", "cargo test; git stash", 2, CARGO, "cai:test-runner"),
+    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py", 0, WORK, "cai:test-runner"),
+    ("Bash", "python -c 'print(1)'", 2, WORK, "cai:test-runner"),
+    ("Bash", "cargo test", 0, WORK),
+    ("Bash", "cargo test 2>&1", 2, CARGO, "cai:test-runner"),
+    ("Bash", "cd D:/x && git status", 2, CARGO, "cai:test-runner"),
+    ("Bash", "git diff --stat a...HEAD", 0, WORK, "cai:verifier"),
+    ("Bash", "git symbolic-ref --short refs/remotes/origin/HEAD", 0, WORK, "cai:verifier"),
+    ("Bash", "git symbolic-ref HEAD refs/heads/x", 2, WORK, "cai:verifier"),
+    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", 0, WORK, "cai:verifier"),
+    ("Bash", "git push origin x", 2, WORK, "cai:verifier"),
+    ("Bash", "git status", 2, WORK, "cai:designer"),
+    ("Bash", "mmdc -i a.mmd -o a.svg", 0, WORK, "cai:designer"),
+    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md", 0, WORK, "cai:designer"),
+    ("Bash", "date +%F", 0, WORK, "cai:designer"),
+    ("Bash", "git rev-parse --show-toplevel", 0, WORK, "cai:designer"),
     ("Bash", "git push --force origin main", 2, WORK),
     ("Bash", "git push -f origin main", 2, WORK),
     # #194: a `+refspec` forces exactly like --force/-f, on any target.
@@ -1158,17 +1188,19 @@ CASES = [
 ]
 
 
-def run(argv, cmd, tool="Bash", cwd=""):
+def run(argv, cmd, tool="Bash", cwd="", agent=None):
+    payload = {"tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}
+    if agent:
+        payload["agent_type"] = agent
     return subprocess.run(
-        argv,
-        input=json.dumps({"tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}),
-        capture_output=True, text=True,
+        argv, input=json.dumps(payload), capture_output=True, text=True,
     ).returncode
 
 
-for tool, cmd, expected, cwd in CASES:
-    label = cmd.replace("\n", "\\n")
-    check(f"guard {tool} [{label}] -> {expected}", run([sys.executable, GUARD], cmd, tool, cwd) == expected)
+for tool, cmd, expected, cwd, *agent in CASES:
+    label = cmd.replace("\n", "\\n") + (f" as {agent[0]}" if agent else "")
+    check(f"guard {tool} [{label}] -> {expected}",
+          run([sys.executable, GUARD], cmd, tool, cwd, *agent) == expected)
 
 # The dispatcher is what hooks.json actually invokes. Exercise the branch this
 # platform would take, so a broken interpreter lookup or a swallowed exit code
@@ -1176,6 +1208,9 @@ for tool, cmd, expected, cwd in CASES:
 dispatch = ["cmd", "/c", DISPATCHER.replace("/", "\\")] if os.name == "nt" else ["sh", DISPATCHER]
 for cmd, expected in [("git reset --hard HEAD~1", 2), ("git status", 0)]:
     check(f"dispatcher [{cmd}] -> {expected}", run(dispatch, cmd, "Bash", WORK) == expected)
+# Through the dispatcher a scoped agent's call reaches runner_guard too.
+check("dispatcher [git status as cai:test-runner] -> 2",
+      run(dispatch, "git status", "Bash", WORK, "cai:test-runner") == 2)
 
 # The SessionStart launcher runs model_choice.py against the plugin root it
 # sits in. Run from here, that root is this repo's own source tree, and a
@@ -1934,8 +1969,10 @@ STAGE_TOOL_NEEDS = {
         ("a python interpreter", _grants_python),
     ],
     "verify": [
-        ("a test command", lambda tools: re.search(
-            r"pytest|go test|npm test|unittest", tools, re.IGNORECASE) is not None),
+        # No per-runner grants any more: which command runs is decided by the
+        # resolver and held by the PreToolUse hook (runner_guard.py), so the
+        # agent needs a shell and nothing narrower than that can express it.
+        ("a shell", lambda tools: re.search(r"\bBash\b(?!\()", tools) is not None),
         ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
         # stage-verify.md tells this stage to write the failing test first
         # and then fix. So do verifier.md's own description, its body, and
@@ -2094,6 +2131,47 @@ if os.path.isfile(STAGES_JSON):
         check(f"{test_runner_ref} reports a named file that collected 0 "
               "tests or skipped them all as NOT RUN",
               "NOT RUN" in read_text(test_runner_ref))
+
+        # AC10: NOT RUN is the same rule whatever the runner, so the agent's
+        # own words may not name one -- naming pytest is what once made the
+        # rule read as pytest-only. The whole file is held to it, and so is
+        # verifier.md's `tools:` line: a per-runner grant there is the same
+        # naming in another place.
+        runner_names = re.compile(r"pytest|go test|npm test|unittest|cargo",
+                                  re.IGNORECASE)
+        check(f"{test_runner_ref} names no particular test runner",
+              runner_names.search(read_text(test_runner_ref)) is None)
+        verifier_tools = agent_tools_line(f"{PLUGIN}/agents/verifier.md") or ""
+        check(f"{PLUGIN}/agents/verifier.md's tools: line names no particular test runner",
+              runner_names.search(verifier_tools) is None)
+
+    # AC11: every place that used to find the test command on its own now
+    # asks the one resolver, and refactor's old `ls Makefile ...` guess is gone.
+    for rel in ("agents/test-runner.md", "agents/verifier.md",
+                "skills/track/references/stage-build.md", "skills/goal/SKILL.md",
+                "skills/refactor/SKILL.md",
+                "skills/refactor/references/procedure-scan.md",
+                "skills/refactor/references/selection.md"):
+        path = f"{PLUGIN}/{rel}"
+        check(f"{path} runs resolve_test_command.py",
+              os.path.isfile(path) and "resolve_test_command.py" in read_text(path))
+    selection_ref = f"{PLUGIN}/skills/refactor/references/selection.md"
+    check(f"{selection_ref} no longer guesses with `ls Makefile`",
+          os.path.isfile(selection_ref) and "ls Makefile" not in read_text(selection_ref))
+
+    # AC12: several declared commands all run, and one red fails the lot. This
+    # is the sentence the agents are pointed at, so it has to stay in it.
+    test_command_ref = f"{PLUGIN}/skills/track/references/test-command.md"
+    check(f"{test_command_ref} says any failure fails all",
+          os.path.isfile(test_command_ref)
+          and "any failure fails all" in read_text(test_command_ref).lower())
+
+    # AC15: the platform ignores `hooks:` in a plugin agent's frontmatter, so
+    # one that carries it is a boundary on paper only. The scoped agents are
+    # held by the one global hook, which tells them apart by `agent_type`.
+    for agent_path in sorted(glob.glob(f"{PLUGIN}/agents/*.md")):
+        check(f"{agent_path} has no `hooks:` frontmatter (the platform ignores it)",
+              "hooks" not in (frontmatter_keys(agent_path) or set()))
 
     # The original mis-assignment picked a stage's agent by tier alone --
     # design pointed at architect (Read-only), ship at explorer (no git) --

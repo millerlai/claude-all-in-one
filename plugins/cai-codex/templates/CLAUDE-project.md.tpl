@@ -12,7 +12,9 @@
      Paste the last lines of a healthy, all-green run verbatim below it, so a
      new session knows what green looks like without running it first.
      No test command yet? Leave this section empty and fill it in once the
-     first one exists. -->
+     first one exists. The stages that run tests do not read this section:
+     they take `test.commands` from `.claude/cai.json`, or detect a command at
+     the repo root (see the README, "Which test command runs"). -->
 
 ## Architecture
 

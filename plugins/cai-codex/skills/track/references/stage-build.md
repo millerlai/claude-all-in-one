@@ -104,10 +104,14 @@ with three added columns:
 | 1 | collector | nothing | 3 | `pytest tests/test_collector.py` | `pending` | |
 
 **`Verify with` is the actual scoped command**, decided now, before any code
-exists — finding what this repo already uses to run tests is mechanical
-(dispatch `cai_explorer`); deciding which command gates this unit is not. A
-command that takes ten minutes or hangs gets skipped under time pressure,
-and then the checkpoints are decoration.
+exists. The test command comes from the resolver, never from a guess: run
+`<cai> resolve_test_command` and follow
+`<cai-root>/skills/track/references/test-command.md` for every exit
+code. A command whose `narrow` is `paths` or `packages` gets this unit's own
+paths appended; one whose `narrow` is `none` goes in whole and the row says
+"not narrowed". Deciding which paths gate this unit is judgement; finding the
+command is not. A command that takes ten minutes or hangs gets skipped under
+time pressure, and then the checkpoints are decoration.
 
 This whole table lives in `implementation-notes.md`, never in the design
 document itself. `preflight.py`'s `artifact_unchanged` hashes the artifact
