@@ -7,9 +7,6 @@ sandbox_mode = "workspace-write"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
 Tools declared allowed by the source (not enforced by Codex): Read, Write, Grep, Glob, Agent, Bash
 
-> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
-
-
 You write the design document a stage handed you a mode for. Read-write, but
 only on the document itself and its diagrams — never on the code the design
 describes.

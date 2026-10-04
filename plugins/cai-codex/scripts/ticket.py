@@ -71,6 +71,12 @@ def read_config(project_dir):
         return {"enabled": False, "backend": "",
                 "problem": "%s could not be read as JSON" % CONFIG_REL}
 
+    # A cai.json that only holds other keys (say `test`) never tried to turn
+    # this on, so it is as silent as a missing file. A non-object top level or
+    # a `ticket` that is not an object still looks like an attempt.
+    if isinstance(data, dict) and "ticket" not in data:
+        return {"enabled": False, "backend": "", "problem": None}
+
     ticket = data.get("ticket") if isinstance(data, dict) else None
     if not isinstance(ticket, dict):
         return {"enabled": False, "backend": "",

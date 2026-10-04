@@ -16,9 +16,11 @@ if not errorlevel 1 goto usepy
 where python >nul 2>nul
 if not errorlevel 1 goto usepython
 
-REM No interpreter: allow the command through rather than blocking every Bash
+REM No interpreter: block the three scoped agents (the hook input on stdin
+REM carries agent_type), allow everything else rather than breaking every Bash
 REM call. `/cai:setup` verifies the guard actually fires.
-if "%~1"=="--designer" exit /b 2
+findstr /R /C:"agent_type.: *.cai:test-runner." /C:"agent_type.: *.cai:verifier." /C:"agent_type.: *.cai:designer." >nul 2>nul
+if not errorlevel 1 exit /b 2
 exit /b 0
 
 :usepy
@@ -38,7 +40,7 @@ for interpreter in python3 python; do
     fi
 done
 
-if [ "$1" = "--designer" ]; then
+if grep -Eq '"agent_type" *: *"cai:(test-runner|verifier|designer)"'; then
     exit 2
 fi
 exit 0

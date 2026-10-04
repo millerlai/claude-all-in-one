@@ -4,12 +4,6 @@ description: >
   A design document the `design` stage dispatches for — diagnosis, stance,
   decisions, detail, or delta — written by stage-design.md's procedure.
 tools: Read, Write, Grep, Glob, Agent, Bash
-hooks:
-  PreToolUse:
-    - matcher: "Bash|PowerShell"
-      hooks:
-        - type: command
-          command: '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd" --designer'
 model: opus
 effort: high
 ---

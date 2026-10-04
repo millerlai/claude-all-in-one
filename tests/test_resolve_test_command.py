@@ -1,0 +1,309 @@
+"""Unit 2: resolve_test_command -- AC1-AC5 plus "this repo resolves to pytest".
+
+Every fixture is a tmp_path with no `git init`, so the root falls back to the
+directory itself (find_root's documented fallback).
+"""
+import json
+import os
+import subprocess
+import sys
+
+import pytest
+
+import resolve_test_command as rtc
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def make(tmp_path, files):
+    for name, content in files.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    return str(tmp_path)
+
+
+def pairs(result):
+    return [(c["command"], c["whole"], c["narrow"], c["origin"])
+            for c in result["commands"] or result["candidates"]]
+
+
+# --- AC1: every entry and marker file, command and source ------------------
+
+SINGLE = [
+    ("Makefile", {"Makefile": "test:\n\tpytest\n"},
+     ("make test", "", "none", "Makefile")),
+    ("Makefile double colon", {"Makefile": "test::\n\tx\n"},
+     ("make test", "", "none", "Makefile")),
+    ("justfile", {"justfile": "test:\n  cargo t\n"},
+     ("just test", "", "none", "justfile")),
+    ("justfile with params", {"justfile": "test target:\n  x\n"},
+     ("just test", "", "none", "justfile")),
+    ("Taskfile", {"Taskfile.yml": "version: '3'\ntasks:\n  build:\n    cmds: [x]\n  test:\n    cmds: [y]\n"},
+     ("task test", "", "none", "Taskfile.yml")),
+    ("package.json no lockfile", {"package.json": '{"scripts": {"test": "jest"}}'},
+     ("npm test", "", "none", "package.json")),
+    ("package.json npm", {"package.json": '{"scripts": {"test": "jest"}}', "package-lock.json": "{}"},
+     ("npm test", "", "none", "package.json")),
+    ("package.json pnpm", {"package.json": '{"scripts": {"test": "jest"}}', "pnpm-lock.yaml": ""},
+     ("pnpm test", "", "none", "package.json")),
+    ("package.json yarn", {"package.json": '{"scripts": {"test": "jest"}}', "yarn.lock": ""},
+     ("yarn test", "", "none", "package.json")),
+    ("tox.ini", {"tox.ini": "[tox]\nenvlist = py\n"},
+     ("tox", "", "none", "tox.ini")),
+    ("noxfile", {"noxfile.py": "import nox\n"},
+     ("nox", "", "none", "noxfile.py")),
+    ("pyproject pytest", {"pyproject.toml": "[tool.pytest.ini_options]\naddopts = ''\n"},
+     ("python -m pytest", "", "paths", "pyproject.toml")),
+    ("pytest.ini", {"pytest.ini": "[pytest]\n"},
+     ("python -m pytest", "", "paths", "pytest.ini")),
+    ("setup.cfg", {"setup.cfg": "[tool:pytest]\nx = 1\n"},
+     ("python -m pytest", "", "paths", "setup.cfg")),
+    ("go.mod", {"go.mod": "module x\n"},
+     ("go test", "./...", "packages", "go.mod")),
+    ("Cargo.toml", {"Cargo.toml": '[package]\nname = "p"\n'},
+     ("cargo test", "", "none", "Cargo.toml")),
+    ("pom.xml", {"pom.xml": "<project/>"},
+     ("mvn test", "", "none", "pom.xml")),
+    ("gradle", {"build.gradle": "", "gradlew": ""},
+     ("./gradlew test", "", "none", "build.gradle")),
+    ("gradle kts", {"build.gradle.kts": "", "gradlew": ""},
+     ("./gradlew test", "", "none", "build.gradle.kts")),
+    ("sln", {"App.sln": ""},
+     ("dotnet test", "", "none", "App.sln")),
+    ("csproj", {"App.csproj": ""},
+     ("dotnet test", "", "none", "App.csproj")),
+]
+
+
+@pytest.mark.parametrize("files,expected", [(f, e) for _, f, e in SINGLE],
+                         ids=[n for n, _, _ in SINGLE])
+def test_single_detected_command(tmp_path, files, expected):
+    result = rtc.resolve(make(tmp_path, files))
+    assert result["status"] == "resolved"
+    assert result["source"] == "detected"
+    assert pairs(result) == [expected]
+    assert result["candidates"] == []
+
+
+NOT_A_CANDIDATE = [
+    ("npm placeholder", {"package.json": json.dumps({"scripts": {"test": rtc.NPM_PLACEHOLDER}})}),
+    ("package.json without test", {"package.json": '{"scripts": {"build": "x"}}'}),
+    ("makefile comment", {"Makefile": "# test:\nbuild:\n"}),
+    ("makefile recipe line", {"Makefile": "build:\n\ttest: x\n"}),
+    ("makefile variable", {"Makefile": "test := x\n"}),
+    ("justfile longer name", {"justfile": "test-x:\n  x\n"}),
+    ("justfile variable", {"justfile": "test := 'x'\n"}),
+    ("taskfile nested test", {"Taskfile.yml": "tasks:\n  build:\n    test:\n      x: 1\n"}),
+    ("pyproject without pytest section", {"pyproject.toml": "[project]\nname = 'x'\n"}),
+    ("gradle without wrapper", {"build.gradle": ""}),
+]
+
+
+@pytest.mark.parametrize("files", [f for _, f in NOT_A_CANDIDATE],
+                         ids=[n for n, _ in NOT_A_CANDIDATE])
+def test_not_a_candidate(tmp_path, files):
+    result = rtc.resolve(make(tmp_path, files))
+    assert result["status"] == "unknown"
+    assert result["commands"] == [] and result["candidates"] == []
+
+
+def test_unparseable_package_json_is_noted_not_raised(tmp_path):
+    result = rtc.resolve(make(tmp_path, {"package.json": "{nope", "go.mod": "module x\n"}))
+    assert result["status"] == "resolved"
+    assert pairs(result) == [("go test", "./...", "packages", "go.mod")]
+    assert any("package.json" in n for n in result["notes"])
+    assert "nope" not in " ".join(result["notes"])
+
+
+# --- AC2: declaration wins, order kept, malformed never falls back ----------
+
+def declare(tmp_path, body, extra=None):
+    files = {os.path.join(".claude", "cai.json"): body}
+    files.update(extra or {})
+    return make(tmp_path, files)
+
+
+def test_declaration_wins_over_detection_and_keeps_order(tmp_path):
+    body = json.dumps({"test": {"commands": ["npm test", "python -m pytest"]}})
+    result = rtc.resolve(declare(tmp_path, body, {"Makefile": "test:\n\tx\n"}))
+    assert result["status"] == "resolved"
+    assert result["source"] == "declared"
+    assert [c["command"] for c in result["commands"]] == ["npm test", "python -m pytest"]
+    assert all(c["origin"] == ".claude/cai.json" for c in result["commands"])
+
+
+def test_declared_command_borrows_narrow_from_a_known_default(tmp_path):
+    body = json.dumps({"test": {"commands": ["python -m pytest", "go test ./...", "go test", "make test"]}})
+    result = rtc.resolve(declare(tmp_path, body))
+    assert pairs(result) == [
+        ("python -m pytest", "", "paths", ".claude/cai.json"),
+        ("go test", "./...", "packages", ".claude/cai.json"),
+        ("go test", "./...", "packages", ".claude/cai.json"),
+        ("make test", "", "none", ".claude/cai.json"),
+    ]
+
+
+def test_unknown_declared_command_is_whole_and_unnarrowed(tmp_path):
+    result = rtc.resolve(declare(tmp_path, json.dumps({"test": {"commands": ["  ./run-tests.sh  "]}})))
+    assert pairs(result) == [("./run-tests.sh", "", "none", ".claude/cai.json")]
+
+
+def test_cai_json_without_test_key_falls_through_to_detection(tmp_path):
+    result = rtc.resolve(declare(tmp_path, json.dumps({"ticket": {"enabled": False, "backend": ""}}),
+                                 {"Cargo.toml": "[package]\n"}))
+    assert result["status"] == "resolved" and result["source"] == "detected"
+
+
+MALFORMED = [
+    "{not json",
+    "[]",
+    json.dumps({"test": "make test"}),
+    json.dumps({"test": {}}),
+    json.dumps({"test": {"commands": "make test"}}),
+    json.dumps({"test": {"commands": []}}),
+    json.dumps({"test": {"commands": ["ok", ""]}}),
+    json.dumps({"test": {"commands": ["ok", "   "]}}),
+    json.dumps({"test": {"commands": ["ok", 3]}}),
+    json.dumps({"test": {"commands": ["a\nb"]}}),
+    json.dumps({"test": {"commands": ["a\rb"]}}),
+]
+
+
+@pytest.mark.parametrize("body", MALFORMED)
+def test_malformed_declaration_is_invalid_and_does_not_fall_back(tmp_path, body):
+    # A Makefile is present: falling back to detection would resolve it.
+    result = rtc.resolve(declare(tmp_path, body, {"Makefile": "test:\n\tx\n"}))
+    assert result["status"] == "invalid"
+    assert result["source"] is None
+    assert result["commands"] == [] and result["candidates"] == []
+    assert result["problem"]
+    assert "not json" not in result["problem"]
+
+
+# --- AC3: several candidates ------------------------------------------------
+
+def test_makefile_plus_pytest_is_several_with_no_commands(tmp_path):
+    result = rtc.resolve(make(tmp_path, {"Makefile": "test:\n\tx\n",
+                                         "pytest.ini": "[pytest]\n"}))
+    assert result["status"] == "several"
+    assert result["source"] is None
+    assert result["commands"] == []
+    assert [c["command"] for c in result["candidates"]] == ["make test", "python -m pytest"]
+
+
+def test_two_lockfiles_are_two_candidates(tmp_path):
+    result = rtc.resolve(make(tmp_path, {"package.json": '{"scripts": {"test": "x"}}',
+                                         "package-lock.json": "{}", "yarn.lock": ""}))
+    assert result["status"] == "several"
+    assert [c["command"] for c in result["candidates"]] == ["npm test", "yarn test"]
+
+
+def test_identical_candidates_from_two_layers_count_once(tmp_path):
+    # pyproject.toml and setup.cfg both say pytest: still one candidate.
+    result = rtc.resolve(make(tmp_path, {"pyproject.toml": "[tool.pytest.ini_options]\n",
+                                         "setup.cfg": "[tool:pytest]\n"}))
+    assert result["status"] == "resolved"
+    assert pairs(result) == [("python -m pytest", "", "paths", "pyproject.toml")]
+
+
+# --- AC4: nothing found -----------------------------------------------------
+
+def test_empty_directory_is_unknown(tmp_path):
+    result = rtc.resolve(str(tmp_path))
+    assert result["status"] == "unknown"
+    assert result["commands"] == [] and result["candidates"] == []
+
+
+def test_exit_codes_differ_between_several_and_unknown(tmp_path, capsys):
+    unknown = tmp_path / "u"
+    several = tmp_path / "s"
+    unknown.mkdir()
+    several.mkdir()
+    make(several, {"Makefile": "test:\n\tx\n", "go.mod": "module x\n"})
+    assert rtc.main(["--project-dir", str(unknown)]) == rtc.EXIT_UNKNOWN == 4
+    assert rtc.main(["--project-dir", str(several)]) == rtc.EXIT_SEVERAL == 3
+    capsys.readouterr()
+
+
+def test_main_prints_one_json_object_and_exit_codes(tmp_path, capsys):
+    make(tmp_path, {"Cargo.toml": "[package]\n"})
+    assert rtc.main(["--project-dir", str(tmp_path)]) == rtc.EXIT_RESOLVED == 0
+    out = capsys.readouterr()
+    assert json.loads(out.out)["commands"][0]["command"] == "cargo test"
+    assert out.err == ""
+    make(tmp_path, {".claude/cai.json": "{bad"})
+    assert rtc.main(["--project-dir", str(tmp_path)]) == rtc.EXIT_INVALID == 5
+
+
+# --- AC5: read-only ---------------------------------------------------------
+
+def snapshot(root):
+    seen = {}
+    for base, dirs, names in os.walk(root):
+        for n in dirs + names:
+            p = os.path.join(base, n)
+            st = os.stat(p)
+            seen[os.path.relpath(p, root)] = (st.st_size, st.st_mtime_ns)
+    return seen
+
+
+def test_resolver_leaves_the_file_tree_unchanged(tmp_path):
+    root = make(tmp_path, {"Makefile": "test:\n\tx\n", "go.mod": "module x\n",
+                           "package.json": "{bad", ".claude/cai.json": '{"ticket": {}}'})
+    before = snapshot(root)
+    rtc.resolve(root)
+    rtc.main(["--project-dir", root])
+    assert snapshot(root) == before
+
+
+# --- root, size limit, this repo -------------------------------------------
+
+def test_find_root_falls_back_to_cwd_without_git(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path))  # no git on PATH
+    assert rtc.find_root(str(tmp_path)) == str(tmp_path)
+
+
+def test_find_root_uses_git_toplevel_from_a_subdirectory(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    sub = tmp_path / "a" / "b"
+    sub.mkdir(parents=True)
+    assert os.path.samefile(rtc.find_root(str(sub)), str(tmp_path))
+
+
+def test_main_resolves_from_the_git_root_when_pointed_at_a_subdirectory(tmp_path, capsys):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    make(tmp_path, {"Cargo.toml": ""})
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    assert rtc.main(["--project-dir", str(sub)]) == 0
+    assert json.loads(capsys.readouterr().out)["commands"][0]["command"] == "cargo test"
+
+
+def test_undecodable_detection_file_is_noted_not_raised(tmp_path):
+    # cp950/cp1252 text is plausible on a Windows machine; it must not abort the run.
+    (tmp_path / "Makefile").write_bytes(b"# \xe9\ntest:\n")
+    result = rtc.resolve(str(tmp_path))
+    assert result["status"] == "unknown"
+    assert any("Makefile" in n for n in result["notes"])
+
+
+def test_only_the_first_read_limit_bytes_of_a_file_are_judged(tmp_path):
+    big = "x" * rtc.READ_LIMIT + "\ntest:\n"
+    result = rtc.resolve(make(tmp_path, {"Makefile": big}))
+    assert result["status"] == "unknown"
+
+
+def test_this_repo_resolves_to_pytest():
+    result = rtc.resolve(REPO)
+    assert result["status"] == "resolved"
+    assert result["source"] == "detected"
+    assert pairs(result) == [("python -m pytest", "", "paths", "pyproject.toml")]
+
+
+def test_script_runs_from_the_command_line(tmp_path):
+    make(tmp_path, {"go.mod": "module x\n"})
+    proc = subprocess.run([sys.executable, rtc.__file__, "--project-dir", str(tmp_path)],
+                          capture_output=True)
+    assert proc.returncode == 0
+    assert json.loads(proc.stdout.decode("utf-8"))["commands"][0]["whole"] == "./..."

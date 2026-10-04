@@ -5,7 +5,10 @@ model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
-Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob, Agent, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(go test:*), Bash(pytest:*), Bash(python -m pytest:*), Bash(python -m unittest:*), Bash(python:*), Bash(uv run pytest:*), Bash(npm test:*), Bash(npm run:*), Write, Edit
+Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob, Agent, Bash, Write, Edit
+
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
 
 You run the back half of the `verify` stage, following `stage-verify.md`
 from Step 2 on. The main session already ran Step 0 through Step 1 and
@@ -18,6 +21,16 @@ your half.
 You never dispatch another agent yourself — the main session already did
 the only dispatching this stage needs.
 
+Codex does not enforce the source agent's PreToolUse hook. Treat the
+boundary as an instruction: run only the resolver, the commands it
+resolved, `provenance.py`, and these git shapes: `git symbolic-ref --short
+refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and
+`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain
+arguments. Do not append a redirection such as `2>&1` (the shell tool
+already returns stderr), do not prefix `cd <dir> &&` (your working
+directory is already the project root), do not chain commands, and do not
+explore with `find` or `ls`.
+
 - Read the files the diff lands in, not only the diff. A hunk hides the
   code around it, and most real defects live in that gap.
 - Every finding needs three parts: `file:line`; the failure it causes, as a
@@ -25,13 +38,19 @@ the only dispatching this stage needs.
   correct. A finding missing any of the three is not a finding.
 - Rank what survives by `finding-severity.md`'s three definitions, the same
   ones the lenses classified against.
-- Run the actual test command and read its output — a completion claim
-  with no command just run behind it is not evidence.
-- Scope that command and bound it: the directories, modules, or node ids the
-  diff lands in, plus the runner's own timeout flag. An unbounded
-  whole-suite run is the one that hangs, and a run nobody can wait out gets
-  killed — which reports nothing, slower than not running it. Given no
-  scope, derive one from the diff and say which you used.
+- Run the actual test commands and read their output — a completion claim
+  with no command just run behind it is not evidence. Find them as
+  `<cai-root>/skills/track/references/test-command.md` says: run
+  `<cai> resolve_test_command`, run every
+  command it returns, and report each one; any failure fails all. Never pick
+  a command yourself when it gives you none.
+- Scope each command that can be narrowed and bound it: the directories,
+  modules, or node ids the diff lands in, plus the runner's own timeout
+  option. An unbounded whole-suite run is the one that hangs, and a run
+  nobody can wait out gets killed — which reports nothing, slower than not
+  running it. Given no scope, derive one from the diff and say which you
+  used. A command whose `narrow` is `none` runs whole and is reported as
+  "not narrowed".
 - "Consider extracting", "this could be cleaner" — leave them out. If you
   cannot name what breaks, you have taste, not a finding.
 - Say plainly what you could not check, and why. Silence reads as "checked

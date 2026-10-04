@@ -2,8 +2,11 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+
+import pytest
 
 import ledger
 import usage_collector
@@ -88,19 +91,60 @@ def test_designer_hook_blocks_out_of_scope_commands():
         assert result.returncode == expected, (command, result.stderr)
 
 
-def test_designer_hook_wiring_and_wrapper_preserve_exit_code():
+def test_designer_is_held_by_the_global_hook_through_agent_type():
+    # The platform ignores `hooks:` in a plugin agent's frontmatter, so the
+    # boundary lives in the one global hook and is chosen by `agent_type`.
     agent = Path("plugins/cai/agents/designer.md").read_text(encoding="utf-8")
-    assert 'matcher: "Bash|PowerShell"' in agent
-    assert '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd" --designer' in agent
+    assert "hooks:" not in agent.split("\n---", 1)[0]
     wrapper = Path("plugins/cai/hooks/run-guard.cmd").resolve()
-    for command, expected in [("git stash -u", 2),
-                              ("python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md", 0)]:
-        argv = (["cmd", "/c", str(wrapper), "--designer"] if os.name == "nt"
-                else ["sh", str(wrapper), "--designer"])
-        result = subprocess.run(argv, input=json.dumps({
-            "tool_name": "Bash", "tool_input": {"command": command}}),
-            capture_output=True, text=True)
+    for command, agent_type, expected in [
+            ("git stash -u", "cai:designer", 2),
+            ("python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md",
+             "cai:designer", 0),
+            ("git stash -u", None, 0)]:  # the main session has no agent_type
+        argv = ["cmd", "/c", str(wrapper)] if os.name == "nt" else ["sh", str(wrapper)]
+        payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+        if agent_type:
+            payload["agent_type"] = agent_type
+        result = subprocess.run(argv, input=json.dumps(payload),
+                                capture_output=True, text=True)
         assert result.returncode == expected, result.stderr
+
+
+def _wrapper_without_python(tmp_path):
+    """argv and env that run run-guard.cmd with no interpreter on PATH.
+
+    Windows: PATH is System32 alone, where neither `py` nor `python` lives
+    (checked, and the test skips if a machine puts one there). POSIX: a
+    directory holding links to only the three programs the sh branch calls."""
+    wrapper = str(Path("plugins/cai/hooks/run-guard.cmd").resolve())
+    if os.name == "nt":
+        bin_dir = os.path.join(os.environ["SystemRoot"], "System32")
+        argv = [os.environ["COMSPEC"], "/c", wrapper]
+    else:
+        bin_dir = str(tmp_path / "bin")
+        os.mkdir(bin_dir)
+        for name in ("sh", "grep", "dirname"):
+            os.symlink(shutil.which(name), os.path.join(bin_dir, name))
+        argv = [os.path.join(bin_dir, "sh"), wrapper]
+    for name in ("py", "python", "python3"):
+        if shutil.which(name, path=bin_dir):
+            pytest.skip("%s is on the reduced PATH" % name)
+    return argv, dict(os.environ, PATH=bin_dir)
+
+
+@pytest.mark.parametrize("compact", [True, False])
+def test_wrapper_without_python_blocks_only_the_scoped_agents(tmp_path, compact):
+    argv, env = _wrapper_without_python(tmp_path)
+    separators = (",", ":") if compact else None  # the platform sends compact JSON
+    for agent_type, expected in [("cai:test-runner", 2), ("cai:verifier", 2),
+                                 ("cai:designer", 2), ("cai:explorer", 0), (None, 0)]:
+        payload = {"tool_name": "Bash", "tool_input": {"command": "git status"}}
+        if agent_type:
+            payload["agent_type"] = agent_type
+        result = subprocess.run(argv, input=json.dumps(payload, separators=separators),
+                                capture_output=True, text=True, env=env)
+        assert result.returncode == expected, (agent_type, result.stderr)
 
 
 def test_designer_guard_uses_its_installed_path_with_spaces(tmp_path):

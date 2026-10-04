@@ -1,3 +1,5 @@
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
 # Selecting and sequencing refactorings
 
 How to go from "here is a codebase / module / class" to "here is an ordered list
@@ -25,7 +27,7 @@ git log --since="1 year ago" --name-only --format="" | sort | uniq -c | sort -rn
 find . -name "*.<ext>" -not -path "*/node_modules/*" | xargs wc -l | sort -rn | head -30
 
 # how the code is verified
-ls Makefile package.json pyproject.toml build.gradle pom.xml Cargo.toml go.mod
+<cai> resolve_test_command
 ```
 
 ## 2. Diagnose before prescribing

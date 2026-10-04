@@ -25,7 +25,7 @@ git log --since="1 year ago" --name-only --format="" | sort | uniq -c | sort -rn
 find . -name "*.<ext>" -not -path "*/node_modules/*" | xargs wc -l | sort -rn | head -30
 
 # how the code is verified
-ls Makefile package.json pyproject.toml build.gradle pom.xml Cargo.toml go.mod 2>/dev/null
+python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py
 ```
 
 ## 2. Diagnose before prescribing

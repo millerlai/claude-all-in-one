@@ -723,6 +723,20 @@ def main() -> int:
     if not command:
         return 0
 
+    # The scoped agents get their own check first; the general rules below
+    # still run on whatever it lets through. Imported here so the main session,
+    # which has no agent_type, pays nothing for it.
+    agent = payload.get("agent_type")
+    if agent:
+        import designer_guard
+        import runner_guard
+        if agent in designer_guard.DESIGNER_AGENTS:
+            if designer_guard.check(payload) == 2:
+                return 2
+        elif agent in runner_guard.AGENTS:
+            if runner_guard.check(payload) == 2:
+                return 2
+
     # An unknown tool is treated as not-Bash: a wrongly blocked here-string
     # would be a false positive on valid PowerShell, and a guard that blocks
     # legitimate work gets switched off along with the rules that matter.
@@ -796,7 +810,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--designer"]:
-        import designer_guard
-        sys.exit(designer_guard.main())
     sys.exit(main())

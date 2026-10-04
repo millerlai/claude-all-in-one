@@ -11,7 +11,15 @@ import shlex
 import sys
 
 
+DESIGNER_AGENTS = frozenset({"cai:designer"})
+# stage-design.md has the designer run these two itself. Equality only, no
+# arguments: `date +%s` and `git rev-parse HEAD` stay blocked.
+FIXED_COMMANDS = ("date +%F", "git rev-parse --show-toplevel")
+
+
 def allowed(command, cwd):
+    if re.sub(r"[ \t]+", " ", command.strip()) in FIXED_COMMANDS:
+        return True
     # Conservative even inside quotes: designers can pass literal resolved
     # paths instead of expansions. No second command can hide in an argument.
     command = command.replace("${CLAUDE_PLUGIN_ROOT}", "__CAI_PLUGIN_ROOT__")
@@ -38,9 +46,9 @@ def allowed(command, cwd):
                       for name in ("design_probe.py", "options_lint.py")}
 
 
-def main():
+def check(payload):
+    """0 to let the call through, 2 to block it with the reason on stderr."""
     try:
-        payload = json.load(sys.stdin)
         command = payload["tool_input"]["command"]
         if not isinstance(command, str):
             raise ValueError("command must be text")
@@ -48,10 +56,19 @@ def main():
     except (ValueError, KeyError, TypeError, OSError):
         ok = False
     if not ok:
-        print("Blocked: designer may run only design_probe.py, options_lint.py, or mmdc as a single "
-              "command. Ask the main session to run other commands.", file=sys.stderr)
+        print("Blocked: designer may run only design_probe.py, options_lint.py, mmdc, "
+              "`date +%F` or `git rev-parse --show-toplevel` as a single command. "
+              "Ask the main session to run other commands.", file=sys.stderr)
         return 2
     return 0
+
+
+def main():
+    try:
+        payload = json.load(sys.stdin)
+    except ValueError:
+        payload = {}  # unreadable input is blocked by check(), as before
+    return check(payload)
 
 
 if __name__ == "__main__":
