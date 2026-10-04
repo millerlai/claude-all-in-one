@@ -210,6 +210,24 @@
       "why": "#194 follow-up: Codex's hook host parses but does not act on an \"ask\" PreToolUse decision, so bash_guard.py denies `gh pr merge` under CAI_CODEX_GUARD=1 rather than asking -- matching stage-ship.md's own override below, which already states the same fact for this platform."
     },
     {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "| The push and `gh pr create` or `gh pr edit` | A shipper you dispatch again for each one. |",
+        "| `ship_pr_findings.py` | The main session. |",
+        "| The fix for a finding | The verify stage, dispatched by name by the main session. |",
+        "| The commit of that fix | The main session: verify cannot commit. |",
+        "| `gh pr merge` | The main session, only after the merge menu; the bash guard asks once more. |"
+      ],
+      "replacement": [
+        "| The push and `gh pr create` or `gh pr edit` | The main session itself, after the person confirms: on this platform the ship stage only prepares them. |",
+        "| `ship_pr_findings.py` | The main session. |",
+        "| The fix for a finding | The verify stage, dispatched by name by the main session. |",
+        "| The commit of that fix | The main session: verify cannot commit. |",
+        "| `gh pr merge` | Nobody here: after the merge menu the guard denies it, so hand the exact command back and the person runs it themselves. |"
+      ],
+      "why": "ship-pr-inline-comments detail design, Codex override 1 (UC5): there is no shipper on Codex, so the main session pushes and opens or updates the pull request (see the stage-ship.md override above), and the guard denies `gh pr merge` (plugins/cai/scripts/bash_guard.py), so the merge is handed to the person."
+    },
+    {
       "target": "skills/track/references/stage-ship.md",
       "anchor": [
         "**Before the irreversible operations below — merging, tagging, publishing —",
@@ -291,6 +309,18 @@
         "```"
       ],
       "why": "D13=P: same heredoc problem as the commit above, on the PR body. gh pr create has no title-from-file flag, so the title stays an argument, and decisions Tier 3 keeps it apostrophe-free rather than trying to make one shell's quoting match the other's."
+    },
+    {
+      "target": "skills/track/references/stage-ship.md",
+      "anchor": [
+        "gh pr edit <number> --title '<title>' --body-file - <<'EOF'",
+        "<release note>",
+        "EOF"
+      ],
+      "replacement": [
+        "gh pr edit <number> --title '<title>' --body-file '<full path of cai-pr-body.md>'   # the body file written above; same apostrophe rule for the title"
+      ],
+      "why": "ship-pr-inline-comments detail design (Codex overrides, item 2): the update branch for a PR that is already open has the same heredoc problem as gh pr create above, so it reads the same cai-pr-body.md from the system temp directory."
     },
     {
       "target": "skills/quiz/SKILL.md",

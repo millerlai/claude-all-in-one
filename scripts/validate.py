@@ -1142,6 +1142,9 @@ CASES = [
     ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 0, WORK),
     ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 2, MAIN),
     ("Bash", "gh pr create --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
+    # --- ship-pr-inline-comments: the fix round's update and the findings script ---
+    ("Bash", "gh pr edit 12 --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
+    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py --track-dir .claude/track/x --project-dir .", 0, WORK),
     # --- #130: a $(...) a stray apostrophe left outside its single quotes ---
     # Two apostrophes close the quote early and re-open it later, and Bash
     # runs the $(...) between them before the command. A contraction glues the

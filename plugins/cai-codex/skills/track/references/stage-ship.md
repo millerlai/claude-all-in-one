@@ -167,6 +167,13 @@ lands. Write the release note to cai-pr-body.md in the system temp directory wit
 gh pr create --title '<title>' --body-file '<full path of cai-pr-body.md>'   # keep the title free of apostrophes: bash and PowerShell escape one differently
 ```
 
+When the dispatch names a pull request that is already open — a fix round
+(`references/approval-gates.md`) — update it instead of opening another:
+
+```bash
+gh pr edit <number> --title '<title>' --body-file '<full path of cai-pr-body.md>'   # the body file written above; same apostrophe rule for the title
+```
+
 If this project also keeps a `CHANGELOG.md`, do not write it: hand
 the same paragraph up in your `## Report`, naming the file, and the main
 session writes the entry. Files this stage does not already own are not
