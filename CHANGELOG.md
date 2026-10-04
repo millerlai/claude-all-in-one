@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.44.0 — 2026-10-04
+
+Stages that run tests now find the project's test command instead of guessing it. A track keeps unanswered questions across sessions, asks the build and verify consents once, and lists a PR's unresolved findings before merging. The guard no longer lets a call through when the Python it finds is broken.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.43.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.43.0 to 1.44.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its existing state and ledger records; neither format changed. A `pending.md` appears in the track's directory only when a stage hands questions up after the update. A round left unanswered before the update was never saved, so that stage runs again. (#278)
+- Nothing to do for the guard: its first call after the update finds a working Python once and records it under the config root's `cai/` folder. (#282)
+
+### Test command
+
+- Test-runner, verifier and designer no longer guess how to run tests. A non-empty `test.commands` list in `.claude/cai.json` wins: every command runs, and any failure fails the run. Otherwise the repo root's Makefile, justfile, Taskfile, `package.json`, `tox.ini`, `noxfile.py` and marker files (`go.mod`, `Cargo.toml`, `pom.xml`, Gradle, `.sln`/`.csproj`, pytest config) are read. A single candidate is used. With several or none, you are asked once, and the answer is saved to `test.commands`. A malformed declaration is reported, never replaced by detection. (#270)
+- On Claude Code a hook holds those three agents to that command and a few read-only ones; `cd`, chaining, `2>&1` and `find`/`ls` are blocked for them. On Codex the same boundary is an instruction only. (#270)
+- A UTF-8 BOM no longer hides an entry file or `.claude/cai.json`, all eight Task file names are read (the first one present wins), and a Makefile with only `test ::= ...` or `test :::= ...` is not taken for a `make test` target. (#279)
+
+### Track
+
+- Unanswered questions a stage hands up are saved to `.claude/track/<feature>/pending.md`, with each answer recorded as it comes. A later session resumes from the `pending:` section of `track_state.py status` instead of running the stage again. (#278)
+- Build asks its Step 0.5 questions in one round before any unit starts; verify no longer asks the commit question again. A stop mid-build blocks only the stuck unit, the units depending on it and those sharing its files; the rest keep going. Inside a track, build skips its own four-lens review, since verify reviews the branch once. Verify hands its decisions up instead of waiting for an answer it cannot get, and after it passes, its changes are committed if you said yes at Step 0.5. Run on their own, `/cai:build` and `/cai:verify` still ask directly. (#283)
+- Verify checks first whether the branch merges cleanly with the remote default branch, and stops before the four review lenses if it does not. Each such stop counts as a `blocked` attempt. (#268)
+- After pushing, ship waits for the PR's checks and lists unresolved review threads and check annotations. The Blockers and Majors among them get a fix menu (at most two rounds), and the merge is asked on its own menu after that. The listing needs a `gh` that supports `gh api --slurp`; with an older one those sources show as unchecked. On Codex you run `gh pr merge` yourself. (#281)
+
+### Guard
+
+- A Python that is found but broken, such as the Windows Store stub, no longer lets commands through. The guard probes once and records a working launcher. With none, `cai:test-runner`, `cai:verifier` and `cai:designer` are blocked, and every other caller gets a reduced check: force push, `reset --hard`, `git clean -f`, `--no-verify` and `rm -rf`. A direct commit or push to `main`/`master` is not blocked in that mode. `/cai:setup` Step 6 now says whether the guard is healthy, degraded, or its launcher failed. (#282)
+
 ## v1.43.0 — 2026-10-03
 
 Codex roles can now save a reasoning-effort choice alongside their model, and the Agent Viewer handles pending tool approvals and agent waits more accurately.
