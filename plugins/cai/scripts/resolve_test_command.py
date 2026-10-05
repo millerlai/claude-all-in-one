@@ -8,6 +8,7 @@ files, never runs anything found in them, and prints one JSON object. Exit
 are left to uncaught exceptions and argparse.
 """
 import argparse
+import codecs
 import json
 import os
 import re
@@ -40,10 +41,15 @@ KNOWN = [
 
 # `test ::= x` and `test :::= x` are GNU make's simple and immediate variable
 # assignments, so the lookahead skips every `:=` spelling; `test::` still matches.
-MAKE_TEST = re.compile(r"^test\s*::?(?!:{0,2}=)", re.M)
+# `[ \t]*`, not `\s*`: a rule is `targets : prerequisites` on one line (#280).
+MAKE_TEST = re.compile(r"^test[ \t]*::?(?!:{0,2}=)", re.M)
+# GNU make's manual: "it tries the following names, in order" (#280).
+MAKEFILES = ("GNUmakefile", "makefile", "Makefile")
 # `test` followed by optional parameters, then the colon: `test-x:` is another
 # recipe and `test := x` a variable, neither of which `just test` runs.
 JUST_TEST = re.compile(r"^test(?:[ \t][^:=\n]*)?:(?!=)", re.M)
+# just matches these case-insensitively and refuses several (its search.rs, #280).
+JUSTFILES = ("justfile", ".justfile")
 # Task's `DefaultTaskfiles`, in the priority order its docs give.
 TASKFILES = ("Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml",
              "Taskfile.dist.yml", "taskfile.dist.yml", "Taskfile.dist.yaml", "taskfile.dist.yaml")
@@ -71,8 +77,11 @@ def _read(root, name, notes):
     """The first READ_LIMIT bytes of `name` as text, or None (noted)."""
     try:
         with open(os.path.join(root, name), "rb") as fh:
-            # utf-8-sig: a BOM is not whitespace and would hide a line-1 entry.
-            return fh.read(READ_LIMIT).decode("utf-8-sig")
+            data = fh.read(READ_LIMIT)
+        # utf-8-sig: a BOM is not whitespace and would hide a line-1 entry. A cut
+        # at READ_LIMIT can split a character; final=False drops that tail only.
+        decoder = codecs.getincrementaldecoder("utf-8-sig")()
+        return decoder.decode(data, final=len(data) < READ_LIMIT)
     except (OSError, UnicodeDecodeError):
         notes.append("%s: could not be read" % name)
         return None
@@ -99,7 +108,9 @@ def _declared(root):
         return None
     try:
         with open(path, "rb") as fh:
-            data = json.loads(fh.read(READ_LIMIT))
+            # Decode first: json.loads on bytes also takes UTF-16/32, which the
+            # recorder and ticket.py reject; all three read UTF-8 only (#280).
+            data = json.loads(fh.read(READ_LIMIT).decode("utf-8-sig"))
     except (OSError, ValueError):
         return _invalid(root, "%s could not be read as JSON" % CONFIG_REL)
     if not isinstance(data, dict):
@@ -148,18 +159,22 @@ def _entry_candidates(root, notes):
     """Files that wrap the tests in one name (Makefile, justfile, ...)."""
     out = []
     has = lambda n: os.path.isfile(os.path.join(root, n))  # noqa: E731
-    if has("Makefile"):
-        text = _read(root, "Makefile", notes)
-        if text is not None and MAKE_TEST.search(text):
-            out.append(_command("make test", "", "none", "Makefile"))
-    if has("justfile"):
-        text = _read(root, "justfile", notes)
-        if text is not None and JUST_TEST.search(text):
-            out.append(_command("just test", "", "none", "justfile"))
     try:
         listed = set(os.listdir(root))
     except OSError:
         listed = set()
+    makefile = next((n for n in MAKEFILES if n in listed and has(n)), None)
+    if makefile:
+        text = _read(root, makefile, notes)
+        if text is not None and MAKE_TEST.search(text):
+            out.append(_command("make test", "", "none", makefile))
+    justfiles = sorted(n for n in listed if n.lower() in JUSTFILES and has(n))
+    if len(justfiles) > 1:
+        notes.append("%s: just refuses more than one justfile" % ", ".join(justfiles))
+    elif justfiles:
+        text = _read(root, justfiles[0], notes)
+        if text is not None and JUST_TEST.search(text):
+            out.append(_command("just test", "", "none", justfiles[0]))
     # Exact names only, so Windows and Linux agree. The first name present is the
     # only one read (the maintainer's decision, 2026-10-04); Task's docs say the
     # names are looked up "in order of priority".
