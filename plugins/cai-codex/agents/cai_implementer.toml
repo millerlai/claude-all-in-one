@@ -6,6 +6,8 @@ model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
 Tools declared allowed by the source (not enforced by Codex): Read, Edit, Write, Grep, Glob, Bash, Agent
+Codex gives you no `Read`, `Grep` or `Glob` tool: read and search files with read-only shell commands instead (`cat`, `sed -n`, `rg` or `grep`; `Get-Content`, `Select-String` under PowerShell). No shell limit below forbids these.
+Codex gives you no `Edit` or `Write` tool: change files with `apply_patch`.
 
 You implement exactly what is specified.
 

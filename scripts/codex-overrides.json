@@ -10,12 +10,13 @@
       ],
       "replacement": [
         "Codex does not enforce the source agent's PreToolUse hook. Treat the",
-        "shell boundary as an instruction: run only this plugin's `design_probe.py`,",
+        "shell boundary as an instruction. Besides reading and searching files,",
+        "run only this plugin's `design_probe.py`,",
         "`options_lint.py`, or `mmdc`, each as a single command, and exactly",
         "`date +%F` and `git rev-parse --show-toplevel`. Ask the main",
         "session to run any other command. The"
       ],
-      "why": "#181: Claude agent hooks do not carry over to Codex; do not claim an enforced role-specific boundary."
+      "why": "#181: Claude agent hooks do not carry over to Codex; do not claim an enforced role-specific boundary. #288: Codex has no Read/Grep/Glob tool, so reading goes through the shell -- a boundary that names only the probes left the designer unable to read anything."
     },
     {
       "target": "skills/track/references/stage-verify.md",
@@ -131,11 +132,11 @@
         "  citation."
       ],
       "replacement": [
-        "- Locate evidence in this project yourself with `Read`/`Grep`/`Glob`",
+        "- Locate evidence in this project yourself with read-only shell commands",
         "  rather than dispatching another agent for it — you never dispatch",
         "  anyone. A scout's summary would not be a citation either way."
       ],
-      "why": "Deviation (not named by D9, applied conservatively for the same reason): nested dispatch is untested here, so designer uses its own read-only tools instead of dispatching explorer."
+      "why": "Deviation (not named by D9, applied conservatively for the same reason): nested dispatch is untested here, so designer reads the evidence itself instead of dispatching explorer. #288: through the shell, since Codex has no Read/Grep/Glob tool."
     },
     {
       "target": "skills/track/references/stage-design.md",
@@ -150,7 +151,7 @@
       ],
       "replacement": [
         "- **This project** — locate and quote the relevant lines yourself with",
-        "  `Read`/`Grep`/`Glob`, then decide what they mean; a scout's summary",
+        "  read-only shell commands, then decide what they mean; a scout's summary",
         "  would only be a pointer, not evidence.",
         "- **Official documentation** — for any tool, framework, or platform the",
         "  design stands on, hand the fetch up as a `## Pending questions` item",
@@ -158,7 +159,29 @@
         "  a web-capable helper and return what it found, then interpret it",
         "  yourself. Record the URL and the sentence taken."
       ],
-      "why": "Deviation (not named by D9, applied conservatively for the same reason): the designer never dispatches; project evidence uses its own tools, and a web fetch it cannot do itself gets handed up like a pending question."
+      "why": "Deviation (not named by D9, applied conservatively for the same reason): the designer never dispatches; project evidence uses its own shell (#288: Codex has no Read/Grep/Glob tool), and a web fetch it cannot do itself gets handed up like a pending question."
+    },
+    {
+      "target": "skills/track/references/stage-design.md",
+      "anchor": [
+        "   own Bash runs only `design_probe.py`, `options_lint.py`, `mmdc`, exactly `date +%F`, or exactly"
+      ],
+      "replacement": [
+        "   own shell, besides reading and searching files, runs only `design_probe.py`, `options_lint.py`, `mmdc`, exactly `date +%F`, or exactly"
+      ],
+      "why": "#288: on Codex the designer reads files through the shell (no Read/Grep/Glob tool), so a list naming only the probes reads as forbidding that too. Single-line anchor: the only line naming the designer's own shell list here."
+    },
+    {
+      "target": "agents/explorer.md",
+      "anchor": [
+        "Use Grep for source searches. If history is needed, ask the caller to",
+        "provide it; this agent has no shell tool."
+      ],
+      "replacement": [
+        "Search sources with the read-only commands above and run no other",
+        "command. If history is needed, ask the caller to provide it."
+      ],
+      "why": "#288: on Codex the shell is the only way to read or search a file, so \"no shell tool\" and \"use Grep\" would leave the explorer nothing to search with."
     },
     {
       "target": "skills/track/references/approval-gates.md",
@@ -464,14 +487,15 @@
       ],
       "replacement": [
         "Codex does not enforce the source agent's PreToolUse hook. Treat the",
-        "boundary as an instruction: run only the resolver and the commands it",
+        "boundary as an instruction. Besides reading and searching files, run",
+        "only the resolver and the commands it",
         "resolved, each followed by plain arguments at most. Do not append a",
         "redirection such as `2>&1` (the shell tool already returns stderr), do not",
         "`cd` (your working directory is already the project root), do not chain",
         "commands, and do not explore with `find` or `ls`; the resolver is how you",
         "learn what to run."
       ],
-      "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary."
+      "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary. #288: reading files is carved out, since on Codex it goes through the shell."
     },
     {
       "target": "agents/verifier.md",
@@ -488,7 +512,8 @@
       ],
       "replacement": [
         "Codex does not enforce the source agent's PreToolUse hook. Treat the",
-        "boundary as an instruction: run only the resolver, the commands it",
+        "boundary as an instruction. Besides reading and searching files, run",
+        "only the resolver, the commands it",
         "resolved, `provenance.py`, and these git shapes: `git symbolic-ref --short",
         "refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and",
         "`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain",
@@ -497,7 +522,7 @@
         "directory is already the project root), do not chain commands, and do not",
         "explore with `find` or `ls`."
       ],
-      "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary."
+      "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary. #288: reading files is carved out, since on Codex it goes through the shell."
     },
     {
       "target": "agents/implementer.md",

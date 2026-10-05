@@ -420,6 +420,32 @@ def _sandbox_mode(tools: str) -> str:
     return "read-only"
 
 
+def _codex_tool_note(tools: str) -> str:
+    """What a Codex agent uses in place of the Claude file tools it declares.
+    #288: Codex has no Read/Grep/Glob/Write/Edit tool, so without this an
+    agent whose shell is limited below (cai_designer) could read nothing."""
+    def listed(names):
+        quoted = [f"`{n}`" for n in names]
+        if len(quoted) == 1:
+            return quoted[0]
+        return ", ".join(quoted[:-1]) + " or " + quoted[-1]
+
+    readers = re.findall(r"\b(?:Read|Grep|Glob)\b", tools)
+    writers = re.findall(r"\b(?:Write|Edit)\b", tools)
+    lines = []
+    if readers:
+        lines.append(
+            f"Codex gives you no {listed(readers)} tool: "
+            "read and search files with read-only shell commands instead "
+            "(`cat`, `sed -n`, `rg` or `grep`; `Get-Content`, `Select-String` "
+            "under PowerShell). No shell limit below forbids these.")
+    if writers:
+        lines.append(
+            f"Codex gives you no {listed(writers)} tool: "
+            "change files with `apply_patch`.")
+    return "\n".join(lines)
+
+
 def _toml_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
@@ -439,6 +465,9 @@ def _agent_toml(short: str, source_text: str, role: str, tiers: dict, version: s
         raise ValueError(f"agents/{short}.md: effort {effort!r} is not a Codex "
                          f"reasoning effort ({', '.join(CODEX_EFFORTS)})")
     preamble = f"Tools declared allowed by the source (not enforced by Codex): {tools}"
+    note = _codex_tool_note(tools)
+    if note:
+        preamble += "\n" + note
     instructions = preamble + "\n\n" + body.strip("\n") + "\n"
     return (
         f"# cai-codex-version: {version}\n"
