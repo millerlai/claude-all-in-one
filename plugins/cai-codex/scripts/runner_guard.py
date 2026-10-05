@@ -28,6 +28,9 @@ VERIFIER_EXACT = ("git symbolic-ref --short refs/remotes/origin/HEAD",
 # `git merge-base HEAD <rev>` needs the rev; the others may stand alone.
 VERIFIER_PREFIXES = ("git merge-base HEAD ",)
 VERIFIER_VERBS = ("git diff", "git log", "git show")
+# The agents stage-verify.md dispatches, plugin-scoped or as it spells them (#277).
+VERIFIER_LENSES = frozenset({"cai:reviewer", "cai:security-reviewer",
+                             "reviewer", "security-reviewer"})
 
 
 def _squeeze(command):
@@ -64,6 +67,17 @@ def _extends(command, base):
                                and not UNSAFE.search(command[len(base):]))
 
 
+def _writes_a_file(command):
+    """`--output=<file>` makes git diff/log/show write it (#277). git refuses an
+    abbreviation today; one down to `--out` is refused here all the same."""
+    try:
+        args = shlex.split(command)
+    except ValueError:
+        return True
+    return any(len(name) >= 5 and "--output".startswith(name)
+               for name in (a.split("=", 1)[0] for a in args))
+
+
 def _resolved_commands(cwd):
     result = resolve_test_command.resolve(resolve_test_command.find_root(cwd))
     if result["status"] != "resolved":
@@ -89,8 +103,26 @@ def allowed(command, cwd, agent_type):
     return (squeezed in VERIFIER_EXACT
             or any(squeezed.startswith(p) and not UNSAFE.search(squeezed[len(p):])
                    for p in VERIFIER_PREFIXES)
-            or any(_extends(squeezed, verb) for verb in VERIFIER_VERBS)
+            or any(_extends(squeezed, verb) and not _writes_a_file(squeezed)
+                   for verb in VERIFIER_VERBS)
             or _runs_script(command, cwd, "provenance.py"))
+
+
+def check_dispatch(payload):
+    """An Agent call: 0, or 2 when the verifier asks for anything but a lens.
+
+    A dispatched agent is guarded by its own agent_type, so an unrestricted one
+    would carry none of the verifier's limits, and a subagent's `tools:` cannot
+    narrow Agent to named types (#277)."""
+    if payload.get("agent_type") not in VERIFIER_AGENTS:
+        return 0
+    wanted = (payload.get("tool_input") or {}).get("subagent_type")
+    if wanted in VERIFIER_LENSES:
+        return 0
+    print("Blocked: %s may dispatch only cai:reviewer and cai:security-reviewer "
+          "(the four lenses in stage-verify.md), not %r." % (payload["agent_type"], wanted),
+          file=sys.stderr)
+    return 2
 
 
 def check(payload):

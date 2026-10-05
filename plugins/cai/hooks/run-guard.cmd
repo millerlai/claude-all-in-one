@@ -26,6 +26,9 @@ REM with call so control comes back here and exit 2 can still be decided.
 set "GUARD=%~dp0..\scripts\bash_guard.py"
 set "WRITER=%~dp0record_launcher.py"
 set "PATTERNS=%~dp0reduced-check-patterns.txt"
+REM hooks.json passes agent for Agent calls: a prompt is not a command, so the
+REM reduced check only looks for the verifier there (#277).
+if "%~1"=="agent" set "PATTERNS=%~dp0reduced-check-agent-patterns.txt"
 if not defined CLAUDE_CONFIG_DIR goto defaultroot
 set "REC=%CLAUDE_CONFIG_DIR%\cai\guard-launcher-cmd.txt"
 goto haveroot
@@ -153,6 +156,9 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 GUARD="$DIR/../scripts/bash_guard.py"
 WRITER="$DIR/record_launcher.py"
 PATTERNS="$DIR/reduced-check-patterns.txt"
+# hooks.json passes agent for Agent calls: a prompt is not a command, so the
+# reduced check only looks for the verifier there (#277).
+[ "$1" = agent ] && PATTERNS="$DIR/reduced-check-agent-patterns.txt"
 REC="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/cai/guard-launcher-sh.txt"
 
 # One line: cai-launcher 1, a kind (path or name), the launcher, a closing end

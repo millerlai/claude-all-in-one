@@ -788,6 +788,12 @@ def main() -> int:
     except (json.JSONDecodeError, ValueError):
         return 0  # malformed input: fail open, don't break the session
 
+    # hooks.json sends Agent calls here too (#277). Only who may be dispatched
+    # is checked; a prompt is not a command, so no rule below reads it.
+    if payload.get("tool_name") in ("Agent", "Task"):
+        import runner_guard
+        return runner_guard.check_dispatch(payload)
+
     command = (payload.get("tool_input") or {}).get("command", "")
     if not command:
         return 0

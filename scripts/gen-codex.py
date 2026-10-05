@@ -139,8 +139,11 @@ DENY_LIST = [
 # U8: viewer.py's own source legitimately names Claude Code's tool/parameter
 # for its row classifier and Codex-thread classifier; exempting the whole
 # file would let any other deny-list token slip through unnoticed, so this is
-# scoped to the exact (path, token) pair instead.
-DENY_ALLOW = {("scripts/viewer.py", "AskUserQuestion"), ("scripts/viewer.py", "subagent_type")}
+# scoped to the exact (path, token) pair instead. runner_guard.py reads the
+# same key from Claude Code's Agent hook input (#277); Codex sends no Agent
+# call to the hook, so that branch never runs there.
+DENY_ALLOW = {("scripts/viewer.py", "AskUserQuestion"), ("scripts/viewer.py", "subagent_type"),
+              ("scripts/runner_guard.py", "subagent_type")}
 # U7: the `python3`/bare-`py` variants of the same hard-coded interpreter
 # form -- a survivor here means some text still names one interpreter
 # literally instead of using the recorded `<cai>` command line.

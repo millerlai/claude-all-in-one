@@ -107,6 +107,64 @@ def test_declared_commands_all_pass_and_take_arguments(tmp_path):
     assert runner_guard.allowed("python -m pytest; rm x", cwd, RUNNER) is False
 
 
+@pytest.mark.parametrize("command, expected", [
+    # #277: --output turns the verifier's read-only verbs into file writers.
+    ("git log --output=out.txt -1", False),
+    ("git diff --output out.txt", False),
+    ("git show --output=out.txt HEAD", False),
+    ('git log "--output=out.txt" -1', False),
+    ("git diff --outp=out.txt", False),          # git refuses abbreviations today
+    ("git log --oneline -1", True),
+    ("git diff --stat HEAD~1", True),
+    ("git show HEAD", True),
+])
+def test_verifier_git_verbs_cannot_write_a_file(empty, command, expected):
+    assert runner_guard.allowed(command, empty, VERIFIER) is expected
+
+
+def dispatch(agent_type, subagent_type, prompt="review the diff"):
+    payload = {"tool_name": "Agent", "tool_input": {"subagent_type": subagent_type,
+                                                    "description": "x", "prompt": prompt}}
+    if agent_type:
+        payload["agent_type"] = agent_type
+    return subprocess.run([sys.executable, BASH_GUARD], input=json.dumps(payload),
+                          capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("agent_type, subagent_type, expected", [
+    # #277: the verifier dispatches the four lenses and nothing else.
+    (VERIFIER, "cai:reviewer", 0),
+    (VERIFIER, "cai:security-reviewer", 0),
+    (VERIFIER, "reviewer", 0),                   # stage-verify.md's own spelling
+    (VERIFIER, "general-purpose", 2),
+    (VERIFIER, "cai:implementer", 2),
+    (VERIFIER, "", 2),
+    # Everyone else is unchanged.
+    (None, "general-purpose", 0),
+    ("cai:implementer", "general-purpose", 0),
+])
+def test_verifier_may_dispatch_only_the_lens_agents(agent_type, subagent_type, expected):
+    result = dispatch(agent_type, subagent_type)
+    assert result.returncode == expected, result.stderr
+    if expected == 2:
+        assert "cai:reviewer" in result.stderr
+
+
+def test_bash_rules_never_read_an_agent_prompt():
+    # The Bash rules match command text; a prompt that mentions a force push is
+    # not one, and the main session must not be blocked for writing it.
+    assert dispatch(None, "general-purpose", "never run git push --force origin main").returncode == 0
+
+
+def test_hooks_json_sends_agent_calls_to_the_dispatcher_in_agent_mode():
+    with open(os.path.join(SCRIPTS, "..", "hooks", "hooks.json"), encoding="utf-8") as fh:
+        entries = json.load(fh)["hooks"]["PreToolUse"]
+    agent = [e for e in entries if "Agent" in e["matcher"].split("|")]
+    assert len(agent) == 1
+    assert agent[0]["hooks"][0]["command"].endswith('run-guard.cmd" agent')
+    assert all("Agent" not in e["matcher"].split("|") for e in entries if e is not agent[0])
+
+
 def test_declared_string_with_shell_symbols_is_authorised_by_the_person(tmp_path):
     cwd = project(tmp_path, {".claude/cai.json": json.dumps(
         {"test": {"commands": ["make a && make b"]}})})
