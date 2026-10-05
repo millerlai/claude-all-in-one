@@ -305,10 +305,10 @@
         "EOF"
       ],
       "replacement": [
-        "# Write the message (title, a blank line, the body) to cai-commit-msg.txt in the system temp directory with your file-writing tool, not the shell.",
+        "# Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the message (title, a blank line, the body) to <scratch-dir>/cai-commit-msg.txt with your file-writing tool, not the shell; remove it after the command succeeds.",
         "git commit -F '<full path of cai-commit-msg.txt>'"
       ],
-      "why": "D1=A/D13=P: PowerShell 5.1 has no <<'EOF' heredoc syntax; the agent writes the message to a file in the system temp directory with its own file tool, then -F <file> parses identically in both shells."
+      "why": "D1=A/D13=P: PowerShell 5.1 has no <<'EOF' heredoc syntax; a file works in both shells. #304: choose a checked writable scratch location instead of forcing a system-temp write."
     },
     {
       "target": "skills/track/references/stage-ship.md",
@@ -322,7 +322,7 @@
         "```"
       ],
       "replacement": [
-        "Write the release note to cai-pr-body.md in the system temp directory with your file-writing tool, not the shell, then pass the file:",
+        "Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the release note to <scratch-dir>/cai-pr-body.md with your file-writing tool, not the shell, then pass the file and remove it after the command succeeds:",
         "",
         "```bash",
         "gh pr create --title '<title>' --body-file '<full path of cai-pr-body.md>'   # keep the title free of apostrophes: bash and PowerShell escape one differently",
@@ -340,7 +340,7 @@
       "replacement": [
         "gh pr edit <number> --title '<title>' --body-file '<full path of cai-pr-body.md>'   # the body file written above; same apostrophe rule for the title"
       ],
-      "why": "ship-pr-inline-comments detail design (Codex overrides, item 2): the update branch for a PR that is already open has the same heredoc problem as gh pr create above, so it reads the same cai-pr-body.md from the system temp directory."
+      "why": "ship-pr-inline-comments detail design (Codex overrides, item 2): the update branch has the same heredoc problem as gh pr create, so it reads the same cai-pr-body.md from the checked scratch location (#304)."
     },
     {
       "target": "skills/quiz/SKILL.md",
@@ -1091,6 +1091,90 @@
         "option; ask again only after the person next writes."
       ],
       "why": "Keep directory creation behind a submitted name instead of a cursor-selected timeout result."
+    },
+    {
+      "target": "rules/workflow.md",
+      "anchor": ["# Workflow"],
+      "replacement": [
+        "# Workflow",
+        "",
+        "## Codex sandbox permissions",
+        "- Run routine verification inside the sandbox first. Request escalation only",
+        "  for a known required resource or an observed sandbox denial; a failing test",
+        "  alone is not evidence of a permission problem. Do not skip tests or weaken",
+        "  coverage to avoid an approval. Never install dependencies without asking.",
+        "- Preserve the project's declared verification command and environment.",
+        "  Use an existing project-local `.venv` only when that is the declared entry",
+        "  point or its equivalence has been checked; do not bypass setup performed",
+        "  by `make`, `uv`, or another project wrapper. For an approved uv command,",
+        "  prefer `uv --cache-dir <workspace-local-cache> --offline run --no-sync ...`",
+        "  when dependencies are already installed and no sync is required. A new",
+        "  cache may be empty: report missing dependencies rather than downloading",
+        "  them silently. `--no-cache` still creates a temporary cache.",
+        "- `<scratch-dir>` is an existing writable location for disposable outputs:",
+        "  prefer one inside the workspace whose output paths are ignored by Git",
+        "  (check with `git check-ignore`); otherwise use a temporary location already",
+        "  allowed by the active sandbox. Do not edit ignore files just to make one.",
+        "  Use it for test logs, diagrams, downloads, and message/report/answer files.",
+        "  Remove disposable files after successful consumption; retain failed-run",
+        "  evidence. If no suitable location is allowed, request permission for the",
+        "  exact required location. Do not assume `/private/tmp` is allowed or denied",
+        "  on macOS: the actual writable roots decide.",
+        "- Moving an output does not grant network access, localhost socket binding,",
+        "  Chromium execution, Docker access, or writes to protected Git metadata.",
+        "  Keep necessary approvals, including setup/model writes under the user's",
+        "  Codex home. Explain the required resource rather than blaming the tool name.",
+        "  Keep escalated commands simple and scoped. Never create allow rules or",
+        "  change sandbox settings without explicit user authorization.",
+        "",
+        "## Development workflow"
+      ],
+      "why": "#304: routine checks and scratch outputs should avoid unnecessary external cache, network, and filesystem access without changing the project's verification contract or weakening Codex permissions."
+    },
+    {
+      "target": "skills/track/references/test-command.md",
+      "anchor": ["## Running the commands"],
+      "replacement": [
+        "## Running the commands",
+        "",
+        "Follow `rules/workflow.md`'s Codex sandbox permissions section for cache,",
+        "scratch outputs, and escalation. Do not silently replace a resolved command",
+        "with `.venv/bin/pytest` or a different interpreter to avoid an approval:",
+        "project wrappers may establish a required environment. An intentional",
+        "change to the declared test command is recorded by the main session through",
+        "`record_test_command.py`, with the person's chosen command, then resolved again."
+      ],
+      "why": "#304: every test caller reads this reference; sandbox-friendly execution must preserve the resolver's contract and required project setup."
+    },
+    {
+      "target": "skills/git/SKILL.md",
+      "anchor": ["Any message file goes in the system temp directory, never inside the repository, and is deleted once the command has run — left in the work tree it is an untracked file the next `git status` reports."],
+      "replacement": ["Any message file goes in `<scratch-dir>` chosen by `rules/workflow.md`'s Codex sandbox permissions section, and is deleted after the command succeeds; confirm that workspace-local output paths are ignored before writing."],
+      "why": "#304: a message file need not force an external-directory write; checked ignored output paths preserve the clean-tree requirement."
+    },
+    {
+      "target": "skills/track/references/pending-questions.md",
+      "anchor": [
+        "takes them along. Write the stage's whole report to a file in the system",
+        "temp directory — never inside the repo — and run"
+      ],
+      "replacement": [
+        "takes them along. Write the stage's whole report to a file in `<scratch-dir>`",
+        "chosen by `rules/workflow.md`'s Codex sandbox permissions section, and run"
+      ],
+      "why": "#304: saving a pending round should use a checked writable scratch location instead of requiring an external temp write."
+    },
+    {
+      "target": "skills/track/references/pending-questions.md",
+      "anchor": [
+        "   Save each answer before asking the next question: write it to a file in",
+        "   the system temp directory and run"
+      ],
+      "replacement": [
+        "   Save each answer before asking the next question: write it to a file in",
+        "   the same checked `<scratch-dir>` and run"
+      ],
+      "why": "#304: answer files follow the same writable scratch policy as the report."
     }
   ]
 }

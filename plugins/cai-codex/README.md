@@ -115,6 +115,34 @@ Saved personal choices take precedence over these defaults.
 | `cai_architect` | think | `gpt-6-astra` | `high` |
 | `cai_designer` | think | `gpt-6-astra` | `high` |
 
+**Reducing repeated approvals on macOS.** After updating, run `$setup` to
+refresh the installed workflow rules. Routine verification first uses the
+sandbox and preserves the project's declared test command. Disposable logs,
+diagrams, and message files prefer an existing writable workspace location
+whose output paths are ignored by Git; otherwise they use an already allowed
+temporary location. The active writable roots decide whether `/private/tmp`
+is usable, so that path alone does not prove an approval is needed.
+
+For projects with dependencies already installed, an approved uv invocation
+can keep its cache in an ignored workspace directory and avoid syncing or
+downloads, for example:
+
+```bash
+uv --cache-dir .cache/uv --offline run --no-sync pytest tests/test_example.py
+```
+
+Check that `.cache/uv` is ignored and writable before using this example.
+Use the project's actual test path and retain any required wrapper setup.
+An empty cache or missing dependency may still prevent execution; prepare
+dependencies separately with the user's approval. The plugin does not
+install dependencies or change sandbox settings or allow rules automatically.
+Local test servers, Chromium, Docker, network access, protected Git metadata,
+and writes to the user's Codex configuration may still need permission.
+Generated-text tests cover these instructions; fewer prompts on macOS have
+not been verified end to end.
+See [Codex security](https://learn.chatgpt.com/docs/agent-approvals-security)
+and [uv cache configuration](https://docs.astral.sh/uv/concepts/cache/).
+
 **The ship push approval.** `ship`'s push to GitHub needs escalation outside
 the sandbox, and Codex asks you to approve it. Answer "yes" once rather than
 "don't ask again" if you want every future push confirmed too — "don't ask
