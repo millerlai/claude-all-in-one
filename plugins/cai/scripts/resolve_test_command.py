@@ -12,6 +12,7 @@ import codecs
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -24,6 +25,8 @@ READ_LIMIT = 1048576
 # `command whole` borrows the row's narrow; anything else is unnarrowable.
 KNOWN = [
     ("python -m pytest", "", "paths"),
+    ("python3 -m pytest", "", "paths"),
+    ("py -3 -m pytest", "", "paths"),
     ("go test", "./...", "packages"),
     ("make test", "", "none"),
     ("just test", "", "none"),
@@ -38,6 +41,10 @@ KNOWN = [
     ("./gradlew test", "", "none"),
     ("dotnet test", "", "none"),
 ]
+
+# (name on PATH, launcher), first found wins. Many Linux and macOS systems have
+# python3 and no python, and a Windows install may have only the py launcher (#274).
+PYTHON_LAUNCHERS = (("python", "python"), ("python3", "python3"), ("py", "py -3"))
 
 # `test ::= x` and `test :::= x` are GNU make's simple and immediate variable
 # assignments, so the lookahead skips every `:=` spelling; `test::` still matches.
@@ -223,13 +230,24 @@ def _pytest_origin(root, notes):
     return None
 
 
+def _python_launcher():
+    """The first launcher in PYTHON_LAUNCHERS on PATH, else `python`, whose own
+    "not found" is the clearest message when nothing is installed."""
+    if os.name == "nt":
+        # shutil.which, like CreateProcess, looks in the current directory
+        # first on Windows unless this is set (#272).
+        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
+    return next((launcher for name, launcher in PYTHON_LAUNCHERS if shutil.which(name)),
+                "python")
+
+
 def _marker_candidates(root, notes):
     """Files that only name a language or build tool."""
     out = []
     has = lambda n: os.path.isfile(os.path.join(root, n))  # noqa: E731
     origin = _pytest_origin(root, notes)
     if origin:
-        out.append(_command("python -m pytest", "", "paths", origin))
+        out.append(_command(_python_launcher() + " -m pytest", "", "paths", origin))
     if has("go.mod"):
         out.append(_command("go test", "./...", "packages", "go.mod"))
     if has("Cargo.toml"):

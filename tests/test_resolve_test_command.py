@@ -5,6 +5,7 @@ directory itself (find_root's documented fallback).
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -13,6 +14,17 @@ import pytest
 import resolve_test_command as rtc
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def on_path(monkeypatch, names):
+    monkeypatch.setattr(shutil, "which", lambda name, *a, **k: "/bin/" + name if name in names else None)
+
+
+@pytest.fixture(autouse=True)
+def _python_on_path(monkeypatch):
+    # The pytest launcher depends on PATH (#274); pin it so the rows below do
+    # not change with the machine running them.
+    on_path(monkeypatch, {"python", "python3", "py"})
 
 
 def make(tmp_path, files):
@@ -269,6 +281,14 @@ def test_declared_command_borrows_narrow_from_a_known_default(tmp_path):
     ]
 
 
+def test_declared_python3_and_py_launchers_borrow_paths(tmp_path):
+    body = json.dumps({"test": {"commands": ["python3 -m pytest", "py -3 -m pytest"]}})
+    assert pairs(rtc.resolve(declare(tmp_path, body))) == [
+        ("python3 -m pytest", "", "paths", ".claude/cai.json"),
+        ("py -3 -m pytest", "", "paths", ".claude/cai.json"),
+    ]
+
+
 def test_unknown_declared_command_is_whole_and_unnarrowed(tmp_path):
     result = rtc.resolve(declare(tmp_path, json.dumps({"test": {"commands": ["  ./run-tests.sh  "]}})))
     assert pairs(result) == [("./run-tests.sh", "", "none", ".claude/cai.json")]
@@ -322,6 +342,20 @@ def test_two_lockfiles_are_two_candidates(tmp_path):
                                          "package-lock.json": "{}", "yarn.lock": ""}))
     assert result["status"] == "several"
     assert [c["command"] for c in result["candidates"]] == ["npm test", "yarn test"]
+
+
+@pytest.mark.parametrize("names,expected", [
+    ({"python", "python3", "py"}, "python -m pytest"),
+    ({"python3", "py"}, "python3 -m pytest"),
+    ({"py"}, "py -3 -m pytest"),
+    # Nothing found: the old default, which says what is missing when it fails.
+    (set(), "python -m pytest"),
+], ids=["python", "python3 only", "py only", "none"])
+def test_pytest_launcher_is_the_first_name_on_path(tmp_path, monkeypatch, names, expected):
+    # #274: a machine with only python3 cannot start `python -m pytest`.
+    on_path(monkeypatch, names)
+    result = rtc.resolve(make(tmp_path, {"pytest.ini": "[pytest]\n"}))
+    assert pairs(result) == [(expected, "", "paths", "pytest.ini")]
 
 
 def test_pytest_origin_is_the_first_configuring_file(tmp_path):
