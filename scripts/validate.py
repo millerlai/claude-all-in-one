@@ -820,28 +820,31 @@ for path in bom_files[:5]:
 # `grep -f`. A blank line makes grep match every call, a CR leaves a stray \r on
 # every Linux pattern, and a `\>` before the last two characters makes findstr
 # silently skip the line (E6: every rm rule went missing, no error). The BOM
-# check above only scans TEXT's extensions, so this file gets its own.
-PATTERNS = f"{PLUGIN}/hooks/reduced-check-patterns.txt"
-check("reduced-check-patterns.txt ships with the plugin", os.path.isfile(PATTERNS))
-if os.path.isfile(PATTERNS):
+# check above only scans TEXT's extensions, so these files get their own. The
+# agent file is the one Agent calls read (#277).
+for pattern_name in ("reduced-check-patterns.txt", "reduced-check-agent-patterns.txt"):
+    pattern_path = f"{PLUGIN}/hooks/{pattern_name}"
+    check(f"{pattern_name} ships with the plugin", os.path.isfile(pattern_path))
+    if not os.path.isfile(pattern_path):
+        continue
     # findstr /G: holds the file against every reader while it runs, and a
     # parallel pytest worker may be inside one -- wait it out rather than crash.
     for _attempt in range(20):
         try:
-            with open(PATTERNS, "rb") as fh:
+            with open(pattern_path, "rb") as fh:
                 pattern_bytes = fh.read()
             break
         except PermissionError:
             time.sleep(0.05)
     else:
-        raise SystemExit(f"cannot read {PATTERNS}")
+        raise SystemExit(f"cannot read {pattern_path}")
     pattern_lines = pattern_bytes.decode("latin-1").split("\n")[:-1]
-    check("reduced-check-patterns.txt is ASCII without a BOM",
+    check(f"{pattern_name} is ASCII without a BOM",
           all(b < 128 for b in pattern_bytes) and not pattern_bytes.startswith(BOM))
-    check("reduced-check-patterns.txt is LF only", b"\r" not in pattern_bytes)
-    check("reduced-check-patterns.txt has no blank line and one final LF",
+    check(f"{pattern_name} is LF only", b"\r" not in pattern_bytes)
+    check(f"{pattern_name} has no blank line and one final LF",
           pattern_bytes.endswith(b"\n") and all(pattern_lines))
-    check("reduced-check-patterns.txt never puts a backslash-greater-than mid-pattern",
+    check(f"{pattern_name} never puts a backslash-greater-than mid-pattern",
           not any("\\>" in line[:-2] for line in pattern_lines))
 
 
@@ -967,6 +970,10 @@ CASES = [
     ("Bash", "git diff --stat a...HEAD", 0, WORK, "cai:verifier"),
     ("Bash", "git symbolic-ref --short refs/remotes/origin/HEAD", 0, WORK, "cai:verifier"),
     ("Bash", "git symbolic-ref HEAD refs/heads/x", 2, WORK, "cai:verifier"),
+    # #277: --output makes the read-only verbs write a file.
+    ("Bash", "git log --output=out.txt -1", 2, WORK, "cai:verifier"),
+    ("Bash", "git diff --output out.txt", 2, WORK, "cai:verifier"),
+    ("Bash", "git log --oneline -1", 0, WORK, "cai:verifier"),
     ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", 0, WORK, "cai:verifier"),
     ("Bash", "git push origin x", 2, WORK, "cai:verifier"),
     ("Bash", "git status", 2, WORK, "cai:designer"),

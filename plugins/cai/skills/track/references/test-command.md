@@ -53,7 +53,10 @@ in the text above it. Who asks depends on who you are:
 type the command (the menu's free-text entry) and record it the same way.
 
 Only the main session writes `.claude/cai.json`, and only through
-`record_test_command.py` — never by editing the file.
+`record_test_command.py` — never by editing the file. Nothing enforces that
+for the verifier, which has Write and Edit: the guard treats the declaration
+as trusted input, as it does the `Makefile` or `conftest.py` a resolved
+command runs.
 
 ## Running the commands
 

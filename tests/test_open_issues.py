@@ -117,6 +117,24 @@ def test_designer_is_held_by_the_global_hook_through_agent_type(tmp_path):
         assert result.returncode == expected, result.stderr
 
 
+def test_verifier_dispatch_is_held_by_the_real_dispatcher(tmp_path):
+    # #277: the Agent entry in hooks.json runs the same dispatcher with `agent`.
+    env = dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "cfg"))
+    wrapper = Path("plugins/cai/hooks/run-guard.cmd").resolve()
+    argv = (["cmd", "/c", str(wrapper)] if os.name == "nt" else ["sh", str(wrapper)]) + ["agent"]
+    for agent_type, subagent_type, expected in [
+            ("cai:verifier", "general-purpose", 2),
+            ("cai:verifier", "cai:reviewer", 0),
+            (None, "general-purpose", 0)]:
+        payload = {"tool_name": "Agent",
+                   "tool_input": {"subagent_type": subagent_type, "prompt": "git push --force"}}
+        if agent_type:
+            payload["agent_type"] = agent_type
+        result = subprocess.run(argv, input=json.dumps(payload),
+                                capture_output=True, text=True, env=env)
+        assert result.returncode == expected, result.stderr
+
+
 def _private_hooks(tmp_path):
     """A copy of plugins/cai/hooks to run the dispatcher from.
 
@@ -248,6 +266,29 @@ def test_wrapper_without_python_runs_the_reduced_check(tmp_path, compact):
     assert "bash_guard blocked this command" not in result.stderr
     assert _call(argv, env, "git commit -m x", None, compact).returncode == 0
     assert not _record_file(env).exists()  # "not found" is never recorded
+
+
+def test_wrapper_without_python_in_agent_mode_holds_only_the_verifier(tmp_path):
+    # #277: hooks.json runs the dispatcher with `agent` for Agent calls. Without
+    # Python the verifier cannot be told which agent it asked for, so it is
+    # blocked; nobody else is, even when a prompt mentions a force push.
+    argv, env = _wrapper_without_python(tmp_path)
+    argv = argv + ["agent"]
+    for agent_type, subagent_type, prompt, expected in [
+            ("cai:verifier", "general-purpose", "review the diff", 2),
+            ("cai:implementer", "general-purpose", "review the diff", 0),
+            (None, "general-purpose", "never run git push --force origin main", 0),
+            (None, "general-purpose", "rm -rf build first", 0),
+            # The verify stage dispatching the verifier: "subagent_type" ends in
+            # "agent_type", and the pattern must not read it as the caller (#295 review).
+            (None, "cai:verifier", "run the verify stage", 0)]:
+        payload = {"tool_name": "Agent",
+                   "tool_input": {"subagent_type": subagent_type, "prompt": prompt}}
+        if agent_type:
+            payload["agent_type"] = agent_type
+        result = subprocess.run(argv, input=json.dumps(payload, separators=(",", ":")),
+                                capture_output=True, text=True, env=env)
+        assert result.returncode == expected, (agent_type, subagent_type, result.stderr)
 
 
 def test_broken_interpreters_first_on_path_leave_scoped_agents_blocked(tmp_path):
