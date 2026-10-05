@@ -41,6 +41,18 @@ SINGLE = [
      ("just test", "", "none", "justfile")),
     ("justfile with params", {"justfile": "test target:\n  x\n"},
      ("just test", "", "none", "justfile")),
+    # #280: make's own names (GNUmakefile, makefile, Makefile) and just's
+    # case-insensitive justfile/.justfile, each reported under its real name.
+    ("GNUmakefile", {"GNUmakefile": "test:\n\tx\n"},
+     ("make test", "", "none", "GNUmakefile")),
+    ("makefile lowercase", {"makefile": "test:\n\tx\n"},
+     ("make test", "", "none", "makefile")),
+    ("GNUmakefile wins over Makefile", {"GNUmakefile": "test:\n\tx\n", "Makefile": "test:\n\tx\n"},
+     ("make test", "", "none", "GNUmakefile")),
+    ("Justfile capitalised", {"Justfile": "test:\n  x\n"},
+     ("just test", "", "none", "Justfile")),
+    ("hidden .justfile", {".justfile": "test:\n  x\n"},
+     ("just test", "", "none", ".justfile")),
     ("Taskfile", {"Taskfile.yml": "version: '3'\ntasks:\n  build:\n    cmds: [x]\n  test:\n    cmds: [y]\n"},
      ("task test", "", "none", "Taskfile.yml")),
     *[("Taskfile as " + name, {name: TASKFILE_BODY}, ("task test", "", "none", name))
@@ -108,6 +120,13 @@ NOT_A_CANDIDATE = [
     ("makefile variable", {"Makefile": "test := x\n"}),
     ("makefile simple variable", {"Makefile": "test ::= x\n"}),
     ("makefile immediate variable", {"Makefile": "test :::= x\n"}),
+    # #280: a rule is `targets : prerequisites` on one line (GNU make, Rule Syntax).
+    ("makefile colon on the next line", {"Makefile": "test\n: x\n"}),
+    ("makefile colon after a blank line", {"Makefile": "test\n\n:\n"}),
+    ("GNUmakefile without test hides a Makefile that has one",
+     {"GNUmakefile": "build:\n\tx\n", "Makefile": "test:\n\tx\n"}),
+    # #280: just refuses a directory holding several justfiles.
+    ("justfile and .justfile together", {"justfile": "test:\n  x\n", ".justfile": "test:\n  x\n"}),
     ("justfile longer name", {"justfile": "test-x:\n  x\n"}),
     ("justfile variable", {"justfile": "test := 'x'\n"}),
     ("taskfile nested test", {"Taskfile.yml": "tasks:\n  build:\n    test:\n      x: 1\n"}),
@@ -150,6 +169,39 @@ def test_a_utf8_bom_does_not_hide_an_entry(tmp_path, name, body, expected):
     assert pairs(result) == [expected]
 
 
+def test_several_justfiles_are_noted(tmp_path):
+    result = rtc.resolve(make(tmp_path, {"justfile": "test:\n  x\n", ".justfile": "test:\n  x\n"}))
+    assert any(".justfile" in n and "justfile" in n for n in result["notes"])
+
+
+def case_sensitive(tmp_path):
+    probe = tmp_path / "case-probe"
+    probe.write_text("")
+    sensitive = not (tmp_path / "CASE-PROBE").exists()
+    probe.unlink()
+    return sensitive
+
+
+# Hard-coded rather than read from the code, so swapping two names there fails
+# here (#280). Only a case-sensitive filesystem can hold both names of a pair.
+PRIORITY_PAIRS = [("makefile", "Makefile"),
+                  ("Taskfile.yml", "taskfile.yml"), ("taskfile.yml", "Taskfile.yaml"),
+                  ("Taskfile.yaml", "taskfile.yaml"), ("taskfile.yaml", "Taskfile.dist.yml"),
+                  ("Taskfile.dist.yml", "taskfile.dist.yml"),
+                  ("taskfile.dist.yml", "Taskfile.dist.yaml"),
+                  ("Taskfile.dist.yaml", "taskfile.dist.yaml")]
+
+
+@pytest.mark.parametrize("first,second", PRIORITY_PAIRS, ids=["%s>%s" % p for p in PRIORITY_PAIRS])
+def test_the_earlier_name_of_an_adjacent_pair_wins(tmp_path, first, second):
+    if first.lower() == second.lower() and not case_sensitive(tmp_path):
+        pytest.skip("this filesystem cannot hold both names")
+    body = "test:\n\tx\n" if "akefile" in first else TASKFILE_BODY
+    result = rtc.resolve(make(tmp_path, {first: body, second: body}))
+    assert result["status"] == "resolved"
+    assert pairs(result)[0][3] == first
+
+
 def test_unparseable_package_json_is_noted_not_raised(tmp_path):
     result = rtc.resolve(make(tmp_path, {"package.json": "{nope", "go.mod": "module x\n"}))
     assert result["status"] == "resolved"
@@ -186,6 +238,24 @@ def test_declaration_with_a_utf8_bom_resolves(tmp_path):
     # The BOM is stripped, never read as content: a bad body is still invalid.
     cfg.write_bytes(b"\xef\xbb\xbf{bad")
     assert rtc.resolve(str(tmp_path))["status"] == "invalid"
+
+
+def test_declaration_in_utf16_is_invalid_for_every_reader(tmp_path):
+    # #280: Windows PowerShell 5's Out-File writes UTF-16LE with a BOM. json.loads
+    # on bytes accepted it while the recorder and ticket.py rejected it; all
+    # three now read UTF-8 (with or without a BOM) only.
+    import record_test_command
+    import ticket
+    cfg = tmp_path / ".claude" / "cai.json"
+    cfg.parent.mkdir()
+    body = json.dumps({"test": {"commands": ["make test"]}, "ticket": {"enabled": False, "backend": ""}})
+    cfg.write_bytes(body.encode("utf-16"))
+    result = rtc.resolve(str(tmp_path))
+    assert result["status"] == "invalid"
+    assert result["problem"] == ".claude/cai.json could not be read as JSON".replace("/", os.sep)
+    assert ticket.read_config(str(tmp_path))["problem"] == result["problem"]
+    with pytest.raises(record_test_command.ConfigProblem):
+        record_test_command.record(str(tmp_path), ["make test"])
 
 
 def test_declared_command_borrows_narrow_from_a_known_default(tmp_path):
@@ -343,6 +413,17 @@ def test_undecodable_detection_file_is_noted_not_raised(tmp_path):
     assert any("Makefile" in n for n in result["notes"])
 
 
+def test_a_character_cut_by_the_read_limit_does_not_lose_the_file(tmp_path):
+    # #280: the limit can fall inside a multibyte character; the entry on line 1
+    # is well inside it and must still count.
+    head = b"test:\n\tx\n"
+    pad = b"y" * (rtc.READ_LIMIT - len(head) - 1)
+    (tmp_path / "Makefile").write_bytes(head + pad + chr(0x6e2c).encode("utf-8"))
+    result = rtc.resolve(str(tmp_path))
+    assert result["status"] == "resolved"
+    assert result["notes"] == []
+
+
 def test_only_the_first_read_limit_bytes_of_a_file_are_judged(tmp_path):
     big = "x" * rtc.READ_LIMIT + "\ntest:\n"
     result = rtc.resolve(make(tmp_path, {"Makefile": big}))
@@ -350,12 +431,12 @@ def test_only_the_first_read_limit_bytes_of_a_file_are_judged(tmp_path):
 
 
 @pytest.mark.parametrize("doc", ["README.md", "README.zh-TW.md", "CONTEXT.md"])
-def test_docs_name_every_taskfile_the_resolver_reads(doc):
-    # Three prose places restate TASKFILES; read the code's own value so a ninth
-    # name added to the code fails here until the docs follow.
+def test_docs_name_every_entry_file_the_resolver_reads(doc):
+    # Three prose places restate TASKFILES, MAKEFILES and JUSTFILES; read the
+    # code's own values so a name added to the code fails here until the docs follow.
     with open(os.path.join(REPO, doc), encoding="utf-8") as fh:
         text = " ".join(fh.read().split())
-    for name in rtc.TASKFILES:
+    for name in rtc.TASKFILES + rtc.MAKEFILES + rtc.JUSTFILES:
         assert name in text, (doc, name)
 
 
