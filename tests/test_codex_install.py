@@ -28,6 +28,16 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "plugins" / "cai-codex" / "scripts" / "install_codex.py"
 
+
+def test_generated_viewer_can_read_empty_timing_summary():
+    # Loading the shipped scripts together catches missing generated dependencies.
+    script_dir = REPO_ROOT / "plugins" / "cai-codex" / "scripts"
+    result = subprocess.run([sys.executable, "-B", "-c",
+                             "import viewer; print(viewer._build_stages('missing-track')[0])"],
+                            cwd=script_dir, capture_output=True, encoding="utf-8")
+    assert result.returncode == 0, result.stderr
+    assert "'timing_status': 'no-data'" in result.stdout
+
 sys.dont_write_bytecode = True  # never leave a __pycache__ inside the generated tree
 
 _spec = importlib.util.spec_from_file_location("install_codex", SCRIPT)
