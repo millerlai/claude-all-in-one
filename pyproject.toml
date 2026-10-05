@@ -7,3 +7,16 @@ testpaths = ["tests"]
 # slow ones on one worker while the others sit idle. Measured on 14 workers
 # (2026-09-28): 193 s and 200 s with `load`, 144 s and 155 s with worksteal.
 addopts = ["-n", "auto", "--dist", "worksteal"]
+
+# Read by `pytest --cov`, which CI runs; a plain `python -m pytest` stays as
+# fast as before. CI gates the lines a pull request changes (diff-cover in
+# .github/workflows/validate.yml), not this total.
+[tool.coverage.run]
+source = ["plugins/cai/scripts", "scripts"]
+branch = true
+# Most tests run a script as a child process (`sys.executable script.py`), and
+# without this coverage measures none of what those children execute:
+# validate.py read 0% and bash_guard.py 12% (2026-10-05). Needs coverage>=7.10.
+# The children write `.coverage.*` into the repo root mid-run, which is why
+# every test that copies the whole repo ignores `.coverage*`.
+patch = ["subprocess"]

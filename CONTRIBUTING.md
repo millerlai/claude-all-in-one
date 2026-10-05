@@ -88,8 +88,16 @@ pytest ever reaches an installed copy. A healthy run ends with a line like:
 ================= 1443 passed, 4 skipped in 157.17s (0:02:37) =================
 ```
 
-CI runs both on every pull request, on Linux, with `-n auto`. Windows is
-covered only by running them by hand; macOS not at all.
+CI runs both on every pull request, on Linux and on Windows, with
+`-n auto`; macOS is not covered at all. The Linux job also measures coverage
+and fails a pull request when under 90% of the lines it changes in
+`plugins/cai/scripts/` or `scripts/` are executed by a test. To check that
+before pushing (`pip install pytest-cov "coverage>=7.10" diff-cover`):
+
+```
+python -m pytest --cov --cov-report=xml
+diff-cover coverage.xml --compare-branch=origin/main --include 'plugins/cai/scripts/**' 'scripts/**'
+```
 
 You rarely need to run `validate.py` yourself while editing:
 `.claude/settings.json` registers a `PostToolUse` hook that runs it whenever the

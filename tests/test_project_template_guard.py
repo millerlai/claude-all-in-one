@@ -28,7 +28,7 @@ ANCHOR = b"## Conventions\n\n<!--"
 def _copy_repo(tmp_path):
     dest = os.path.join(str(tmp_path), "repo")
     shutil.copytree(REPO_ROOT, dest, ignore=shutil.ignore_patterns(
-        ".git", "__pycache__", ".pytest_cache"))
+        ".git", "__pycache__", ".pytest_cache", ".coverage*"))
     return dest
 
 
