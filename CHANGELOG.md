@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.45.0 — 2026-10-05
+
+Ship asks fewer questions between the push and the merge: one menu covers the squash, the push and the PR, and the merge is confirmed by the guard's permission prompt. On Codex, the agents can now read files they could not before.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.44.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.44.0 to 1.45.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its existing state and ledger records; neither format changed. Its next `ship` stage runs the new flow below. (#287)
+
+### Track
+
+- Ship's first step only drafts the squash message and the PR description and changes nothing. The push menu shows both in full with the commands, and one "Run them" covers the squash, the push and creating or editing the PR. The separate squash question and the ticket-comment question at ship are gone. (#287)
+- When the open PR has two to four Blockers or Majors, they are offered as one multi-select question. A Minor you name by its list number is fixed too. (#287)
+- The merge menu is replaced by a plain list and a bare `gh pr merge <n>`, which the guard's permission prompt confirms. A merge that did not run is handed back to you, never retried. On Codex you still run `gh pr merge` yourself. (#287)
+
+### Guard
+
+- `gh pr merge` now asks for permission also when it sits behind a compound statement, a wrapper command, or a string handed to a shell (`bash -c`, `eval`, `pwsh -Command`). (#287)
+- With no working Python found, the reduced check now blocks `gh pr merge` and the API call that merges a PR, so you run the merge yourself. (#287)
+
+### Codex
+
+- Agents are told what replaces Claude's file tools on Codex (read-only shell commands for reading and searching, `apply_patch` for editing). `cai_designer`, `cai_verifier` and `cai_test-runner` can now read files outside their fixed command list, so `cai_designer` can read the design document and the code it cites; `cai_explorer` is no longer told it has no shell. (#289)
+
 ## v1.44.0 — 2026-10-04
 
 Stages that run tests now find the project's test command instead of guessing it. A track keeps unanswered questions across sessions, asks the build and verify consents once, and lists a PR's unresolved findings before merging. The guard no longer lets a call through when the Python it finds is broken.
