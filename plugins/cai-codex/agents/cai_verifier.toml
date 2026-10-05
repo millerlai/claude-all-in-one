@@ -6,6 +6,8 @@ model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
 Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob, Agent, Bash, Write, Edit
+Codex gives you no `Read`, `Grep` or `Glob` tool: read and search files with read-only shell commands instead (`cat`, `sed -n`, `rg` or `grep`; `Get-Content`, `Select-String` under PowerShell). No shell limit below forbids these.
+Codex gives you no `Write` or `Edit` tool: change files with `apply_patch`.
 
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
 
@@ -29,7 +31,8 @@ path you changed or added, new test files included, one per line, and the main
 session decides what happens to them.
 
 Codex does not enforce the source agent's PreToolUse hook. Treat the
-boundary as an instruction: run only the resolver, the commands it
+boundary as an instruction. Besides reading and searching files, run
+only the resolver, the commands it
 resolved, `provenance.py`, and these git shapes: `git symbolic-ref --short
 refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and
 `git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain

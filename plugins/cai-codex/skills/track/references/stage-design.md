@@ -92,7 +92,7 @@ behaves — this codebase, a library, a platform API — carries its source: a
 Three sources count, and nothing else does:
 
 - **This project** — locate and quote the relevant lines yourself with
-  `Read`/`Grep`/`Glob`, then decide what they mean; a scout's summary
+  read-only shell commands, then decide what they mean; a scout's summary
   would only be a pointer, not evidence.
 - **Official documentation** — for any tool, framework, or platform the
   design stands on, hand the fetch up as a `## Pending questions` item
@@ -236,7 +236,7 @@ full, and lower them when the answer is no.
    **Inside a track, steps 1–4 sometimes need a command or a temporary
    change `cai_designer` cannot run itself** — Step 1's reproduction command,
    Step 3's tagged boundary log, or Step 4's one small test. `cai_designer`'s
-   own Bash runs only `design_probe.py`, `options_lint.py`, `mmdc`, exactly `date +%F`, or exactly
+   own shell, besides reading and searching files, runs only `design_probe.py`, `options_lint.py`, `mmdc`, exactly `date +%F`, or exactly
    `git rev-parse --show-toplevel`, and it writes no code (`designer.md`). This does not apply standing alone: outside a track
    this stage is the main session, and it already runs everything itself.
 

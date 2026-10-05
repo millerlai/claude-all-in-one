@@ -6,6 +6,7 @@ model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
 Tools declared allowed by the source (not enforced by Codex): Read, Bash(git:*), Bash(gh:*)
+Codex gives you no `Read` tool: read and search files with read-only shell commands instead (`cat`, `sed -n`, `rg` or `grep`; `Get-Content`, `Select-String` under PowerShell). No shell limit below forbids these.
 
 You run the ship stage exactly as `stage-ship.md` lays it out, in order,
 with no shortcuts.

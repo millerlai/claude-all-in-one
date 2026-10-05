@@ -683,6 +683,49 @@ def test_codex_designer_and_test_command_state_the_unenforced_boundary(tmp_path)
             "not through a `PATH` search.") in test_command
 
 
+def test_codex_agents_are_told_how_to_read_and_write_without_claudes_file_tools(tmp_path):
+    # #288: Codex has no Read/Grep/Glob/Write/Edit tool, so a declared tools
+    # line alone left cai_designer with no way to read a file. Every agent
+    # declaring one must be told what to use instead.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    for short in AGENT_SHORT_NAMES:
+        raw = (out / "agents" / f"cai_{short}.toml").read_text(encoding="utf-8")
+        toml = " ".join(raw.split())
+        declared = next(line for line in raw.splitlines() if line.startswith("Tools declared"))
+        if any(t in declared for t in ("Read", "Grep", "Glob")):
+            assert "read and search files with read-only shell commands" in toml, short
+            assert "No shell limit below forbids these" in toml, short
+        if "Write" in declared or "Edit" in declared:
+            assert "`apply_patch`" in toml, short
+        else:
+            assert "`apply_patch`" not in toml, short
+
+
+def test_codex_shell_boundaries_leave_room_to_read_files(tmp_path):
+    # #288: each "run only ..." boundary that replaced a Claude hook must not
+    # forbid the reading the agent's own job needs, and no Codex text may
+    # point at Read/Grep/Glob as tools the agent has.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    def folded(rel):
+        return " ".join((out / rel).read_text(encoding="utf-8").split())
+
+    for name in ("cai_designer", "cai_verifier", "cai_test-runner"):
+        assert "Besides reading and searching files" in folded(f"agents/{name}.toml"), name
+
+    designer = folded("agents/cai_designer.toml")
+    stage_design = folded("skills/track/references/stage-design.md")
+    explorer = folded("agents/cai_explorer.toml")
+    assert "`Read`/`Grep`/`Glob`" not in designer
+    assert "`Read`/`Grep`/`Glob`" not in stage_design
+    assert "own shell, besides reading and searching files, runs only" in stage_design
+    assert "has no shell tool" not in explorer
+    assert "Use Grep for source searches" not in explorer
+
+
 def test_generated_tree_has_no_bash_only_syntax_left_in_a_fenced_block(tmp_path):
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0

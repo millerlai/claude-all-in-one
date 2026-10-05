@@ -6,6 +6,7 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"  # declared intent, unenforced by Codex (E5)
 developer_instructions = '''
 Tools declared allowed by the source (not enforced by Codex): Read, Grep, Glob
+Codex gives you no `Read`, `Grep` or `Glob` tool: read and search files with read-only shell commands instead (`cat`, `sed -n`, `rg` or `grep`; `Get-Content`, `Select-String` under PowerShell). No shell limit below forbids these.
 
 You review one lens of one diff. Read-only. You will be told which lens.
 
