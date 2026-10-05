@@ -370,6 +370,22 @@ def test_notes_uses_the_maintainer_version_over_the_suggestion(released_repo):
     assert actions.git(work, "branch", "--show-current") == f"release/v{NEXT_VERSION}"
 
 
+def test_notes_ignores_a_maintainer_only_feat_when_suggesting_the_version(released_repo):
+    # v1.45.1 was suggested as 1.46.0 because #299, a feat(release) that only
+    # touched scripts/ and .github/, counted as a new feature.
+    work, change, pr = released_repo
+    change("scripts/release_notes.py", "feat(release): a maintainer feature (#904)")
+    _run_git(["push", "origin", "main"], cwd=work)
+    def with_904(repo, number):
+        if number == 904:
+            return {"number": 904, "title": "PR 904", "body": "",
+                    "files": [{"path": "scripts/release_notes.py"}]}
+        return pr(repo, number)
+    version = actions.notes(None, work, pr=with_904, today=NOTES_DATE,
+                            copilot=lambda p: _session(_section([901])))
+    assert version == _patch_version()
+
+
 def test_notes_suggests_minor_when_the_model_reports_a_track_format_change(released_repo):
     work, change, pr = released_repo
     change("plugins/cai/skills/track/SKILL.md", "fix(track): rename a state field (#903)")

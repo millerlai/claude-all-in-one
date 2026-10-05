@@ -148,9 +148,12 @@ def notes(version: "str | None", repo: Path, *, pr=release_notes.gh_pr,
         failures.append("reply has no TRACK_FORMAT_CHANGED line")
     track_changed = bool(context["track_diff"].strip()) and bool(track)
     current = release.product_version(git(repo, "show", f"origin/main:{release.PRODUCT_MANIFEST}"))
+    # A maintainer-only feat changes nothing users get, so it bumps nothing.
+    maintainer = {pr_info["number"] for pr_info in context["maintainer_prs"]}
+    subjects = [s for s in context["subjects"]
+                if not set(release_notes.pr_refs([s])) & maintainer]
     suggested = release_notes.next_version(
-        current, release_notes.suggest_bump(context["subjects"], context["skill_changes"],
-                                            track_changed))
+        current, release_notes.suggest_bump(subjects, context["skill_changes"], track_changed))
     print(f"PASS suggested version {suggested} (track format changed: {track_changed})")
     version = version or suggested
     section = section.replace("{{NEW_VERSION}}", version)

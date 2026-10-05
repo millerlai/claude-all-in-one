@@ -16,7 +16,10 @@ Write the new version number as `{{NEW_VERSION}}` wherever it appears; it is
 filled in after you reply.
 
 The section follows the previous section's shape, shown under PREVIOUS
-SECTION:
+SECTION. That section is a format example and the source of the two update
+bullets, nothing more: everything else in it describes the previous
+release, which users already have. Never repeat its other bullets, its
+sections, or its pull request numbers, even marked as carried over.
 
 1. First line, exactly: `## v{{NEW_VERSION}} — {{DATE}}`
 2. A blank line, then one or two sentences on what this release changes for
@@ -38,7 +41,8 @@ SECTION:
 ## Rules
 
 - Mention every pull request under USER-FACING PULL REQUESTS at least once,
-  by its number. Cite no other number. The pull requests under
+  by its number. Cite no other number, including the ones in PREVIOUS
+  SECTION. The pull requests under
   MAINTAINER-ONLY change only this repository's own tooling; never mention
   them.
 - State only what a pull request's title or body says. Do not invent
