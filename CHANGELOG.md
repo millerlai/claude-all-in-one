@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.45.1 — 2026-10-05
+
+This release closes places where a planted program in the current directory, or a viewer token following a redirect, could act with your rights, tightens what the verifier agent may do, and makes pytest, make and just detection more accurate.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.45.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.45.0 to 1.45.1.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its existing state and ledger records; neither format changed. Its next verify stage runs under the tightened dispatch guard below. (#295)
+- Restart your Claude Code session after updating — the new Agent-dispatch guard only takes effect from the next session on. (#295)
+
+### Guard
+
+- `cai:verifier` can no longer write files with `git diff`, `git log` or `git show --output` (or a near-abbreviation down to `--out`); these are refused. (#295)
+- `cai:verifier` can now dispatch only `cai:reviewer` or `cai:security-reviewer` (or their bare names) as sub-agents; dispatching anything else is blocked with a message naming the two allowed types. (#295)
+- Without a working Python, the reduced guard now also blocks `cai:verifier`'s agent dispatch entirely. (#295)
+
+### Windows
+
+- git and gh commands run by the guard, status line, preflight, track start, branch sweep, ticket backend and ship no longer risk running a same-named program planted in the current directory; they run only a trusted copy found on `PATH`. (#297, #292)
+- pytest now runs with whichever of `python`, `python3` or `py -3` is actually on your `PATH`, instead of always `python`. (#293)
+
+### Viewer
+
+- The viewer's access token is no longer sent on to a server a redirect points to; it stays on your local machine. (#297)
+
+### Test detection
+
+- A `.claude/cai.json` saved as UTF-16 is now rejected as invalid, matching how the rest of the plugin reads it. (#291)
+- make projects are detected via `GNUmakefile`, `makefile` or `Makefile` by exact name, and just projects via `justfile` or `.justfile` in any letter case, matching how those tools actually look for their files. (#291)
+
 ## v1.45.0 — 2026-10-05
 
 Ship asks fewer questions between the push and the merge: one menu covers the squash, the push and the PR, and the merge is confirmed by the guard's permission prompt. On Codex, the agents can now read files they could not before.
