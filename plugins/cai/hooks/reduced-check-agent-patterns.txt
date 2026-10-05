@@ -1,1 +1,1 @@
-agent_type.: *.cai:verifier.
+\<agent_type.: *.cai:verifier.

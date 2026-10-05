@@ -274,18 +274,21 @@ def test_wrapper_without_python_in_agent_mode_holds_only_the_verifier(tmp_path):
     # blocked; nobody else is, even when a prompt mentions a force push.
     argv, env = _wrapper_without_python(tmp_path)
     argv = argv + ["agent"]
-    for agent_type, prompt, expected in [
-            ("cai:verifier", "review the diff", 2),
-            ("cai:implementer", "review the diff", 0),
-            (None, "never run git push --force origin main", 0),
-            (None, "rm -rf build first", 0)]:
+    for agent_type, subagent_type, prompt, expected in [
+            ("cai:verifier", "general-purpose", "review the diff", 2),
+            ("cai:implementer", "general-purpose", "review the diff", 0),
+            (None, "general-purpose", "never run git push --force origin main", 0),
+            (None, "general-purpose", "rm -rf build first", 0),
+            # The verify stage dispatching the verifier: "subagent_type" ends in
+            # "agent_type", and the pattern must not read it as the caller (#295 review).
+            (None, "cai:verifier", "run the verify stage", 0)]:
         payload = {"tool_name": "Agent",
-                   "tool_input": {"subagent_type": "general-purpose", "prompt": prompt}}
+                   "tool_input": {"subagent_type": subagent_type, "prompt": prompt}}
         if agent_type:
             payload["agent_type"] = agent_type
         result = subprocess.run(argv, input=json.dumps(payload, separators=(",", ":")),
                                 capture_output=True, text=True, env=env)
-        assert result.returncode == expected, (agent_type, prompt, result.stderr)
+        assert result.returncode == expected, (agent_type, subagent_type, result.stderr)
 
 
 def test_broken_interpreters_first_on_path_leave_scoped_agents_blocked(tmp_path):
