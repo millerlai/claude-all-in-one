@@ -48,6 +48,8 @@ import re
 import subprocess
 import sys
 
+import tool_path
+
 TIMEOUT_SECONDS = 15
 
 # The test seam, shaped like ticket_backend.CLI_ENV's CAI_TICKET_CLI and for the
@@ -90,12 +92,9 @@ def run(argv, cwd=None):
     the default raise inside subprocess's own reader thread, where this
     function's `except` cannot see it: the call returns with stdout silently
     None instead of failing (ticket_backend.run(), issue #48)."""
-    if os.name == "nt":
-        # Windows looks for a bare "git" or "gh" in this process's current
-        # directory before PATH unless this is set; cwd= only moves the child (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
-        done = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
+        # A bare git or gh by full path from a trusted PATH entry (#294).
+        done = subprocess.run(tool_path.resolve_argv(argv, cwd), cwd=cwd, capture_output=True, text=True,
                               encoding="utf-8", errors="replace",
                               timeout=TIMEOUT_SECONDS)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):

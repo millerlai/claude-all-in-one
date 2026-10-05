@@ -2614,11 +2614,21 @@ def spawn_server(port):
     return subprocess.Popen(args, start_new_session=True, **kwargs)
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None  # the 3xx then raises HTTPError, which callers already treat as failure
+
+
+# The token header goes to 127.0.0.1:<port> and nowhere else: no redirect may
+# carry it to another origin, and no environment proxy may relay it (#294).
+_LOOPBACK = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
+
+
 def _get_identity(port, token, timeout):
     req = urllib.request.Request(
         "http://127.0.0.1:%d/identity" % port, headers={TOKEN_HEADER: token})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with _LOOPBACK.open(req, timeout=timeout) as resp:
             if resp.status != 200:
                 return None
             return json.loads(resp.read().decode("utf-8"))
@@ -2631,7 +2641,7 @@ def _post_shutdown(port, token, timeout):
         "http://127.0.0.1:%d/shutdown" % port, method="POST", data=b"",
         headers={TOKEN_HEADER: token})
     try:
-        urllib.request.urlopen(req, timeout=timeout)
+        _LOOPBACK.open(req, timeout=timeout)
     except Exception:
         pass  # 202, non-202, refused, or timeout all proceed the same way.
 

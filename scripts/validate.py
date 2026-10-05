@@ -1387,7 +1387,9 @@ if os.path.isfile(LAUNCHER):
     _codex_version_scripts = os.path.join(
         CODEX_GUARD_HOME, "plugins", "cache", "local", "cai-codex", "0.1.0", "scripts")
     os.makedirs(_codex_version_scripts, exist_ok=True)
-    shutil.copy(f"{PLUGIN}-codex/scripts/bash_guard.py", _codex_version_scripts)
+    # bash_guard.py imports tool_path.py (#294); a real cache holds both.
+    for _name in ("bash_guard.py", "tool_path.py"):
+        shutil.copy(f"{PLUGIN}-codex/scripts/{_name}", _codex_version_scripts)
 
     CODEX_GUARD_CASES = [
         # (Codex-shaped payload, expected exit code)

@@ -11,13 +11,16 @@ this feature must never be the reason a track stage fails (see the detail
 design's `## Requirement`).
 
 Where this sits in `ticket` -> `preflight` -> `ledger` -> `usage_collector`
-(one direction, no cycle): this file imports nothing from this repo, so
-`ticket.py` can import it without closing a loop back to itself.
+(one direction, no cycle): this file imports nothing from this repo but
+`tool_path`, which imports nothing itself, so `ticket.py` can import it
+without closing a loop back to itself.
 """
 import json
 import os
 import subprocess
 import tempfile
+
+import tool_path
 
 CATEGORIES = ("ok", "auth-failed", "ticket-not-found",
               "forbidden", "unreachable", "unclassified")
@@ -139,12 +142,9 @@ def run(args, cwd=None):
     decodable text rather than raising, so this call itself can never be
     the reason a Backend method raises."""
     argv = _cli_prefix() + list(args)
-    if os.name == "nt":
-        # Windows looks for a bare "gh" in this process's current directory
-        # before PATH unless this is set; cwd= only moves the child (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
-        done = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
+        # A bare gh by full path from a trusted PATH entry (#294).
+        done = subprocess.run(tool_path.resolve_argv(argv, cwd), cwd=cwd, capture_output=True, text=True,
                               encoding="utf-8", errors="replace",
                               timeout=TIMEOUT_SECONDS)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:

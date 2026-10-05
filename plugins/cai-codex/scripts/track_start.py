@@ -25,6 +25,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import preflight  # noqa: E402
+import tool_path  # noqa: E402
 
 PULL_TIMEOUT = 60  # preflight.git()'s 5s is sized for a local answer; a real
                     # fetch over the network needs far more room.
@@ -38,14 +39,10 @@ def git(cwd, *args, timeout=5):
     need them. Decodes as UTF-8 with errors="replace" for the same reason
     preflight.git() does: the console locale is strict, and a name it cannot
     read left stdout None (#190)."""
-    if os.name == "nt":
-        # Windows looks for a bare "git" in this process's current directory
-        # before PATH unless this is set in *this* process: env= below only
-        # reaches the child (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
     try:
-        return subprocess.run(["git", *args], cwd=cwd or None, env=env,
+        # By full path from a trusted PATH entry, never a git in cwd (#294).
+        return subprocess.run([tool_path.resolve("git", cwd), *args], cwd=cwd or None, env=env,
                               capture_output=True, encoding="utf-8",
                               errors="replace", timeout=timeout)
     except (OSError, subprocess.SubprocessError):
