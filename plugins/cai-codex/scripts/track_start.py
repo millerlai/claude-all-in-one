@@ -38,6 +38,11 @@ def git(cwd, *args, timeout=5):
     need them. Decodes as UTF-8 with errors="replace" for the same reason
     preflight.git() does: the console locale is strict, and a name it cannot
     read left stdout None (#190)."""
+    if os.name == "nt":
+        # Windows looks for a bare "git" in this process's current directory
+        # before PATH unless this is set in *this* process: env= below only
+        # reaches the child (#272).
+        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
     try:
         return subprocess.run(["git", *args], cwd=cwd or None, env=env,

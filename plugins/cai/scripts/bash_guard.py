@@ -714,6 +714,10 @@ def scan_command(command):
 
 
 def git(cwd, *args):
+    if os.name == "nt":
+        # Windows looks for a bare "git" in this process's current directory
+        # before PATH unless this is set; cwd= only moves the child (#272).
+        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
         return subprocess.run(["git", *args], cwd=cwd or None,
                               capture_output=True, text=True, timeout=5)

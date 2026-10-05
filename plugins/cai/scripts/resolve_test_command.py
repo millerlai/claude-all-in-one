@@ -59,6 +59,10 @@ TASK_TEST = re.compile(r"^[ \t]+test[ \t]*:")
 
 def find_root(cwd):
     """The git toplevel of `cwd`, or `cwd` itself when git cannot say."""
+    if os.name == "nt":
+        # Windows looks for a bare "git" in this process's current directory
+        # before PATH unless this is set; cwd= only moves the child (#272).
+        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
         proc = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
                               capture_output=True, timeout=10)
