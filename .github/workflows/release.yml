@@ -1,21 +1,22 @@
 name: cut-release
-run-name: Release v${{ inputs.version }} at ${{ inputs.head }}
+run-name: Release ${{ inputs.version || 'next version' }}${{ inputs.head && format(' at {0}', inputs.head) || '' }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: Reviewed version (X.Y.Z, without v)
-        required: true
+        description: Version (X.Y.Z, without v). Empty uses the suggested bump
+        required: false
         type: string
       head:
-        description: Full SHA of the reviewed chore(release) commit
-        required: true
+        description: Fallback only - full SHA of a chore(release) commit you built locally; skips the Copilot draft
+        required: false
         type: string
 
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 # One release at a time, including both approval waits. Never cancel a run
 # automatically after it might have pushed an immutable tag.
@@ -25,14 +26,77 @@ concurrency:
 
 env:
   PYTHONUTF8: "1"
-  RELEASE_VERSION: ${{ inputs.version }}
-  RELEASE_HEAD: ${{ inputs.head }}
 
 jobs:
+  # Drafts the CHANGELOG section with Copilot CLI and builds the candidate.
+  # The model runs before any write token exists; release_notes.py locks its
+  # tools and checks the session for the tools it was actually offered.
+  notes:
+    if: github.ref == 'refs/heads/main' && inputs.head == ''
+    environment: release-notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.candidate.outputs.version }}
+      head: ${{ steps.candidate.outputs.head }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the platform floors prepare checks, and Copilot CLI
+        run: npm install --global @anthropic-ai/claude-code@2.1.283 @openai/codex@0.157.1 @github/copilot@1.0.91
+      - name: Configure the release commit identity
+        run: |
+          git config user.name 'release automation'
+          git config user.email 'release@users.noreply.github.com'
+      - name: Draft the release notes and commit the candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_AUTO_UPDATE: "false"
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: python scripts/release_actions.py notes "$RELEASE_VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Record the candidate
+        id: candidate
+        shell: bash
+        run: |
+          echo "version=$(python -c 'import json; print(json.load(open("plugins/cai/.claude-plugin/plugin.json"))["version"])')" >> "$GITHUB_OUTPUT"
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Push the release branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/release/v$RELEASE_VERSION"
+
   check:
-    if: github.ref == 'refs/heads/main'
+    needs: notes
+    # Runs after notes, or alone when a locally built head was given.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (needs.notes.result == 'success' || (needs.notes.result == 'skipped' && inputs.head != '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      RELEASE_VERSION: ${{ needs.notes.outputs.version || inputs.version }}
+      RELEASE_HEAD: ${{ needs.notes.outputs.head || inputs.head }}
+    outputs:
+      version: ${{ needs.notes.outputs.version || inputs.version }}
+      head: ${{ needs.notes.outputs.head || inputs.head }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,9 +114,14 @@ jobs:
 
   cut:
     needs: check
+    # A skipped notes job would otherwise skip everything downstream.
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
     environment: release-tag
     runs-on: ubuntu-latest
     timeout-minutes: 110
+    env:
+      RELEASE_VERSION: ${{ needs.check.outputs.version }}
+      RELEASE_HEAD: ${{ needs.check.outputs.head }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -109,8 +178,12 @@ jobs:
         run: python scripts/release_actions.py publish "$RELEASE_VERSION" "$RELEASE_HEAD"
 
   merge:
-    needs: cut
+    needs: [check, cut]
+    if: ${{ !cancelled() && needs.cut.result == 'success' }}
     environment: release-merge
+    env:
+      RELEASE_VERSION: ${{ needs.check.outputs.version }}
+      RELEASE_HEAD: ${{ needs.check.outputs.head }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     steps:

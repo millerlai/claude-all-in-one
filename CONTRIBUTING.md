@@ -139,10 +139,12 @@ Which part of the version a change bumps is in README's
 
 ### Releasing with GitHub Actions
 
-The `cut-release` workflow automates the work after the maintainer chooses
-the version and reviews the release notes. It reuses `scripts/release.py`;
-the local procedure above remains available. It does not choose a version
-or turn commit subjects into final release notes.
+The `cut-release` workflow runs the whole release. Its `notes` job drafts
+the CHANGELOG section with Copilot CLI (`scripts/release_notes.py`, prompt in
+`scripts/release-notes-prompt.md`), suggests the version, and builds the
+candidate; the rest reuses `scripts/release.py`. The maintainer only starts
+it and approves. The local procedure above, and `/cut-release`, remain the
+fallback when the workflow or Copilot is unavailable.
 
 One-time repository setup:
 
@@ -155,43 +157,66 @@ One-time repository setup:
   `main`, and disable administrator bypass. Leave self-review enabled if
   the only maintainer also starts the workflow. An environment name in YAML
   does not by itself configure these protections.
-- In both environments, set variable `RELEASE_APP_ID` and secret
+- Create an environment named `release-notes`, restricted to `main`, for the
+  `notes` job. Set its secret `COPILOT_GITHUB_TOKEN` to a fine-grained
+  personal access token whose only permission is the account permission
+  **Copilot Requests**; usage is billed to that account's Copilot plan. The
+  Actions `GITHUB_TOKEN` cannot be used for Copilot here because this
+  repository is owned by a user, not an organization. A required reviewer
+  is optional; it adds one more approval, before the model runs.
+- In all three environments, set variable `RELEASE_APP_ID` and secret
   `RELEASE_APP_PRIVATE_KEY` to the App's ID and PEM private key. The workflow
-  requests only the token permissions needed by each step. No model API
-  keys are used: platform verification installs plugins without a model run.
+  requests only the token permissions needed by each step. Platform
+  verification installs plugins without a model run.
 - Keep the `validate` workflow enabled and merge commits permitted. The App
   must satisfy any branch protection; it does not approve its own PR.
 
 For each release:
 
-1. Follow the maintainer skill's preflight, version choice, `prepare`, and
-   CHANGELOG review. Keep the candidate as **one** commit directly on the
-   current `origin/main`, changing only the normal release files:
-
-   ```sh
-   git add -- plugins/cai/.claude-plugin/plugin.json .claude-plugin/marketplace.json .agents/plugins/marketplace.json plugins/cai-codex CHANGELOG.md
-   git commit -m 'chore(release): vX.Y.Z'
-   git push -u origin release/vX.Y.Z
-   git rev-parse HEAD
-   ```
-
-2. In Actions, run `cut-release` **on main**, with version `X.Y.Z` and the
-   complete SHA printed above. The initial check verifies the candidate and
-   the successful `validate` push run for its main parent. Its summary shows
-   the exact release notes. If main advances before the first tag push,
-   rebuild the candidate from current main and start a new run with its SHA.
-3. Review that summary and approve `release-tag`. The job validates and tests
+1. In Actions, run `cut-release` **on main**. Leave `version` empty to take
+   the suggested bump (README's Compatibility table, plus the model's verdict
+   on whether the track format changed), or enter `X.Y.Z`. Leave `head`
+   empty.
+2. The `notes` job collects every PR merged since the served tag, sends the
+   user-facing ones to Copilot CLI with all file, shell and network tools
+   denied, and rejects the run if the session reports any other tool, if the
+   section's shape is wrong, or if it misses a user-facing PR or cites one
+   that is not. It then runs `prepare`, commits `chore(release): vX.Y.Z`,
+   and pushes `release/vX.Y.Z`. Its summary shows the release notes. A
+   rejected draft fails the job before anything is written or pushed.
+3. The `check` job verifies that candidate and the successful `validate`
+   push run for its main parent. If main advances before the first tag push,
+   start a new run.
+4. Review the notes in the summary and approve `release-tag`. The job validates and tests
    even an already committed candidate, pushes the immutable tag, verifies
    actual installs with both platform CLIs, creates the release PR, waits
    for that exact head's CI, and publishes the GitHub Release. CLI versions
    are pinned to the platform floors in `scripts/release.py`; update the
-   workflow's installation step when those floors change.
-4. Approve `release-merge` only after reviewing the PR and published Release.
+   workflow's installation steps when those floors change. Copilot CLI is
+   pinned in the `notes` job, and its model in `scripts/release_notes.py`.
+5. Approve `release-merge` only after reviewing the PR and published Release.
    It uses `--merge --match-head-commit`, confirms the tag is an ancestor of
    main, and waits for the merge commit's own `validate` push run.
 
-Re-run a failed workflow with the same version and SHA for transient
-failures. If the tag is already on the remote, it reruns `verify` instead of
+Notes you would rather write yourself, or a Copilot outage, take the
+fallback: follow `/cut-release` through its CHANGELOG step, keep the
+candidate as **one** commit directly on the current `origin/main` changing
+only the normal release files, and push it:
+
+```sh
+git add -- plugins/cai/.claude-plugin/plugin.json .claude-plugin/marketplace.json .agents/plugins/marketplace.json plugins/cai-codex CHANGELOG.md
+git commit -m 'chore(release): vX.Y.Z'
+git push -u origin release/vX.Y.Z
+git rev-parse HEAD
+```
+
+Then run `cut-release` with that version and the complete SHA as `head`;
+the `notes` job is skipped and the run continues from step 3.
+
+For transient failures after `notes`, use **Re-run failed jobs**, which
+keeps the candidate `notes` pushed; a new run would refuse the existing
+release branch, so start one only with that branch's version and SHA as
+`head`. If the tag is already on the remote, it reruns `verify` instead of
 trying to tag again; a published Release is reused. The release branch was
 saved before tagging, so recovery does not depend on a previous runner's
 disk. If merge succeeded but its CI wait failed, re-running the **failed
@@ -221,7 +246,8 @@ None of these is run by a shipped component:
   `scripts/review-benchmark-procedure.md`.
 - `/gap-analysis` (`.claude/skills/gap-analysis/`) — compares cai against an
   external practice and writes the result under `docs/design/`.
-- `/cut-release` (`.claude/skills/cut-release/`) — runs the four
+- `/cut-release` (`.claude/skills/cut-release/`) — the local fallback to the
+  `cut-release` workflow: runs the four
   `scripts/release.py` steps in [Releasing](#releasing) above, with the version choice,
   the CHANGELOG rewrite and the confirmations before the tag push and the
   `--merge` of the release PR. Codex CLI uses `$cut-release [X.Y.Z]` via

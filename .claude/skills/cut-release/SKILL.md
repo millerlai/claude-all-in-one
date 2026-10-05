@@ -7,6 +7,13 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
 
 把 `main` 上已合併、但還沒發佈的變更發成一個新版本。Claude Code 和 Codex 共用同一個版號，兩邊都從 tag 安裝。`scripts/release.py` 四個子命令的用法，CONTRIBUTING.md 的 `## Releasing` 和該檔開頭的 docstring 已經寫過，這裡不再重抄，只放執行順序、要先問的地方和踩過的坑。
 
+## 和 GitHub Actions 的關係
+
+平常發版走 `cut-release` workflow（CONTRIBUTING.md `### Releasing with GitHub Actions`）：版號建議、用 Copilot CLI 起草並檢查 CHANGELOG、推 tag、發佈、合併都由它做，人只按 Run workflow 和兩次核准。本技能是 workflow 不能用時的備援，例如 Copilot 或 Actions 設定失效，或想自己寫 CHANGELOG。有兩種用法：
+
+1. 全部在本機：照下面步驟 1–8 做。
+2. 只在本機寫 CHANGELOG：做完步驟 1–4，推送候選 commit，以 `head` 輸入啟動 workflow，它會跳過 Copilot 起草，從檢查候選 commit 開始。
+
 ## 名詞
 
 - **tag**（版本標籤）：`vX.Y.Z`，釘在某個 commit 上的版本名。兩個 marketplace 檔都指向它；一推上 GitHub，這個號碼就不能再用。
@@ -55,7 +62,7 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
      - 上一版的 `chore(release)` commit。
    - `plugins/cai/skills/track/SKILL.md` 或 `plugins/cai/scripts/ledger.py` 只要有 diff，`prepare` 就會自動加上一句 "Finish any track in progress before updating..."。先查證：讀 `git diff <上一個 tag> origin/main -- plugins/cai/skills/track/SKILL.md plugins/cai/scripts/ledger.py`，看 `state.md` 的欄位或 ledger 每筆記錄的欄位有沒有增減、改名。沒有就刪掉這句，改成一句說明進行中的 track 更新後實際會怎樣；完全沒影響，就寫沒影響。
    - 標題 `## vX.Y.Z — <日期>` 保持原樣：`cut` 和 `publish` 都靠它找到這一段。
-   - 儲存庫已設定自動化發佈（GitHub Actions）時，步驟 1–4 完成後，依 CONTRIBUTING.md 的 `### Releasing with GitHub Actions` 保存並推送候選提交，再從 `main` 啟動流程。版本號與更新紀錄仍由本技能審核；後續步驟 5–8 由流程執行，推標籤與合併的確認改在受保護環境中核准。尚未設定時，繼續下列本機流程。
+   - 只想自己寫 CHANGELOG、其餘交給 GitHub Actions 時（見開頭「和 GitHub Actions 的關係」的用法 2），做到這裡就依 CONTRIBUTING.md `### Releasing with GitHub Actions` 的備援段落推送候選 commit，以 `head` 輸入啟動 workflow；步驟 5–8 由 workflow 執行，推 tag 與合併改在受保護環境中核准。
 5. **先確認，再 `cut`。**
    - 先用問題工具問一次，內容包括：版號和理由、CHANGELOG 各節的標題，並說明 tag 推出去之後，這個號碼就不能撤回。
    - 對方同意後，在背景跑 `PYTHONUTF8=1 python scripts/release.py cut X.Y.Z`，中途不要打斷。本機 gate 要先裝好 pytest-xdist，沒裝會在 pytest 那步直接失敗。
