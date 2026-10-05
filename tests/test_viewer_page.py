@@ -9,8 +9,56 @@ esc() or on an explicit, precisely-inventoried allowlist of non-string
 """
 import json
 import re
+import shutil
+import subprocess
+
+import pytest
 
 import viewer
+
+
+def test_stage_timing_display_and_safe_reasons():
+    # Synthetic API summaries exercise presentation, not platform source coverage.
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is required to execute the embedded display functions")
+    script = _script_body(viewer.PAGE_HTML)
+    snippets = []
+    for name in ("STRINGS_EN", "STRINGS_ZH_HANT"):
+        snippets.append(re.search(r"const " + name + r" = \{.*?\n\};", script, re.S).group())
+    snippets += ["const STRINGS = {'en':STRINGS_EN,'zh-Hant':STRINGS_ZH_HANT};",
+                 "let langPref = 'zh-Hant';", "const pad = n => String(n).padStart(2, '0');"]
+    for name in ("tr", "stageTimingLabel", "stageTimingReasons"):
+        match = re.search(r"function " + name + r"\([^\n]*\)\{.*?\n\}", script, re.S)
+        assert match, name
+        snippets.append(match.group())
+    summaries = [{"elapsed_ms": 70000, "timing_status": "complete"},
+                 {"elapsed_ms": 70000, "timing_status": "incomplete"},
+                 {"elapsed_ms": None, "timing_status": "incomplete"}, {},
+                 {"elapsed_ms": 0, "timing_status": "complete"}]
+    snippets.append("console.log(JSON.stringify(" + json.dumps(summaries) + ".map(stageTimingLabel)));")
+    snippets.append("console.log(JSON.stringify(stageTimingReasons({timing_reasons:['source-unverified','<script>secret</script>']})));")
+    snippets.append("langPref = 'en'; console.log(stageTimingLabel({}));")
+    snippets.append(re.search(r"const esc = .*", script).group())
+    snippets += ["const STAGES = ['build']; const GATED = new Set();",
+                 re.search(r"function stepperHTML\([^\n]*\)\{.*?\n\}", script, re.S).group()]
+    snippets.append("console.log(stepperHTML({track:{name:'<script>track</script>',stages:[{id:'build',status:'failed',elapsed_ms:70000,timing_status:'incomplete',timing_reasons:['<script>secret</script>']}]}}));")
+    snippets.append("console.log(stageTimingReasons({timing_reasons:['event-missing','run-closed']}));")
+    snippets.append("langPref = 'zh-Hant'; console.log(stageTimingReasons({timing_reasons:['event-missing','run-closed']}));")
+    result = subprocess.run([node, "-e", "\n".join(snippets)], capture_output=True,
+                            encoding="utf-8", check=True)
+    lines = result.stdout.splitlines()
+    assert json.loads(lines[0]) == ["1:10", "至少 1:10 · 資料不完整", "資料不完整", "無資料", "0:00"]
+    assert json.loads(lines[1]) == "來源未驗證、原因未知"
+    assert lines[2] == "No data"
+    assert "At least 1:10 · Incomplete data" in lines[3]
+    assert "&lt;script&gt;track&lt;/script&gt;" in lines[3]
+    assert "secret" not in lines[3] and "<script>" not in lines[3]
+    # unit 4: the two gap reasons the hook source writes have their own text, not "reason unknown"
+    assert lines[4] == "Events missing, Run already closed"
+    assert lines[5] == "事件缺漏、執行已關閉"
+    assert "esc(stageTimingLabel(stage))" in script
+    assert "esc(stageTimingReasons(stage))" in script
 
 # Every `${...}` in PAGE_HTML's <script> that is NOT wrapped in esc(...) --
 # inventoried by hand against the actual template literals in PAGE_HTML.
@@ -225,7 +273,7 @@ def test_string_tables_have_the_same_keys():
     en = json.loads(en_match.group(1))
     zh = json.loads(zh_match.group(1))
     assert set(en.keys()) == set(zh.keys())
-    assert len(en) == 65
+    assert len(en) == 84
 
 
 def test_no_cjk_outside_the_zh_hant_table():

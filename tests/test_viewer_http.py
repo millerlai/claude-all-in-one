@@ -20,6 +20,21 @@ import pytest
 import viewer
 
 
+def test_snapshot_preserves_timing_summary_for_both_platforms(monkeypatch):
+    stages = [{"id": "build", "status": "failed", "elapsed_ms": 70000,
+               "timing_status": "incomplete", "timing_reasons": ["source-unverified"]}]
+    monkeypatch.setattr(viewer, "claude_rows", lambda *args: ([
+        {"key": "claude:s", "platform": "claude", "cwd": "/p", "sessionId": "s"}], []))
+    monkeypatch.setattr(viewer, "codex_rows", lambda *args: ([
+        {"key": "codex:s", "platform": "codex", "cwd": "/p"}], []))
+    monkeypatch.setattr(viewer, "codex_locked_thread_ids", lambda *args: None)
+    monkeypatch.setattr(viewer, "branch_for_cwd", lambda *args: None)
+    monkeypatch.setattr(viewer, "find_track", lambda *args: {"stages": stages})
+    snap = viewer.build_snapshot("/config", "/codex", 1)
+    assert snap["format"] == 1
+    assert all(row["track"]["stages"] == stages for row in snap["rows"])
+
+
 # =========================================================== build_snapshot
 
 def test_build_snapshot_assembles_rows_and_problems(monkeypatch):
