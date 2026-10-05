@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
       - run: python -m pip install --disable-pip-version-check pytest pytest-xdist pytest-cov "coverage>=7.10" diff-cover
       - run: python scripts/validate.py
       # Coverage roughly doubles the suite's time, and one platform's
