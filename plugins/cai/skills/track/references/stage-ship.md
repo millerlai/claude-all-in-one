@@ -7,14 +7,14 @@ no track underneath it. The procedure below is the same either way.
 **Before the irreversible operations below — merging, tagging, publishing —
 confirm with the person first.** This is one of the two human gates the
 track never skips; running this stage standing alone does not remove it.
-With ticket mirroring on, `references/ticket-mirror.md`'s ship section adds
-one separate item, the ticket comment. Closing the ticket is not one of
-this stage's operations: `/cai:track done` offers it instead.
+Closing the ticket is not one of this stage's operations: `/cai:track done`
+offers it instead.
 
-**Every confirmation here is a menu**, quoting the exact commands about to
+**Gate 2's push is asked as a menu**, quoting the exact commands about to
 run — never a sentence the person types a word back into.
-`references/approval-gates.md` holds the options and which of them are asked
-on their own turn.
+`references/approval-gates.md` holds the options. The merge is one more
+confirmation, not a menu: the bash guard's permission prompt, which on Codex
+is a denial that hands the command to the person.
 
 **Voicing that gate is the one thing not the same either way.** Dispatched
 by the track you are a subagent, and the platform gives no subagent an
@@ -113,11 +113,16 @@ the one you commit. Never write one naming your own model — you are not the
 session the person worked with. Standing alone, end the message with the
 ones your own instructions give for commits.
 
-The draft is checked before it is shown, as `references/approval-gates.md`'s
-squash bullet says. **Show the drafted message to the user and wait for
-confirmation** before Step 5 — the message in full, then a menu (`references/approval-gates.md`),
-asked on its own turn rather than folded into the gate above. This is
-history-rewriting; never skip confirmation.
+**This dispatch drafts and stops.** The first time the track dispatches this
+stage on a branch (and again for each fix round), do Steps 1–4 and 7's
+drafting only: change nothing, and hand the squash message and the PR
+description back in full in your report. The main session checks both as
+`references/approval-gates.md`'s Gate 2 section says and shows them with the
+commands in one menu, whose "Run them" is the consent to rewriting history
+and to publishing. Steps 5 and 6 and Step 7's commands run only when a later
+dispatch quotes both approved texts and says the person chose it. Standing
+alone the order is the same and you ask directly. This is history-rewriting;
+never skip confirmation.
 
 ## Step 5 — Backup, then squash
 
@@ -144,6 +149,9 @@ the push instruction: `git push --force-with-lease` only — never plain
 `-f`/`--force`.
 
 ## Step 7 — Write the release note
+
+Drafted with Step 4, before the squash: `git diff <BASE>..HEAD` is the same
+before and after it. The two commands below run only after "Run them".
 
 One paragraph, written for someone who was not in this conversation: what
 changed, why (the requirement it satisfies, not the mechanism), and
@@ -201,6 +209,8 @@ file's own steps describe. Put these fields in a `## Report` section. The
 main session, not you, is the only writer of the track's state table and
 of the ledger's `--note`; you write no track file at all.
 
+- on the draft dispatch: the squash message and the PR description in full,
+  and that nothing was changed
 - the final commit hash
 - whether the merge/tag/publish step ran or is still waiting on the person
 - where the release note landed

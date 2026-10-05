@@ -122,7 +122,7 @@ overwritten. `project()` itself decides whether there is a pointer to
 project to, and prints why not when there is none; nothing here needs to
 check that first.
 
-## ship: resolve before quoting, and one more confirmation item
+## ship: resolve before quoting
 
 Before ship quotes a ticket number anywhere — the commit message, the
 release note, the confirmation prompt — resolve it with `ticket.py read
@@ -137,13 +137,9 @@ places name it as `Refs #<number>`, never after a closing keyword (`close(s|d)`,
 keyword closes the ticket on merge, and only `$track done`'s menu below
 closes it.
 
-Ship's confirmation before the irreversible operations (`stage-ship.md`'s
-human gate) gains one more item, asked on its own turn, separately from the
-rest — a yes to squashing or publishing is not a yes to it
-(`references/approval-gates.md`):
-
-- **The comment** — whether to run `ticket.py project` once more recording
-  ship's own row.
+Nothing is asked about the ticket at ship's gate: ship's own row is projected
+like every other stage's, by the call in the section above, with no question
+of its own.
 
 Ship does not close the ticket; `$track done` offers that, below.
 

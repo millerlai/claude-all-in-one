@@ -1230,7 +1230,42 @@ CASES = [
     ("Bash", "gh -Rowner/repo pr merge 123", 0, WORK),
     ("Bash", "gh --repo owner/repo api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
     ("Bash", "gh pr \\\nmerge 123", 0, WORK),
+    # A merge the shell runs from inside a compound statement, a wrapper or a
+    # string handed to a shell: also an ask (stdout JSON, checked in
+    # tests/test_bash_guard_merge.py), so exit 0 here as well.
+    ("Bash", "if true; then gh pr merge 1; fi", 0, WORK),
+    ("Bash", "if false; then :; else gh pr merge 1; fi", 0, WORK),
+    ("Bash", "for i in 1; do gh pr merge 1; done", 0, WORK),
+    ("Bash", "{ gh pr merge 1; }", 0, WORK),
+    ("Bash", "bash -c 'gh pr merge 1'", 0, WORK),
+    ("Bash", 'sh -c "gh pr merge 1"', 0, WORK),
+    ("Bash", "eval gh pr merge 1", 0, WORK),
+    ("Bash", "env gh pr merge 1", 0, WORK),
+    ("Bash", "command gh pr merge 1", 0, WORK),
+    ("Bash", "echo x | xargs gh pr merge", 0, WORK),
+    ("Bash", "while false; do gh pr merge 1; done", 0, WORK),
+    ("Bash", "! gh pr merge 1", 0, WORK),
+    ("Bash", "time gh pr merge 1", 0, WORK),
+    ("Bash", "nohup gh pr merge 1", 0, WORK),
+    ("Bash", "exec gh pr merge 1", 0, WORK),
+    ("Bash", "env FOO=1 gh pr merge 1", 0, WORK),
+    ("Bash", "env -u VAR gh pr merge 1", 0, WORK),
+    ("Bash", "echo x | xargs -n1 gh pr merge", 0, WORK),
+    ("Bash", "echo x | xargs -I {} gh pr merge {}", 0, WORK),
+    ("Bash", "bash -lc 'gh pr merge 1'", 0, WORK),
+    ("Bash", "bash -o pipefail -c 'gh pr merge 1'", 0, WORK),
+    ("Bash", "zsh -c 'gh pr merge 1'", 0, WORK),
+    ("Bash", "dash -c 'gh pr merge 1'", 0, WORK),
+    ("Bash", "bash -c \"bash -c 'gh pr merge 1'\"", 0, WORK),
+    ("Bash", "eval \"gh pr merge 1\"", 0, WORK),
+    ("Bash", "bash -c 'gh api -X PUT repos/o/r/pulls/5/merge'", 0, WORK),
+    ("PowerShell", "pwsh -Command 'gh pr merge 1'", 0, WORK),
+    ("PowerShell", "powershell -c \"gh pr merge 1\"", 0, WORK),
+    ("PowerShell", "powershell -NoProfile -ExecutionPolicy Bypass -Command \"gh pr merge 1\"", 0, WORK),
+    ("PowerShell", "Invoke-Expression 'gh pr merge 1'", 0, WORK),
     # Look-alikes: neither a merge nor a block.
+    ("Bash", "bash -c 'echo gh pr merge'", 0, WORK),
+    ("Bash", 'git commit -m "then gh pr merge"', 0, WORK),
     ("Bash", "gh pr view 123", 0, WORK),
     ("Bash", "git merge feature", 0, WORK),
     ("Bash", 'git commit -m "please gh pr merge later"', 0, WORK),
@@ -1303,6 +1338,15 @@ else:
           "with its own reduced-check line",
           bare.returncode == 2 and "cai guard reduced check:" in bare.stderr
           and "bash_guard blocked this command" not in bare.stderr)
+    # Without Python nothing can ask, so a merge is blocked and the person runs
+    # it (stance I3); the Python guard asks instead, which exits 0.
+    bare_merge = run_process(bare_dispatch, "gh pr merge 123", "Bash", WORK,
+                             env=dict(dispatch_env, PATH=bare_dir,
+                                      CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-")))
+    check("dispatcher without an interpreter [gh pr merge 123] -> 2 "
+          "with its own reduced-check line",
+          bare_merge.returncode == 2 and "cai guard reduced check:" in bare_merge.stderr
+          and "bash_guard blocked this command" not in bare_merge.stderr)
 
 # The SessionStart launcher runs model_choice.py against the plugin root it
 # sits in. Run from here, that root is this repo's own source tree, and a
@@ -1355,6 +1399,13 @@ if os.path.isfile(LAUNCHER):
         # before invoking bash_guard.py and a merge is denied here instead of
         # asked, unlike the Claude Code case above.
         ({"tool_input": {"command": "gh pr merge 123"}, "cwd": WORK}, 2),
+        # The launcher joins a list like ["bash", "-lc", script] with spaces
+        # (launcher.py), so the wrapped merge reaches the guard as one line.
+        ({"tool_input": {"command": ["bash", "-lc", "gh pr merge 123"]}, "cwd": WORK}, 2),
+        ({"tool_input": {"command": ["bash", "-c", "if true; then gh pr merge 123; fi"]}, "cwd": WORK}, 2),
+        ({"tool_input": {"command": ["bash", "-c", "echo gh pr merge 123"]}, "cwd": WORK}, 0),
+        ({"tool_input": {"command": ["bash", "-lc", "echo x | xargs -I {} gh pr merge {}"]}, "cwd": WORK}, 2),
+        ({"tool_input": {"command": ["bash", "-c", "env FOO=1 gh pr merge 123"]}, "cwd": WORK}, 2),
     ]
 
     def run_codex_guard(payload):
@@ -2429,11 +2480,11 @@ APPROVAL_GATES = f"{PLUGIN}/skills/track/references/approval-gates.md"
 GATE_POINTERS = {
     "skills/track/SKILL.md": "the two human gates themselves",
     "skills/track/references/stage-design.md": "the design sign-off, and the cost-sizing go",
-    "skills/track/references/stage-ship.md": "the irreversible operations, and the squash",
+    "skills/track/references/stage-ship.md": "the irreversible operations, squash included",
     "skills/track/references/stage-intake.md": "the approval before anything is designed",
     "skills/track/references/stage-build.md": "Step 0.5's answers",
     "skills/track/references/pending-questions.md": "a gate handed up by a subagent",
-    "skills/track/references/ticket-mirror.md": "the claim menu, ship's ticket comment, and the close at done",
+    "skills/track/references/ticket-mirror.md": "the claim menu and the close at done",
 }
 check(f"approval-gates reference ships ({APPROVAL_GATES})",
       os.path.isfile(APPROVAL_GATES))

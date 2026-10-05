@@ -204,7 +204,8 @@ The six stages, in order:
    at all gets one more look 30 seconds later), lists the unresolved review
    threads and check annotations with a severity and a reason each, and lets
    you have the Blockers and Majors fixed (at most 2 rounds, each through
-   `verify`). Merging has its own menu after that. The listing needs a `gh`
+   `verify`). Merging is confirmed by the bash guard's permission prompt after
+   that. The listing needs a `gh`
    that knows `gh api --slurp` (seen working on gh 2.91.0; an older one makes
    the sources show up as unchecked, never as clean). Standing alone,
    `/cai:ship` does none of this.
@@ -218,13 +219,14 @@ Both arrive as a menu you pick from, never a prompt asking you to type
 `approved`. The design one offers three: approve it, ask for changes (which
 sends `design` round again with what you said, at most three rounds), or
 reject it. Ship's quotes the exact commands about to run, and offers to hand
-them back instead. Inside a track, "Run them" covers only the push and the
-`gh pr create` or `gh pr edit`; after the PR opens, a triage menu (only when
-something is worth fixing and rounds are left) and then a merge menu with
-`Merge` and `Stop` follow, so nothing merges before you have read the list.
-The squash before it, and — with ticket mirroring on — one
-last ticket update, are each asked on their own turn, because a yes to
-publishing is not a yes to either of them. Whether to close the issue is not
+them back instead. Inside a track, "Run them" covers the squash, the push and
+the `gh pr create` or `gh pr edit`, with the squash message and the PR
+description shown in full above it; after the PR opens, a triage menu (only
+when something is worth fixing and rounds are left; with two to four findings
+you tick the ones to fix) follows, and then the list of what is still open and
+a bare `gh pr merge` that the permission prompt asks you about, so nothing
+merges before you have read the list. The ticket update at ship is not asked
+about at all. Whether to close the issue is not
 asked here at all — that comes later, at `/cai:track done`, once the track
 has been archived. Every menu also takes free text, so "yes
 but rename the flag" is a first-class answer rather than something you have
@@ -605,7 +607,8 @@ the six stage rows. Local paths are left out of it.
 - `verify`, on a track whose `intake` was skipped, reviews conformance against
   the issue's body.
 - `ship` looks the issue up again before quoting its number in the commit and
-  the PR, and asks on its own turn whether to update the comment one last time.
+  the PR. Its own row reaches the comment like every other stage's, with no
+  question of its own.
 - `/cai:track done`, once its refusal check has passed and the track has
   moved into `done/`, rewrites the comment a final time — `status: done`, the
   six rows, and the `Left open:` items — and then, only if a ticket number

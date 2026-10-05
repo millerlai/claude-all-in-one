@@ -15,10 +15,16 @@ with no shortcuts.
   changes — an untracked file never blocks, since the squash neither
   includes nor touches it (#198). A tracked change, or `main` → stop and say
   so, do not proceed.
-- Draft the squashed commit message, then stop and hand it up as a
-  `## Pending questions` item per `references/pending-questions.md`. You
-  cannot ask — the platform gives no subagent an interactive tool — and no
-  history is rewritten before that answer comes back.
+- Dispatched to draft: do `stage-ship.md`'s Steps 1–4 and 7's drafting only —
+  the squash message and the PR description — and change nothing (no backup
+  branch, no reset, no commit, no push, no `gh pr create` or `gh pr edit`).
+  Hand both back in full in your report. You cannot ask — the platform gives
+  no subagent an interactive tool (`references/pending-questions.md`) — and
+  the main session puts both texts and the commands to the person in one
+  menu.
+- A later dispatch that quotes both approved texts and says the person chose
+  "Run them" runs Steps 5 and 6, the push and Step 7's commands with those
+  texts unchanged. No history is rewritten before that.
 - Take the backup branch before `git reset --soft`. Never `git reset --hard`.
 - Push with `git push --force-with-lease` only — never plain `-f`/`--force`.
 - Merging, tagging, or publishing needs the person's confirmation first,

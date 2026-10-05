@@ -202,7 +202,7 @@
     {
       "target": "skills/track/references/approval-gates.md",
       "anchor": [
-        "The merge itself raises its own permission prompt when \"Run them\" runs it — `gh pr merge` is a human action, so the bash guard asks rather than running it unattended, on top of this gate."
+        "The merge itself raises its own permission prompt when \"Run them\" runs it — `gh pr merge` is a human action, so the bash guard asks before it runs, on top of this gate."
       ],
       "replacement": [
         "The merge itself is denied here rather than asked: `gh pr merge` is a human action, but the guard's \"ask\" permission decision is parsed and not acted on by this platform's hook host, so it blocks the command instead and hands the exact command back for the person to run themselves, on top of this gate."
@@ -212,18 +212,18 @@
     {
       "target": "skills/track/references/approval-gates.md",
       "anchor": [
-        "| The push and `gh pr create` or `gh pr edit` | A shipper you dispatch again for each one. |",
+        "| The squash, the push and `gh pr create` or `gh pr edit` | A shipper you dispatch twice: first to draft both texts and change nothing, again after \"Run them\" to run them. |",
         "| `ship_pr_findings.py` | The main session. |",
         "| The fix for a finding | The verify stage, dispatched by name by the main session. |",
         "| The commit of that fix | The main session: verify cannot commit. |",
-        "| `gh pr merge` | The main session, only after the merge menu; the bash guard asks once more. |"
+        "| `gh pr merge` | The main session, after the merge list; the bash guard's permission prompt is the one confirmation. |"
       ],
       "replacement": [
-        "| The push and `gh pr create` or `gh pr edit` | The main session itself, after the person confirms: on this platform the ship stage only prepares them. |",
+        "| The squash, the push and `gh pr create` or `gh pr edit` | The main session itself, after the person confirms: on this platform the ship stage only drafts them. |",
         "| `ship_pr_findings.py` | The main session. |",
         "| The fix for a finding | The verify stage, dispatched by name by the main session. |",
         "| The commit of that fix | The main session: verify cannot commit. |",
-        "| `gh pr merge` | Nobody here: after the merge menu the guard denies it, so hand the exact command back and the person runs it themselves. |"
+        "| `gh pr merge` | Nobody here: after the merge list the guard denies it, so hand the exact command back and the person runs it themselves. |"
       ],
       "why": "ship-pr-inline-comments detail design, Codex override 1 (UC5): there is no shipper on Codex, so the main session pushes and opens or updates the pull request (see the stage-ship.md override above), and the guard denies `gh pr merge` (plugins/cai/scripts/bash_guard.py), so the merge is handed to the person."
     },
@@ -233,9 +233,8 @@
         "**Before the irreversible operations below — merging, tagging, publishing —",
         "confirm with the person first.** This is one of the two human gates the",
         "track never skips; running this stage standing alone does not remove it.",
-        "With ticket mirroring on, `references/ticket-mirror.md`'s ship section adds",
-        "one separate item, the ticket comment. Closing the ticket is not one of",
-        "this stage's operations: `/cai:track done` offers it instead."
+        "Closing the ticket is not one of this stage's operations: `/cai:track done`",
+        "offers it instead."
       ],
       "replacement": [
         "**On Codex, this stage prepares only and never runs the irreversible",
@@ -246,10 +245,8 @@
         "here), so hand that exact command back for the person to run",
         "themselves. That confirmation",
         "is one of the two human gates the track never skips; running this stage",
-        "standing alone does not remove it. With ticket mirroring on,",
-        "`references/ticket-mirror.md`'s ship section adds one separate item, the",
-        "ticket comment. Closing the ticket is not one of this stage's operations:",
-        "`/cai:track done` offers it instead. The sandbox's own push approval",
+        "standing alone does not remove it. Closing the ticket is not one of this",
+        "stage's operations: `/cai:track done` offers it instead. The sandbox's own push approval",
         "prompt is untested through release — do not treat it as a second safety",
         "net; Gate 2 is the only confirmation you can rely on."
       ],
@@ -364,10 +361,10 @@
     {
       "target": "skills/track/SKILL.md",
       "anchor": [
-        "Both are asked as a menu — `AskUserQuestion`, labelled options, never a"
+        "Gate 1 and Gate 2's push are asked as a menu — `AskUserQuestion`, labelled options, never a"
       ],
       "replacement": [
-        "Both follow `rules/epistemics.md`: use `request_user_input` if it is in your",
+        "Gate 1 and Gate 2's push follow `rules/epistemics.md`: use `request_user_input` if it is in your",
         "tool list and the current mode permits it; otherwise ask with",
         "numbered options in text instead, never a"
       ],
@@ -528,13 +525,13 @@
       ],
       "replacement": [
         "description: >",
-        "  Prepares a branch for release on Codex: squashes it into one conventional",
-        "  commit and drafts the release note, following stage-ship.md's procedure.",
-        "  Dispatched by the `ship` stage. No subagent runs an irreversible git/gh",
-        "  operation here — the main session pushes, merges, tags and publishes",
+        "  Prepares a branch for release on Codex: drafts the squash message and the",
+        "  release note, following stage-ship.md's procedure. Dispatched by the",
+        "  `ship` stage. No subagent runs a git/gh operation that changes anything",
+        "  here — the main session squashes, pushes, merges, tags and publishes",
         "  after the person confirms."
       ],
-      "why": "I9: the shipper's own description says prepare only.; closing the ticket moved to done (track-issue-status-sync I1)"
+      "why": "I9: the shipper's own description says prepare only; after the squash moved into Gate 2's one menu (reduce-the-human-in-the-loop-ship S2) that means drafting only, since a squash is history-rewriting and waits for \"Run them\".; closing the ticket moved to done (track-issue-status-sync I1)"
     },
     {
       "target": "agents/shipper.md",
@@ -547,7 +544,7 @@
       "replacement": [
         "- Do not push, merge, tag, or publish yourself.",
         "  No subagent runs an irreversible git/gh operation here: report the",
-        "  drafted commit, the backup branch, and the exact commands, and stop.",
+        "  drafted squash message, the release note, and the exact commands, and stop.",
         "  The person confirms first, every time — one of the two human gates the",
         "  track never skips — then the main session runs the push, tag and",
         "  publish itself, never this stage. Not the merge: the guard denies",
@@ -555,6 +552,20 @@
         "  command back for the person to run themselves too."
       ],
       "why": "I9: the shipper never runs push/merge/tag/publish/close itself on Codex, and the main session that takes over after Gate 2 does not run the merge either -- #194's guard denies `gh pr merge` under Codex, handing it to the person instead.; closing the ticket moved to done (track-issue-status-sync I1)"
+    },
+    {
+      "target": "agents/shipper.md",
+      "anchor": [
+        "- A later dispatch that quotes both approved texts and says the person chose",
+        "  \"Run them\" runs Steps 5 and 6, the push and Step 7's commands with those",
+        "  texts unchanged. No history is rewritten before that."
+      ],
+      "replacement": [
+        "- You are never dispatched a second time here: after the person chooses",
+        "  \"Run them\", the main session runs the squash and the PR commands itself,",
+        "  with the approved texts unchanged. No history is rewritten before that."
+      ],
+      "why": "I9/S2: the squash moved behind Gate 2's one menu; on Codex there is no second shipper dispatch, the main session runs Steps 5 and 6 (the existing 'Do not push' override above already says no subagent does)."
     },
     {
       "target": "skills/debug/SKILL.md",
@@ -948,6 +959,49 @@
         "of this section describes."
       ],
       "why": "AC6/C6: the feasibility ledger records \"Codex's question tool closes a question on its own: UNVERIFIED\", so the generated text drops the Claude-specific recognition signal (naming AskUserQuestion and the away-from-keyboard wording) and states only that a result reporting no answer is what this section treats as a timeout."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "**2 to 4:** ask one multiSelect question with one option per finding, labelled",
+        "`<k>. <Severity> <path:line>` — for example `3. Major src/app.py:42` — where",
+        "`<k>` is the finding's number on the list; the comment text stays out of the",
+        "label, because it is a third party's. The result joins the ticked labels with",
+        "`, ` and appends any free text after them with no marker, so match each label",
+        "whole, never by splitting on commas."
+      ],
+      "replacement": [
+        "**2 to 4:** list the Blockers and Majors as numbered text, each as",
+        "`<k>. <Severity> <path:line>` — for example `3. Major src/app.py:42` — where",
+        "`<k>` is the finding's number on the list; the comment text stays out of the",
+        "label, because it is a third party's. Ask the person to type the numbers to fix, or `none`."
+      ],
+      "why": "I6/D10: the Codex question tool cannot take several ticks (discover.md:105), so the multiSelect shape becomes a numbered text list the person answers with numbers; the rest of the section (the free-text rules, `none`, Minor numbers) reads the same either way."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "every one of them. To fix none, tick none (or write `none` in the free-text",
+        "entry when a menu with nothing ticked will not submit); to fix a Minor, write",
+        "its list number in the free-text entry. Say in the question that a fix is",
+        "committed to this branch."
+      ],
+      "replacement": [
+        "every one of them. To fix none, the person types `none`; to fix a Minor, the person types",
+        "its list number too. Say in the question that a fix is",
+        "committed to this branch."
+      ],
+      "why": "I6/D10: follows the override above — on Codex the reply is typed text, so there is nothing to tick."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "| Gate 2's merge, the bash guard's permission prompt | Not a menu. Whether it ever closes on its own is untested; a merge that did not run is recorded as `### The merge` says, never retried. |"
+      ],
+      "replacement": [
+        "| Gate 2's merge, the bash guard's permission prompt | Denied by the guard on this platform, so nothing prompts: the exact command is handed to the person to run themselves, never retried. |"
+      ],
+      "why": "I3/I6/I4: on Codex the hook host does not act on an ask (discover.md:34-35), so the guard denies the merge and there is no prompt to time out; the row says what happens instead."
     },
     {
       "target": "skills/track/references/approval-gates.md",

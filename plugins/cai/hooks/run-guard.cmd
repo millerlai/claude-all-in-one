@@ -103,7 +103,7 @@ if "%RC%"=="2" call :scanwait
 if "%RC%"=="2" call :scanwait
 if "%RC%"=="2" call :scanwait
 if "%RC%"=="1" exit /b 0
->&2 echo cai guard reduced check: no working Python 3 was found, so only force push, reset --hard, git clean -f, --no-verify, rm -rf and the scoped agents are checked. This call is blocked.
+>&2 echo cai guard reduced check: no working Python 3 was found, so only force push, reset --hard, git clean -f, --no-verify, rm -rf, gh pr merge and the scoped agents are checked. This call is blocked.
 exit /b 2
 
 :scanwait
@@ -231,5 +231,5 @@ done
 grep -q -f "$PATTERNS"
 RC=$?
 [ "$RC" -eq 1 ] && exit 0
-printf '%s\n' "cai guard reduced check: no working Python 3 was found, so only force push, reset --hard, git clean -f, --no-verify, rm -rf and the scoped agents are checked. This call is blocked." >&2
+printf '%s\n' "cai guard reduced check: no working Python 3 was found, so only force push, reset --hard, git clean -f, --no-verify, rm -rf, gh pr merge and the scoped agents are checked. This call is blocked." >&2
 exit 2

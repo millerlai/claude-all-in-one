@@ -90,9 +90,23 @@ def test_states_ship_resolves_number_before_quoting():
     assert "resolve it with `ticket.py show" not in text
 
 
-def test_states_ship_confirmation_gains_a_separate_item():
+def test_ship_row_is_projected_without_a_question_of_its_own():
+    # R2: ship's ticket comment is no longer a separate confirmation; its row
+    # is written like every other stage's.
     text = _flat()
-    assert "separately" in text or "separate" in text
+    assert "one more confirmation item" not in text
+    assert "asked on its own turn" not in text
+    assert "ship's own row is projected like every other stage's" in text
+    assert "no question of its own" in text
+
+
+def test_the_manual_does_not_promise_a_ship_ticket_question():
+    # R2: the manual describes the same behaviour as the reference file.
+    with open(os.path.join(os.path.dirname(REFERENCE), "..", "..", "..", "..", "..",
+                           "MANUAL.md"), encoding="utf-8") as fh:
+        manual = " ".join(fh.read().split())
+    assert "asks on its own turn whether to update the comment" not in manual
+    assert "the comment one last time" in manual  # `done` still rewrites it
 
 
 def test_states_stderr_must_never_go_into_note():

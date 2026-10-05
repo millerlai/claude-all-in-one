@@ -169,7 +169,10 @@ def test_approval_gates_squash_and_gate2_name_the_script():
         text = fh.read()
     gate2 = _section(text, "## Gate 2")
     assert "ship_draft_check.py" in gate2
-    assert "ship_draft_check.py" in text[text.index("The squash"):text.index("The ticket comment")]
+    # The squash message and the PR body are checked before the one Gate 2
+    # front menu quotes them (S2); there is no separate squash item any more.
+    assert "The squash**, `stage-ship.md` Step 4" not in text
+    assert "ship_draft_check.py --message-file <the squash message draft>" in " ".join(gate2.split())
 
 
 def test_gate2_pr_body_invocation_also_passes_message_file():

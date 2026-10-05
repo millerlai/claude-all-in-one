@@ -14,7 +14,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 GATES = os.path.join("skills", "track", "references", "approval-gates.md")
 
 SUBSECTIONS = ["Inside a track: who runs what", "After the PR opens",
-               "The triage menu", "A fix round", "The merge menu"]
+               "The triage menu", "A fix round", "The merge"]
 
 
 def _read(plugin_root):
@@ -50,7 +50,7 @@ def test_gate_2_is_still_one_section_with_the_five_subsections_in_order():
     positions = [gate.index("\n### " + t + "\n") for t in SUBSECTIONS]
     assert positions == sorted(positions)
     # No second `## Gate` heading and the subsections sit before the other stops.
-    assert "## The other stops" in text[text.index("### The merge menu"):]
+    assert "## The other stops" in text[text.index("### The merge\n"):]
 
 
 def test_the_who_runs_what_table_names_every_command_and_its_runner():
@@ -70,14 +70,59 @@ def test_standing_alone_says_findings_are_not_checked():
 
 def test_run_them_inside_a_track_no_longer_covers_the_merge():
     text = _flat(_gate2())
-    assert "quotes and runs only the push and the `gh pr create` or " \
-           "`gh pr edit`" in text
+    assert "quotes and runs only the backup branch and the squash, the push " \
+           "and the `gh pr create` or `gh pr edit`" in text
     assert "or `gh pr edit` that carries a drafted PR body" in text
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_the_squash_and_both_texts_ride_in_the_one_front_menu(plugin_root):
+    # R1/S2: no separate yes to the squash, no ticket-comment question, and the
+    # menu's message carries both drafts in full before anything is rewritten.
+    gate = _flat(_gate2(plugin_root))
+    assert "Two more confirmations" not in gate
+    assert "on their own turns" not in gate
+    assert "The ticket comment" not in gate
+    assert "ride in this one menu" in gate
+    assert "the squash message, the PR description, and the commands in the " \
+           "order they run" in gate
+    assert "There is no separate yes to the squash" in gate
+    assert "`git diff <BASE>..HEAD` is the same before and after" in gate
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_stage_ship_drafts_first_and_asks_nothing_about_the_squash_on_its_own(plugin_root):
+    path = os.path.join(ROOT, plugin_root, STAGE_SHIP)
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    step4 = _flat(text[text.index("\n## Step 4"):text.index("\n## Step 5")])
+    assert "on its own turn" not in step4
+    assert "This dispatch drafts and stops" in step4
+    assert "never skip confirmation" in step4
+    assert "ticket comment" not in _flat(text[:text.index("\n## The grounding rule")])
+
+
+def test_a_fix_round_has_one_front_menu_listing_both_new_texts():
+    flat = _flat(_sub(SUBSECTIONS[3]))
+    assert "to draft the new squash message and the new PR body" in flat
+    assert "one Gate 2 push menu above and nothing before it" in flat
+    assert "the backup branch, the squash, `git push --force-with-lease` and " \
+           "`gh pr edit`" in flat
+
+
+def test_the_shipper_drafts_first_and_squashes_only_after_run_them():
+    flat = _flat(_shipper())
+    assert "Dispatched to draft" in flat
+    assert "change nothing" in flat
+    assert "A later dispatch that quotes both approved texts" in flat
+    codex = _flat(_shipper("plugins/cai-codex", "cai_shipper.toml"))
+    assert "You are never dispatched a second time here" in codex
+    assert "squashes it into one conventional commit" not in codex
 
 
 def test_after_the_pr_opens_records_then_runs_the_script_in_slices():
     sec = _flat(_sub(SUBSECTIONS[1]))
-    assert "Left open: merge menu not answered (PR #<n>)" in sec
+    assert "Left open: merge not confirmed (PR #<n>)" in sec
     assert "--gate human" in sec
     assert sec.index("--gate human") < sec.index("ship_pr_findings.py")
     assert "--track-dir .claude/track/<feature>" in sec
@@ -100,7 +145,60 @@ def test_the_triage_list_format_carries_what_the_person_needs_to_judge():
     assert "unchecked" in flat
 
 
-def test_triage_menu_has_one_recommended_option_and_a_cap():
+def test_a_minor_the_person_names_is_quoted_into_the_verify_brief():
+    # P10 (intake.md:76): naming list item k, a Minor, must put item k's
+    # original text in the fix round's verify brief. Before PQ3's answer the
+    # menu text explained a Minor number and asked again instead.
+    flat = _flat(_sub(SUBSECTIONS[2]))
+    assert "A number that is a Minor, an `unchecked` line" not in flat
+    assert "A Minor named by number is fixed like the rest" in flat
+    assert "quoted verbatim into the verify brief" in flat
+    assert "finding-severity.md" in flat
+    round_ = _flat(_sub(SUBSECTIONS[3]))
+    assert "Quote each chosen one verbatim" in round_
+    assert "a Minor the person named counts as chosen" in round_
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_triage_menu_shape_follows_the_number_of_blockers_and_majors(plugin_root):
+    flat = _flat(_sub(SUBSECTIONS[2], plugin_root))
+    assert "**2 to 4:**" in flat and "**1, or more than 4:**" in flat
+    # S3: labels `<k>. <Severity> <path:line>`; whole-label match, no comma split.
+    assert "`<k>. <Severity> <path:line>`" in flat
+    assert "`3. Major src/app.py:42`" in flat
+    if plugin_root == "plugins/cai":  # Codex has no ticked labels to match
+        assert "never by splitting on commas" in flat
+    # The comment is a third party's text and stays out of the label.
+    assert "the comment text stays out of the label" in flat
+    # No option is marked, the question carries the recommendation.
+    assert "the one exception to a single recommended option" in flat
+    # The cannot-submit-empty fallback (C14 is untested) and the none rule.
+    if plugin_root == "plugins/cai":
+        assert "write `none` in the free-text entry" in flat
+    else:
+        assert "the person types `none`" in flat
+    # Free text is list numbers or one `none`; anything else asks again.
+    assert "only as list numbers" in flat and "a single `none`" in flat
+    assert "the union of the ticked options and the numbers" in flat
+    assert "`none` next to anything else" in flat
+    assert "never guess which one was meant" in flat
+
+
+def test_claude_triage_menu_is_multiselect_and_codex_lists_numbers_as_text():
+    assert "multiSelect" in _flat(_sub(SUBSECTIONS[2]))
+    codex = _flat(_sub(SUBSECTIONS[2], "plugins/cai-codex"))
+    assert "multiSelect" not in codex
+    assert "type the numbers to fix, or `none`" in codex
+    # I6: the token is Claude Code's menu parameter, so it may not turn up
+    # anywhere else in the generated file either (the other-stops list
+    # mentioned the shape by name).
+    assert "multiSelect" not in _read("plugins/cai-codex")
+    # The other-stops list still names the exception to a single recommended
+    # option (I5), now without the Claude-only word.
+    assert "except when the triage list has two to four findings" in _flat(_read("plugins/cai"))
+
+
+def test_triage_menu_two_option_shape_has_one_recommended_option_and_a_cap():
     sec = _sub(SUBSECTIONS[2])
     rows = _table_rows(sec)
     assert any(r.startswith("| Fix every Blocker/Major (recommended)")
@@ -110,7 +208,7 @@ def test_triage_menu_has_one_recommended_option_and_a_cap():
     flat = _flat(sec)
     assert "committed to this branch" in flat
     assert "list numbers" in flat
-    assert "Minor" in flat and "unchecked" in flat  # not valid picks
+    assert "`unchecked`" in flat  # still not a valid pick
 
 
 def test_triage_menu_is_skipped_when_the_cap_is_used_up():
@@ -181,19 +279,58 @@ def test_every_fix_round_failure_path_uses_the_round_and_names_a_reason():
     assert "uses the round up" in flat
 
 
-def test_merge_menu_has_two_options_neither_recommended():
-    sec = _sub(SUBSECTIONS[4])
-    rows = _table_rows(sec)
-    # rows[0] is the header; the `|---|` separator is not matched by `| `.
-    assert [r.split("|")[1].strip() for r in rows[1:]] == ["Merge", "Stop"]
-    assert not any("(recommended)" in r for r in rows)
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_the_merge_is_a_list_and_one_bare_command_not_a_menu(plugin_root):
+    # AC11/R6: the old Merge/Stop menu is gone; the guard's permission prompt
+    # is the only question, so the command must be the bare one the guard sees.
+    sec = _sub(SUBSECTIONS[4], plugin_root)
+    assert not _table_rows(sec)
     flat = _flat(sec)
     assert "Suggest Stop: <reason>" in flat
-    assert "gh pr merge <n>" in flat
-    assert "Merged PR #<n>" in flat
-    assert "PR #<n> left open at the merge menu. Left open: PR #<n> not merged" \
-        in flat
+    assert "Stop here means the prompt was answered No" in flat
+    assert "a single Bash call whose whole command is `gh pr merge <n>`" in flat
+    assert "no wrapper" in flat and "no new flags" in flat
     assert "pr-head" in flat
+    assert "Merged PR #<n>" in flat and "`--gate human`" in flat
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_a_merge_that_did_not_run_is_recorded_auto_and_never_retried(plugin_root):
+    # R8: dontAsk and a `-p` run deny without any prompt (so no human answered),
+    # and the reduced check blocks; `--gate human` is for signed gates only.
+    flat = _flat(_sub(SUBSECTIONS[4], plugin_root))
+    assert "did not run" in flat
+    assert "Never retry it, in another form or through a subagent" in flat
+    assert "hand the original command to the person" in flat
+    assert "`--gate auto`" in flat
+    assert "PR #<n> left open: gh pr merge did not run (<first line of the " \
+           "result>). Left open: PR #<n> not merged" in flat
+
+
+def test_the_merge_no_longer_says_merge_menu_anywhere_in_gate_2():
+    for root in ("plugins/cai", "plugins/cai-codex"):
+        gate = _flat(_gate2(root))
+        assert "merge menu" not in gate, root
+        assert "Left open: merge menu not answered" not in gate, root
+
+
+def test_ship_row_note_says_the_merge_is_not_confirmed():
+    sec = _flat(_sub(SUBSECTIONS[1]))
+    assert "any other list → straight to the merge" in sec
+
+
+def test_the_skill_and_stage_ship_say_the_merge_is_confirmed_by_the_prompt():
+    skill = os.path.join(ROOT, "plugins", "cai", "skills", "track", "SKILL.md")
+    with open(skill, encoding="utf-8") as fh:
+        text = _flat(fh.read())
+    assert "Both are asked as a menu" not in text
+    assert "Gate 1 and Gate 2's push are asked as a menu" in text
+    assert "Gate 2's merge is the bash guard's permission prompt" in text
+    for root in ("plugins/cai", "plugins/cai-codex"):
+        with open(os.path.join(ROOT, root, STAGE_SHIP), encoding="utf-8") as fh:
+            ship = _flat(fh.read())
+        assert "Every confirmation here is a menu" not in ship, root
+        assert "The merge is one more confirmation, not a menu" in ship, root
 
 
 def test_the_triage_menu_is_listed_among_the_other_stops():
@@ -203,14 +340,27 @@ def test_the_triage_menu_is_listed_among_the_other_stops():
     assert "(recommended)" in other[other.index("triage menu"):][:900]
 
 
-def test_the_timeout_table_covers_both_new_menus():
+def test_the_timeout_table_covers_the_push_menu_triage_and_the_merge_prompt():
     text = _read("plugins/cai")
     table = text[text.index("## A menu that closes on its own"):]
-    assert ("| Gate 2 (its push menu and its merge menu), the squash, the "
-            "ticket comment | None of it runs. |") in table
+    assert "| Gate 2's push menu (the squash included) | None of it runs. |" \
+        in table
     assert ("| The triage menu (Gate 2, after the PR opens) | Left "
-            "unanswered: no verify runs, nothing is committed, and the "
-            "merge menu is not asked until it is answered. |") in table
+            "unanswered, even when the result lists ticked options: no "
+            "verify runs, nothing is committed, and the "
+            "merge is not run until it is answered. |") in table
+    # I4: the permission prompt is not a menu and is not claimed to time out.
+    assert ("| Gate 2's merge, the bash guard's permission prompt | Not a "
+            "menu. Whether it ever closes on its own is untested; a merge "
+            "that did not run is recorded as `### The merge` says, never "
+            "retried. |") in table
+    assert "its merge menu" not in table
+    codex = _read("plugins/cai-codex")
+    codex_table = codex[codex.index("## A menu that closes on its own"):]
+    assert ("| Gate 2's merge, the bash guard's permission prompt | Denied "
+            "by the guard on this platform, so nothing prompts: the exact "
+            "command is handed to the person to run themselves, never "
+            "retried. |") in codex_table
 
 
 def test_gate_2_still_has_no_ticket_transition():
@@ -306,9 +456,9 @@ def test_a_fix_round_records_verify_and_a_refused_squash():
 def test_fix_round_failure_sentences_are_pinned_whole():
     flat = _flat(_sub(SUBSECTIONS[3]))
     for phrase in ("preflight `blocked`", "Do not push",
-                   "again without `--sha`", "say why above the merge menu",
+                   "again without `--sha`", "say why above the merge list",
                    "record `ship` as `failed`",
-                   "ask no merge menu this round"):
+                   "run no merge this round"):
         assert phrase in flat
 
 
@@ -318,5 +468,4 @@ def test_merge_menu_lists_what_was_not_fixed_and_the_guard_cases():
     assert "every `unchecked` line" in flat
     assert "A re-look that still found no check runs is not one of these" \
         in flat
-    assert "Declining the guard's prompt counts as Stop" in flat
     assert "If `gh pr merge` itself fails, relay the first line" in flat
