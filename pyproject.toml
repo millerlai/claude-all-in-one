@@ -13,7 +13,11 @@ addopts = ["-n", "auto", "--dist", "worksteal"]
 # .github/workflows/validate.yml), not this total.
 [tool.coverage.run]
 source = ["plugins/cai/scripts", "scripts"]
-branch = true
+# sys.monitoring reports each line once and then stops paying for it, where
+# the default C tracer pays on every execution. Below Python 3.14 it cannot
+# measure branches, so `branch` stays off: the diff-cover gate reads line hits
+# only unless given --branch-coverage, so nothing it checks is lost.
+core = "sysmon"
 # Most tests run a script as a child process (`sys.executable script.py`), and
 # without this coverage measures none of what those children execute:
 # validate.py read 0% and bash_guard.py 12% (2026-10-05). Needs coverage>=7.10.
