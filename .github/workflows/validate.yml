@@ -3,6 +3,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Run by hand from the Actions tab; tick `windows` to add the Windows job.
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: Also run on windows-latest
+        type: boolean
+        default: false
 # A newer push to a pull request makes its older run moot. Pushes to main are
 # never cancelled: scripts/release_actions.py waits on the run for one exact
 # commit, and a cancelled run there would fail the release.
@@ -16,9 +23,10 @@ jobs:
       # One platform failing says nothing about the other; let both report.
       fail-fast: false
       matrix:
-        # Windows is where this repo is developed and where many users run the
-        # plugin; until this matrix it was covered only by hand.
-        os: [ubuntu-latest, windows-latest]
+        # Linux on every PR and push. Windows (~10 min) only on a manual run
+        # with `windows` ticked; `inputs` is empty on other events, so the
+        # expression falls through to Linux alone.
+        os: ${{ fromJSON(inputs.windows && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

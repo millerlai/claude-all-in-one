@@ -88,8 +88,10 @@ pytest ever reaches an installed copy. A healthy run ends with a line like:
 ================= 1443 passed, 4 skipped in 157.17s (0:02:37) =================
 ```
 
-CI runs both on every pull request, on Linux and on Windows, with
-`-n auto`; macOS is not covered at all. The Linux job also measures coverage
+CI runs both on every pull request, on Linux, with `-n auto`. Windows is
+covered by running them by hand, or by running the `validate` workflow by
+hand from the Actions tab with `windows` ticked; macOS not at all. The Linux
+job also measures coverage
 and fails a pull request when under 90% of the lines it changes in
 `plugins/cai/scripts/` or `scripts/` are executed by a test. To check that
 before pushing (`pip install pytest-cov "coverage>=7.10" diff-cover`):

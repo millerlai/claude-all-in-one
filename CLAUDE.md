@@ -138,8 +138,10 @@ Changing the guard means adding a case to `CASES` in `scripts/validate.py`.
 That file and `tests/` are the two places this repo keeps tests: `validate.py`
 checks the plugin's shape and the guard, `tests/` checks what the scripts do.
 
-Platform coverage: CI runs both `validate.py` and `pytest` on every PR, on
-Linux and on Windows. macOS has no coverage at all.
+Platform coverage: Linux is covered by CI on every PR, which runs both
+`validate.py` and `pytest`. Windows is covered by the developer running both
+by hand, as described above, or by running the `validate` workflow by hand
+from the Actions tab with `windows` ticked. macOS has no coverage at all.
 
 Test coverage: the Linux job runs `pytest --cov` and fails a PR when under
 90% of the lines it changes in `plugins/cai/scripts/` or `scripts/` are
