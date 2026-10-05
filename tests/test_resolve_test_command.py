@@ -184,7 +184,7 @@ def case_sensitive(tmp_path):
 
 # Hard-coded rather than read from the code, so swapping two names there fails
 # here (#280). Only a case-sensitive filesystem can hold both names of a pair.
-PRIORITY_PAIRS = [("makefile", "Makefile"),
+PRIORITY_PAIRS = [("GNUmakefile", "makefile"), ("makefile", "Makefile"),
                   ("Taskfile.yml", "taskfile.yml"), ("taskfile.yml", "Taskfile.yaml"),
                   ("Taskfile.yaml", "taskfile.yaml"), ("taskfile.yaml", "Taskfile.dist.yml"),
                   ("Taskfile.dist.yml", "taskfile.dist.yml"),
