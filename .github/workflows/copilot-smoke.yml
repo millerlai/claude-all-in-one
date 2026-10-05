@@ -1,0 +1,111 @@
+name: copilot-smoke
+run-name: Copilot CLI smoke test at ${{ github.sha }}
+
+# Throwaway experiment for the release-notes design: can a personal-account
+# repo run Copilot CLI with a fine-grained PAT, pick a model, return parseable
+# output, and run with every tool unavailable? Delete once answered.
+on:
+  push:
+    branches: [spike/copilot-cli-smoke]
+    paths: [.github/workflows/copilot-smoke.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copilot-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    environment: release-notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COPILOT_AUTO_UPDATE: "false"
+      CANDIDATE_MODELS: "claude-sonnet-4.6 gpt-5.2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --global @github/copilot@1.0.91
+
+      - name: Probe Copilot CLI
+        shell: bash
+        # Only this step sees the PAT, not checkout or npm install scripts.
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set +e
+          summary="$GITHUB_STEP_SUMMARY"
+          failed_auth=0
+
+          # Runs one probe, never stops the script, and records exit code and
+          # output so a failed probe is still an answer.
+          probe() {
+            local name="$1"; shift
+            local out rc
+            out="$("$@" 2>&1)"; rc=$?
+            {
+              echo "### $name"
+              echo "exit: $rc"
+              echo '```text'
+              printf '%s\n' "$out" | head -c 6000
+              echo '```'
+            } >> "$summary"
+            printf '%s\n' "$out" > "/tmp/probe-${name// /_}.txt"
+            return $rc
+          }
+
+          [ -n "$COPILOT_GITHUB_TOKEN" ] || echo "COPILOT_GITHUB_TOKEN is empty" >> "$summary"
+
+          probe "P0 version" copilot --version
+          probe "P0 help" copilot --help
+
+          # P1: does the PAT authenticate at all? No -s, so usage stats show.
+          probe "P1 auth default model" copilot -p "Reply with exactly the word OK and nothing else." --no-ask-user
+          [ $? -eq 0 ] || failed_auth=1
+
+          # P2: which pinned model names are accepted.
+          for m in $CANDIDATE_MODELS; do
+            probe "P2 model $m" copilot -p "Reply with exactly the word OK and nothing else." -s --no-ask-user --model "$m"
+          done
+
+          # P3: is JSON output line-parseable?
+          probe "P3 json" copilot -p "Reply with exactly the word OK and nothing else." --no-ask-user --output-format=json
+          if [ -s /tmp/probe-P3_json.txt ] && jq -c . /tmp/probe-P3_json.txt > /dev/null 2>&1; then
+            echo "P3 every line parses as JSON: yes" >> "$summary"
+          else
+            echo "P3 every line parses as JSON: no" >> "$summary"
+          fi
+
+          # P4: with no tools available, can the model still read the runner?
+          host="$(cat /etc/hostname)"
+          ask="Run the shell command 'cat /etc/hostname' and reply with its output. If you cannot run commands, reply exactly NO_TOOLS."
+          probe "P4a no tool flags" copilot -p "$ask" -s --no-ask-user
+          probe "P4b available-tools empty" copilot -p "$ask" -s --no-ask-user --available-tools=
+          for f in /tmp/probe-P4a_no_tool_flags.txt /tmp/probe-P4b_available-tools_empty.txt; do
+            if grep -qF "$host" "$f"; then
+              echo "$(basename "$f"): hostname LEAKED (a tool ran)" >> "$summary"
+            else
+              echo "$(basename "$f"): hostname not in output" >> "$summary"
+            fi
+          done
+
+          # P5: a release-sized prompt through argv, and through stdin.
+          {
+            echo "Count the lines in the document below that start with '## v'. Reply with the number only."
+            echo "----- document -----"
+            cat CHANGELOG.md
+            git log --format='%s%n%b' -40
+          } > /tmp/big-prompt.txt
+          expected="$(grep -c '^## v' CHANGELOG.md)"
+          echo "P5 prompt bytes: $(wc -c < /tmp/big-prompt.txt), expected answer: $expected" >> "$summary"
+          probe "P5a argv" copilot -p "$(cat /tmp/big-prompt.txt)" -s --no-ask-user
+          probe "P5b stdin" sh -c 'copilot -p "Follow the instructions in standard input." -s --no-ask-user < /tmp/big-prompt.txt'
+
+          exit $failed_auth
