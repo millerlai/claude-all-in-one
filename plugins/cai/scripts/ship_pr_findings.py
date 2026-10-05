@@ -117,6 +117,10 @@ def classify(exc, returncode, stderr):
 
 def run_gh(args, cwd):
     """(stdout, category). Never raises; stderr is only ever classified."""
+    if os.name == "nt":
+        # Windows looks for a bare "gh" in this process's current directory
+        # before PATH unless this is set; cwd= only moves the child (#272).
+        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
         # encoding is explicit for the reason branch_sweep.run() gives: a
         # comment body outside the console codepage must not break the reader.
