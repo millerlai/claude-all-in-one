@@ -14,6 +14,8 @@ import subprocess
 import sys
 import time
 
+import pytest
+
 import ledger
 import usage_collector
 
@@ -142,6 +144,12 @@ def test_window_since_scan_under_500ms_on_4mb_central_ledger(tmp_path, monkeypat
     ledger._window_since("sess-not-present")
     elapsed = time.perf_counter() - start
 
+    # CI's Linux job runs `pytest --cov`, which traces every line and makes a
+    # wall-clock budget meaningless (test_usage_collector's twin tripped it).
+    if sys.gettrace() is not None or (
+            hasattr(sys, "monitoring")
+            and sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)):
+        pytest.skip("timing is meaningless under coverage or a debugger")
     assert elapsed < 0.5
     print("\n_window_since scan: %.1f ms for %d bytes, %d lines"
          % (elapsed * 1000, written, n))

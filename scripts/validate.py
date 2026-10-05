@@ -2953,8 +2953,10 @@ if os.environ.get("CAI_VALIDATE_NESTED") != "1":
     hook_scratch = tempfile.mkdtemp(prefix="cai-validate-hook-")
     try:
         broken_tree = os.path.join(hook_scratch, "repo")
+        # .coverage*: under `pytest --cov`, other workers' child processes
+        # write and delete these in the repo root while this copies it.
         shutil.copytree(".", broken_tree, ignore=shutil.ignore_patterns(
-            ".git", "__pycache__", ".pytest_cache"))
+            ".git", "__pycache__", ".pytest_cache", ".coverage*"))
         probe = os.path.join(broken_tree, PLUGIN, "skills", "_validate_hook_probe")
         os.makedirs(probe, exist_ok=True)
         with open(os.path.join(probe, "SKILL.md"), "w", encoding="utf-8") as fh:

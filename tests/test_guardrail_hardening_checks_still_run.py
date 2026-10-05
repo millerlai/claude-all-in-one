@@ -138,7 +138,7 @@ def test_uc4_report_check_is_anchored_to_the_real_heading(tmp_path):
     """
     repo = os.path.join(str(tmp_path), "repo")
     shutil.copytree(REPO_ROOT, repo, ignore=shutil.ignore_patterns(
-        ".git", "__pycache__", ".pytest_cache"))
+        ".git", "__pycache__", ".pytest_cache", ".coverage*"))
     path = os.path.join(
         repo, "plugins", "cai", "skills", "track", "references",
         "stage-verify.md")

@@ -139,8 +139,16 @@ That file and `tests/` are the two places this repo keeps tests: `validate.py`
 checks the plugin's shape and the guard, `tests/` checks what the scripts do.
 
 Platform coverage: Linux is covered by CI on every PR, which runs both
-`validate.py` and `pytest`. Windows is covered only by the developer running
-both by hand, as described above. macOS has no coverage at all.
+`validate.py` and `pytest`. Windows is covered by the developer running both
+by hand, as described above, or by running the `validate` workflow by hand
+from the Actions tab with `windows` ticked. macOS has no coverage at all.
+
+Test coverage: the Linux job runs `pytest --cov` and fails a PR when under
+90% of the lines it changes in `plugins/cai/scripts/` or `scripts/` are
+executed by a test (`diff-cover`). The whole-tree total is printed, not
+gated. To see it locally: `pip install pytest-cov "coverage>=7.10" diff-cover`,
+then `python -m pytest --cov --cov-report=xml` and
+`diff-cover coverage.xml --compare-branch=origin/main`.
 
 ## Mistakes Claude repeats here
 

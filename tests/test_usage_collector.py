@@ -8,7 +8,10 @@ stands for so a failure says what broke, not just where.
 import datetime
 import json
 import os
+import sys
 import time
+
+import pytest
 
 import usage_collector
 
@@ -294,6 +297,12 @@ def test_collect_under_500ms_on_4mb_transcript(tmp_path):
 
     assert problems == []
     assert orchestration["claude-opus-5"]["input_tokens"] > 0
+    # CI's Linux job runs `pytest --cov`, which traces every line: this took
+    # 1.106 s there, so no budget the uninstrumented code should meet holds.
+    if sys.gettrace() is not None or (
+            hasattr(sys, "monitoring")
+            and sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)):
+        pytest.skip("timing is meaningless under coverage or a debugger")
     # Under pytest-xdist the other workers share the cores: on CI's four,
     # this took 0.546 s wall-clock and 0.524 s of CPU, so neither measure
     # holds 0.5 s there (#221). The looser budget still trips on a large
