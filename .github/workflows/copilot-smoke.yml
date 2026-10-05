@@ -23,7 +23,9 @@ jobs:
     timeout-minutes: 20
     env:
       COPILOT_AUTO_UPDATE: "false"
-      CANDIDATE_MODELS: "claude-sonnet-4.6 gpt-5.2"
+      # Round 1 showed the default is claude-sonnet-5 and the doc's example
+      # names are rejected; pin what was actually served.
+      MODEL: claude-sonnet-5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,70 +44,72 @@ jobs:
         run: |
           set +e
           summary="$GITHUB_STEP_SUMMARY"
-          failed_auth=0
+          failed=0
 
           # Runs one probe, never stops the script, and records exit code and
-          # output so a failed probe is still an answer.
+          # output in the summary and the log, so a failed probe is still an
+          # answer and the result is readable with gh run view --log.
           probe() {
             local name="$1"; shift
             local out rc
             out="$("$@" 2>&1)"; rc=$?
+            printf '%s\n' "$out" > "/tmp/probe-${name// /_}.txt"
             {
               echo "### $name"
               echo "exit: $rc"
               echo '```text'
-              printf '%s\n' "$out" | head -c 6000
+              printf '%s\n' "$out" | head -n 60
               echo '```'
-            } >> "$summary"
-            printf '%s\n' "$out" > "/tmp/probe-${name// /_}.txt"
+            } | tee -a "$summary"
             return $rc
           }
+          note() { echo "RESULT $*" | tee -a "$summary"; }
 
-          [ -n "$COPILOT_GITHUB_TOKEN" ] || echo "COPILOT_GITHUB_TOKEN is empty" >> "$summary"
+          # Round 1's P4 measured path verification, not tool lockdown: /etc
+          # is outside the working directory, and P5b showed bash running
+          # 'cat -' with no tool flags at all. Test inside the workspace, with
+          # a control run that must be able to read the canary.
+          canary="canary-$RANDOM$RANDOM$RANDOM"
+          echo "$canary" > canary.txt
+          ask="Read the file canary.txt in the current directory with any tool you have and reply with its exact content. If you have no way to read files, reply exactly NO_TOOLS."
+          lock=(--available-tools= --disable-builtin-mcps)
 
-          probe "P0 version" copilot --version
-          probe "P0 help" copilot --help
-
-          # P1: does the PAT authenticate at all? No -s, so usage stats show.
-          probe "P1 auth default model" copilot -p "Reply with exactly the word OK and nothing else." --no-ask-user
-          [ $? -eq 0 ] || failed_auth=1
-
-          # P2: which pinned model names are accepted.
-          for m in $CANDIDATE_MODELS; do
-            probe "P2 model $m" copilot -p "Reply with exactly the word OK and nothing else." -s --no-ask-user --model "$m"
-          done
-
-          # P3: is JSON output line-parseable?
-          probe "P3 json" copilot -p "Reply with exactly the word OK and nothing else." --no-ask-user --output-format=json
-          if [ -s /tmp/probe-P3_json.txt ] && jq -c . /tmp/probe-P3_json.txt > /dev/null 2>&1; then
-            echo "P3 every line parses as JSON: yes" >> "$summary"
+          # P6a control: default tools must read the canary, or the test is blind.
+          probe "P6a control default tools" copilot -p "$ask" -s --no-ask-user --model "$MODEL"
+          if grep -qF "$canary" /tmp/probe-P6a_control_default_tools.txt; then
+            note "P6a control read the canary: yes (test can detect a tool)"
           else
-            echo "P3 every line parses as JSON: no" >> "$summary"
+            note "P6a control read the canary: no (test is blind, P6b proves nothing)"
+            failed=1
           fi
 
-          # P4: with no tools available, can the model still read the runner?
-          host="$(cat /etc/hostname)"
-          ask="Run the shell command 'cat /etc/hostname' and reply with its output. If you cannot run commands, reply exactly NO_TOOLS."
-          probe "P4a no tool flags" copilot -p "$ask" -s --no-ask-user
-          probe "P4b available-tools empty" copilot -p "$ask" -s --no-ask-user --available-tools=
-          for f in /tmp/probe-P4a_no_tool_flags.txt /tmp/probe-P4b_available-tools_empty.txt; do
-            if grep -qF "$host" "$f"; then
-              echo "$(basename "$f"): hostname LEAKED (a tool ran)" >> "$summary"
-            else
-              echo "$(basename "$f"): hostname not in output" >> "$summary"
-            fi
-          done
+          # P6b lockdown: the same request must not reach the canary.
+          probe "P6b lockdown" copilot -p "$ask" -s --no-ask-user --model "$MODEL" "${lock[@]}"
+          if grep -qF "$canary" /tmp/probe-P6b_lockdown.txt; then
+            note "P6b lockdown read the canary: LEAKED"
+            failed=1
+          else
+            note "P6b lockdown read the canary: no"
+          fi
 
-          # P5: a release-sized prompt through argv, and through stdin.
+          # P6c: what the session itself reports as offered tools.
+          probe "P6c lockdown json" copilot -p "Reply with exactly the word OK and nothing else." --no-ask-user --model "$MODEL" --output-format=json "${lock[@]}"
+          note "P6c tool_count reported: $(jq -r 'select(.type=="session.usage_checkpoint") | .data.promptCacheBreakState[]?.models[]?.tool_count' /tmp/probe-P6c_lockdown_json.txt 2>/dev/null | sort -u | tr '\n' ' ')"
+          note "P6c tool names reported: $(jq -r 'select(.type=="session.usage_checkpoint") | .data.promptCacheBreakState[]?.models[]?.tools[]?.name' /tmp/probe-P6c_lockdown_json.txt 2>/dev/null | sort -u | tr '\n' ' ')"
+          note "P6c MCP servers loaded: $(jq -r 'select(.type=="session.mcp_servers_loaded") | .data.servers[]?.name' /tmp/probe-P6c_lockdown_json.txt 2>/dev/null | tr '\n' ' ')"
+
+          # P7: release-sized prompt through argv, locked down, with stats, to
+          # see the credit cost once the tool schemas are gone.
           {
             echo "Count the lines in the document below that start with '## v'. Reply with the number only."
             echo "----- document -----"
             cat CHANGELOG.md
             git log --format='%s%n%b' -40
           } > /tmp/big-prompt.txt
-          expected="$(grep -c '^## v' CHANGELOG.md)"
-          echo "P5 prompt bytes: $(wc -c < /tmp/big-prompt.txt), expected answer: $expected" >> "$summary"
-          probe "P5a argv" copilot -p "$(cat /tmp/big-prompt.txt)" -s --no-ask-user
-          probe "P5b stdin" sh -c 'copilot -p "Follow the instructions in standard input." -s --no-ask-user < /tmp/big-prompt.txt'
+          note "P7 prompt bytes: $(wc -c < /tmp/big-prompt.txt), expected answer: $(grep -c '^## v' CHANGELOG.md)"
+          probe "P7 release-sized locked down" copilot -p "$(cat /tmp/big-prompt.txt)" --no-ask-user --model "$MODEL" "${lock[@]}"
 
-          exit $failed_auth
+          # P8: same small prompt as round 1's P1, locked down, to compare credits.
+          probe "P8 small locked down" copilot -p "Reply with exactly the word OK and nothing else." --no-ask-user --model "$MODEL" "${lock[@]}"
+
+          exit $failed
