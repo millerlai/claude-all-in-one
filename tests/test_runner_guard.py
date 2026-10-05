@@ -107,6 +107,14 @@ def test_declared_commands_all_pass_and_take_arguments(tmp_path):
     assert runner_guard.allowed("python -m pytest; rm x", cwd, RUNNER) is False
 
 
+def test_runner_may_run_the_launcher_this_machine_has(tmp_path, monkeypatch):
+    # #274: only python3 on PATH, so the resolved and allowed command is python3's.
+    monkeypatch.setattr("shutil.which", lambda name, *a, **k: "/bin/python3" if name == "python3" else None)
+    cwd = project(tmp_path, {"pytest.ini": "[pytest]\n"})
+    assert runner_guard.allowed("python3 -m pytest tests/a.py", cwd, RUNNER) is True
+    assert runner_guard.allowed("python -m pytest", cwd, RUNNER) is False
+
+
 @pytest.mark.parametrize("command, expected", [
     # #277: --output turns the verifier's read-only verbs into file writers.
     ("git log --output=out.txt -1", False),
