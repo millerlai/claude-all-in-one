@@ -12,7 +12,6 @@ import codecs
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 
@@ -64,14 +63,35 @@ TASKS_HEAD = re.compile(r"^tasks:[ \t]*(?:#.*)?$")
 TASK_TEST = re.compile(r"^[ \t]+test[ \t]*:")
 
 
+def _tool_path(name, cwd=None):
+    """Copy of the plugin's tool_path.resolve() (this file imports no sibling):
+    the full path of `name` in an absolute PATH entry that neither is nor
+    holds the current directory or `cwd`, so a same-named program there never
+    runs (#294). FileNotFoundError if there is none."""
+    here = [os.path.join(os.path.normcase(os.path.realpath(d)), "")
+            for d in (os.getcwd(), cwd) if d]
+    if os.name == "nt" and not os.path.splitext(name)[1]:
+        names = [name + ext for ext in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";") if ext]
+    else:
+        names = [name]
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        entry = entry.strip('"')
+        if not os.path.isabs(entry):
+            continue
+        real = os.path.join(os.path.normcase(os.path.realpath(entry)), "")
+        if any(h.startswith(real) for h in here):
+            continue
+        for candidate in names:
+            path = os.path.join(entry, candidate)
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                return path
+    raise FileNotFoundError(2, "not found in a trusted PATH entry", name)
+
+
 def find_root(cwd):
     """The git toplevel of `cwd`, or `cwd` itself when git cannot say."""
-    if os.name == "nt":
-        # Windows looks for a bare "git" in this process's current directory
-        # before PATH unless this is set; cwd= only moves the child (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
-        proc = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
+        proc = subprocess.run([_tool_path("git", cwd), "rev-parse", "--show-toplevel"], cwd=cwd,
                               capture_output=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return cwd
@@ -230,14 +250,19 @@ def _pytest_origin(root, notes):
     return None
 
 
+def _on_path(name):
+    try:
+        _tool_path(name)
+        return True
+    except FileNotFoundError:
+        return False
+
+
 def _python_launcher():
-    """The first launcher in PYTHON_LAUNCHERS on PATH, else `python`, whose own
-    "not found" is the clearest message when nothing is installed."""
-    if os.name == "nt":
-        # shutil.which, like CreateProcess, looks in the current directory
-        # first on Windows unless this is set (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
-    return next((launcher for name, launcher in PYTHON_LAUNCHERS if shutil.which(name)),
+    """The first launcher in PYTHON_LAUNCHERS on a trusted PATH entry, else
+    `python`, whose own "not found" is the clearest message when nothing is
+    installed. shutil.which would also count one in the current directory."""
+    return next((launcher for name, launcher in PYTHON_LAUNCHERS if _on_path(name)),
                 "python")
 
 

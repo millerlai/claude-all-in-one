@@ -28,6 +28,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import tool_path
+
 SCRIPT_NAME = "cai-statusline.py"
 SOURCE = Path(__file__).resolve().parent / "statusline.py"
 
@@ -43,10 +45,14 @@ PROBE = '{"model":{"display_name":"probe"}}'
 
 
 def find_interpreter():
-    """The first candidate resolvable on PATH, or None."""
+    """The first candidate in a trusted PATH entry, or None. shutil.which would
+    also count a same-named program in the current directory (#294)."""
     for candidate in CANDIDATES:
-        if shutil.which(candidate[0]):
-            return candidate
+        try:
+            tool_path.resolve(candidate[0])
+        except FileNotFoundError:
+            continue
+        return candidate
     return None
 
 
@@ -93,7 +99,9 @@ def verify(interpreter, dest):
     fatal: a status line that prints nothing fails invisibly, so the one thing
     worth knowing is whether it produced output at all."""
     try:
-        result = subprocess.run([*interpreter, str(dest)], input=PROBE,
+        # By full path: from Python a bare name may run one in the current
+        # directory, which the shell Claude Code uses would not (#294).
+        result = subprocess.run([*tool_path.resolve_argv(interpreter), str(dest)], input=PROBE,
                                 capture_output=True, text=True, timeout=10)
         return result.returncode == 0 and result.stdout.strip() != ""
     except Exception:

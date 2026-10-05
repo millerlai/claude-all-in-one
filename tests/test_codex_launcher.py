@@ -23,6 +23,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "plugins" / "cai-codex" / "scripts" / "launcher.py"
 REAL_GUARD = REPO_ROOT / "plugins" / "cai-codex" / "scripts" / "bash_guard.py"
+# bash_guard.py imports it (#294); a real cache holds both.
+REAL_TOOL_PATH = REAL_GUARD.with_name("tool_path.py")
 
 # SCRIPT lives inside the generated Codex tree gen-codex.py's --check compares
 # byte for byte; a stray __pycache__/*.pyc written there by this import would
@@ -287,6 +289,7 @@ def test_guard_end_to_end_blocks_force_push(tmp_path, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path))
     root = make_version_dir(tmp_path / "plugins" / "cache", "0.1.0")
     (root / "scripts" / "bash_guard.py").write_bytes(REAL_GUARD.read_bytes())
+    (root / "scripts" / "tool_path.py").write_bytes(REAL_TOOL_PATH.read_bytes())
     payload = json.dumps({"tool_input": {"command": "git push --force origin main"}})
     result = run(["guard"], stdin_text=payload,
                  env={**_env_without_codex_home(), "CODEX_HOME": str(tmp_path)})
@@ -297,6 +300,7 @@ def test_guard_end_to_end_allows_plain_status(tmp_path, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path))
     root = make_version_dir(tmp_path / "plugins" / "cache", "0.1.0")
     (root / "scripts" / "bash_guard.py").write_bytes(REAL_GUARD.read_bytes())
+    (root / "scripts" / "tool_path.py").write_bytes(REAL_TOOL_PATH.read_bytes())
     payload = json.dumps({"tool_input": {"command": "git status"}})
     result = run(["guard"], stdin_text=payload,
                  env={**_env_without_codex_home(), "CODEX_HOME": str(tmp_path)})
@@ -364,6 +368,7 @@ def test_guard_end_to_end_blocks_a_force_push_hidden_in_encoded_command(tmp_path
     monkeypatch.setenv("CODEX_HOME", str(tmp_path))
     root = make_version_dir(tmp_path / "plugins" / "cache", "0.1.0")
     (root / "scripts" / "bash_guard.py").write_bytes(REAL_GUARD.read_bytes())
+    (root / "scripts" / "tool_path.py").write_bytes(REAL_TOOL_PATH.read_bytes())
     encoded = base64.b64encode(
         "git push --force origin main".encode("utf-16-le")).decode("ascii")
     payload = json.dumps(

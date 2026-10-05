@@ -44,17 +44,38 @@ def gauge(label, remaining):
     return f"{color}{label} {pct}%{RESET}"
 
 
+def _tool_path(name, cwd=None):
+    """Copy of the plugin's tool_path.resolve() (this file stays standalone):
+    the full path of `name` in an absolute PATH entry that neither is nor
+    holds the current directory or `cwd`, so a same-named program there never
+    runs (#294). FileNotFoundError if there is none."""
+    here = [os.path.join(os.path.normcase(os.path.realpath(d)), "")
+            for d in (os.getcwd(), cwd) if d]
+    if os.name == "nt" and not os.path.splitext(name)[1]:
+        names = [name + ext for ext in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(";") if ext]
+    else:
+        names = [name]
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        entry = entry.strip('"')
+        if not os.path.isabs(entry):
+            continue
+        real = os.path.join(os.path.normcase(os.path.realpath(entry)), "")
+        if any(h.startswith(real) for h in here):
+            continue
+        for candidate in names:
+            path = os.path.join(entry, candidate)
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                return path
+    raise FileNotFoundError(2, "not found in a trusted PATH entry", name)
+
+
 def git_branch(current_dir):
     """The checked-out branch of `current_dir`, or "" when git says nothing
     useful. Separate from render() so a test can replace it -- it is the only
     part of the line that shells out."""
-    if os.name == "nt":
-        # Windows looks for a bare "git" in this process's current directory
-        # before PATH unless this is set; -C only moves git itself (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
         result = subprocess.run(
-            ["git", "-C", current_dir, "rev-parse", "--abbrev-ref", "HEAD"],
+            [_tool_path("git", current_dir), "-C", current_dir, "rev-parse", "--abbrev-ref", "HEAD"],
             capture_output=True,
             text=True,
             timeout=2,

@@ -517,3 +517,88 @@ def test_csp_header_on_html_response(live_server):
     _server, port = live_server
     _status, headers, _body = _get(port, "/")
     assert "unsafe-inline" in headers["Content-Security-Policy"]
+
+
+# ============================================== token stays on the loopback (#294)
+
+def _viewer_copies():
+    import importlib.util
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    copies = []
+    for plugin in ("cai", "cai-codex"):
+        path = os.path.join(root, "plugins", plugin, "scripts", "viewer.py")
+        spec = importlib.util.spec_from_file_location("viewer_" + plugin.replace("-", "_"), path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        copies.append(module)
+    return copies
+
+
+VIEWERS = _viewer_copies()
+
+
+class _Recorder:
+    """A loopback HTTP server that records the token header of every request."""
+
+    def __init__(self, status=200, location=None):
+        import http.server
+        seen = self.seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def _answer(self):
+                seen.append((self.command, self.path, self.headers.get(viewer.TOKEN_HEADER)))
+                self.send_response(status)
+                if location:
+                    self.send_header("Location", location)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+            do_GET = do_POST = _answer
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.server.server_port
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+@pytest.mark.parametrize("module", VIEWERS, ids=["cai", "cai-codex"])
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_identity_and_shutdown_never_follow_a_redirect(module, status):
+    target = _Recorder()
+    front = _Recorder(status, "http://localhost:%d/elsewhere" % target.port)
+    try:
+        assert module._get_identity(front.port, "synthetic-token", 3) is None
+        module._post_shutdown(front.port, "synthetic-token", 3)
+        assert [m for m, _, _ in front.seen] == ["GET", "POST"]
+        assert target.seen == []
+    finally:
+        front.close()
+        target.close()
+
+
+@pytest.mark.parametrize("module", VIEWERS, ids=["cai", "cai-codex"])
+def test_identity_and_shutdown_ignore_an_environment_proxy(module, monkeypatch):
+    proxy = _Recorder()
+    viewer_side = _Recorder()
+    for name in ("http_proxy", "HTTP_PROXY"):
+        monkeypatch.setenv(name, "http://127.0.0.1:%d" % proxy.port)
+    for name in ("no_proxy", "NO_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    # urlopen builds its opener, and reads the proxy settings, once per process:
+    # drop it so an earlier test's opener cannot hide the proxy.
+    monkeypatch.setattr(urllib.request, "_opener", None)
+    try:
+        assert module._get_identity(viewer_side.port, "synthetic-token", 3) == {}
+        module._post_shutdown(viewer_side.port, "synthetic-token", 3)
+        assert proxy.seen == []
+        assert [(m, p) for m, p, _ in viewer_side.seen] == [("GET", "/identity"), ("POST", "/shutdown")]
+    finally:
+        proxy.close()
+        viewer_side.close()

@@ -109,7 +109,7 @@ def test_declared_commands_all_pass_and_take_arguments(tmp_path):
 
 def test_runner_may_run_the_launcher_this_machine_has(tmp_path, monkeypatch):
     # #274: only python3 on PATH, so the resolved and allowed command is python3's.
-    monkeypatch.setattr("shutil.which", lambda name, *a, **k: "/bin/python3" if name == "python3" else None)
+    monkeypatch.setattr(resolve_test_command, "_on_path", lambda name: name == "python3")
     cwd = project(tmp_path, {"pytest.ini": "[pytest]\n"})
     assert runner_guard.allowed("python3 -m pytest tests/a.py", cwd, RUNNER) is True
     assert runner_guard.allowed("python -m pytest", cwd, RUNNER) is False

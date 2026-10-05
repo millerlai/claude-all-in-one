@@ -652,6 +652,9 @@ def test_command_windows_runs_the_real_guard_through_powershell(tmp_path):
         json.dumps({"name": "cai-codex", "version": "0.1.0"}), encoding="utf-8")
     real_guard = REPO_ROOT / "plugins" / "cai-codex" / "scripts" / "bash_guard.py"
     (version_dir / "scripts" / "bash_guard.py").write_bytes(real_guard.read_bytes())
+    # bash_guard.py imports it (#294); a real cache holds both.
+    (version_dir / "scripts" / "tool_path.py").write_bytes(
+        real_guard.with_name("tool_path.py").read_bytes())
 
     root = REPO_ROOT / "plugins" / "cai-codex"
     launcher_dest = install_codex.install_launcher(root, home)

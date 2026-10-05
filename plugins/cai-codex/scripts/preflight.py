@@ -30,6 +30,7 @@ sys.path.insert(0, HERE)
 import ledger  # noqa: E402
 import design_probe  # noqa: E402
 import options_lint  # noqa: E402
+import tool_path  # noqa: E402
 
 DEFAULT_MAX_ATTEMPTS = 5
 MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
@@ -319,12 +320,9 @@ def git(cwd, *args, encoding=None):
 
     Not the same shape as bash_guard.py's git(), which still uses
     `text=True`."""
-    if os.name == "nt":
-        # Windows looks for a bare "git" in this process's current directory
-        # before PATH unless this is set; cwd= only moves the child (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
-        return subprocess.run(["git", *args], cwd=cwd or None,
+        # By full path from a trusted PATH entry, never a git in cwd (#294).
+        return subprocess.run([tool_path.resolve("git", cwd), *args], cwd=cwd or None,
                               capture_output=True, encoding=encoding or "utf-8",
                               errors="replace", timeout=5)
     except (OSError, subprocess.SubprocessError):

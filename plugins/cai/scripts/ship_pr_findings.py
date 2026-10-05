@@ -33,6 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import ledger  # noqa: E402
 import preflight  # noqa: E402
+import tool_path  # noqa: E402
 
 # The same seam as branch_sweep.CLI_ENV, same name on purpose: a test sets it
 # once and both scripts read it. A value starting with `[` is a JSON argv
@@ -117,14 +118,11 @@ def classify(exc, returncode, stderr):
 
 def run_gh(args, cwd):
     """(stdout, category). Never raises; stderr is only ever classified."""
-    if os.name == "nt":
-        # Windows looks for a bare "gh" in this process's current directory
-        # before PATH unless this is set; cwd= only moves the child (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
         # encoding is explicit for the reason branch_sweep.run() gives: a
         # comment body outside the console codepage must not break the reader.
-        done = subprocess.run(gh_prefix() + list(args), cwd=cwd,
+        # A bare gh by full path from a trusted PATH entry (#294).
+        done = subprocess.run(tool_path.resolve_argv(gh_prefix() + list(args), cwd), cwd=cwd,
                               capture_output=True, text=True,
                               encoding="utf-8", errors="replace",
                               timeout=TIMEOUT_SECONDS)

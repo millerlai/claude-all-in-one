@@ -53,8 +53,12 @@ def test_ticket_py_imports_only_stdlib_and_siblings():
 
 
 def test_ticket_backend_py_imports_only_stdlib():
+    # tool_path (#294) is the one sibling allowed: it imports only the standard
+    # library itself, so the chain stays free of installed packages and loops.
     allowed = set(sys.stdlib_module_names)
     found = _top_level_imports(os.path.join(SCRIPTS_DIR, "ticket_backend.py"))
+    assert found <= allowed | {"tool_path"}, found - allowed - {"tool_path"}
+    found = _top_level_imports(os.path.join(SCRIPTS_DIR, "tool_path.py"))
     assert found <= allowed, found - allowed
 
 

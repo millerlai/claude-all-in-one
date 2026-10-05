@@ -23,6 +23,8 @@ import shlex
 import subprocess
 import sys
 
+import tool_path
+
 CONFIRM = (
     "If the user explicitly requested this, tell them the guard blocked it "
     "and ask them to run it manually or temporarily disable the cai plugin hook."
@@ -714,12 +716,9 @@ def scan_command(command):
 
 
 def git(cwd, *args):
-    if os.name == "nt":
-        # Windows looks for a bare "git" in this process's current directory
-        # before PATH unless this is set; cwd= only moves the child (#272).
-        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
-        return subprocess.run(["git", *args], cwd=cwd or None,
+        # By full path from a trusted PATH entry, never a git in cwd (#294).
+        return subprocess.run([tool_path.resolve("git", cwd), *args], cwd=cwd or None,
                               capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         return None

@@ -5,7 +5,6 @@ directory itself (find_root's documented fallback).
 """
 import json
 import os
-import shutil
 import subprocess
 import sys
 
@@ -17,7 +16,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def on_path(monkeypatch, names):
-    monkeypatch.setattr(shutil, "which", lambda name, *a, **k: "/bin/" + name if name in names else None)
+    monkeypatch.setattr(rtc, "_on_path", lambda name: name in names)
 
 
 @pytest.fixture(autouse=True)
