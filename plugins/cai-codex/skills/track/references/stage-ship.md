@@ -136,7 +136,7 @@ never skip confirmation.
 ```bash
 git branch backup/<branch>-<timestamp>   # <branch> from Step 1; <timestamp> as YYYYMMDD-HHMMSS, computed yourself rather than with a bash-only date substitution
 git reset --soft <BASE>
-# Write the message (title, a blank line, the body) to cai-commit-msg.txt in the system temp directory with your file-writing tool, not the shell.
+# Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the message (title, a blank line, the body) to <scratch-dir>/cai-commit-msg.txt with your file-writing tool, not the shell; remove it after the command succeeds.
 git commit -F '<full path of cai-commit-msg.txt>'
 ```
 
@@ -168,7 +168,7 @@ gap is worth a sentence. When the dispatch names a ticket number, reference
 it as `Refs #<number>` and never with a closing keyword — closing stays with
 `$track done`. A dispatch with no ticket number leaves the body
 unaffected. Put it in the PR description — you have `gh`, and that is where it always
-lands. Write the release note to cai-pr-body.md in the system temp directory with your file-writing tool, not the shell, then pass the file:
+lands. Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the release note to <scratch-dir>/cai-pr-body.md with your file-writing tool, not the shell, then pass the file and remove it after the command succeeds:
 
 ```bash
 gh pr create --title '<title>' --body-file '<full path of cai-pr-body.md>'   # keep the title free of apostrophes: bash and PowerShell escape one differently

@@ -40,8 +40,8 @@ and got nothing back", which is a different and much worse claim.
 
 **Save the round before asking anything.** Until they are answered the
 questions exist only in this conversation, and a session that ends first
-takes them along. Write the stage's whole report to a file in the system
-temp directory — never inside the repo — and run
+takes them along. Write the stage's whole report to a file in `<scratch-dir>`
+chosen by `rules/workflow.md`'s Codex sandbox permissions section, and run
 `<cai> pending start --track-dir
 .claude/track/<feature> --stage <stage> --round <1-3> --report-file <that
 file>`. The command takes each question from the report's
@@ -81,7 +81,7 @@ instead.
    queued behind it waits, in the same order, until it is answered.
 
    Save each answer before asking the next question: write it to a file in
-   the system temp directory and run
+   the same checked `<scratch-dir>` and run
    `<cai> pending answer --track-dir
    .claude/track/<feature> --question <n> --answer-file <that file>`, which
    records it verbatim and marks that question `answered`. A menu that closes

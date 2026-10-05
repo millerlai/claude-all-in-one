@@ -601,6 +601,38 @@ def test_generated_build_text_uses_single_line_commit_m(tmp_path):
     assert "-F" not in span
 
 
+def test_generated_workflow_keeps_routine_verification_inside_the_sandbox(tmp_path):
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    workflow = (out / "rules/workflow.md").read_text(encoding="utf-8")
+    commands = (out / "skills/track/references/test-command.md").read_text(encoding="utf-8")
+    assert "## Codex sandbox permissions" in workflow
+    assert "--cache-dir" in workflow and "--offline" in workflow
+    assert "--no-sync" in workflow and "--no-cache" in workflow
+    assert "Do not skip tests" in workflow
+    assert "Never install dependencies" in workflow
+    assert "Never create allow rules" in workflow
+    assert "Do not silently replace" in commands
+    assert "rules/workflow.md" in commands
+
+
+def test_generated_scratch_files_use_checked_writable_ignored_locations(tmp_path):
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    workflow = (out / "rules/workflow.md").read_text(encoding="utf-8")
+    assert "git check-ignore" in workflow
+    assert "Do not edit ignore files" in workflow
+    assert "Do not assume `/private/tmp`" in workflow
+    for rel in ("skills/git/SKILL.md", "skills/track/references/stage-ship.md",
+                "skills/track/references/pending-questions.md"):
+        text = (out / rel).read_text(encoding="utf-8")
+        assert "<scratch-dir>" in text, rel
+        assert "system temp directory" not in text, rel
+        assert "system\ntemp directory" not in text, rel
+
+
 def test_generated_build_text_forbids_apostrophes_in_commit_summary(tmp_path):
     # N1 (docs/design/2026-09-23-codex-commit-message-prompts-stance.md): the
     # per-unit summary must stay free of apostrophes -- an embedded `'` closes

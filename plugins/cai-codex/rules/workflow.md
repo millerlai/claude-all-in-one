@@ -1,4 +1,35 @@
 # Workflow
+
+## Codex sandbox permissions
+- Run routine verification inside the sandbox first. Request escalation only
+  for a known required resource or an observed sandbox denial; a failing test
+  alone is not evidence of a permission problem. Do not skip tests or weaken
+  coverage to avoid an approval. Never install dependencies without asking.
+- Preserve the project's declared verification command and environment.
+  Use an existing project-local `.venv` only when that is the declared entry
+  point or its equivalence has been checked; do not bypass setup performed
+  by `make`, `uv`, or another project wrapper. For an approved uv command,
+  prefer `uv --cache-dir <workspace-local-cache> --offline run --no-sync ...`
+  when dependencies are already installed and no sync is required. A new
+  cache may be empty: report missing dependencies rather than downloading
+  them silently. `--no-cache` still creates a temporary cache.
+- `<scratch-dir>` is an existing writable location for disposable outputs:
+  prefer one inside the workspace whose output paths are ignored by Git
+  (check with `git check-ignore`); otherwise use a temporary location already
+  allowed by the active sandbox. Do not edit ignore files just to make one.
+  Use it for test logs, diagrams, downloads, and message/report/answer files.
+  Remove disposable files after successful consumption; retain failed-run
+  evidence. If no suitable location is allowed, request permission for the
+  exact required location. Do not assume `/private/tmp` is allowed or denied
+  on macOS: the actual writable roots decide.
+- Moving an output does not grant network access, localhost socket binding,
+  Chromium execution, Docker access, or writes to protected Git metadata.
+  Keep necessary approvals, including setup/model writes under the user's
+  Codex home. Explain the required resource rather than blaming the tool name.
+  Keep escalated commands simple and scoped. Never create allow rules or
+  change sandbox settings without explicit user authorization.
+
+## Development workflow
 - In a git repo, before touching code: switch to master/main, pull latest, then create
   a branch — make changes there, never directly on master/main.
 - Non-trivial change → outline a plan first.

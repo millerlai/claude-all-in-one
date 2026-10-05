@@ -62,6 +62,13 @@ command runs.
 
 ## Running the commands
 
+Follow `rules/workflow.md`'s Codex sandbox permissions section for cache,
+scratch outputs, and escalation. Do not silently replace a resolved command
+with `.venv/bin/pytest` or a different interpreter to avoid an approval:
+project wrappers may establish a required environment. An intentional
+change to the declared test command is recorded by the main session through
+`record_test_command.py`, with the person's chosen command, then resolved again.
+
 - `commands` all run, in order, each reported on its own line with its own
   counts. Any failure fails all: one red command makes the whole result red,
   however many others passed.
