@@ -199,8 +199,10 @@ the command instead of picking one itself. It looks, in this order:
 1. **A declaration.** `test.commands` in `.claude/cai.json`, a non-empty list.
    Every command in it runs, in order, and any failure fails the whole run.
 2. **Detection**, only when there is no declaration, and only at the project
-   root (subdirectories are not searched). It reads entry files — a
-   `Makefile`, `justfile` or Task's file (the first present of `Taskfile.yml`,
+   root (subdirectories are not searched). It reads entry files — make's file
+   (the first present of `GNUmakefile`, `makefile`, `Makefile`), a `justfile`
+   or `.justfile` in any letter case (not when there are several), or Task's
+   file (the first present of `Taskfile.yml`,
    `taskfile.yml`, `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`,
    `taskfile.dist.yml`, `Taskfile.dist.yaml`, `taskfile.dist.yaml`) with a
    `test` target, a `package.json` with a real `scripts.test`, `tox.ini`, `noxfile.py` — and
