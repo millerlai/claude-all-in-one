@@ -204,7 +204,8 @@ the command instead of picking one itself. It looks, in this order:
    `taskfile.yml`, `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`,
    `taskfile.dist.yml`, `Taskfile.dist.yaml`, `taskfile.dist.yaml`) with a
    `test` target, a `package.json` with a real `scripts.test`, `tox.ini`, `noxfile.py` — and
-   marker files — pytest configuration, `go.mod`, `Cargo.toml`, `pom.xml`,
+   marker files — pytest configuration (run with the first of `python`,
+   `python3`, `py -3` found on `PATH`), `go.mod`, `Cargo.toml`, `pom.xml`,
    `build.gradle` with `gradlew`, a `.sln` or `.csproj`. It never runs
    anything it finds.
 
