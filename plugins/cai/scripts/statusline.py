@@ -13,6 +13,7 @@ inverted here to match.
 """
 import sys
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -47,6 +48,10 @@ def git_branch(current_dir):
     """The checked-out branch of `current_dir`, or "" when git says nothing
     useful. Separate from render() so a test can replace it -- it is the only
     part of the line that shells out."""
+    if os.name == "nt":
+        # Windows looks for a bare "git" in this process's current directory
+        # before PATH unless this is set; -C only moves git itself (#272).
+        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
         result = subprocess.run(
             ["git", "-C", current_dir, "rev-parse", "--abbrev-ref", "HEAD"],

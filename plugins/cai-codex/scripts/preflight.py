@@ -319,6 +319,10 @@ def git(cwd, *args, encoding=None):
 
     Not the same shape as bash_guard.py's git(), which still uses
     `text=True`."""
+    if os.name == "nt":
+        # Windows looks for a bare "git" in this process's current directory
+        # before PATH unless this is set; cwd= only moves the child (#272).
+        os.environ.setdefault("NoDefaultCurrentDirectoryInExePath", "1")
     try:
         return subprocess.run(["git", *args], cwd=cwd or None,
                               capture_output=True, encoding=encoding or "utf-8",

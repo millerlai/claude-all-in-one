@@ -54,7 +54,7 @@ or specs, and only concepts specific to this project.
 **解析器（resolver）**: 只讀的程式，輸入專案目錄，輸出這個專案的測試指令，或「多個／未知／宣告格式錯」。
 **宣告（declaration）**: `.claude/cai.json` 裡 `test.commands` 這個非空字串清單。
 **候選（candidate）**: 沒有宣告時，解析器從根目錄某個檔案推出的一條指令。
-**入口（entry）**: 把測試包成一個名字的根目錄檔案：Makefile、justfile、Task 的檔案（Taskfile.yml、taskfile.yml、Taskfile.yaml、taskfile.yaml、Taskfile.dist.yml、taskfile.dist.yml、Taskfile.dist.yaml、taskfile.dist.yaml，取第一個存在的）、package.json、tox.ini、noxfile.py。
+**入口（entry）**: 把測試包成一個名字的根目錄檔案：make 的檔案（GNUmakefile、makefile、Makefile，取第一個存在的）、justfile 或 .justfile（不分大小寫，同時有好幾個就不讀）、Task 的檔案（Taskfile.yml、taskfile.yml、Taskfile.yaml、taskfile.yaml、Taskfile.dist.yml、taskfile.dist.yml、Taskfile.dist.yaml、taskfile.dist.yaml，取第一個存在的）、package.json、tox.ini、noxfile.py。
 **彙總入口（aggregate entry）**: 入口推出、無法再帶路徑縮小的指令，如 `make test`。
 **縮小方式（narrow）**: 一條指令能不能帶範圍：`paths`、`packages`、`none`。
 **標記檔（marker file）**: 只說明語言或建置工具的根目錄檔案，如 `Cargo.toml`、`go.mod`；和上面的 **Marker**（mirror comment 的第一行）意思不同，兩者並存。

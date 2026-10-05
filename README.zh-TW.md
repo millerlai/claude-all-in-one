@@ -132,7 +132,7 @@ Fowler 目錄中的每一種重構也各自是一個 slash command——`/cai:ex
 每個要跑測試的階段——`build`、`verify`、`/cai:goal`、`/cai:refactor`，以及 `test-runner` 與 `verifier` 這兩個 agent——都向同一支唯讀程式（解析器，resolver）要指令，而不是自己挑。它依這個順序找：
 
 1. **宣告。** `.claude/cai.json` 裡的 `test.commands`，一份非空的清單。清單裡的每一條都會依序執行，任何一條失敗就讓整次結果失敗。
-2. **偵測**，只在沒有宣告時進行，而且只看專案根目錄（不搜尋子目錄）。它讀入口檔——有 `test` 目標的 `Makefile`、`justfile` 或 Task 的檔案（依序取第一個存在的：`Taskfile.yml`、`taskfile.yml`、`Taskfile.yaml`、`taskfile.yaml`、`Taskfile.dist.yml`、`taskfile.dist.yml`、`Taskfile.dist.yaml`、`taskfile.dist.yaml`）、有實際 `scripts.test` 的 `package.json`、`tox.ini`、`noxfile.py`——以及標記檔：pytest 設定（用 `PATH` 上第一個找得到的 `python`、`python3` 或 `py -3` 執行）、`go.mod`、`Cargo.toml`、`pom.xml`、搭配 `gradlew` 的 `build.gradle`、`.sln` 或 `.csproj`。它從不執行找到的任何東西。
+2. **偵測**，只在沒有宣告時進行，而且只看專案根目錄（不搜尋子目錄）。它讀入口檔——有 `test` 目標的 make 檔案（依序取第一個存在的：`GNUmakefile`、`makefile`、`Makefile`）、不分大小寫的 `justfile` 或 `.justfile`（同時有好幾個就不讀）或 Task 的檔案（依序取第一個存在的：`Taskfile.yml`、`taskfile.yml`、`Taskfile.yaml`、`taskfile.yaml`、`Taskfile.dist.yml`、`taskfile.dist.yml`、`Taskfile.dist.yaml`、`taskfile.dist.yaml`）、有實際 `scripts.test` 的 `package.json`、`tox.ini`、`noxfile.py`——以及標記檔：pytest 設定（用 `PATH` 上第一個找得到的 `python`、`python3` 或 `py -3` 執行）、`go.mod`、`Cargo.toml`、`pom.xml`、搭配 `gradlew` 的 `build.gradle`、`.sln` 或 `.csproj`。它從不執行找到的任何東西。
 
 ```json
 { "test": { "commands": ["python -m pytest", "npm test"] } }
