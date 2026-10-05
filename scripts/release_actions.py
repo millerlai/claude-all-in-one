@@ -3,8 +3,12 @@
 
 Run from a checkout of main; the candidate may only change release files.
 The existing release.py remains the implementation of cut/verify/publish.
+`notes` builds that candidate itself: it drafts the CHANGELOG section with
+Copilot CLI (release_notes.py), runs prepare, and commits, leaving the push
+to the workflow so the model never runs beside a write token.
 """
 import argparse
+import datetime
 import json
 import re
 import sys
@@ -12,6 +16,7 @@ import time
 from pathlib import Path
 
 import release
+import release_notes
 
 
 def git(repo: Path, *args) -> str:
@@ -112,6 +117,67 @@ def pr_info(repo: Path, version: str, head: str) -> dict:
     return info
 
 
+def notes(version: "str | None", repo: Path, *, pr=release_notes.gh_pr,
+          copilot=release_notes.run_copilot, today: str = None) -> str:
+    """Draft, check and commit the release candidate; return its version."""
+    if version is not None:
+        release.parse_version(version)
+    if git(repo, "status", "--porcelain"):
+        raise ValueError("working tree is not clean")
+    git(repo, "fetch", "--prune", "origin", "--tags")
+    served = release.pinned_ref(git(repo, "show", f"origin/main:{release.MARKETPLACES[0].file}"),
+                                release.MARKETPLACES[0])
+    if not served:
+        raise ValueError("no served release tag; cut the first release locally")
+    context = release_notes.collect(repo, served, "origin/main", pr=pr)
+    if not context["user_prs"]:
+        raise ValueError(f"no user-facing pull request since {served}")
+    date = today or datetime.date.today().isoformat()
+    prompt = release_notes.build_prompt(
+        release_notes.PROMPT_FILE.read_text(encoding="utf-8"), date=date,
+        previous_version=context["previous_version"],
+        previous_section=context["previous_section"], user_prs=context["user_prs"],
+        maintainer_prs=context["maintainer_prs"], track_diff=context["track_diff"])
+
+    done = copilot(prompt)
+    reply, failures = release_notes.read_session(done.stdout)
+    if done.returncode:
+        failures.append(f"copilot exited {done.returncode}: {done.stderr.strip()[-500:]}")
+    section, track = release_notes.split_verdict(reply)
+    if context["track_diff"].strip() and track is None:
+        failures.append("reply has no TRACK_FORMAT_CHANGED line")
+    track_changed = bool(context["track_diff"].strip()) and bool(track)
+    current = release.product_version(git(repo, "show", f"origin/main:{release.PRODUCT_MANIFEST}"))
+    suggested = release_notes.next_version(
+        current, release_notes.suggest_bump(context["subjects"], context["skill_changes"],
+                                            track_changed))
+    print(f"PASS suggested version {suggested} (track format changed: {track_changed})")
+    version = version or suggested
+    section = section.replace("{{NEW_VERSION}}", version)
+    failures += release_notes.validate_section(
+        section, version=version, date=date,
+        user_prs={pr_info["number"] for pr_info in context["user_prs"]})
+    if failures:
+        print("Copilot reply, rejected:\n" + reply)
+        raise RuntimeError("release notes rejected:\n" + "\n".join(failures))
+    print("PASS Copilot session was locked down and its section passed every check")
+
+    if release.prepare(version, repo=repo):
+        raise RuntimeError("release.py prepare failed")
+    changelog = repo / "CHANGELOG.md"
+    changelog.write_text(release_notes.replace_section(
+        changelog.read_text(encoding="utf-8"), version, section), encoding="utf-8", newline="")
+    changed = release._git_status_paths(repo)
+    extra = [p for p in changed if not release._path_is_allowed(p, release._allowed_cut_paths())]
+    if extra:
+        raise RuntimeError("prepare changed files outside the release set: " + ", ".join(extra))
+    git(repo, "add", "--", *changed)
+    git(repo, "commit", "-m", f"chore(release): v{version}")
+    print(f"PASS committed chore(release): v{version}")
+    print(section)
+    return version
+
+
 def execute(command: str, version: str, head: str, repo: Path) -> int:
     parent = candidate(version, head, repo, command == "merge")
     branch = f"release/v{version}"
@@ -164,11 +230,19 @@ def execute(command: str, version: str, head: str, repo: Path) -> int:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("check", "gate", "cut", "publish", "merge"))
-    parser.add_argument("version")
-    parser.add_argument("head")
+    parser.add_argument("command", choices=("notes", "check", "gate", "cut", "publish", "merge"))
+    parser.add_argument("version", nargs="?")
+    parser.add_argument("head", nargs="?")
     args = parser.parse_args(argv)
+    if args.command == "notes":
+        if args.head:
+            parser.error("notes takes an optional version and no head")
+    elif not (args.version and args.head):
+        parser.error(f"{args.command} needs a version and a head")
     try:
+        if args.command == "notes":
+            notes(args.version or None, release.ROOT)
+            return 0
         return execute(args.command, args.version, args.head, release.ROOT)
     except (ValueError, RuntimeError) as e:
         print(f"FAIL {e}")
