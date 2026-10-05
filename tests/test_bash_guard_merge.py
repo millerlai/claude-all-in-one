@@ -65,6 +65,43 @@ ASK_COMMANDS = [
     "gh --repo owner/repo api -X PUT repos/owner/repo/pulls/5/merge",
     "gh -R owner/repo api -X PUT repos/owner/repo/pulls/5/merge",
     "gh pr \\\n merge 123",
+    # A merge the shell runs from a position other than the start of a
+    # segment (l1c-interactive.md: all ten were let through unasked).
+    "if true; then gh pr merge 1; fi",
+    "if false; then :; else gh pr merge 1; fi",
+    "for i in 1; do gh pr merge 1; done",
+    "while false; do gh pr merge 1; done",
+    "{ gh pr merge 1; }",
+    "! gh pr merge 1",
+    "time gh pr merge 1",
+    "bash -c 'gh pr merge 1'",
+    'sh -c "gh pr merge 1"',
+    "bash -lc 'gh pr merge 1'",
+    "bash -lc gh pr merge 1",
+    "zsh -c 'gh pr merge 1'",
+    "dash -c 'gh pr merge 1'",
+    "bash -c \"bash -c 'gh pr merge 1'\"",
+    "eval gh pr merge 1",
+    'eval "gh pr merge 1"',
+    "env gh pr merge 1",
+    "env FOO=1 gh pr merge 1",
+    "nohup gh pr merge 1",
+    "command gh pr merge 1",
+    "exec gh pr merge 1",
+    "echo x | xargs gh pr merge",
+    "echo x | xargs -n1 gh pr merge",
+    # A wrapper's option may take its value as the next word (S1: wrappers
+    # "with their options"): `{}` or `1` must not end the walk to `gh`.
+    "gh pr list --json number -q '.[].number' | xargs -I {} gh pr merge {}",
+    "echo x | xargs -n 1 gh pr merge",
+    "env -u VAR gh pr merge 1",
+    "bash -o pipefail -c 'gh pr merge 1'",
+    'powershell -NoProfile -ExecutionPolicy Bypass -Command "gh pr merge 1"',
+    "pwsh -Command 'gh pr merge 1'",
+    "powershell -c \"gh pr merge 1\"",
+    "Invoke-Expression 'gh pr merge 1'",
+    "bash -c 'gh api -X PUT repos/o/r/pulls/5/merge'",
+    "if true; then gh api -X PUT repos/o/r/pulls/5/merge; fi",
 ]
 
 
@@ -101,6 +138,13 @@ NOT_MERGE_COMMANDS = [
     "gh api repos/owner/repo/pulls/123/merge",
     "gh api -X GET repos/owner/repo/pulls/123/merge",
     "gh api -X DELETE repos/owner/repo/pulls/123/merge",
+    # Quoted text that only mentions a merge stays a look-alike (#194).
+    "bash -c 'echo gh pr merge'",
+    'git commit -m "then gh pr merge"',
+    'git commit -m "if x then gh pr merge 1"',
+    "bash -c 'gh pr view 1'",
+    "eval echo gh pr merge",
+    "echo 'xargs gh pr merge'",
 ]
 
 # A backtick is a Bash command-substitution boundary, not a PowerShell one --
@@ -136,6 +180,54 @@ def test_backtick_lookalike_is_not_a_merge_on_powershell_under_codex(feature_rep
     for command in BACKTICK_LOOKALIKES:
         done = run(command, feature_repo, tool="PowerShell", codex=True)
         assert done.returncode == 0, (command, done.stdout, done.stderr)
+
+
+def test_ask_docstring_states_what_the_evidence_shows():
+    # R9: the prompt appears in an interactive auto mode, is denied outright
+    # under dontAsk and a `-p` run with no prompt tool, and cannot be silenced
+    # by bypassPermissions or an allow rule. "Unattended" claimed more.
+    with open(GUARD, encoding="utf-8") as fh:
+        source = fh.read()
+    start = source.index("def ask(")
+    doc = source[start:source.index("print(json.dumps", start)]
+    assert "unattended" not in doc
+    assert "dontAsk" in doc and "bypassPermissions" in doc and "allow rule" in doc
+
+
+POWERSHELL_ASK_COMMANDS = [
+    "gh pr merge 1",
+    "pwsh -Command 'gh pr merge 1'",
+    'powershell -c "gh pr merge 1"',
+    'powershell -NoProfile -ExecutionPolicy Bypass -Command "gh pr merge 1"',
+    "Invoke-Expression 'gh pr merge 1'",
+    # What the Codex launcher produces from ["bash", "-lc", script]: one line.
+    "bash -lc echo x | xargs -I {} gh pr merge {}",
+    "bash -c env FOO=1 gh pr merge 123",
+]
+
+
+def test_the_non_bash_path_asks_and_denies_too(feature_repo):
+    # The PowerShell tool uses the non-Bash regex pair; nothing else exercised
+    # it with a merge (only look-alikes).
+    for command in POWERSHELL_ASK_COMMANDS:
+        done = run(command, feature_repo, tool="PowerShell")
+        assert done.returncode == 0, (command, done.stdout, done.stderr)
+        assert json.loads(done.stdout)["hookSpecificOutput"]["permissionDecision"] == "ask", command
+        done = run(command, feature_repo, tool="PowerShell", codex=True)
+        assert done.returncode == 2, (command, done.stdout, done.stderr)
+
+
+def test_a_long_run_of_wrapper_options_does_not_hang_the_guard(feature_repo):
+    # EXEC_WORDS nests quantifiers: if one token could be read two ways, a
+    # command with no `gh` at the end would take exponential time to reject.
+    for token in ("-n a=b", "-n if", "-n x", "env", "if"):
+        command = "xargs " + (token + " ") * 40 + "echo hi"
+        done = subprocess.run(
+            [sys.executable, GUARD],
+            input=json.dumps({"tool_name": "Bash", "tool_input": {"command": command},
+                              "cwd": feature_repo}),
+            capture_output=True, text=True, cwd=feature_repo, timeout=20)
+        assert done.returncode == 0 and done.stdout == "", (token, done.stdout, done.stderr)
 
 
 def test_an_existing_deny_rule_still_wins_over_ask(feature_repo):

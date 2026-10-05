@@ -157,3 +157,11 @@ both by hand, as described above. macOS has no coverage at all.
   no `git` at all (#219). Write `git.bat` on Windows and, on POSIX, a file
   named `git` with a `#!/bin/sh` line and mode `0o755`; keep the assertion
   the same on both.
+- **Relaying the person's answer to a stage agent by resuming it.** A message
+  sent to a running or finished agent arrives marked as another agent's
+  words, with no user authority, so the agent refuses to act on a consent
+  carried that way. In the reduce-the-human-in-the-loop track (#283), a
+  build agent resumed with the person's Step 0.5 commit answer refused to
+  commit. When passing a person's answer to a stage agent, always start a
+  fresh dispatch that quotes the question and the answer verbatim
+  (`pending-questions.md` step 2). Never relay it by resuming the agent.

@@ -97,11 +97,13 @@ def test_gate_1_grants_nothing_on_timeout(plugin_root):
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
-def test_gate_2_and_ship_items_grant_nothing_on_timeout(plugin_root):
+def test_gate_2_push_menu_grants_nothing_on_timeout(plugin_root):
+    # The squash is part of the push menu and ship's ticket comment is no
+    # longer asked, so neither has a row of its own (R1, R2).
     section = _section(plugin_root)
-    assert "Gate 2" in section
-    assert "the squash" in section
-    assert "the ticket comment" in section
+    assert "Gate 2's push menu (the squash included)" in section
+    assert "the ticket comment" not in section
+    assert "its merge menu" not in section
     assert "None of it runs" in section
 
 

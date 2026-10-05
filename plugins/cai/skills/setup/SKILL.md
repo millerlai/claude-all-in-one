@@ -163,11 +163,11 @@ the exit code alone cannot tell them apart.
    Python 3 was found, so the dispatcher fell back to a text check. Tell the
    user plainly: the three scoped agents (`test-runner`, `verifier`,
    `designer`) can run no Bash at all, and every other caller is checked only
-   for force pushes, `reset --hard`, `git clean -f`, `--no-verify` and
-   `rm -rf`. Not blocked in this state: a commit or push straight to
-   `main`/`master`, `git checkout --` and `git restore` on a dirty tree, a
-   backtick or `$(…)` that Bash would run, the body of a heredoc, PowerShell
-   here-strings and `Remove-Item`, and the `gh pr merge` prompt. They need
+   for force pushes, `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf`
+   and `gh pr merge` (blocked, not prompted: the person runs it). Not blocked
+   in this state: a commit or push straight to `main`/`master`, `git checkout
+   --` and `git restore` on a dirty tree, a backtick or `$(…)` that Bash would
+   run, the body of a heredoc, PowerShell here-strings and `Remove-Item`. They need
    Python 3 on PATH (`python3` on macOS/Linux, `python` or the `py` launcher on
    Windows).
 3. Exit **2**, and stderr holds `cai guard launcher failed:`: the interpreter

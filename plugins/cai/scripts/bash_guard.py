@@ -165,11 +165,29 @@ GH_BOUNDARY = r"(?:^|\n|[;&|(]\s*|\$\()"
 GH_BOUNDARY_BASH = r"(?:^|\n|[;&|(`]\s*|\$\()"
 
 
+# Words after which the shell starts another command, so a merge there is
+# still run: Bash reserved words (`if ... then gh pr merge`), and wrappers that
+# execute their arguments (`env`, `nohup`, `xargs`, `command`, `exec`), each
+# with the options and NAME=value words it may take first. The wrappers'
+# string-taking siblings (`bash -c`, `eval`, ...) are MERGE_STRING below.
+#
+# A one-letter option may take its value as the next word (`xargs -I {}`,
+# `xargs -n 1`, `env -u VAR`). That word must not itself start another token
+# kind -- an option, a NAME=value, one of these words or `gh` -- so a token
+# can be read only one way and the nested quantifiers cannot backtrack
+# exponentially on a long command with no `gh` at the end.
+EXEC_KEYWORDS = r"(?:if|then|elif|else|while|until|do|time|coproc|!|\{|env|nohup|xargs|command|exec)"
+OPT_ARG = r"(?!(?:" + EXEC_KEYWORDS + r"|gh)(?:\s|$))(?!\w+=)[^\s-]\S*"
+EXEC_WORDS = (
+    r"(?:" + EXEC_KEYWORDS + r"\s+(?:(?:-[A-Za-z]\s+" + OPT_ARG + r"|-\S+|\w+=\S*)\s+)*)*"
+)
+
+
 def _gh_merge_patterns(boundary):
-    pr_merge = re.compile(
-        boundary + r"\s*(?:\w+=\S*\s+)*gh\s+" + GH_OPT + r"pr\s+merge\b")
+    start = boundary + r"\s*(?:\w+=\S*\s+)*" + EXEC_WORDS
+    pr_merge = re.compile(start + r"gh\s+" + GH_OPT + r"pr\s+merge\b")
     api_merge = re.compile(
-        boundary + r"\s*(?:\w+=\S*\s+)*gh\s+" + GH_OPT + r"api\b"
+        start + r"gh\s+" + GH_OPT + r"api\b"
         r"(?=" + ARGS + r"\s(?:-X\s*(?:POST|PUT)\b|--method[= ]?(?:POST|PUT)\b))"
         r"(?=" + ARGS + r"/pulls/\d+/merge\b)",
         re.IGNORECASE)
@@ -178,6 +196,55 @@ def _gh_merge_patterns(boundary):
 
 GH_PR_MERGE, GH_API_MERGE = _gh_merge_patterns(GH_BOUNDARY)
 GH_PR_MERGE_BASH, GH_API_MERGE_BASH = _gh_merge_patterns(GH_BOUNDARY_BASH)
+
+# A command handed to a shell as a string: `bash -c '...'` (also `-lc`),
+# `eval`, PowerShell's `-Command`/`Invoke-Expression`. A quoted argument loses
+# one layer of quotes; an unquoted one is the rest of the command (which is
+# also the shape the Codex launcher produces by joining `bash -lc <script>`
+# with spaces). The result goes back through the whole merge check, so a
+# nested string is found too.
+# An option before `-c`/`-Command` may take its value as the next word
+# (`bash -o pipefail -c`, `powershell -ExecutionPolicy Bypass -Command`); the
+# value cannot start with `-`, so each word is read one way only.
+MERGE_STRING_SHELL = (
+    r"(?:[\w./\\-]*[/\\])?(?:bash|sh|zsh|dash)(?:\s+-[A-Za-z]\s+[^\s-]\S*|\s+-\S+)*?"
+    r"\s+-[A-Za-z]*c[A-Za-z]*"
+    r"|(?i:(?:pwsh|powershell)(?:\.exe)?(?:\s+-[A-Za-z]+\s+[^\s-]\S*|\s+-\S+)*?"
+    r"\s+-(?:c|command)|invoke-expression|iex)"
+    r"|eval"
+)
+MERGE_STRING_DEPTH = 3
+
+
+def _merge_string_pattern(boundary):
+    return re.compile(
+        boundary + r"\s*(?:\w+=\S*\s+)*" + EXEC_WORDS + r"(?:" + MERGE_STRING_SHELL + r")\s+"
+        r"(?:\"(?P<dq>(?:[^\"\\]|\\.)*)\"|'(?P<sq>[^']*)'|(?P<bare>[\s\S]+))")
+
+
+MERGE_STRING = _merge_string_pattern(GH_BOUNDARY)
+MERGE_STRING_BASH = _merge_string_pattern(GH_BOUNDARY_BASH)
+
+
+def merges_pr(code, bash, depth=0):
+    """Whether `code` runs a PR merge at a position the shell would execute.
+    A mention inside a quoted argument that nothing executes stays a
+    look-alike (#194)."""
+    pr_merge, api_merge = ((GH_PR_MERGE_BASH, GH_API_MERGE_BASH) if bash
+                           else (GH_PR_MERGE, GH_API_MERGE))
+    if pr_merge.search(code) or api_merge.search(code):
+        return True
+    if depth >= MERGE_STRING_DEPTH:
+        return False
+    for m in (MERGE_STRING_BASH if bash else MERGE_STRING).finditer(code):
+        inner = m.group("dq")
+        if inner is not None:
+            inner = inner.replace('\\"', '"')
+        else:
+            inner = m.group("sq") if m.group("sq") is not None else m.group("bare")
+        if merges_pr(inner, bash, depth + 1):
+            return True
+    return False
 
 # Set only by plugins/cai-codex/scripts/launcher.py (hand-written) before it
 # invokes this same file -- an explicit signal from the one component that
@@ -701,8 +768,10 @@ def ask(reason, command):
     silent allow or a hard block. Verified against
     https://code.claude.com/docs/en/permission-modes: "Claude Code doesn't
     add the option to prompts forced by one of your ask rules or by a hook,
-    because auto mode still shows you those prompts" -- so this fires even
-    when the session is otherwise running unattended."""
+    because auto mode still shows you those prompts" -- so in an interactive
+    auto mode the prompt appears, with Yes/No only. bypassPermissions and an
+    allow rule do not suppress it. Under dontAsk, and a `-p` run with no
+    `--permission-prompt-tool`, nothing prompts and the call is denied."""
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -798,10 +867,7 @@ def main() -> int:
     # Checked last: every rule above is a deny, and a command that trips one
     # of them stays denied even if it also merges -- ask never weakens a
     # deny.
-    pr_merge, api_merge = ((GH_PR_MERGE_BASH, GH_API_MERGE_BASH)
-                            if payload.get("tool_name") == "Bash"
-                            else (GH_PR_MERGE, GH_API_MERGE))
-    if pr_merge.search(code) or api_merge.search(code):
+    if merges_pr(code, payload.get("tool_name") == "Bash"):
         if os.environ.get(CODEX_GUARD_ENV) == "1":
             return deny(MERGE_REASON, command, MERGE_CODEX_ADVICE)
         return ask(MERGE_REASON, command)

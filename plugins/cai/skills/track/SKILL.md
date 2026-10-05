@@ -99,8 +99,8 @@ Exactly two stages stop for a person, never more:
 - **Before the irreversible operations in `ship`** — merging, tagging,
   publishing. Confirm with the person before running them.
 
-Both are asked as a menu — `AskUserQuestion`, labelled options, never a
-sentence the person has to type a word back into. You — the main session, not
+Gate 1 and Gate 2's push are asked as a menu — `AskUserQuestion`, labelled options, never a
+sentence the person has to type a word back into; Gate 2's merge is the bash guard's permission prompt. You — the main session, not
 a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/approval-gates.md`
 for the options each one carries and where the answer lands.
 

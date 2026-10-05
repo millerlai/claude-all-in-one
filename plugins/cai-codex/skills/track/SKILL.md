@@ -109,10 +109,10 @@ Exactly two stages stop for a person, never more:
   this platform, so hand that command back for the person to run
   themselves.
 
-Both follow `rules/epistemics.md`: use `request_user_input` if it is in your
+Gate 1 and Gate 2's push follow `rules/epistemics.md`: use `request_user_input` if it is in your
 tool list and the current mode permits it; otherwise ask with
 numbered options in text instead, never a
-sentence the person has to type a word back into. You — the main session, not
+sentence the person has to type a word back into; Gate 2's merge is the bash guard's permission prompt. You — the main session, not
 a subagent — follow `<cai-root>/skills/track/references/approval-gates.md`
 for the options each one carries and where the answer lands.
 
