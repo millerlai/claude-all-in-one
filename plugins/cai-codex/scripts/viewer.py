@@ -47,6 +47,7 @@ import usage_collector  # noqa: E402
 import track_state  # noqa: E402
 import preflight  # noqa: E402
 import ledger  # noqa: E402
+import timing_report  # noqa: E402
 
 DEFAULT_PORT = 7788
 PORT_TRIES = 10
@@ -612,7 +613,26 @@ const STRINGS_EN = {
   "note.alive-inferred": "Alive: inferred",
   "note.background-shell": "Background shell running",
   "note.registry-may-be-stale": "Session registry may be stale",
-  "note.previous-turn-failed": "Previous turn failed/interrupted"
+  "note.previous-turn-failed": "Previous turn failed/interrupted",
+  "timing.noData": "No data",
+  "timing.incomplete": "Incomplete data",
+  "timing.lowerBound": "At least {time} · Incomplete data",
+  "timing.source-unverified": "Source unverified",
+  "timing.binding-ambiguous": "Ambiguous ownership",
+  "timing.binding-missing": "Missing ownership",
+  "timing.event-conflict": "Conflicting events",
+  "timing.open-activity": "Activity not closed",
+  "timing.begin-missing": "Missing activity start",
+  "timing.activity-ambiguous": "Ambiguous activity",
+  "timing.invalid-boundary": "Invalid time boundary",
+  "timing.clock-unverified": "Clock unverified",
+  "timing.journal-malformed": "Invalid timing record",
+  "timing.journal-unreadable": "Timing record unreadable",
+  "timing.unsupported-format": "Unsupported timing format",
+  "timing.run-open": "Run not closed",
+  "timing.coverage-missing": "Missing source coverage",
+  "timing.event-missing": "Events missing",
+  "timing.run-closed": "Run already closed"
 };
 const STRINGS_ZH_HANT = {
   "lang.aria": "語言",
@@ -679,7 +699,26 @@ const STRINGS_ZH_HANT = {
   "note.alive-inferred": "存活：推斷",
   "note.background-shell": "背景 shell 執行中",
   "note.registry-may-be-stale": "登記檔可能過時",
-  "note.previous-turn-failed": "上一輪 failed／interrupted"
+  "note.previous-turn-failed": "上一輪 failed／interrupted",
+  "timing.noData": "無資料",
+  "timing.incomplete": "資料不完整",
+  "timing.lowerBound": "至少 {time} · 資料不完整",
+  "timing.source-unverified": "來源未驗證",
+  "timing.binding-ambiguous": "歸屬不明確",
+  "timing.binding-missing": "缺少歸屬",
+  "timing.event-conflict": "事件衝突",
+  "timing.open-activity": "活動未結束",
+  "timing.begin-missing": "缺少活動開始",
+  "timing.activity-ambiguous": "活動不明確",
+  "timing.invalid-boundary": "時間邊界無效",
+  "timing.clock-unverified": "時鐘未驗證",
+  "timing.journal-malformed": "計時紀錄無效",
+  "timing.journal-unreadable": "計時紀錄無法讀取",
+  "timing.unsupported-format": "計時格式不支援",
+  "timing.run-open": "執行未結束",
+  "timing.coverage-missing": "缺少來源涵蓋證據",
+  "timing.event-missing": "事件缺漏",
+  "timing.run-closed": "執行已關閉"
 };
 const STRINGS = {'en': STRINGS_EN, 'zh-Hant': STRINGS_ZH_HANT};
 const STAGES = ['intake','discover','design','build','verify','ship'];
@@ -814,13 +853,33 @@ function stateLabel(row){
   return {label:tr('state.unknown'), icon:''};
 }
 
+function stageTimingLabel(stage){
+  const status = stage.timing_status;
+  if (status !== 'complete' && status !== 'incomplete') return tr('timing.noData');
+  const ms = stage.elapsed_ms;
+  const valid = Number.isSafeInteger(ms) && ms >= 0;
+  if (!valid) return tr('timing.incomplete');
+  const seconds = Math.floor(ms / 1000);
+  const time = Math.floor(seconds / 60) + ':' + pad(seconds % 60);
+  return status === 'incomplete' ? tr('timing.lowerBound', {time: time}) : time;
+}
+function stageTimingReasons(stage){
+  const reasons = Array.isArray(stage.timing_reasons) ? stage.timing_reasons : [];
+  return reasons.map(reason => {
+    const key = 'timing.' + reason;
+    return Object.prototype.hasOwnProperty.call(STRINGS[langPref], key)
+      && !['timing.noData', 'timing.incomplete', 'timing.lowerBound'].includes(key)
+      ? tr(key) : tr('note.reason-unknown');
+  }).join(tr('list.separator'));
+}
 function stepperHTML(row){
   const t = row.track;
   const byId = {};
-  for (const stg of t.stages) byId[stg.id] = stg.status;
+  for (const stg of t.stages) byId[stg.id] = stg;
   const waitingGate = (row.state === 'question' && t.gateWaiting) ? t.gateWaiting : null;
   const items = STAGES.map((s, i) => {
-    const st = byId[s] || 'todo';
+    const stage = byId[s] || {};
+    const st = stage.status || 'todo';
     const icon = {done:'✓', skipped:'–', failed:'✕', blocked:'‖'}[st] || '';
     const gateHTML = GATED.has(s)
       ? '<li class="gate ' + (waitingGate === s ? 'waiting' : '') + '" title="' + esc(tr('gate.title')) + '">⚑</li><li class="sep"></li>'
@@ -828,7 +887,9 @@ function stepperHTML(row){
     const sepHTML = i ? '<li class="sep"></li>' : '';
     const curCls = s === t.current ? 'cur' : '';
     return sepHTML + gateHTML + '<li class="stage st-' + esc(st) + ' ' + curCls +
-      '"><span class="dot">' + esc(icon) + '</span>' + esc(s) + '</li>';
+      '"><span class="dot">' + esc(icon) + '</span>' + esc(s) +
+      ' <span class="stage-timing" title="' + esc(stageTimingReasons(stage)) + '">' +
+      esc(stageTimingLabel(stage)) + '</span></li>';
   }).join('');
   return `<div><div class="tname">TRACK · <b>${esc(t.name)}</b></div><ol class="stepper">${items}</ol></div>`;
 }
@@ -2392,13 +2453,14 @@ def _find_by_session_id(track_root, session_id):
 
 def _build_stages(track_dir):
     stages = []
+    summary = timing_report.timing_report(track_dir)
     for sid in track_state.stage_ids():
         try:
             row = preflight.state_row(track_dir, sid)
         except OSError:
             row = None
         status = row[1] if row and len(row) > 1 else ""
-        stages.append({"id": sid, "status": status})
+        stages.append({"id": sid, "status": status, **summary[sid]})
     return stages
 
 

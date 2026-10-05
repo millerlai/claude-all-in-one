@@ -157,8 +157,12 @@ def test_skill_md_body_is_136_lines():
     136 -> 137 on 2026-10-03: one line for the resume path -- a `pending:`
     section in `track_state.py status` is asked from the saved round, and
     `pending.py clear` follows a stage's result. TRACK_SKILL_MAX moved
-    138 -> 139 in the same change, keeping the gap."""
-    assert _skill_body_lines() == 137
+    138 -> 139 in the same change, keeping the gap.
+
+    137 -> 142 on 2026-10-05 (#296): the `timing.py begin` and `end` calls
+    in steps 2 and 3, the only production call site for stage timing.
+    TRACK_SKILL_MAX moved 139 -> 144 in the same change, keeping the gap."""
+    assert _skill_body_lines() == 142
 
 
 # --- '## Human gates' still says what it has always said --------------------

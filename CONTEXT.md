@@ -72,3 +72,14 @@ or specs, and only concepts specific to this project.
 **探測（probe）**: 對一個候選直譯器依序做兩步：第一步以空輸入跑 guard、第二步以空輸入跑寫紀錄程式；與本 repo 的 `design_probe.py` 無關。
 **精簡檢查（reduced check）**: 探測全數失敗時，以樣式檔比對沒被讀過的 hook 輸入；命中或工具出錯 exit 2，否則 0。
 **受限 agent（scoped agent）**: `cai:test-runner`、`cai:verifier`、`cai:designer`。
+**階段執行（run）**: 功能追蹤階段的一次分派範圍；執行起訖只界定歸屬，不代表整段時間都在工作。
+**活動者（actor）**: 主代理、子代理或工具活動的計時歸屬識別；父子關係本身不證明工作時間。
+**計時來源准入（source admission）**: 只有實際來源與版本證據通過後，才接受其明確工作起訖作為已證實區間。
+**活動紀錄（timing journal）**: 功能追蹤自行追加的執行、活動者歸屬、工作邊界及資料缺口紀錄。
+**六階段摘要（six-stage timing summary）**: 合併各階段已證實工作區間後輸出的累積時間與資料完整性。
+**計時完整性（timing completeness）**: 表示工作來源是否完整可核對；不完整時只能顯示已證實下限或無可靠數字。
+**執行標記（run token）**: `timing.py begin` 印出的一行 `cai-timing-run: <run_id>`，主工作階段原樣放進分派提示；掛鉤從 Agent 工具輸入讀它，把子代理綁到追蹤執行。
+**開啟標記檔（open marker）**: 專案 `.claude/track/` 下的空檔 `timing-open.<run_id>`；存在時掛鉤才啟動 Python，不存在就立刻結束。
+**暫存觀測（spool）**: 綁定前先記下的子代理掛鉤時刻與工具呼叫識別，每個子代理一個檔，放在外掛資料目錄；不含工具輸入、輸出或提示文字。
+**綁定檔（binding file）**: 每個 `agentId` 一個檔，記下它綁到哪個執行、屬於哪個父子代理，或明確未綁定；與暫存觀測同在外掛資料目錄。
+**模型段（model segment）**: 一個子代理從開始或一批工具全部結束，到它下一次呼叫工具或結束為止的區間；期間只有模型在產生回應（含平台對同一請求的自動重試）。

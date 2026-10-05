@@ -66,12 +66,40 @@ def test_session_id_match_gives_confirmed_track(tmp_path):
 
     assert result["name"] == "feat-a"
     assert result["certainty"] == "confirmed"
-    assert result["stages"] == [
+    assert [{"id": s["id"], "status": s["status"]} for s in result["stages"]] == [
         {"id": "intake", "status": "done"}, {"id": "discover", "status": "done"},
         {"id": "design", "status": "done"}, {"id": "build", "status": ""},
         {"id": "verify", "status": ""}, {"id": "ship", "status": ""}]
     assert result["current"] == "build"
     assert result["gateWaiting"] == "build"
+
+
+def test_stages_read_one_summary_and_preserve_status(tmp_path, monkeypatch):
+    _, root = _setup_project(tmp_path)
+    track = _write_track(root, "timed", {"build": ("failed", "—", "")})
+    calls = []
+    summary = {sid: {"elapsed_ms": 70000, "timing_status": "incomplete",
+                     "timing_reasons": ["source-unverified"]} for sid in STAGE_IDS}
+    def report(path):
+        calls.append(path)
+        return summary
+    monkeypatch.setattr(viewer.timing_report, "timing_report", report)
+    stages = viewer._build_stages(str(track))
+    assert calls == [str(track)]
+    assert stages[3] == {"id": "build", "status": "failed", **summary["build"]}
+
+
+def test_stages_missing_and_corrupt_journals_are_read_only(tmp_path):
+    _, root = _setup_project(tmp_path)
+    track = _write_track(root, "timed", {})
+    assert all(s["timing_status"] == "no-data" and s["elapsed_ms"] is None
+               for s in viewer._build_stages(str(track)))
+    journal = track / "timing.jsonl"
+    assert not journal.exists()
+    journal.write_bytes(b"broken\n")
+    assert all(s["timing_status"] == "incomplete" and s["elapsed_ms"] is None
+               for s in viewer._build_stages(str(track)))
+    assert journal.read_bytes() == b"broken\n"
 
 
 # ============================================================= fallback ====

@@ -1,0 +1,20 @@
+{
+  "claude_code_version": "2.1.289 (Claude Code)",
+  "minimum_supported_version_untested": "2.1.283",
+  "recorded": "2026-10-05",
+  "model": "haiku",
+  "run": {
+    "returncode": 0,
+    "stdout_chars": 9,
+    "stderr_chars": 0,
+    "seconds": 22.6
+  },
+  "records": 14,
+  "agents": {
+    "foreground": "ae67434a78982db29",
+    "background": "a18d63c0113aa9ac7"
+  },
+  "agent_id_shape": {"length": 17, "charset": "0-9a-f"},
+  "v5_standin_ms": {"cmd_early_exit_median": 22.6, "cmd_early_exit_max": 86.4, "bare_cmd_median": 23.5, "python_pass_median": 68.6, "note": "stand-in cmd; the real run-timing.cmd is measured in unit 4d"},
+  "note": "content-free: field names, identifiers and relative millisecond clocks only"
+}

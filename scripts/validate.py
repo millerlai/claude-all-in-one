@@ -779,21 +779,22 @@ for path in sorted(glob.glob("**/*.cmd", recursive=True)):
 # later edit shifted a few bytes. Measured on Windows 11 with goto and call, a
 # 1- and a 13-character name: it fails for exactly those distances. Only forward
 # jumps are modelled, so a backward one counts as a failure too.
-with open(DISPATCHER, "rb") as fh:
-    cmd_block = fh.read().split(b"\nCMDBLOCK\n")[0]
-cmd_labels = {m.group(1).lower(): m.start() for m in re.finditer(rb"^:(\w+)", cmd_block, re.M)}
-lost_labels = []
-for m in re.finditer(rb"^(?!REM\b)[^\n]*?\b(?:goto\s+:?|call\s+:)(\w+)[^\n]*\n", cmd_block, re.M | re.I):
-    name = m.group(1).lower()
-    if name == b"eof":
-        continue
-    start = cmd_labels.get(name)
-    if start is None or start < m.end() or (start - m.end()) % 512 + len(name) >= 512:
-        lost_labels.append(name.decode())
-check(f"{DISPATCHER} has no goto or call label CMD can lose at a 512-byte boundary "
-      f"({len(lost_labels)} found)", not lost_labels)
-for name in lost_labels[:5]:
-    print("     label:", name)
+for launcher in (DISPATCHER, f"{PLUGIN}/hooks/run-timing.cmd"):
+    with open(launcher, "rb") as fh:
+        cmd_block = fh.read().split(b"\nCMDBLOCK\n")[0]
+    cmd_labels = {m.group(1).lower(): m.start() for m in re.finditer(rb"^:(\w+)", cmd_block, re.M)}
+    lost_labels = []
+    for m in re.finditer(rb"^(?!REM\b)[^\n]*?\b(?:goto\s+:?|call\s+:)(\w+)[^\n]*\n", cmd_block, re.M | re.I):
+        name = m.group(1).lower()
+        if name == b"eof":
+            continue
+        start = cmd_labels.get(name)
+        if start is None or start < m.end() or (start - m.end()) % 512 + len(name) >= 512:
+            lost_labels.append(name.decode())
+    check(f"{launcher} has no goto or call label CMD can lose at a 512-byte boundary "
+          f"({len(lost_labels)} found)", not lost_labels)
+    for name in lost_labels[:5]:
+        print("     label:", name)
 
 # A UTF-8 BOM is invisible in an editor and breaks readers that expect the file
 # to start with content: mermaid-cli refuses the diagram outright ("Parse error
@@ -2683,7 +2684,13 @@ if os.path.isfile(VERIFY_REF):
 # in `track_state.py status` is asked from `pending-questions.md`'s saved round,
 # and `pending.py clear` follows a stage's passed/failed/skipped. Moved together
 # with the pinned body-line count (136 -> 137), keeping the two-line gap.
-TRACK_SKILL_MAX = 139
+#
+# 139 -> 144 on 2026-10-05 (#296): the only production call site for stage timing.
+# Step 2 runs `timing.py begin` and puts the run marker in the dispatch prompt, step
+# 3 runs `timing.py end` once the report is back (three and two lines). The procedure
+# stays in the script; these are the two commands the main session must run itself.
+# Moved together with the pinned body-line count (137 -> 142), keeping the gap.
+TRACK_SKILL_MAX = 144
 TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
 if os.path.isfile(TRACK_SKILL):
     track_text = read_text(TRACK_SKILL)
