@@ -629,9 +629,10 @@ nothing else has been asked more than once yet.
 
 **The options arrived as a file path and one-line summaries instead of the six
 fields.** Fixed in cai 1.27.1 and cai-codex 0.1.1: the linted text is now sent
-in full as the message that asks. The file under
-`.claude/track/<feature>/options-*.md` is where the lint and `preflight.py`
-read it, not a substitute for the message. Seeing the old shape means an older
+in full as the message that asks. The file the lint reads is not a substitute
+for the message. Only a decisions document's Tier 1 entry keeps its draft in
+`.claude/track/<feature>/options-<id>.md`, where `preflight.py` reads it
+before build; every other draft goes to a temp directory (#311). Seeing the old shape means an older
 installed copy — update ([README's Updating](README.md#updating)) and restart.
 
 ## Limits worth knowing

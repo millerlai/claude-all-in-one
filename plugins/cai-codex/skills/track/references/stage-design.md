@@ -404,8 +404,9 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    it's possible here, what it costs, how it fails. Mark at most one
    `(recommended)`, only if every capability it cites is `verified`. Lay each
    one out in `option-explainer.md`'s six-field shape — a title line, then the
-   six numbered, one per item — write it to `<track-dir>/options-<id>.md`
-   (`<id>` from the choice being decided, e.g. `options-D1.md`) and check it
+   six numbered, one per item — write it to `<scratchpad>/options-<id>.md`
+   (`<id>` from the choice being decided, e.g. `options-D1.md`; not the track
+   directory, since nothing reads it back from there, #311) and check it
    before it goes anywhere:
    `<cai> options_lint <the options, as a file>`,
    exit 0 or fix what it names (#73). Then put the choice to the user with

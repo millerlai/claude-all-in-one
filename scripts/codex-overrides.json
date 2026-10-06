@@ -1190,6 +1190,16 @@
         "   the same checked `<scratch-dir>` and run"
       ],
       "why": "#304: answer files follow the same writable scratch policy as the report."
+    },
+    {
+      "target": "skills/track/references/pending-questions.md",
+      "anchor": [
+        "   draft goes in the system temp directory, never inside the repo:"
+      ],
+      "replacement": [
+        "   draft goes in `<scratch-dir>`, never inside the repo:"
+      ],
+      "why": "#311: options drafts nothing reads back follow the same writable scratch policy as the report."
     }
   ]
 }

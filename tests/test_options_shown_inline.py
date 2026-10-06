@@ -50,6 +50,36 @@ def test_step0_names_path_plus_summaries_as_the_failure(plugin_root):
     assert "A file path plus a one-line summary per option" in step0
 
 
+@pytest.mark.parametrize("plugin_root,scratch", [
+    ("plugins/cai", "the system temp directory"),
+    ("plugins/cai-codex", "`<scratch-dir>`"),
+])
+def test_step0_keeps_only_tier1_drafts_in_the_track_dir(plugin_root, scratch):
+    # #311: every question round used to leave an options-*.md in the track
+    # dir, though only a Tier 1 entry's draft is ever read back (by
+    # preflight.py's options_drafts). The rest belong with the other
+    # throwaway files of a round.
+    path = _reference(plugin_root, "pending-questions.md")
+    text = _flat(path)
+    start = text.index("0. **Lay the options out before asking")
+    end = text.index("1. **Ask one decision per turn.**")
+    step0 = text[start:end]
+    assert "Every other draft goes in %s, never inside the repo" % scratch in step0
+    assert "nothing reads any other draft back (#311)" in step0
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_legacy_design_options_draft_is_not_written_to_the_track_dir(plugin_root):
+    # #311: a high-level design is not a decisions document, so preflight
+    # never reads its option drafts; the track dir is the wrong place for them.
+    text = _flat(_reference(plugin_root, "stage-design.md"))
+    start = text.index("## Mode: High-level (legacy)")
+    step3 = text[text.index("3. **Compare options, then ask.**", start):
+                 text.index("4. **Write it.**", start)]
+    assert "<track-dir>/options-" not in step3
+    assert "`<scratchpad>/options-<id>.md`" in step3
+
+
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
 def test_approval_gates_puts_reasoning_in_the_same_message(plugin_root):
     path = _reference(plugin_root, "approval-gates.md")
