@@ -860,9 +860,12 @@ def verify(version: str, repo: Path = ROOT, temp_root: Path = None) -> int:
         with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as f:
             f.write(body)
             body_path = f.name
+        # A draft has no merge button on the web page, where this repo's
+        # squash habit would drop the tag out of main's history.
         try:
-            pr_create = run([gh_path, "pr", "create", "--base", "main", "--head", branch_name,
-                             "--title", f"chore(release): {tag_name}", "--body-file", body_path],
+            pr_create = run([gh_path, "pr", "create", "--draft", "--base", "main",
+                             "--head", branch_name, "--title", f"chore(release): {tag_name}",
+                             "--body-file", body_path],
                             cwd=repo, timeout=None)
         finally:
             os.unlink(body_path)
@@ -932,6 +935,7 @@ def publish(version: str, repo: Path = ROOT) -> int:
         print(f"PASS created GitHub release {tag_name}")
 
     head_sha = info["headRefOid"]
+    print(f"gh pr ready {info['number']}")
     print(f"gh pr merge {info['number']} --merge --match-head-commit {head_sha}")
     print("do not use --squash")
     return 0

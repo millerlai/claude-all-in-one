@@ -109,7 +109,7 @@ def wait_ci(repo: Path, head: str, branch: str, event: str, *, seconds: int = 24
 
 def pr_info(repo: Path, version: str, head: str) -> dict:
     info = json.loads(gh(repo, "pr", "view", f"release/v{version}", "--json",
-                         "number,state,headRefOid,baseRefName,mergeCommit"))
+                         "number,state,isDraft,headRefOid,baseRefName,mergeCommit"))
     if info["headRefOid"] != head or info["baseRefName"] != "main":
         raise ValueError("release PR does not match the approved head/base")
     if git(repo, "rev-parse", f"v{version}^{{commit}}") != head:
@@ -221,6 +221,8 @@ def execute(command: str, version: str, head: str, repo: Path) -> int:
         return 0
     if info["state"] == "OPEN":
         gh(repo, "pr", "checks", str(info["number"]), "--watch", "--interval", "10")
+        if info.get("isDraft"):
+            gh(repo, "pr", "ready", str(info["number"]))
         gh(repo, "pr", "merge", str(info["number"]), "--merge", "--match-head-commit", head)
         info = pr_info(repo, version, head)
     if info["state"] != "MERGED":

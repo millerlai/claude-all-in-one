@@ -73,7 +73,7 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
 7. **`publish`。** CI 綠了才跑 `PYTHONUTF8=1 python scripts/release.py publish X.Y.Z`。它會建立 GitHub Release，最後印出合併指令。跑完用 `gh release view vX.Y.Z --json isDraft,publishedAt,url` 確認它不是草稿。
 8. **合併 release PR（先問）。**
    - 使用者已經明確說要合併（例如「幫我 merge」），就算問過了，不必再問一次。
-   - 只用 `publish` 印出的那一行：`gh pr merge <n> --merge --match-head-commit <完整 40 字元 sha>`。不要請人到 GitHub 網頁上按合併：這個 repo 平常的 PR 都用 squash，網頁上的按鈕很容易停在 squash。
+   - 只用 `publish` 印出的那兩行：先 `gh pr ready <n>`，再 `gh pr merge <n> --merge --match-head-commit <完整 40 字元 sha>`。release PR 開成 draft（草稿 PR，網頁上沒有合併按鈕），所以要先轉成正式 PR 才能合併。不要請人到 GitHub 網頁上按「Ready for review」再按合併：這個 repo 平常的 PR 都用 squash，網頁上的按鈕很容易停在 squash。
    - Claude Code 會跳出權限確認。這是 guard 的設計（#228），不是錯誤。
    - 合併之後：
      - `git switch main && git pull --ff-only`；
@@ -82,7 +82,7 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
 
 ## 踩過的坑
 
-- **release PR 被 squash 合併**：v1.39.0 的 #222 和 v1.40.0 的 #236 都是。後果有兩個：
+- **release PR 被 squash 合併**：v1.39.0 的 #222、v1.40.0 的 #236、v1.45.1 的 #301 都是；#301 之後 release PR 一律開成 draft，網頁上沒有合併按鈕。後果有兩個：
   - tag 所在的 commit 不在 `main` 的歷史裡，下一次 `prepare` 會把舊的 `release/v*` branch 當成仍在進行中（處理方式見步驟 3）；
   - `prepare` 用 `<上一個 tag>..HEAD` 起草 CHANGELOG，會把上一版的 `chore(release)` commit 也列進去。
 - **`prepare` 起草的 CHANGELOG 不能直接用**：它會混進 test、docs 之類的維護者項目，track 警告也可能不實。v1.40.0 的草稿兩個問題都有。
