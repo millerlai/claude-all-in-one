@@ -161,8 +161,12 @@ def test_skill_md_body_is_136_lines():
 
     137 -> 142 on 2026-10-05 (#296): the `timing.py begin` and `end` calls
     in steps 2 and 3, the only production call site for stage timing.
-    TRACK_SKILL_MAX moved 139 -> 144 in the same change, keeping the gap."""
-    assert _skill_body_lines() == 142
+    TRACK_SKILL_MAX moved 139 -> 144 in the same change, keeping the gap.
+
+    142 -> 139 on 2026-10-05 (#309): the five-track cap is gone, and with it
+    the three lines telling the session to count tracks and refuse a sixth.
+    TRACK_SKILL_MAX moved 144 -> 141 in the same change, keeping the gap."""
+    assert _skill_body_lines() == 139
 
 
 # --- '## Human gates' still says what it has always said --------------------

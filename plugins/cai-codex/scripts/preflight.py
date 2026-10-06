@@ -366,10 +366,9 @@ def current_branch(cwd):
 
 def active_tracks(track_root):
     """The track root's own subdirectories, minus `done`. Active means exactly
-    this: `done/` is the archive and never counts, or a user who finished five
-    features could never start a sixth. track_state.py calls this one rather
-    than keeping its own copy -- both compare the answer against the 5-track
-    cap, and two definitions of "active" would disagree at the boundary."""
+    this: `done/` is the archive, not an open track. track_state.py calls this
+    one rather than keeping its own copy, so the tracks it lists as existing
+    are the same ones everywhere else would call active."""
     if not os.path.isdir(track_root):
         return []
     return sorted(n for n in os.listdir(track_root)
@@ -389,20 +388,13 @@ def intake(track_dir, project_dir):
                              "unknown -- git did not answer" if branch is UNKNOWN_BRANCH
                              else branch or "detached HEAD"))
 
-    # abspath, not normpath: a bare `--track-dir feature-a` -- which is what a
-    # caller already sitting in .claude/track/ passes -- leaves dirname() empty,
-    # os.path.isdir("") is False, and the cap then counts zero tracks and lets
-    # a sixth one through.
-    track_root = os.path.dirname(os.path.abspath(track_dir))
-    active = active_tracks(track_root)
-    active_check = (len(active) < 5,
-                     "active_tracks (%d active: %s)" % (len(active), ", ".join(active) or "none"))
-
+    # No cap on how many tracks are open (#309): how many features someone
+    # carries at once is theirs to decide, and refusing a sixth gave them
+    # nothing to fix but archiving work they had not finished.
     feature = os.path.basename(os.path.normpath(track_dir))
     name_check = (feature not in ("current", "done"), "reserved_name (%s)" % feature)
 
-    return [branch_check, active_check, name_check,
-            track_ignored(track_dir, project_dir)]
+    return [branch_check, name_check, track_ignored(track_dir, project_dir)]
 
 
 def track_ignored(track_dir, project_dir):
