@@ -912,6 +912,53 @@ def test_verify_returns_2_when_a_non_built_in_marketplace_is_listed(monkeypatch,
     assert ["claude", "plugin", "marketplace", "add"] not in [argv[:4] for argv in calls]
 
 
+def test_verify_opens_the_release_pr_as_a_draft(monkeypatch, tmp_path):
+    # A draft PR has no merge button on the web page, so nobody can squash it
+    # there; only the merge step's `gh pr ready` + `--merge` lands it.
+    version = "1.99.0"
+    calls = []
+    fake_git = _fake_git_for_verify(version)
+
+    def git_with_changelog(repo, *args, timeout=5):
+        if args == ("show", "HEAD:CHANGELOG.md"):
+            return subprocess.CompletedProcess(args, 0, f"## v{version} — 2026-10-06\n\nNotes.\n", "")
+        return fake_git(repo, *args, timeout=timeout)
+
+    def fake_run(argv, cwd=None, env=None, timeout=None):
+        calls.append(argv)
+        if argv[1:3] == ["pr", "view"]:
+            return subprocess.CompletedProcess(argv, 1, "", "no pull requests found")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(release, "_git", git_with_changelog)
+    monkeypatch.setattr(release, "_tool_path", lambda name: name)
+    monkeypatch.setattr(release, "PLATFORM_CHECKS", ())
+    monkeypatch.setattr(release, "run", fake_run)
+
+    assert release.verify(version, repo=tmp_path, temp_root=tmp_path / "cai-check") == 0
+    creates = [argv for argv in calls if argv[1:3] == ["pr", "create"]]
+    assert len(creates) == 1 and "--draft" in creates[0]
+
+
+def test_publish_prints_ready_before_the_merge_command(monkeypatch, tmp_path, capsys):
+    version = "1.99.0"
+    head = "a" * 40
+
+    def fake_run(argv, cwd=None, env=None, timeout=None):
+        if argv[1:3] == ["pr", "view"]:
+            out = json.dumps({"number": 7, "state": "OPEN", "headRefOid": head, "url": "u"})
+            return subprocess.CompletedProcess(argv, 0, out, "")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(release, "_tool_path", lambda name: name)
+    monkeypatch.setattr(release, "run", fake_run)
+
+    assert release.publish(version, repo=tmp_path) == 0
+    out = capsys.readouterr().out
+    ready = out.index("gh pr ready 7")
+    assert ready < out.index(f"gh pr merge 7 --merge --match-head-commit {head}")
+
+
 def test_cut_rerun_after_failed_push_does_not_duplicate_the_commit(monkeypatch, repo_pair):
     origin, work = _prepared_repo(repo_pair)
     monkeypatch.setattr(release, "local_gate", lambda repo: [])

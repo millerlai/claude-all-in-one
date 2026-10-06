@@ -219,6 +219,21 @@ def test_merge_uses_merge_and_full_approved_head_then_checks_merge_ci(orchestrat
     assert ("wait", "b" * 40, "main", "push") in calls
 
 
+def test_merge_marks_a_draft_release_pr_ready_before_merging(orchestration):
+    repo, head, info, calls = orchestration
+    info["isDraft"] = True
+    assert actions.execute("merge", NEXT_VERSION, head, repo) == 0
+    merge = ("pr", "merge", "123", "--merge", "--match-head-commit", head)
+    assert calls.index(("pr", "ready", "123")) < calls.index(merge)
+
+
+def test_merge_does_not_mark_a_ready_release_pr_ready_again(orchestration):
+    repo, head, info, calls = orchestration
+    info["isDraft"] = False
+    assert actions.execute("merge", NEXT_VERSION, head, repo) == 0
+    assert not any(c[:2] == ("pr", "ready") for c in calls)
+
+
 def test_merge_retry_does_not_merge_twice(orchestration):
     repo, head, info, calls = orchestration
     info["state"] = "MERGED"

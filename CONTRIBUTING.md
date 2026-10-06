@@ -205,14 +205,16 @@ For each release:
    start a new run.
 4. Review the notes in the summary and approve `release-tag`. The job validates and tests
    even an already committed candidate, pushes the immutable tag, verifies
-   actual installs with both platform CLIs, creates the release PR, waits
+   actual installs with both platform CLIs, creates the release PR as a
+   draft (so the web page offers no squash button for it), waits
    for that exact head's CI, and publishes the GitHub Release. CLI versions
    are pinned to the platform floors in `scripts/release.py`; update the
    workflow's installation steps when those floors change. Copilot CLI is
    pinned in the `notes` job, and its model in `scripts/release_notes.py`.
 5. Approve `release-merge` only after reviewing the PR and published Release.
-   It uses `--merge --match-head-commit`, confirms the tag is an ancestor of
-   main, and waits for the merge commit's own `validate` push run.
+   It marks the draft ready, merges with `--merge --match-head-commit`,
+   confirms the tag is an ancestor of main, and waits for the merge
+   commit's own `validate` push run.
 
 Notes you would rather write yourself, or a Copilot outage, take the
 fallback: follow `/cut-release` through its CHANGELOG step, keep the
