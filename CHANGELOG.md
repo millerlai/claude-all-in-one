@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.46.0 — 2026-10-06
+
+This release stops `/cai:track` from littering `.claude/track/<feature>/` with throwaway option drafts, drops the five-active-track limit, cuts unnecessary macOS permission prompts during Codex verification, and adds per-stage subagent time to `/cai:viewer` for Claude Code tracks.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.45.1.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.45.1 to 1.46.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its existing `state.md` and ledger records; neither format changed. Its next stage dispatch starts recording subagent model time automatically (Claude Code only), and it is no longer subject to the old five-track cap. (#303, #310)
+- Run `$setup` again after updating so Codex picks up the refreshed workflow rules that reduce macOS permission prompts. (#306)
+
+### Track
+
+- Starting a new track no longer stops you at a sixth active track; `/cai:track <feature>` creates it regardless of how many others are open. (#310)
+- Only the Tier 1 decision's options draft is kept in `.claude/track/<feature>/`; drafts for every other question go to a scratch location outside the repo instead. (#312)
+
+### Codex
+
+- Codex verification requests fewer extra macOS permissions by avoiding unnecessary `uv sync`/downloads and writing disposable files to a checked, Git-ignored scratch location instead of outside the allowed roots. (#306)
+
+### Viewer
+
+- Each `/cai:track` stage now shows a time in `/cai:viewer`, built from how long its Claude Code subagents spend generating responses; it reads "At least m:ss · Incomplete data" rather than a total, since tool execution and main-session time aren't counted. (#303)
+
 ## v1.45.1 — 2026-10-05
 
 This release closes places where a planted program in the current directory, or a viewer token following a redirect, could act with your rights, tightens what the verifier agent may do, and makes pytest, make and just detection more accurate.
