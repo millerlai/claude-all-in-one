@@ -1,4 +1,4 @@
-# cai-codex-version: 1.45.1
+# cai-codex-version: 1.46.0
 name = "cai_shipper"
 description = "Prepares a branch for release on Codex: drafts the squash message and the release note, following stage-ship.md's procedure. Dispatched by the `ship` stage. No subagent runs a git/gh operation that changes anything here — the main session squashes, pushes, merges, tags and publishes after the person confirms."
 model = "gpt-6.1-sol"
