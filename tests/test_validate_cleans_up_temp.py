@@ -26,12 +26,17 @@ STOP_MID_RUN = r'''
 import runpy
 import sys
 
+prefix = sys.argv[2]
+
 def stop(event, args):
-    if event == "tempfile.mkdtemp" and sys.argv[2] in args[0]:
+    if event == "tempfile.mkdtemp" and prefix in args[0]:
         raise RuntimeError("stopped mid-run by the test")
 
 sys.addaudithook(stop)
-runpy.run_path(sys.argv[1], run_name="__main__")
+# validate.py reads section names from sys.argv (#305); it gets none, so this
+# is a full run.
+sys.argv = sys.argv[1:2]
+runpy.run_path(sys.argv[0], run_name="__main__")
 '''
 
 

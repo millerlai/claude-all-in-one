@@ -54,21 +54,21 @@ _VALIDATE_RESULT = []
 def _run_validate():
     """One real `validate.py` run, shared by every test that reads it.
 
-    It takes tens of seconds, and three tests here need its output; paying
+    A whole run takes tens of seconds, and three tests here need its output; paying
     for it once per test took this suite from 13 seconds to 90. A suite
     that slow is one people stop running under time pressure, and then the
     checkpoints it guards are decoration. The run is still real and still
     against the working tree -- only the process count changes.
 
-    It skips the hook self-tests, which re-run validate.py twice -- two
-    thirds of a run -- and which nothing here reads; CI's own
-    `python scripts/validate.py` step still runs them. The env is built per
-    call: conftest's autouse fixtures set this test's CAI_USAGE_LEDGER."""
+    It runs only the two sections whose output these tests read (#305);
+    CI's own `python scripts/validate.py` step still runs every section, and
+    test_validate_leaves_checked_tree_untouched.py asserts a whole run exits
+    0. The env is inherited per call: conftest's autouse fixtures set this
+    test's CAI_USAGE_LEDGER."""
     if not _VALIDATE_RESULT:
         _VALIDATE_RESULT.append(subprocess.run(
-            [sys.executable, VALIDATE], cwd=REPO_ROOT,
-            capture_output=True, text=True, encoding="utf-8",
-            env={**os.environ, "CAI_VALIDATE_NESTED": "1"}))
+            [sys.executable, VALIDATE, "always-on-budget", "track-skill"], cwd=REPO_ROOT,
+            capture_output=True, text=True, encoding="utf-8"))
     return _VALIDATE_RESULT[0]
 
 

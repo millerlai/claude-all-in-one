@@ -11,8 +11,8 @@ it either -- these are the only checks it gets.
 
 Same `_run_validate()` caching pattern as
 `test_guardrail_hardening_checks_still_run.py`: a single subprocess run of
-validate.py is shared across the tests that don't need to mutate anything,
-since the full run takes tens of seconds.
+validate.py's `evals` section is shared across the tests that don't need to
+mutate anything.
 
 The tests that do mutate work on a copy of the repo, never the real tree:
 another pytest-xdist worker, or a validate.py run started by hand, reads the
@@ -36,22 +36,21 @@ def _copy_repo(tmp_path):
     return dest
 
 
-# Both runs skip the hook self-tests, which re-run validate.py twice -- two
-# thirds of a run -- and which nothing here reads. The env is built per call:
-# conftest's autouse fixtures set this test's CAI_USAGE_LEDGER in os.environ.
+# Both runs name the one section these checks live in (#305); the rest of
+# validate.py is some 380 child processes nothing here reads. The env is built
+# per call: conftest's autouse fixtures set this test's CAI_USAGE_LEDGER in
+# os.environ.
 def _run_validate_in(repo):
     return subprocess.run(
-        [sys.executable, os.path.join("scripts", "validate.py")], cwd=repo,
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "CAI_VALIDATE_NESTED": "1"})
+        [sys.executable, os.path.join("scripts", "validate.py"), "evals"], cwd=repo,
+        capture_output=True, text=True, encoding="utf-8")
 
 
 def _run_validate():
     if not _VALIDATE_RESULT:
         _VALIDATE_RESULT.append(subprocess.run(
-            [sys.executable, VALIDATE], cwd=REPO_ROOT,
-            capture_output=True, text=True, encoding="utf-8",
-            env={**os.environ, "CAI_VALIDATE_NESTED": "1"}))
+            [sys.executable, VALIDATE, "evals"], cwd=REPO_ROOT,
+            capture_output=True, text=True, encoding="utf-8"))
     return _VALIDATE_RESULT[0]
 
 

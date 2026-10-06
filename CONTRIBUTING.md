@@ -75,6 +75,12 @@ PASS no evals file contains a ghp_ (0 found)
 PASS no evals file contains a home-directory path (0 found)
 ```
 
+While working on one check, name its section to run only that part, for
+example `python scripts/validate.py evals`. Several names may follow; an
+unknown one exits 2 and lists them all. A run that names sections ends with a
+`SKIP` line saying what it left out, so only a run with no names counts as the
+check before pushing.
+
 `pytest` runs `tests/`, which exercises what the scripts under
 `plugins/cai/scripts/` actually do. It and `pytest-xdist` are this repo's
 only development-time dependencies (`pip install pytest pytest-xdist`):
