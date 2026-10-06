@@ -12,11 +12,7 @@
 
 name: Bandit
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "main" ]
+  # Weekly only: a per-PR run added a check to every PR without blocking any.
   schedule:
     - cron: '31 13 * * 0'
 
