@@ -1853,30 +1853,21 @@ def _preflight():
     check("preflight intake [on main] -> 2", done.returncode == 2)
     check("preflight intake names not_main_branch", "FAIL not_main_branch" in done.stdout)
 
-    INTAKE_FULL = temp_repo("work")
-    INTAKE_FULL_ROOT = os.path.join(INTAKE_FULL, "track")
-    for i in range(5):
-        os.makedirs(os.path.join(INTAKE_FULL_ROOT, f"f{i}"))
-    done = run_preflight_at("intake", INTAKE_FULL, os.path.join(INTAKE_FULL_ROOT, "f-new"))
-    check("preflight intake [5 active tracks] -> 2", done.returncode == 2)
-    check("preflight intake names active_tracks", "FAIL active_tracks" in done.stdout)
-
     INTAKE_RESERVED = temp_repo("work")
     done = run_preflight_at("intake", INTAKE_RESERVED,
                             os.path.join(INTAKE_RESERVED, "track", "current"))
     check("preflight intake [reserved feature name] -> 2", done.returncode == 2)
     check("preflight intake names reserved_name", "FAIL reserved_name" in done.stdout)
 
-    # The passing fixture is the one that proves done/ is excluded: 4 active
-    # tracks plus a done/ archive holding its own subdirectory would block at the
-    # 5-track ceiling if the archive were counted.
+    # No cap on open tracks (#309): six of them, past the old ceiling of five,
+    # plus a done/ archive, still let a new one start.
     INTAKE_OK = temp_repo("work")
     INTAKE_OK_ROOT = os.path.join(INTAKE_OK, "track")
-    for i in range(4):
+    for i in range(6):
         os.makedirs(os.path.join(INTAKE_OK_ROOT, f"f{i}"))
     os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
     done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
-    check("preflight intake [4 active + done/ archive ignored] -> 0", done.returncode == 0)
+    check("preflight intake [6 active + done/ archive] -> 0", done.returncode == 0)
 
     # A track that git tracks makes the working tree dirty by existing, and the
     # stage that then refuses is `ship`, whose clean_tree failure says nothing
@@ -1891,23 +1882,6 @@ def _preflight():
     done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
     check("preflight intake is quiet once the track is ignored",
           "track_ignored" in done.stdout and "NOT ignored" not in done.stdout)
-
-    # Regression: a bare relative --track-dir (what a caller already sitting in
-    # .claude/track/ passes) used to derive an empty parent, count zero active
-    # tracks, and let a sixth one through. Exercised with cwd set to the track
-    # root itself, since that is what makes the value bare in the first place.
-    INTAKE_BARE = temp_repo("work")
-    INTAKE_BARE_ROOT = os.path.join(INTAKE_BARE, "track")
-    for i in range(5):
-        os.makedirs(os.path.join(INTAKE_BARE_ROOT, f"f{i}"))
-    done = subprocess.run(
-        [sys.executable, os.path.abspath(PREFLIGHT), "intake", "--track-dir", "f-new",
-         "--project-dir", os.path.abspath(INTAKE_BARE)],
-        capture_output=True, text=True, cwd=INTAKE_BARE_ROOT)
-    check("preflight intake [bare relative --track-dir, 5 active tracks] -> 2",
-          done.returncode == 2)
-    check("preflight intake bare --track-dir names active_tracks",
-          "FAIL active_tracks" in done.stdout)
 
     # verify has nothing to read from state.md -- it only asks git whether there
     # is a diff to review, so its fixtures are bare repos.
@@ -2744,7 +2718,11 @@ def _track_skill():
     # 3 runs `timing.py end` once the report is back (three and two lines). The procedure
     # stays in the script; these are the two commands the main session must run itself.
     # Moved together with the pinned body-line count (137 -> 142), keeping the gap.
-    TRACK_SKILL_MAX = 144
+    #
+    # 144 -> 141 on 2026-10-05 (#309): the five-track cap is gone, and with it the
+    # three lines that told the session to count tracks and refuse a sixth. Moved
+    # together with the pinned body-line count (142 -> 139), keeping the gap.
+    TRACK_SKILL_MAX = 141
     TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
     if os.path.isfile(TRACK_SKILL):
         track_text = read_text(TRACK_SKILL)

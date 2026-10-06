@@ -118,7 +118,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 
 | Command | What it does |
 |---|---|
-| `/cai:track <feature>` | Create or resume a track. Refuses `current` and `done` as names; refuses a sixth active track (`done/` tracks don't count). Also `status`, `skip <stage> --reason "<why>"`, and `done`. |
+| `/cai:track <feature>` | Create or resume a track. Refuses `current` and `done` as names. Also `status`, `skip <stage> --reason "<why>"`, and `done`. |
 | `/cai:intake` | Turn a request into an acceptance-testable problem statement before any code exists: explore context, ask one question at a time, propose 2-3 approaches, wait for approval. User-invoked only. |
 | `/cai:discover` | Surface what you don't know before writing code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Also fires on its own when the codebase is unfamiliar or the result will be judged by look and feel. |
 | `/cai:design` | Write a design document for review. Two entrances, picked by one test — can you write a test that fails now and would pass if an existing promise held? Yes: **diagnosis** (root cause and fix, one page). No, because nothing ever promised it: **stance** (what this optimises for and what it gives up, one page). Then **decisions** (the choices that follow, routed so only what needs a person reaches one), **detail** (what gets built from), or **delta** (recovers the decisions already made in a built branch). User-invoked only. |

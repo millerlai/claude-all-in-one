@@ -356,7 +356,6 @@ names one of these:
 | Names | Meaning | Do this |
 |---|---|---|
 | `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | A new track branches for you; seeing this means it could not (git unreachable, or the branch already exists) — branch by hand. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
-| `active_tracks` | Five tracks are already open | `/cai:track done` on one. Archived tracks never count |
 | `reserved_name` | You named a feature `current` or `done` | Pick another; both already mean something under `.claude/track/` |
 | `state_md` | No `state.md`, or no row for the stage this one reads | Open the track with `/cai:track <name>` first |
 | `intake_status` | `discover` asked to run before `intake` was `done` or `skipped` | Finish intake, or skip it with a reason |
@@ -637,9 +636,6 @@ installed copy — update ([README's Updating](README.md#updating)) and restart.
 
 ## Limits worth knowing
 
-- **Five active tracks.** Archived ones under `done/` are excluded — they only
-  grow, and counting them would eventually make a sixth feature impossible to
-  start.
 - **One track is *current*.** Others stay open; `/cai:track <name>` switches to
   one. Bare `/cai:track` always means the current one.
 - **Five attempts per stage**, counted since it last passed or was skipped.
