@@ -63,10 +63,13 @@ instead.
    write that message to a file — when the round is about a decisions
    document's `## Tier 1` entry, that file is `<track-dir>/options-<id>.md`,
    `<id>` being the entry's own id (e.g. `options-D1.md`), since that is the
-   path `preflight.py build`'s `options_drafts` check looks for — and run
+   path `preflight.py build`'s `options_drafts` check looks for. Every other
+   draft goes in `<scratch-dir>`, never inside the repo:
+   nothing reads any other draft back (#311). Then run
    `<cai> options_lint <the draft>`; exit 0
-   or fix what it names (#73). That file is where the lint and `preflight.py`
-   read it later, not where the person reads it: once the lint exits 0, send
+   or fix what it names (#73). That file is where the lint (and, for a Tier 1
+   entry, `preflight.py`) reads it, not where the person reads it: once the
+   lint exits 0, send
    the linted text itself, in full, as the message that asks. A file path
    plus a one-line summary per option is the failure this step exists to
    prevent. This is the main session's step for the same reason the asking
