@@ -45,13 +45,12 @@ def test_a_rule_sentence_pasted_into_the_project_template_is_caught(tmp_path):
     mutated = original.replace(ANCHOR, ANCHOR + pasted, 1)
     with open(template, "wb") as fh:
         fh.write(mutated)
-    # Skips the hook self-tests, which re-run validate.py twice -- two thirds
-    # of a run -- and which this test does not read. The env is built here,
-    # not at import: conftest's autouse fixtures set CAI_USAGE_LEDGER.
+    # Runs only the section this check lives in (#305). The env is inherited
+    # here, not captured at import: conftest's autouse fixtures set
+    # CAI_USAGE_LEDGER.
     result = subprocess.run(
-        [sys.executable, os.path.join("scripts", "validate.py")], cwd=repo,
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "CAI_VALIDATE_NESTED": "1"})
+        [sys.executable, os.path.join("scripts", "validate.py"), "templates"], cwd=repo,
+        capture_output=True, text=True, encoding="utf-8")
     lines = [l for l in result.stdout.splitlines() if LABEL in l]
     assert lines, result.stdout
     assert all(l.startswith("FAIL") for l in lines), lines

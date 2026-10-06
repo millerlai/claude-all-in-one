@@ -1,26 +1,16 @@
 """Integration tests for scripts/validate.py's marketplace-pin and R4 checks
 (docs/design/2026-09-26-release-versioning-detail.md).
 
-validate.py has no `if __name__ == "__main__":` guard -- every check runs
-unconditionally as the module executes, ending in a bare `sys.exit(FAIL)`, so
-it can never be `import`ed for unit testing. Every test here shells out to it
-as a subprocess, the same way tests/test_release.py's `local_gate` and this
-repo's own CLAUDE.md ("Before pushing") already treat it as a black box.
+Every test here shells out to validate.py as a subprocess, the same way
+tests/test_release.py's `local_gate` and this repo's own CLAUDE.md ("Before
+pushing") already treat it as a black box, against a copy of the repo (minus
+.git and cache directories -- see _copy_repo) that the test then breaks on
+purpose. validate.py reads every path relative to the current working
+directory, so the copy is what it checks.
 
-validate.py reads .claude-plugin/marketplace.json,
-.agents/plugins/marketplace.json, plugins/cai/ and plugins/cai-codex/ all
-relative to the current working directory, plus ~80 other paths across the
-rest of the repo for its other, unrelated checks -- most of those reads are
-plain `open()`/`json.load()` calls with no try/except, so copying only the
-paths this file's two changed checks touch makes the *other* checks crash
-with an uncaught exception before ever reaching ours, instead of printing a
-FAIL and continuing. A full copy of the repo (minus .git and cache
-directories -- see _copy_repo) avoids that: every unrelated check still
-passes against the copy exactly as it does against the real tree, so the
-only checks that ever go red are the ones each test deliberately breaks. The
-tradeoff is that each `python scripts/validate.py` run here costs roughly as
-long as running it for real without its hook self-tests (about twenty
-seconds), which is why this file keeps the test count small.
+Each run names the one section these checks live in (#305). A whole run cost
+about twenty seconds plain and twice that under `pytest --cov`, for some 380
+child processes this file never reads.
 """
 import json
 import os
@@ -44,12 +34,10 @@ def _copy_repo(tmp_path):
 
 
 def _run_validate(repo):
-    # The hook self-tests re-run validate.py twice -- two thirds of a run --
-    # and nothing here reads them. Built per call, not at import: conftest's
-    # autouse fixtures set this test's CAI_USAGE_LEDGER in os.environ.
-    return subprocess.run([sys.executable, "scripts/validate.py"],
-                          cwd=repo, capture_output=True, encoding="utf-8",
-                          env={**os.environ, "CAI_VALIDATE_NESTED": "1"})
+    # Built per call, not at import: conftest's autouse fixtures set this
+    # test's CAI_USAGE_LEDGER in os.environ.
+    return subprocess.run([sys.executable, "scripts/validate.py", "release-manifests"],
+                          cwd=repo, capture_output=True, encoding="utf-8")
 
 
 def _product_version(repo):

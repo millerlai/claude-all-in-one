@@ -12,9 +12,8 @@ six probe labels still appear.
 Mirrors `tests/test_track_skill_ticket_pointer.py`'s
 `test_every_prose_guard_in_the_track_skill_block_still_runs`: one short,
 stable fragment per check (a reasonable label reword must not turn this
-red). A single subprocess run of validate.py is cached and shared across
-every test in this file -- the full run takes tens of seconds, and this
-file's tests would otherwise pay for it three times over.
+red). A single subprocess run of the validate.py sections these checks live
+in is cached and shared across every test in this file.
 """
 import os
 import shutil
@@ -27,16 +26,14 @@ VALIDATE = os.path.join(REPO_ROOT, "scripts", "validate.py")
 _VALIDATE_RESULT = []
 
 
-# Both validate.py runs in this file skip the hook self-tests, which re-run
-# validate.py twice -- two thirds of a run -- and which nothing here reads.
-# The env is built per call: conftest's autouse fixtures set this test's
-# CAI_USAGE_LEDGER in os.environ.
+# Both validate.py runs in this file name only the sections whose checks it
+# reads (#305). The env is inherited per call, not captured at import:
+# conftest's autouse fixtures set this test's CAI_USAGE_LEDGER in os.environ.
 def _run_validate():
     if not _VALIDATE_RESULT:
         _VALIDATE_RESULT.append(subprocess.run(
-            [sys.executable, VALIDATE], cwd=REPO_ROOT,
-            capture_output=True, text=True, encoding="utf-8",
-            env={**os.environ, "CAI_VALIDATE_NESTED": "1"}))
+            [sys.executable, VALIDATE, "provenance", "track-stages", "track-references"],
+            cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8"))
     return _VALIDATE_RESULT[0]
 
 
@@ -149,9 +146,8 @@ def test_uc4_report_check_is_anchored_to_the_real_heading(tmp_path):
     with open(path, "wb") as fh:
         fh.write(mutated)
     result = subprocess.run(
-        [sys.executable, os.path.join("scripts", "validate.py")], cwd=repo,
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "CAI_VALIDATE_NESTED": "1"})
+        [sys.executable, os.path.join("scripts", "validate.py"), "track-references"],
+        cwd=repo, capture_output=True, text=True, encoding="utf-8")
     report_lines = [
         l for l in result.stdout.splitlines()
         if "Report section still asks for parked" in l]

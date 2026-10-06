@@ -25,12 +25,14 @@ def test_validate_writes_nothing_to_the_default_central_ledger(tmp_path):
     env.pop("CAI_USAGE_LEDGER", None)
     env.pop("CLAUDE_CODE_SESSION_ID", None)
     env["CLAUDE_CONFIG_DIR"] = str(tmp_path)
-    # The hook self-tests only re-run this same script, whose own preflight
-    # fixtures already make every ledger.append() call under test.
-    env["CAI_VALIDATE_NESTED"] = "1"
+    # The preflight section makes validate.py's only ledger.append() call, and
+    # no script any other section runs calls it, so that section is the whole
+    # of what this test exercises (#305).
+    done = subprocess.run([sys.executable, VALIDATE, "preflight"], cwd=REPO_ROOT, env=env,
+                          capture_output=True, text=True, encoding="utf-8")
 
-    subprocess.run([sys.executable, VALIDATE], cwd=REPO_ROOT, env=env,
-                   capture_output=True, text=True, encoding="utf-8")
+    # Without this the test would pass vacuously the day the section is renamed.
+    assert "PASS preflight build [work breakdown present]" in done.stdout, done.stdout + done.stderr
 
     central = tmp_path / "cai" / "usage.jsonl"
     assert not central.exists(), central.read_text(encoding="utf-8")

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Validate marketplace/plugin manifests, component frontmatter, and guard
-behavior. Zero deps."""
+behavior. Zero deps.
+
+Usage: validate.py [SECTION ...] -- no name runs every section; an unknown
+name exits 2 and lists the real ones."""
 import atexit
 import glob
 import json
@@ -46,18 +49,6 @@ def sweep_stale_roots(temp_dir, now):
                 rmtree(root.path)
         except OSError:
             pass  # a concurrent run removed it first, or a file in it is still open
-
-
-# Every scratch directory this run makes lands under one root, removed at exit
-# (#234). The fixed list of eight paths this replaces missed every fixture added
-# after it was written, and as top-level code at the very end it never ran when
-# a check raised first -- 206k directories piled up in one %TEMP% in six days
-# of hook runs. As the default `dir` of every mkdtemp, the root cannot be
-# forgotten by the next fixture; atexit also runs on an uncaught exception.
-sweep_stale_roots(tempfile.gettempdir(), time.time())
-RUN_ROOT = tempfile.mkdtemp(prefix="cai-validate-")
-tempfile.tempdir = RUN_ROOT
-atexit.register(rmtree, RUN_ROOT)
 
 
 def check(label, cond):
@@ -183,681 +174,20 @@ def frontmatter_value(path, key):
     return value
 
 
-mp = json.load(open(".claude-plugin/marketplace.json"))
-check("marketplace has name/owner/plugins", all(k in mp for k in ("name", "owner", "plugins")))
+# Shared by more than one section below.
+sys.path.insert(0, f"{PLUGIN}/scripts")
+import design_probe  # noqa: E402
+import ledger  # noqa: E402
 
-for entry in mp["plugins"]:
-    source = entry["source"]
-    src = source if isinstance(source, str) else source["path"]
-    manifest = f"{src}/.claude-plugin/plugin.json"
-    pl = json.load(open(manifest))
-    check(f"{manifest} has name/version", "name" in pl and "version" in pl)
-    check(f"names match ({entry['name']})", pl["name"] == entry["name"])
+sys.path.insert(0, "scripts")
+import release  # noqa: E402
 
-# Component frontmatter. A missing key means Claude Code silently skips the
-# component, so catch it here rather than at someone else's runtime.
-for path in sorted(glob.glob(f"{PLUGIN}/agents/*.md")):
-    keys = frontmatter_keys(path)
-    check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
-
-# goal.md routes rather than implements, so it is read start to finish every
-# time someone reaches for it -- and prose that outgrows a screen is prose that
-# gets skimmed past the branch it was carrying. The ceiling is the number the
-# design settled on (docs/design/2026-08-25-goal-command-routing-detail.md,
-# Budgets); this is what stops it being a number nobody ever checks again.
-GOAL = f"{PLUGIN}/skills/goal/SKILL.md"
-goal_text = read_text(GOAL)
-# The ceiling is on the body a human reads, not the frontmatter the move to
-# skills/ requires (a `name:` field commands never carried) -- counting the
-# whole file would fail this check by exactly the one line that move added,
-# for a reason unrelated to the prose the budget was set against.
-goal_body_start = goal_text.find("\n---", 3) + 4 if goal_text.startswith("---") else 0
-goal_lines = len(goal_text[goal_body_start:].splitlines())
-check(f"{GOAL} is within its 120-line ceiling ({goal_lines})", goal_lines <= 120)
-
-skills = sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
-check("at least one skill ships", bool(skills))
-for path in skills:
-    keys = frontmatter_keys(path)
-    check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
-
-
-# A skill body that tells the model to invoke /cai:x, or to read a file under
-# the plugin, is only as good as x and that file still existing. This is the
-# check that was missing when a restructure retired eight skills: goal.md went
-# on naming three of them, every other check stayed green, and the command was
-# broken for anyone who ran it. A body is instructions -- a name in it that
-# resolves to nothing is a 404 handed to a model mid-task.
-CMD_REF = re.compile(r"/cai:([a-z][a-z0-9-]*)")
-PLUGIN_PATH_REF = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+\.\w+)")
-# Names that resolve to something other than a directory under skills/.
-KNOWN_NON_SKILL = {"setup"}
-
-
-def invocable_names():
-    """Everything /cai:<name> can legitimately resolve to."""
-    names = {os.path.basename(os.path.dirname(p)) for p in skills}
-    names |= {os.path.basename(os.path.dirname(p))
-              for p in glob.glob(f"{PLUGIN}/refactoring-catalog/*/SKILL.md")}
-    return names | KNOWN_NON_SKILL
-
-
-ALL_INVOCABLE = invocable_names()
-for path in skills:
-    body = read_text(path)
-    dead_cmds = sorted({m for m in CMD_REF.findall(body) if m not in ALL_INVOCABLE})
-    check(f"{path} names no command that does not exist "
-          f"({len(dead_cmds)}{': ' + ', '.join(dead_cmds[:3]) if dead_cmds else ''})",
-          not dead_cmds)
-    dead_paths = sorted({rel for rel in PLUGIN_PATH_REF.findall(body)
-                         if not os.path.isfile(os.path.join(PLUGIN, rel))})
-    check(f"{path} names no plugin file that does not exist "
-          f"({len(dead_paths)}{': ' + ', '.join(dead_paths[:2]) if dead_paths else ''})",
-          not dead_paths)
-
-# R1: the design's target is 14 skills; it is len(SKILL_NAMES) today, for the
-# three reasons below. (This sentence carried a hard-coded 16 while the list
-# already held 17 -- a count written in prose beside the list it counts goes
-# stale in silence, so it names the list instead.)
-#
-# `goal` stays until someone has actually run a track end to end, which has not
-# happened yet (Unit 8 decision, 2026-08-27); once it retires this drops by one.
-#
-# `options` is an addition rather than a leftover: the always-on rule it backs
-# (rules/option-explainer.md) has to fit in 45 lines, and the skeleton,
-# dimension library and worked example do not
-# (docs/design/2026-08-29-option-explainer-with-eli5-high-level.md, Decision 2).
-# It carries `disable-model-invocation: true`, so it costs the always-on budget
-# below nothing.
-#
-# `git-sweep` is an addition of the same kind: what it decides is deterministic
-# and lives in scripts/branch_sweep.py, so the skill is a thin relay over a
-# script rather than a procedure a model reasons through, and a person invokes
-# it by name. It carries the same flag for the same reason -- the budget below
-# reads 5674 of 5697 both before and after it was added, because the flag is
-# what excludes it from that sum. Its description is 142 characters against 23
-# of headroom, so always-on it would not have fitted at all: the choice was the
-# flag or a ceiling raise, and a ceiling raise is a decision, not a chore.
-#
-# `models` is the same kind again: a person runs it by name when a new model
-# comes out, so it carries the flag, and what it decides lives in
-# scripts/model_choice.py. It declares no model of its own on purpose -- a
-# tier set to a model that does not start must not take down the command
-# that fixes it.
-SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git",
-               "git-sweep", "goal", "intake", "models", "options", "plan-review",
-               "quiz", "refactor", "setup", "ship", "track", "usage", "verify",
-               "viewer"]
-skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
-check(f"skills/ holds exactly the {len(SKILL_NAMES)} names {SKILL_NAMES} "
-      f"({skill_dirs})", skill_dirs == SKILL_NAMES)
-
-# The 72 generated refactoring aliases moved out of the main line into their
-# own directory (see .claude-plugin/plugin.json's additive "skills" key), so
-# they get the same frontmatter check plus the one property that keeps their
-# descriptions out of the always-on budget while leaving them user-invocable.
 CATALOG = f"{PLUGIN}/refactoring-catalog"
-catalog_skills = sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))
-check(f"refactoring-catalog holds exactly 72 skills ({len(catalog_skills)})", len(catalog_skills) == 72)
-for path in catalog_skills:
-    keys = frontmatter_keys(path)
-    check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
-    check(f"{path} disables model invocation", "disable-model-invocation: true" in read_text(path))
 
-# commands/ is retired: a file there and a same-named skill both create the
-# same slash command, and that collision already shadowed a skill once. The
-# 72 aliases must not have leaked back into the main skills/ line either.
-check(f"{PLUGIN}/commands is gone", not os.path.isdir(f"{PLUGIN}/commands"))
-alias_slugs = {os.path.basename(os.path.dirname(p)) for p in catalog_skills}
-leaked_aliases = sorted(alias_slugs & {os.path.basename(os.path.dirname(p)) for p in skills})
-check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not leaked_aliases)
-
-# The always-on budget: every description a model can match on without being
-# asked is sent to it in every session, whether or not that component ever
-# fires. Scanned by directory shape rather than by tag, on purpose -- the
-# restructure moved files between directories, and a check keyed to a
-# directory would have moved with them, changing the number without changing
-# what it costs. Skips anything gated by `disable-model-invocation: true`
-# (the 72 catalog aliases, plus any main-line skill given the same flag),
-# since those never reach the model unbidden.
-#
-# This is a ratchet, not the design's target. UC4's target is 4,673
-# characters; measured here, this repo was not there until MP-05 (the last
-# paragraph below), and a ratchet is what stops the total drifting back up
-# while that gap is still open. Two things were known to be on the table for
-# closing it: retiring `goal` once a track has actually been run end to end
-# (see the SKILL_NAMES comment above), and shortening the longest
-# descriptions -- which trades against those same descriptions still needing
-# to be long enough to trigger, so it was not done here until MP-05 did it
-# description by description.
-#
-# Raised to 5697 for pb04. The fourth verify lens is a tenth agent, and its
-# description is 187 characters measured, not estimated. Two existing
-# descriptions had to move with it: verify/SKILL.md's went 446 -> 455 and
-# verifier.md's 189 -> 222, because both said "three" about something that is
-# now four and the cheapest true rewording is longer, not shorter. 187 + 9 +
-# 33 = 229, and 5468 + 229 = 5697 -- the 41 characters of headroom measured on
-# 2026-09-13 are carried over unchanged rather than widened, so this stays a
-# budget and not a tripwire. Q3 (user, 2026-09-13) chose raising this over
-# shortening the six longest descriptions; the comment above says why that
-# trade is not free. Raising it further is a decision: every character here is
-# read by every session, forever.
-#
-# Lowered to 3836 for MP-05 of the 2026-09-25 mattpocock/skills gap analysis
-# (its record is a local design document, not in git).
-# All nineteen descriptions were rewritten by three rules -- the triggering
-# situation opens the sentence, one trigger per branch, and nothing the body
-# already says -- and the total measured afterwards is 3836, which is what
-# the ratchet is set to: zero headroom, on purpose, because the next
-# description that grows should have to say why. 34 of those characters are
-# "Use PROACTIVELY." kept in explorer.md and test-runner.md (the first cut
-# measured 3802 without them): the Claude Code sub-agents doc names that
-# phrase as the lever for proactive delegation, it is not identity, and no
-# eval here would show it going missing, so it stays. This is the first time
-# the number sits under the 4,673 design target; the target line above stays
-# as the number the design asked for.
-ALWAYS_ON_CEILING = 3836
-always_on_paths = (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-                   + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
-                   + sorted(glob.glob(f"{CATALOG}/*/SKILL.md")))
-always_on_total = sum(
-    len(frontmatter_description(p)) for p in always_on_paths
-    if "disable-model-invocation: true" not in read_text(p))
-print(f"     always-on description budget: {always_on_total} chars "
-      f"(design target: 4673)")
-check(f"always-on description budget does not exceed {ALWAYS_ON_CEILING} chars "
-      f"({always_on_total})", always_on_total <= ALWAYS_ON_CEILING)
-
-# `options` has to keep that flag, and the budget above is the wrong thing to
-# rely on for it: dropping the flag does trip the ceiling today, but only
-# because the ratchet happens to leave 17 characters of headroom. Say it
-# outright instead, the way the catalog aliases already do above.
-OPTIONS_SKILL = f"{PLUGIN}/skills/options/SKILL.md"
-check(f"{OPTIONS_SKILL} disables model invocation",
-      "disable-model-invocation: true" in read_text(OPTIONS_SKILL))
-
-# #73: the six fields were named in the rule and their layout was not, so a
-# reply that ran all six into one paragraph per option broke no line of it.
-# options_lint.py holds the half a rule cannot -- but a probe nobody is told to
-# run is a file, not a check, so both pointers are pinned. The rule carries the
-# self-check box, because it fires whether or not the skill was invoked; the
-# skill and the template carry the runnable path. What the probe *does* is held
-# by tests/test_options_lint.py, per the split CLAUDE.md draws between the two.
-OPTIONS_LINT = f"{PLUGIN}/scripts/options_lint.py"
-OPTION_RULE = f"{PLUGIN}/rules/option-explainer.md"
-OPTIONS_TEMPLATE = f"{PLUGIN}/skills/options/references/template.md"
-check(f"options_lint ships ({OPTIONS_LINT})", os.path.isfile(OPTIONS_LINT))
-for path in (OPTION_RULE, OPTIONS_SKILL, OPTIONS_TEMPLATE):
-    check(f"{path} points at options_lint.py", "options_lint.py" in read_text(path))
-
-# The literal the probe reads for "a pick was made", and the same one
-# stage-design.md and stage-intake.md already ask a design's options to carry.
-# Reword it out of the rule and every draft fails one_recommended with nothing
-# saying why -- the marker is a contract between three files and a script.
-for path in (OPTION_RULE, OPTIONS_TEMPLATE):
-    check(f"{path} names the `(recommended)` marker",
-          "(recommended)" in read_text(path))
-
-# /cai:setup copies these out to ~/.claude/rules/; an empty dir would
-# make setup a silent no-op.
-rules = sorted(glob.glob(f"{PLUGIN}/rules/*.md"))
-check("rules ship with the plugin", bool(rules))
-
-# Every rules/*.md file is L1: loaded into every session whether or not it
-# ever fires, unlike a skill body that is only read once invoked. There was
-# no check on that cost until option-explainer.md's own design set 45 as the
-# ceiling (its trailing comment carries the reasoning); this is what stops a
-# future edit drifting past it unnoticed the way it could before this check
-# existed. Same pattern as the goal.md line-ceiling check above.
-#
-# Raised to 56 for #73. option-explainer.md sat exactly on 45, which is a
-# ceiling that has stopped measuring anything -- the next line to be added
-# fails regardless of whether it earns its place, and what it had to hold was
-# the one thing the rule was missing: the six fields were named and their
-# layout was not. Ten of the eleven went there (shape, the `(recommended)`
-# marker, the lint box); the eleventh is headroom, deliberately, so the number
-# is a budget again and not a tripwire. Same reasoning as TRACK_SKILL_MAX
-# below. Raising it further is a decision: every line here is read by every
-# session, forever.
-#
-# Raised to 59, and this time the headroom is deliberately not restored. The
-# four lines are the sample rule and its self-check box: an option list whose
-# options differ in what the reader will see was being written as prose about
-# the difference, which no reader can compare against anything. The user who
-# reported it chose these four lines over a one-line version that named the
-# trigger and left "same input, elided where identical" in the skill -- and a
-# skill nobody can auto-invoke (`disable-model-invocation: true`) is not where
-# the half that makes two samples comparable belongs. Sitting exactly on the
-# ceiling is the point: the next line costs another decision, by a person.
-RULES_LINE_CEILING = 59
-for path in rules:
-    n = len(read_text(path).splitlines())
-    check(f"{path} is within its {RULES_LINE_CEILING}-line ceiling ({n})", n <= RULES_LINE_CEILING)
-
-# The root CLAUDE.md's @-imports are what makes a rule file active for anyone
-# working in this checkout; nothing compared that list to rules/*.md itself,
-# so a new rule file could land with no import line and every check above
-# would still be green. communication.md is the one deliberate exception --
-# CLAUDE.md:15-17 explains why it is not imported (response language is
-# per-user, set by /cai:setup into ~/.claude/rules/, not by this repo) -- so
-# it is carved out here rather than failing on it every run.
 ROOT_CLAUDE = "CLAUDE.md"
-KNOWN_UNIMPORTED_RULES = {"communication"}
-# Pinned, because the set is an escape hatch from the check right below it:
-# adding a name here silences a genuinely missing import and nothing else
-# would notice. Growing it should take deleting this line, so that whoever
-# does has to say why in the same edit.
-check(f"{ROOT_CLAUDE} import exceptions are exactly ['communication'] "
-      f"({sorted(KNOWN_UNIMPORTED_RULES)})",
-      KNOWN_UNIMPORTED_RULES == {"communication"})
-imported_rules = set(re.findall(r"^@plugins/cai/rules/([\w-]+)\.md$", read_text(ROOT_CLAUDE), re.MULTILINE))
-rule_names = {os.path.splitext(os.path.basename(p))[0] for p in rules}
-missing_imports = sorted(rule_names - imported_rules - KNOWN_UNIMPORTED_RULES)
-extra_imports = sorted(imported_rules - rule_names)
-check(f"{ROOT_CLAUDE} imports match rules/*.md, exceptions {sorted(KNOWN_UNIMPORTED_RULES)} "
-      f"({len(missing_imports)} missing, {len(extra_imports)} extra)",
-      not missing_imports and not extra_imports)
-for name in missing_imports[:5]:
-    print("     rules/ has it but CLAUDE.md does not import it:", name)
-for name in extra_imports[:5]:
-    print("     CLAUDE.md imports it but rules/ does not have it:", name)
-
-
-LEDGER = "docs/rule-provenance.md"
-
-ledger_import_lines = re.findall(r"^@.*rule-provenance.*$", read_text(ROOT_CLAUDE), re.MULTILINE)
-check(f"CLAUDE.md does not @-import the provenance ledger ({len(ledger_import_lines)} import line(s))",
-      len(ledger_import_lines) == 0)
-
-provenance_done = subprocess.run(
-    [sys.executable, f"{PLUGIN}/scripts/provenance.py", "--ledger", LEDGER],
-    capture_output=True, text=True, encoding="utf-8")
-# A crash (exit 1, e.g. an uncaught exception) prints no PASS/FAIL lines, so
-# the loop below silently relays nothing and this script would stay exit 0 --
-# check the subprocess's own health first, or a broken provenance.py goes
-# unnoticed by the one thing meant to catch it.
-check("provenance.py subprocess did not crash", provenance_done.returncode in (0, 2))
-for line in provenance_done.stdout.splitlines():
-    if line.startswith("PASS ") or line.startswith("FAIL "):
-        check(line[5:], line.startswith("PASS "))
-
-
-TEMPLATE = f"{PLUGIN}/templates/CLAUDE.md.tpl"
-check("user CLAUDE.md template ships", os.path.isfile(TEMPLATE))
-
-
-def bullets(path):
-    with open(path, encoding="utf-8") as fh:
-        return {line.strip() for line in fh if line.strip().startswith("- ")}
-
-
-# The template seeds ~/.claude/CLAUDE.md, which loads alongside ~/.claude/rules/.
-# Anything restated in both is sent to the model twice in every session, and the
-# copies drift the moment one is edited. Keep them disjoint.
-if os.path.isfile(TEMPLATE) and rules:
-    ruleset = set().union(*(bullets(p) for p in rules))
-    clashes = sorted(bullets(TEMPLATE) & ruleset)
-    check(f"template does not restate rules ({len(clashes)} duplicated)", not clashes)
-    for line in clashes[:5]:
-        print("     also in rules/:", line[:90])
-
-
-PROJECT_TEMPLATE = f"{PLUGIN}/templates/CLAUDE-project.md.tpl"
-check("project CLAUDE.md template ships", os.path.isfile(PROJECT_TEMPLATE))
-
-def rule_sentences(path):
-    """Every sentence of five words or more in a rules file's bullets, wrapped
-    lines joined. A bullet ends at a blank line or a heading."""
-    out = set()
-    for item in re.split(r"^\s*- ", read_text(path), flags=re.MULTILINE)[1:]:
-        item = re.split(r"\n\s*\n|\n#", item)[0]
-        for sentence in re.split(r"(?<=[.!?])\s+", " ".join(item.split())):
-            if len(sentence.split()) >= 5:
-                out.add(sentence)
-    return out
-
-
-# Same drift risk as the user template above, but this one seeds a project's
-# own CLAUDE.md, and keeps its guidance as prose inside HTML comments with no
-# bullet lines -- so comparing bullets() would see nothing and never fail.
-# Compare rule sentences against the template's whitespace-flattened text
-# instead, which a rewrap cannot slip past.
-if os.path.isfile(PROJECT_TEMPLATE) and rules:
-    flat = " ".join(read_text(PROJECT_TEMPLATE).split())
-    clashes = sorted(s for s in set().union(*(rule_sentences(p) for p in rules))
-                     if s in flat)
-    check(f"project template does not restate rules ({len(clashes)} duplicated)", not clashes)
-    for line in clashes[:5]:
-        print("     also in rules/:", line[:90])
-
-
-REFACTORING = f"{PLUGIN}/skills/refactor"
-
-
-def referenced_paths(path):
-    """Sub-file paths the refactoring SKILL.md points models at, e.g. the
-    reference table and the smell lookup. A path named here that does not
-    exist on disk is a model told to read something that was never shipped."""
-    text = read_text(path)
-    return {f"{PLUGIN}{m}" for m in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}([^`\s]+)", text)}
-
-
-def index_slugs(path):
-    """Slugs the catalog index declares as the single source of truth for
-    what /cai:<slug> and procedure-apply.md can be called with."""
-    text = read_text(path)
-    return set(re.findall(r"^\|\s*\d+\s*\|[^|]*\|\s*`([a-z0-9-]+)`\s*\|", text, re.MULTILINE))
-
-
-def card_slugs(paths):
-    """Slugs actually defined by a '### N. Name `slug`' heading in the card
-    files. If the index and this ever disagree, procedure-apply.md looks
-    up a slug the index promised and the card never defines."""
-    slugs = set()
-    for path in paths:
-        text = read_text(path)
-        slugs |= set(re.findall(r"^### \d+\.\s.*`([a-z0-9-]+)`\s*$", text, re.MULTILINE))
-    return slugs
-
-
-def protocol_lines(path):
-    """Entries of the safety protocol: the numbered loop steps and the hard-rule
-    bullets. Both halves count -- the numbered loop is the half a process skill
-    is most likely to paste, since it reads like a procedure. Like bullets()
-    above, this compares first lines only, so a wrapped entry is matched on the
-    line that carries its opening words."""
-    text = read_text(path)
-    section = text.split("## Non-negotiable safety protocol", 1)[1]
-    section = section.split("\n## ", 1)[0]
-    return {line.strip() for line in section.splitlines()
-            if line.strip().startswith("- ") or re.match(r"^\d+\.\s", line.strip())}
-
-
-# Check 1: a body that points at a card the refactor never shipped leaves a
-# model to improvise the mechanics instead of reading them.
-SKILL = f"{REFACTORING}/SKILL.md"
-refs = referenced_paths(SKILL)
-missing_refs = sorted(p for p in refs if not os.path.isfile(p))
-check(f"{SKILL} sub-files all exist ({len(missing_refs)} missing)", not missing_refs)
-for p in missing_refs[:5]:
-    print("     missing:", p)
-
-# Check 2: the index is the single source of truth for slugs (see design
-# decisions #4). A slug it declares but no card defines is a 404 the moment
-# /cai:<slug> is invoked; the reverse means a card nobody can reach.
-INDEX = f"{REFACTORING}/references/catalog-index.md"
-CARDS = sorted(glob.glob(f"{REFACTORING}/references/cat-*.md"))
-idx_slugs = index_slugs(INDEX)
-crd_slugs = card_slugs(CARDS)
-missing_cards = sorted(idx_slugs - crd_slugs)
-extra_cards = sorted(crd_slugs - idx_slugs)
-check(f"catalog-index slugs match card files ({len(missing_cards)} missing, {len(extra_cards)} extra)",
-      not missing_cards and not extra_cards)
-for slug in missing_cards[:5]:
-    print("     index names but no card defines:", slug)
-for slug in extra_cards[:5]:
-    print("     card defines but index omits:", slug)
-
-# The catalog count check above (72 dirs) only counts; it does not compare
-# names, so renaming a directory keeps the total at 72 and nothing notices.
-# alias_slugs is the catalog-generated directory names, computed above.
-missing_dirs = sorted(idx_slugs - alias_slugs)
-extra_dirs = sorted(alias_slugs - idx_slugs)
-check(f"refactoring-catalog dirs match catalog-index slugs "
-      f"({len(missing_dirs)} missing, {len(extra_dirs)} extra)",
-      not missing_dirs and not extra_dirs)
-for slug in missing_dirs[:5]:
-    print("     index names but no catalog dir exists:", slug)
-for slug in extra_dirs[:5]:
-    print("     catalog dir exists but index omits:", slug)
-
-# gen-commands.py is never invoked by this suite, so a hand-edit to a
-# generated file, or a template drift from what is committed, is invisible.
-# Run it against a scratch copy of just what it reads (its own script plus
-# the single source-of-truth index) so the real refactoring-catalog/ is never
-# touched -- exercising the generator must not leave the tree dirty.
-GEN_COMMANDS = f"{PLUGIN}/scripts/gen-commands.py"
-GEN_SCRATCH = tempfile.mkdtemp(prefix="cai-gen-commands-")
-os.makedirs(os.path.join(GEN_SCRATCH, "scripts"), exist_ok=True)
-shutil.copy(GEN_COMMANDS, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py"))
-os.makedirs(os.path.join(GEN_SCRATCH, "skills", "refactor", "references"), exist_ok=True)
-shutil.copy(INDEX, os.path.join(GEN_SCRATCH, "skills", "refactor", "references", "catalog-index.md"))
-gen_done = subprocess.run([sys.executable, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py")],
-                          capture_output=True, text=True)
-check("gen-commands.py runs cleanly against a scratch copy of the index",
-      gen_done.returncode == 0)
-
-generated = sorted(glob.glob(os.path.join(GEN_SCRATCH, "refactoring-catalog", "*", "SKILL.md")))
-gen_slugs = {os.path.basename(os.path.dirname(p)) for p in generated}
-check(f"gen-commands.py produces the same slugs as committed ({len(gen_slugs)})",
-      gen_slugs == alias_slugs)
-
-regen_mismatches = []
-for slug in sorted(gen_slugs & alias_slugs):
-    gen_text = read_text(os.path.join(GEN_SCRATCH, "refactoring-catalog", slug, "SKILL.md"))
-    committed_text = read_text(os.path.join(CATALOG, slug, "SKILL.md"))
-    if gen_text != committed_text:
-        regen_mismatches.append(slug)
-check(f"gen-commands.py output matches committed refactoring-catalog/ "
-      f"({len(regen_mismatches)} mismatched)", not regen_mismatches)
-for slug in regen_mismatches[:5]:
-    print("     regenerating differs from committed:", slug)
-
-shutil.rmtree(GEN_SCRATCH, ignore_errors=True)
-
-# Check 3: the safety protocol lives in the knowledge skill only (design
-# decisions #3). A component that pastes a rule verbatim instead of pointing
-# back here is exactly what goes stale the day the rule changes.
-#
-# refactoring-detector and refactoring-surgeon retired into this skill (Unit
-# 6b), and refactor-scan/plan/apply/safety-net/auto are now reference files
-# under skills/refactor/references/ rather than separate agents or skills --
-# those reference files are what this check watches for a pasted copy now.
-proto_lines = protocol_lines(SKILL)
-for path in sorted(glob.glob(f"{REFACTORING}/references/procedure-*.md")):
-    # Both sides must extract the same shapes, or widening one half silently
-    # guards nothing: bullets() alone would miss a pasted numbered loop step.
-    with open(path, encoding="utf-8") as fh:
-        candidates = {ln.strip() for ln in fh
-                      if ln.strip().startswith("- ") or re.match(r"^\d+\.\s", ln.strip())}
-    restated = sorted(candidates & proto_lines)
-    check(f"{path} does not restate the safety protocol ({len(restated)} duplicated)", not restated)
-    for line in restated[:5]:
-        print("     also in refactor/SKILL.md:", line[:90])
-
-# Unit 6b: six refactoring skills collapsed into one (skills/refactor/), and
-# two single-caller agents retired into it. The rename itself is worth its
-# own check, separately from the drift check above -- a stray refactor-*/
-# directory left behind after the merge is exactly the kind of thing nobody
-# notices until someone opens the wrong one.
-check(f"{REFACTORING} exists", os.path.isdir(REFACTORING))
-stray_refactor_dirs = sorted(
-    d for d in glob.glob(f"{PLUGIN}/skills/refactor-*") if os.path.isdir(d))
-check(f"no skills/refactor-*/ directory remains ({len(stray_refactor_dirs)} found)",
-      not stray_refactor_dirs)
-
-# The heading itself, not just the bullet shapes protocol_lines() extracts --
-# a second copy that paraphrases the loop instead of pasting it verbatim
-# would slip past the restatement check above but still be a second place to
-# keep the protocol in sync. Matched as an actual heading line, not the
-# quoted citation procedure-apply.md and others make in prose when pointing
-# back at it.
-protocol_heading_files = sorted(
-    p for p in glob.glob(f"{REFACTORING}/**/*.md", recursive=True)
-    if re.search(r"^## Non-negotiable safety protocol$", read_text(p), re.MULTILINE))
-check(f"the safety protocol appears in exactly one file under {REFACTORING} "
-      f"({len(protocol_heading_files)} found)", len(protocol_heading_files) == 1)
-
-# Six, not five. `refactoring-surgeon` merged into the refactor skill because
-# it executes one refactoring on one target -- sequential work with nothing to
-# parallelise. `refactoring-detector` did not: procedure-scan dispatches one
-# per module group, in parallel, and merging it away silently turned a
-# whole-project scan sequential. Caller count was the wrong test on its own.
-# Ten, not nine, as of pb04: `security-reviewer` is verify's fourth lens,
-# dispatched alongside the three `reviewer` agents, one per module the way
-# `refactoring-detector` already was above.
-AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-check(f"agents/ holds exactly 10 files ({len(AGENTS)})", len(AGENTS) == 10)
-
-hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
-print("PASS hooks.json is valid JSON")
-
-for event in hooks.get("hooks", {}).values():
-    for matcher in event:
-        for hook in matcher.get("hooks", []):
-            for ref in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}([^\"]*)", hook.get("command", "")):
-                target = f"{PLUGIN}{ref.strip()}"
-                check(f"hook target exists ({target})", os.path.isfile(target))
-
-# .claude/settings.json points at a repo-local hook the same way hooks.json
-# points at a shipped one. A rename should fail here, not at someone's runtime.
-SETTINGS = ".claude/settings.json"
-if os.path.isfile(SETTINGS):
-    for event in json.load(open(SETTINGS)).get("hooks", {}).values():
-        for matcher in event:
-            for hook in matcher.get("hooks", []):
-                for ref in re.findall(r"\$\{CLAUDE_PROJECT_DIR\}([^\"]*)", hook.get("command", "")):
-                    target = ref.strip().lstrip("/")
-                    check(f"project hook target exists ({target})", os.path.isfile(target))
-
-# /cai:setup step 5 runs the dispatcher through cmd, and the Bash tool on
-# Windows is Git Bash, which rewrites a lone /c into C:/. cmd then never sees
-# the switch and exits 0 -- the exact code step 5 reads as "the guard is inert".
-# A healthy guard reported as broken is worse than no check at all.
-SETUP = f"{PLUGIN}/skills/setup/SKILL.md"
-setup_text = read_text(SETUP)
-check("setup.md invokes cmd as //c (MSYS would eat a lone /c)",
-      "cmd //c" in setup_text and not re.search(r"cmd\s+/(?!/)c\b", setup_text))
-
-# Step 3 is the one place that rewrites a shipped rule into ~/.claude, and the
-# bullets it quotes are the whole specification of what that rewrite may touch.
-# They drifted: the worked example replaced the language-neutral second clause
-# with "keep technical terms in English", so /cai:setup wrote that into a real
-# user's installed rules -- a rule the plugin never shipped -- while every
-# check here stayed green. Both bullets now carry <language> or English in the
-# one slot that varies, and reduce to the shipped line; a future edit that
-# rewrites anything else fails here instead of in someone's ~/.claude.
-COMMUNICATION = f"{PLUGIN}/rules/communication.md"
-shipped_bullets = re.findall(r"^- Respond in .*$", read_text(COMMUNICATION), re.M)
-setup_bullets = re.findall(r"^- Respond in .*$", setup_text, re.M)
-check(f"{COMMUNICATION} has exactly one 'Respond in' bullet "
-      f"({len(shipped_bullets)})", len(shipped_bullets) == 1)
-check(f"setup.md quotes that bullet twice -- the current line and the "
-      f"<language> template ({len(setup_bullets)})", len(setup_bullets) == 2)
-if shipped_bullets and len(setup_bullets) == 2:
-    check("setup.md's bullets differ from communication.md's in the language "
-          "name alone",
-          all(b.replace("<language>", "English") == shipped_bullets[0]
-              for b in setup_bullets))
-
-# A plugin cannot ship a `statusLine` -- Claude Code reads only `agent` and
-# `subagentStatusLine` out of a plugin's settings -- so step 6 delegates to a
-# script that writes the user's own settings.json. Two halves, each one rename
-# away from doing nothing: the step has to name the installer, and the
-# installer copies scripts/statusline.py by a path fixed at import time.
-for path in (f"{PLUGIN}/scripts/statusline.py",
-             f"{PLUGIN}/scripts/install_statusline.py"):
-    check(f"{path} ships with the plugin", os.path.isfile(path))
-check("setup.md delegates the settings.json write to install_statusline.py",
-      "install_statusline.py" in setup_text)
 
 GUARD = f"{PLUGIN}/scripts/bash_guard.py"
 DISPATCHER = f"{PLUGIN}/hooks/run-guard.cmd"
-
-# CMD.exe reads batch files through the OEM codepage, so one multi-byte
-# character desyncs its parser and every later line runs mangled ('cho' for
-# 'echo'). The sh branch is unaffected, so this breaks on Windows only.
-for path in sorted(glob.glob("**/*.cmd", recursive=True)):
-    with open(path, "rb") as fh:
-        non_ascii = [b for b in fh.read() if b > 127]
-    check(f"{path} is pure ASCII ({len(non_ascii)} byte(s) over 127)", not non_ascii)
-
-# CMD finds the label of a `goto` or `call :` by reading the batch file in
-# 512-byte pieces, counted from the end of the jump line, and an LF-only file
-# (which this one has to be, for sh) loses a label whose colon-and-name straddles
-# a piece boundary: "cannot find the batch label", on Windows only, after some
-# later edit shifted a few bytes. Measured on Windows 11 with goto and call, a
-# 1- and a 13-character name: it fails for exactly those distances. Only forward
-# jumps are modelled, so a backward one counts as a failure too.
-for launcher in (DISPATCHER, f"{PLUGIN}/hooks/run-timing.cmd"):
-    with open(launcher, "rb") as fh:
-        cmd_block = fh.read().split(b"\nCMDBLOCK\n")[0]
-    cmd_labels = {m.group(1).lower(): m.start() for m in re.finditer(rb"^:(\w+)", cmd_block, re.M)}
-    lost_labels = []
-    for m in re.finditer(rb"^(?!REM\b)[^\n]*?\b(?:goto\s+:?|call\s+:)(\w+)[^\n]*\n", cmd_block, re.M | re.I):
-        name = m.group(1).lower()
-        if name == b"eof":
-            continue
-        start = cmd_labels.get(name)
-        if start is None or start < m.end() or (start - m.end()) % 512 + len(name) >= 512:
-            lost_labels.append(name.decode())
-    check(f"{launcher} has no goto or call label CMD can lose at a 512-byte boundary "
-          f"({len(lost_labels)} found)", not lost_labels)
-    for name in lost_labels[:5]:
-        print("     label:", name)
-
-# A UTF-8 BOM is invisible in an editor and breaks readers that expect the file
-# to start with content: mermaid-cli refuses the diagram outright ("Parse error
-# on line 1"), and CMD.exe prints the three bytes before the first line runs.
-# On Windows PowerShell's `>`, `>>` and `Out-File` write one by default, which
-# is how it gets in -- so this catches a redirect that should have been an edit.
-BOM = b"\xef\xbb\xbf"
-TEXT = (".md", ".json", ".py", ".cmd", ".sh", ".tpl", ".yml", ".yaml", ".mmd")
-bom_files = []
-for root, dirs, files in os.walk("."):
-    dirs[:] = [d for d in dirs if d != ".git"]
-    for name in sorted(files):
-        if not name.endswith(TEXT):
-            continue
-        path = os.path.join(root, name)
-        with open(path, "rb") as fh:
-            if fh.read(3) == BOM:
-                bom_files.append(os.path.relpath(path).replace(os.sep, "/"))
-check(f"no text file carries a UTF-8 BOM ({len(bom_files)} found)", not bom_files)
-for path in bom_files[:5]:
-    print("     BOM:", path)
-
-# The reduced check hands one pattern file to both `findstr /R /G:` and
-# `grep -f`. A blank line makes grep match every call, a CR leaves a stray \r on
-# every Linux pattern, and a `\>` before the last two characters makes findstr
-# silently skip the line (E6: every rm rule went missing, no error). The BOM
-# check above only scans TEXT's extensions, so these files get their own. The
-# agent file is the one Agent calls read (#277).
-for pattern_name in ("reduced-check-patterns.txt", "reduced-check-agent-patterns.txt"):
-    pattern_path = f"{PLUGIN}/hooks/{pattern_name}"
-    check(f"{pattern_name} ships with the plugin", os.path.isfile(pattern_path))
-    if not os.path.isfile(pattern_path):
-        continue
-    # findstr /G: holds the file against every reader while it runs, and a
-    # parallel pytest worker may be inside one -- wait it out rather than crash.
-    for _attempt in range(20):
-        try:
-            with open(pattern_path, "rb") as fh:
-                pattern_bytes = fh.read()
-            break
-        except PermissionError:
-            time.sleep(0.05)
-    else:
-        raise SystemExit(f"cannot read {pattern_path}")
-    pattern_lines = pattern_bytes.decode("latin-1").split("\n")[:-1]
-    check(f"{pattern_name} is ASCII without a BOM",
-          all(b < 128 for b in pattern_bytes) and not pattern_bytes.startswith(BOM))
-    check(f"{pattern_name} is LF only", b"\r" not in pattern_bytes)
-    check(f"{pattern_name} has no blank line and one final LF",
-          pattern_bytes.endswith(b"\n") and all(pattern_lines))
-    check(f"{pattern_name} never puts a backslash-greater-than mid-pattern",
-          not any("\\>" in line[:-2] for line in pattern_lines))
-
-
-# A component that tells the model to run `plugins/cai/scripts/...` works only
-# inside this checkout. Anyone who installed from the marketplace has the plugin
-# under ~/.claude/plugins/cache/, so the command silently stops working for
-# every real user -- the failure this repo is least able to notice.
-for path in sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md")
-                   + glob.glob(f"{CATALOG}/*/SKILL.md")
-                   + glob.glob(f"{PLUGIN}/skills/*/references/*.md")):
-    check(f"{path} runs scripts via <plugin-root>",
-          f"{PLUGIN}/scripts/" not in read_text(path))
 
 
 def temp_repo(branch, commit=True, spaced=False):
@@ -920,525 +250,6 @@ def remote_ref_repo(branch, spaced=False):
     return path
 
 
-WORK = temp_repo("work")
-MAIN = temp_repo("main")
-DIRTY = dirty_repo()
-UNTRACKED_ONLY = dirty_repo(untracked_only=True)
-NOT_A_REPO = tempfile.mkdtemp(prefix="cai-guard-bare-")
-DETACHED = detached_repo()
-UNBORN = temp_repo("main", commit=False)
-# Feature branch, remote already has main/master: proves the exemption reads
-# the remote, not the current branch -- a push naming main explicitly must
-# still be blocked from a feature checkout.
-REMOTE = remote_ref_repo("work")
-# On main, remote already has main/master: the fixture a bare push or a bare
-# `--force-with-lease` while on main resolves against.
-MAIN_REMOTE = remote_ref_repo("main")
-# Same as MAIN_REMOTE, but the repo directory itself has a space in its path
-# -- `-C <dir>`'s value pattern must not stop parsing at the first
-# whitespace (#194 review).
-SPACED_MAIN_REMOTE = remote_ref_repo("main", spaced=True)
-# main present locally with a remote-tracking ref, but checked out on a
-# feature branch: proves `--all`/`--mirror` are blocked regardless of which
-# branch the session happens to be on, not only when cwd is already on main
-# (#194 review).
-FEATURE_WITH_LOCAL_MAIN = remote_ref_repo("main")
-subprocess.run(["git", "-C", FEATURE_WITH_LOCAL_MAIN, "checkout", "-b", "feature"],
-               capture_output=True, text=True)
-# Only a Cargo.toml and no `git init`, so the runner guard's root falls back to
-# the directory itself and the one resolved command is `cargo test`.
-CARGO = tempfile.mkdtemp(prefix="cai-guard-cargo-")
-with open(os.path.join(CARGO, "Cargo.toml"), "w", encoding="utf-8") as fh:
-    fh.write('[package]\nname = "probe"\nversion = "0.1.0"\n')
-
-CASES = [
-    # (tool_name, command, expected, cwd[, agent_type])
-    # The scoped agents, by the `agent_type` the platform puts in the hook
-    # input. AC8: only the resolver and the command it resolved get through
-    # for test-runner; the last two of this block are habits the old agents
-    # had (`2>&1`, `cd <dir> &&`) that the new rule blocks. D7: what the
-    # verifier may also run. AC15: designer, which never had a working hook.
-    ("Bash", "cargo test", 0, CARGO, "cai:test-runner"),
-    ("Bash", "cargo test my_test", 0, CARGO, "cai:test-runner"),
-    ("Bash", "cargo test", 2, WORK, "cai:test-runner"),
-    ("Bash", "rm -rf target", 2, CARGO, "cai:test-runner"),
-    ("Bash", "cargo test; git stash", 2, CARGO, "cai:test-runner"),
-    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py", 0, WORK, "cai:test-runner"),
-    ("Bash", "python -c 'print(1)'", 2, WORK, "cai:test-runner"),
-    ("Bash", "cargo test", 0, WORK),
-    ("Bash", "cargo test 2>&1", 2, CARGO, "cai:test-runner"),
-    ("Bash", "cd D:/x && git status", 2, CARGO, "cai:test-runner"),
-    ("Bash", "git diff --stat a...HEAD", 0, WORK, "cai:verifier"),
-    ("Bash", "git symbolic-ref --short refs/remotes/origin/HEAD", 0, WORK, "cai:verifier"),
-    ("Bash", "git symbolic-ref HEAD refs/heads/x", 2, WORK, "cai:verifier"),
-    # #277: --output makes the read-only verbs write a file.
-    ("Bash", "git log --output=out.txt -1", 2, WORK, "cai:verifier"),
-    ("Bash", "git diff --output out.txt", 2, WORK, "cai:verifier"),
-    ("Bash", "git log --oneline -1", 0, WORK, "cai:verifier"),
-    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", 0, WORK, "cai:verifier"),
-    ("Bash", "git push origin x", 2, WORK, "cai:verifier"),
-    ("Bash", "git status", 2, WORK, "cai:designer"),
-    ("Bash", "mmdc -i a.mmd -o a.svg", 0, WORK, "cai:designer"),
-    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md", 0, WORK, "cai:designer"),
-    ("Bash", "date +%F", 0, WORK, "cai:designer"),
-    ("Bash", "git rev-parse --show-toplevel", 0, WORK, "cai:designer"),
-    ("Bash", "git push --force origin main", 2, WORK),
-    ("Bash", "git push -f origin main", 2, WORK),
-    # #194: a `+refspec` forces exactly like --force/-f, on any target.
-    ("Bash", "git push origin +HEAD:main", 2, WORK),
-    ("Bash", "git push origin +main", 2, WORK),
-    # #194 maintainer decision: --force-with-lease to main/master is now
-    # blocked too, reversing this pin -- a lease protects against overwriting
-    # someone else's push, not against rewriting main itself.
-    ("Bash", "git push --force-with-lease origin main", 2, WORK),
-    ("Bash", "git push --force-with-lease origin master", 2, WORK),
-    # A lease push to a feature branch stays allowed -- the shipper's own
-    # documented push (agents/shipper.md:21).
-    ("Bash", "git push --force-with-lease origin feat/x", 0, WORK),
-    ("Bash", "git push --force-with-lease", 0, WORK),
-    # No refspec, so the destination is the current branch -- main here, with
-    # no remote-tracking ref needed since a lease gets no new-remote exemption.
-    ("Bash", "git push --force-with-lease", 2, MAIN),
-    # A non-force push whose destination resolves to main/master, once a
-    # remote-tracking ref for it already exists (REMOTE), in every shape that
-    # names main without saying --force.
-    ("Bash", "git push origin HEAD:main", 2, REMOTE),
-    ("Bash", "git push origin main", 2, REMOTE),
-    ("Bash", "git push origin refs/heads/main", 2, REMOTE),
-    ("Bash", "git push origin :main", 2, REMOTE),
-    ("Bash", "git push origin --delete main", 2, REMOTE),
-    ("Bash", "echo hi && git push origin HEAD:main", 2, REMOTE),
-    ("PowerShell", "git push origin HEAD:main", 2, REMOTE),
-    # Bare pushes and --all/--mirror read the current branch -- main, with a
-    # remote-tracking ref already present.
-    ("Bash", "git push", 2, MAIN_REMOTE),
-    ("Bash", "git push origin", 2, MAIN_REMOTE),
-    ("Bash", "git push origin HEAD", 2, MAIN_REMOTE),
-    ("Bash", "git push --all origin", 2, MAIN_REMOTE),
-    ("Bash", "git push --mirror", 2, MAIN_REMOTE),
-    # --all/--mirror push every local branch, not just whichever one is
-    # checked out -- blocked even from a feature checkout with a local main
-    # present, not only when cwd already resolves to main (#194 review).
-    ("Bash", "git push --all origin", 2, FEATURE_WITH_LOCAL_MAIN),
-    ("Bash", "git push --mirror", 2, FEATURE_WITH_LOCAL_MAIN),
-    # A redirection token must not be misread as the remote or a refspec --
-    # this is still a bare push, not one naming something else.
-    ("Bash", "git push 2>&1", 2, MAIN_REMOTE),
-    # Nor must the filename a `>`/`>>` operator redirects to, even when a
-    # space separates the operator from its target (#194 review).
-    ("Bash", "git push origin > out.txt", 2, MAIN_REMOTE),
-    ("Bash", "git push origin feat/x > out.txt 2>&1", 0, WORK),
-    # `-C <dir>` names a different repo than the session cwd -- this session's
-    # own worktrees make that the common case, not an edge one. Reading only
-    # the hook cwd would get both of these backwards.
-    ("Bash", f"git -C {MAIN_REMOTE} push origin HEAD:master", 2, WORK),
-    ("Bash", f"git -C {MAIN_REMOTE} push --force-with-lease", 2, WORK),
-    ("Bash", f"git -C {WORK} push --force-with-lease", 0, MAIN_REMOTE),
-    # A `-C <dir>` value containing a space (an ordinary Windows user
-    # directory) must not truncate at the first whitespace and silently drop
-    # the whole push rule (#194 review).
-    ("Bash", f'git -C "{SPACED_MAIN_REMOTE}" push origin main', 2, WORK),
-    ("Bash", f'git -C "{SPACED_MAIN_REMOTE}" push --force origin main', 2, WORK),
-    # The first push of a brand-new repo: no `refs/remotes/*/main` exists
-    # anywhere, so there is no PR to open into. Force/lease get no such
-    # exemption (both proven above).
-    ("Bash", "git push -u origin main", 0, MAIN),
-    # Ordinary pushes that must stay allowed.
-    ("Bash", "git push -u origin feat/x", 0, WORK),
-    ("Bash", "git push origin main:feat/x", 0, WORK),
-    ("Bash", "git push origin v1.0", 0, WORK),
-    ("Bash", "git push --tags", 0, WORK),
-    ("Bash", "git push", 0, WORK),
-    ("Bash", "git log --grep='git push origin main'", 0, MAIN),
-    ("Bash", "cat > n.md <<'EOF'\ngit push origin main\nEOF", 0, MAIN),
-    # A push hidden in an unquoted heredoc substitution is still a push.
-    ("Bash", "cat <<EOF\n$(git push origin HEAD:main)\nEOF", 2, REMOTE),
-    ("Bash", "git reset --hard HEAD~1", 2, WORK),
-    ("Bash", "git commit --no-verify -m x", 2, WORK),
-    ("Bash", "rm -rf build/", 2, WORK),
-    ("Bash", "git status", 0, WORK),
-    # git global options before the verb: one flag used to defeat every rule.
-    ("Bash", "git -C /repo push --force origin main", 2, WORK),
-    ("Bash", "git -c user.name=x reset --hard HEAD~1", 2, WORK),
-    ("Bash", "git --no-pager clean -fd", 2, WORK),
-    # Split and long delete flags reach the same files as -rf.
-    ("Bash", "rm -r -f build/", 2, WORK),
-    ("Bash", "rm --recursive --force build/", 2, WORK),
-    ("Bash", "rm -f notes.txt", 0, WORK),
-    # ...but the match must not run past the command it belongs to.
-    ("Bash", "git status && npm publish --no-verify", 0, WORK),
-    # A here-string is a typo in Bash and correct in PowerShell, so the verdict
-    # depends on tool_name alone. Both directions matter: blocking the second
-    # would be a false positive on valid PowerShell.
-    ("Bash", "git commit -m @'\nfeat: x\n'@", 2, WORK),
-    ("PowerShell", "git commit -m @'\nfeat: x\n'@", 0, WORK),
-    # The pattern backreferences the opening quote, so the double-quoted form
-    # has to be caught too or the character class is decoration.
-    ('Bash', 'git commit -m @"\nfeat: x\n"@', 2, WORK),
-    ("Bash", "git commit -F - <<'EOF'\nfeat: x\nEOF", 0, WORK),
-    ("Bash", "grep '@\"' README.md", 0, WORK),
-    ("Bash", 'curl -o x "https://user:tok@"', 0, WORK),  # opener shape, no terminator
-    ("Bash", "git log --grep='git commit' --oneline", 0, MAIN),  # not a commit
-    # rm -rf spelled the PowerShell way; the shared patterns never see it.
-    ("PowerShell", "Remove-Item -Recurse -Force build", 2, WORK),
-    ("PowerShell", "Remove-Item -Force build.txt", 0, WORK),
-    # The spellings a PowerShell user actually types: aliases, lower case, and
-    # any unambiguous parameter prefix.
-    ("PowerShell", "rm -Recurse -Force build", 2, WORK),
-    ("PowerShell", "remove-item -recurse -force build", 2, WORK),
-    ("PowerShell", "ri -Recurse -Force build", 2, WORK),
-    ("PowerShell", "Remove-Item -Rec -Fo build", 2, WORK),
-    # rules/workflow.md says never work directly on main. This is the half of
-    # that absolute a hook can actually decide.
-    ("Bash", "git commit -m 'feat: x'", 2, MAIN),
-    ("Bash", "git commit -m 'feat: x'", 0, WORK),
-    # The whole point of anchoring to a command boundary rather than matching
-    # `git commit` anywhere. Drop the anchor back to ^ and only these two fail.
-    ("Bash", "echo hi && git commit -m 'feat: x'", 2, MAIN),
-    ("Bash", "echo hi; git commit -m 'feat: x'", 2, MAIN),
-    # The shapes a commit really arrives in. Each one walked past the old anchor.
-    ("Bash", "GIT_EDITOR=true git commit -m x", 2, MAIN),
-    ("Bash", "(git commit -m x)", 2, MAIN),
-    ("Bash", "echo $(git commit -m x)", 2, MAIN),
-    ("Bash", "git -c user.name=x commit -m y", 2, MAIN),
-    # Git cannot name a branch with no repo, and names none when HEAD is
-    # detached. Fail open for both: a guard that blocks every commit the moment
-    # git can't answer is worse than the rule it enforces.
-    ("Bash", "git commit -m 'feat: x'", 0, NOT_A_REPO),
-    ("Bash", "git commit -m 'feat: x'", 0, DETACHED),
-    # A repo with no commits yet reports branch `main`, but blocking its first
-    # commit is unescapable: you cannot branch off a history that isn't there.
-    ("Bash", "git commit -m 'chore: initial commit'", 0, UNBORN),
-    # #233: every rule reads the directory the git invocation acts on -- a
-    # `cd <dir>` earlier on the line or its own `-C <dir>` -- not the session
-    # cwd. Each pair gets the verdict backwards when only the cwd is read.
-    ("Bash", f'cd "{MAIN}" && git commit -m x', 2, WORK),
-    ("Bash", f'git -C "{MAIN}" commit -m x', 2, WORK),
-    ("Bash", f'cd "{WORK}" && git commit -m x', 0, MAIN),
-    ("Bash", f'git -C "{WORK}" commit -m x', 0, MAIN),
-    ("PowerShell", f'Set-Location "{MAIN}"; git commit -m x', 2, WORK),
-    ("Bash", f'cd "{DIRTY}" && git restore tracked.txt', 2, WORK),
-    ("Bash", f'git -C "{WORK}" restore tracked.txt', 0, DIRTY),
-    ("Bash", f'cd "{MAIN_REMOTE}" && git push', 2, WORK),
-    # A subshell that already closed moved nothing for the git after it.
-    ("Bash", f'(cd "{MAIN}" && git status); git commit -m x', 0, WORK),
-    # Discarding uncommitted work. Both halves of the gate matter: blocked on
-    # a dirty tree, allowed on a clean one, where the same command throws
-    # nothing away and refusing it would be the guard blocking ordinary work.
-    ("Bash", "git checkout -- .", 2, DIRTY),
-    ("Bash", "git checkout -- src/foo.py", 2, DIRTY),
-    ("Bash", "git checkout .", 2, DIRTY),
-    ("Bash", "git restore src/foo.py", 2, DIRTY),
-    ("Bash", "git restore --staged --worktree src/foo.py", 2, DIRTY),
-    ("PowerShell", "git checkout -- .", 2, DIRTY),
-    ("Bash", "git checkout -- .", 0, WORK),
-    ("Bash", "git restore src/foo.py", 0, WORK),
-    # Untracked files are not at risk from either command, and treating them
-    # as dirty would block both in every repo carrying build output.
-    ("Bash", "git checkout -- .", 0, UNTRACKED_ONLY),
-    ("Bash", "git restore src/foo.py", 0, UNTRACKED_ONLY),
-    # Branch moves are not pathspec mode. `-b` creates, a bare name switches,
-    # and git refuses either itself rather than overwriting a modified file --
-    # blocking them would break the branch-first rule the guard also enforces.
-    ("Bash", "git checkout -b fix/thing", 0, DIRTY),
-    ("Bash", "git checkout main", 0, DIRTY),
-    ("Bash", "git checkout -b feat/v1.2", 0, DIRTY),
-    # `--staged` on its own unstages and touches no file in the working tree.
-    ("Bash", "git restore --staged src/foo.py", 0, DIRTY),
-    # Same command-boundary discipline as the rules above.
-    ("Bash", "git log --oneline && ls .", 0, DIRTY),
-    ("Bash", "git checkout -- .", 0, NOT_A_REPO),
-    # Heredoc bodies are data. Writing a PR body or release note that mentions
-    # a git command is not running that command.
-    ("Bash", "cat > notes.md <<'EOF'\ngit checkout -- . undoes edits\nEOF", 0, DIRTY),
-    ("Bash", "cat > notes.md <<'EOF'\ngit commit -m x rewrites nothing\nEOF", 0, MAIN),
-    ("Bash", "cat > s.ps1 <<'EOF'\n$m = @'\nhello\n'@\nEOF", 0, WORK),
-    # ...but the heredoc feeding a real commit must not hide the commit itself.
-    ("Bash", "git commit -F - <<'EOF'\nfeat: x\nEOF", 2, MAIN),
-    # --- U1: scan_command's heredoc half (opener/body/segment scan, replacing HEREDOC) ---
-    ("Bash", "cat <<EOF\n$(git push --force origin main)\nEOF", 2, WORK),
-    ("Bash", "cat <<EOF\n`git push --force origin main`\nEOF", 2, WORK),
-    ("Bash", "cat <<EOF\n$(git commit -m x)\nEOF", 2, MAIN),
-    ("Bash", "cat > notes.md <<EOF\ngit commit -m x rewrites nothing\nEOF", 0, MAIN),
-    ("Bash", "cat <<'EOF' && git push --force origin main\nx\nEOF", 2, WORK),
-    ("Bash", "cat <<EOF && git push --force origin main\nx\nEOF", 2, WORK),
-    ("Bash", "cat <<\\EOF\n$(git push --force origin main)\nEOF", 0, WORK),
-    ("Bash", "cat <<'A' > a\nx\nA\ncat <<'B' > b\ngit push --force origin main\nB", 0, WORK),
-    ("Bash", "cat <<A <<'B'\n$(git push --force origin main)\nA\nplain\nB", 2, WORK),
-    ("Bash", "cat <<'A' <<B\nplain\nA\n$(git push --force origin main)\nB", 2, WORK),
-    ("Bash", "cat <<EOF\n$(git push --force origin main", 2, WORK),
-    ("Bash", "echo '<<EOF'\ngit push --force origin main\nEOF", 2, WORK),
-    ("Bash", 'echo "<<EOF"\ngit push --force origin main\nEOF', 2, WORK),
-    ("Bash", "ls # <<EOF\ngit push --force origin main\nEOF", 2, WORK),
-    ("Bash", "echo '<<EOF'", 0, WORK),
-    # A delimiter quoted only in part (`<<E"O"F`) must not fall back to the
-    # bare-word alternative and silently truncate to "E" -- that treats
-    # everything up to a later coincidental "E" line, including a real
-    # command past the true "EOF" terminator, as a dropped heredoc body.
-    ("Bash", "cat <<E\"O\"F\nharmless data\nEOF\ngit push --force origin main\nE", 2, WORK),
-    # --- U2: scan_command's verdict (backtick / unmodelled rules) ---
-    ("Bash", 'git commit -m "fix: handle `None` in parse"', 2, WORK),
-    ("Bash", 'gh pr create --title x --body "uses `foo()` now"', 2, WORK),
-    ("Bash", "git commit -m 'fix: `None`'", 0, WORK),
-    ('Bash', 'git commit -m "fix: \\`None\\`"', 0, WORK),
-    ("PowerShell", 'git commit -m "fix `None`"', 0, WORK),
-    ("Bash", 'git branch "backup/${B}-$(date +%s)"', 0, WORK),
-    ("Bash", "git commit -m \"$(cat <<'EOF'\nfix `x`\nEOF\n)\"", 0, WORK),
-    ("Bash", "cat > f <<EOF\nuse `x`\nEOF", 2, WORK),
-    ("Bash", "cat > f <<'EOF'\nuse `x`\nEOF", 0, WORK),
-    ("Bash", "ls # don't\necho 'it`s'", 2, WORK),
-    ("Bash", "echo $'it\\'s `x`'", 2, WORK),
-    ("Bash", 'echo "$(printf \'%s\' `date`)"', 2, WORK),
-    ("Bash", "cat <<'A-B'\nuse `x`\nA-B", 2, WORK),
-    ("Bash", 'echo "#1" \'a`b\'', 0, WORK),
-    ("Bash", "echo a#b 'x`y'", 0, WORK),
-    ("Bash", "echo $'a\\tb'", 0, WORK),
-    ("Bash", "cat <<< 'x'", 0, WORK),
-    ("Bash", 'cat <<< "`x`"', 2, WORK),
-    ("Bash", "git commit -F notes.txt", 0, WORK),
-    ("Bash", 'echo "$(date)"', 0, WORK),
-    # --- U4: shipped commit/PR forms pass the new backtick block ---
-    ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 0, WORK),
-    ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 2, MAIN),
-    ("Bash", "gh pr create --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
-    # --- ship-pr-inline-comments: the fix round's update and the findings script ---
-    ("Bash", "gh pr edit 12 --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
-    ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py --track-dir .claude/track/x --project-dir .", 0, WORK),
-    # --- #130: a $(...) a stray apostrophe left outside its single quotes ---
-    # Two apostrophes close the quote early and re-open it later, and Bash
-    # runs the $(...) between them before the command. A contraction glues the
-    # first to a letter, a plural possessive the second; either is enough.
-    ("Bash", "git commit -m 'fix: it's $(echo hi)'s bug'", 2, WORK),
-    ("Bash", "git commit -m 'the users' data $(echo hi) the owners' view'", 2, WORK),
-    ("Bash", "git commit -m 'first line\nit's $(echo hi)\nthat's all'", 2, WORK),
-    # One stray apostrophe leaves the quote open, so Bash refuses the line --
-    # blocked anyway, since the advice is the same fix to the quoting.
-    ("Bash", "git commit -m 'don't $(echo hi)'", 2, WORK),
-    # Deliberate substitution: nothing glues it to a quote that closed early.
-    ("Bash", "x=$(git merge-base HEAD main)", 0, WORK),
-    ("Bash", "git diff $(git merge-base HEAD main)..HEAD", 0, WORK),
-    ("Bash", "grep -rn 'pattern' $(git ls-files '*.py')", 0, WORK),
-    ("Bash", "cd 'dir' && make -j$(nproc) && echo 'done'", 0, WORK),
-    ("Bash", "git log --format='%h %s' $(git merge-base HEAD main)..HEAD -- 'src/*.py'", 0, WORK),
-    ("Bash", "echo 'prefix'$(date)'suffix'", 0, WORK),
-    ("Bash", "echo 'it'\\''s $(date)'", 0, WORK),
-    ("Bash", "git commit -m 'use $(pwd) here'", 0, WORK),
-    ("Bash", "ls # a comment\necho $(date)", 0, WORK),
-    # After a shape the scan does not model, a $(...) it takes to be inside
-    # single quotes is blocked, as a backtick there is (stance trade T-b).
-    ("Bash", "ls # it's\necho $(date)", 2, WORK),
-    ("PowerShell", "git commit -m 'fix: it's $(echo hi)'s bug'", 0, WORK),
-    # --- #194 follow-up: `gh pr merge` asks (Claude Code) rather than blocks
-    # or silently allows, so its exit code alone reads the same as a plain
-    # allow -- the ask JSON on stdout is what tests/test_bash_guard_merge.py
-    # checks; this file only proves these shapes don't trip a 2 here.
-    ("Bash", "gh pr merge 123 --squash", 0, WORK),
-    ("Bash", "gh api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
-    ("Bash", "gh --repo=owner/repo pr merge 123", 0, WORK),
-    ("Bash", "gh -Rowner/repo pr merge 123", 0, WORK),
-    ("Bash", "gh --repo owner/repo api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
-    ("Bash", "gh pr \\\nmerge 123", 0, WORK),
-    # A merge the shell runs from inside a compound statement, a wrapper or a
-    # string handed to a shell: also an ask (stdout JSON, checked in
-    # tests/test_bash_guard_merge.py), so exit 0 here as well.
-    ("Bash", "if true; then gh pr merge 1; fi", 0, WORK),
-    ("Bash", "if false; then :; else gh pr merge 1; fi", 0, WORK),
-    ("Bash", "for i in 1; do gh pr merge 1; done", 0, WORK),
-    ("Bash", "{ gh pr merge 1; }", 0, WORK),
-    ("Bash", "bash -c 'gh pr merge 1'", 0, WORK),
-    ("Bash", 'sh -c "gh pr merge 1"', 0, WORK),
-    ("Bash", "eval gh pr merge 1", 0, WORK),
-    ("Bash", "env gh pr merge 1", 0, WORK),
-    ("Bash", "command gh pr merge 1", 0, WORK),
-    ("Bash", "echo x | xargs gh pr merge", 0, WORK),
-    ("Bash", "while false; do gh pr merge 1; done", 0, WORK),
-    ("Bash", "! gh pr merge 1", 0, WORK),
-    ("Bash", "time gh pr merge 1", 0, WORK),
-    ("Bash", "nohup gh pr merge 1", 0, WORK),
-    ("Bash", "exec gh pr merge 1", 0, WORK),
-    ("Bash", "env FOO=1 gh pr merge 1", 0, WORK),
-    ("Bash", "env -u VAR gh pr merge 1", 0, WORK),
-    ("Bash", "echo x | xargs -n1 gh pr merge", 0, WORK),
-    ("Bash", "echo x | xargs -I {} gh pr merge {}", 0, WORK),
-    ("Bash", "bash -lc 'gh pr merge 1'", 0, WORK),
-    ("Bash", "bash -o pipefail -c 'gh pr merge 1'", 0, WORK),
-    ("Bash", "zsh -c 'gh pr merge 1'", 0, WORK),
-    ("Bash", "dash -c 'gh pr merge 1'", 0, WORK),
-    ("Bash", "bash -c \"bash -c 'gh pr merge 1'\"", 0, WORK),
-    ("Bash", "eval \"gh pr merge 1\"", 0, WORK),
-    ("Bash", "bash -c 'gh api -X PUT repos/o/r/pulls/5/merge'", 0, WORK),
-    ("PowerShell", "pwsh -Command 'gh pr merge 1'", 0, WORK),
-    ("PowerShell", "powershell -c \"gh pr merge 1\"", 0, WORK),
-    ("PowerShell", "powershell -NoProfile -ExecutionPolicy Bypass -Command \"gh pr merge 1\"", 0, WORK),
-    ("PowerShell", "Invoke-Expression 'gh pr merge 1'", 0, WORK),
-    # Look-alikes: neither a merge nor a block.
-    ("Bash", "bash -c 'echo gh pr merge'", 0, WORK),
-    ("Bash", 'git commit -m "then gh pr merge"', 0, WORK),
-    ("Bash", "gh pr view 123", 0, WORK),
-    ("Bash", "git merge feature", 0, WORK),
-    ("Bash", 'git commit -m "please gh pr merge later"', 0, WORK),
-    ("Bash", "gh api repos/o/r/pulls/5/merge", 0, WORK),
-    ("PowerShell", 'git commit -m "docs: mention that `gh pr merge` requires review before use"', 0, WORK),
-    # An existing deny rule stays denied even on a command that also merges --
-    # ask never weakens a deny.
-    ("Bash", "git push --force origin main && gh pr merge 5", 2, WORK),
-]
-
-
-def run_process(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
-    payload = {"tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}
-    if agent:
-        payload["agent_type"] = agent
-    return subprocess.run(
-        argv, input=json.dumps(payload), capture_output=True, text=True, env=env,
-    )
-
-
-def run(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
-    return run_process(argv, cmd, tool, cwd, agent, env).returncode
-
-
-for tool, cmd, expected, cwd, *agent in CASES:
-    label = cmd.replace("\n", "\\n") + (f" as {agent[0]}" if agent else "")
-    check(f"guard {tool} [{label}] -> {expected}",
-          run([sys.executable, GUARD], cmd, tool, cwd, *agent) == expected)
-
-# The dispatcher is what hooks.json actually invokes. Exercise the branch this
-# platform would take, so a broken interpreter lookup or a swallowed exit code
-# fails here instead of silently disarming the guard.
-dispatch = ["cmd", "/c", DISPATCHER.replace("/", "\\")] if os.name == "nt" else ["sh", DISPATCHER]
-# The dispatcher writes a launcher record under the config root on a first call.
-# A temporary one keeps every run here off the real ~/.claude/cai/, where the
-# record would make the next run skip the probe these cases are meant to reach.
-dispatch_env = dict(os.environ, CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-"))
-for cmd, expected in [("git reset --hard HEAD~1", 2), ("git status", 0)]:
-    check(f"dispatcher [{cmd}] -> {expected}",
-          run(dispatch, cmd, "Bash", WORK, env=dispatch_env) == expected)
-# Through the dispatcher a scoped agent's call reaches runner_guard too.
-check("dispatcher [git status as cai:test-runner] -> 2",
-      run(dispatch, "git status", "Bash", WORK, "cai:test-runner", env=dispatch_env) == 2)
-# A call the guard blocks says so itself: /cai:setup tells it apart from the
-# dispatcher's own lines by that text, since all of them exit 2.
-forced = run_process(dispatch, "git push --force origin main", "Bash", WORK, env=dispatch_env)
-check("dispatcher [git push --force origin main] -> 2 with the guard's own message",
-      forced.returncode == 2 and "bash_guard blocked this command" in forced.stderr)
-
-# With no interpreter on PATH the dispatcher runs its reduced check: exit 2 and
-# a line of its own, never the guard's text (D6, which /cai:setup step 6 reads).
-# Windows: System32 holds neither py nor python. POSIX: a directory linking only
-# the four programs the sh block calls. A config root of its own: the one above
-# now holds a record, and a record skips the probe this case is about.
-if os.name == "nt":
-    bare_dir = os.path.join(os.environ["SystemRoot"], "System32")
-    bare_dispatch = dispatch
-else:
-    bare_dir = tempfile.mkdtemp(prefix="cai-guard-bare-")
-    for tool_name in ("sh", "grep", "dirname", "rm"):
-        os.symlink(shutil.which(tool_name), os.path.join(bare_dir, tool_name))
-    bare_dispatch = [os.path.join(bare_dir, "sh"), DISPATCHER]
-if any(shutil.which(name, path=bare_dir) for name in ("py", "python", "python3")):
-    check("dispatcher without an interpreter: skipped, one is on the reduced PATH", True)
-else:
-    bare = run_process(bare_dispatch, "git push --force origin main", "Bash", WORK,
-                       env=dict(dispatch_env, PATH=bare_dir,
-                                CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-")))
-    check("dispatcher without an interpreter [git push --force origin main] -> 2 "
-          "with its own reduced-check line",
-          bare.returncode == 2 and "cai guard reduced check:" in bare.stderr
-          and "bash_guard blocked this command" not in bare.stderr)
-    # Without Python nothing can ask, so a merge is blocked and the person runs
-    # it (stance I3); the Python guard asks instead, which exits 0.
-    bare_merge = run_process(bare_dispatch, "gh pr merge 123", "Bash", WORK,
-                             env=dict(dispatch_env, PATH=bare_dir,
-                                      CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-")))
-    check("dispatcher without an interpreter [gh pr merge 123] -> 2 "
-          "with its own reduced-check line",
-          bare_merge.returncode == 2 and "cai guard reduced check:" in bare_merge.stderr
-          and "bash_guard blocked this command" not in bare_merge.stderr)
-
-# The SessionStart launcher runs model_choice.py against the plugin root it
-# sits in. Run from here, that root is this repo's own source tree, and a
-# person's saved choice must never be written into it -- so run it with one
-# saved, then check it exited 0 and every component still matches models.json.
-MODELS_DISPATCHER = f"{PLUGIN}/hooks/run-models.cmd"
-_models_config = tempfile.mkdtemp(prefix="cai-models-config-")
-os.makedirs(os.path.join(_models_config, "cai"))
-with open(os.path.join(_models_config, "cai", "model-choice.json"), "w", encoding="utf-8") as fh:
-    json.dump({"format": 1, "roles": {"think": "claude-validate-probe"}}, fh)
-_models_dispatch = (["cmd", "/c", MODELS_DISPATCHER.replace("/", "\\")] if os.name == "nt"
-                    else ["sh", MODELS_DISPATCHER])
-_models_done = subprocess.run(_models_dispatch, capture_output=True, text=True,
-                              env=dict(os.environ, CLAUDE_CONFIG_DIR=_models_config))
-check("models dispatcher [SessionStart, source tree] -> 0", _models_done.returncode == 0)
-_models_drift = subprocess.run([sys.executable, f"{PLUGIN}/scripts/gen-models.py", "--check"],
-                               capture_output=True, text=True)
-check("models dispatcher leaves the source tree's model lines alone",
-      _models_drift.returncode == 0)
-
-# launcher.py guard -- the Codex counterpart of the two checks above. Codex's
-# own hook payload shape is UNVERIFIED (C9); this follows the documented form
-# in docs/design/2026-09-18-codex-support-detail.md, "### launcher.py", and
-# real verify (C9) is what confirms or corrects it. A temp $CODEX_HOME whose
-# cache points at this repo's own plugins/cai-codex/scripts/bash_guard.py lets
-# the adapter's real child process run, rather than adding launcher behaviour
-# the spec does not describe just to make it testable.
-LAUNCHER = f"{PLUGIN}-codex/scripts/launcher.py"
-if os.path.isfile(LAUNCHER):
-    CODEX_GUARD_HOME = tempfile.mkdtemp(prefix="cai-codex-guard-home-")
-    _codex_version_scripts = os.path.join(
-        CODEX_GUARD_HOME, "plugins", "cache", "local", "cai-codex", "0.1.0", "scripts")
-    os.makedirs(_codex_version_scripts, exist_ok=True)
-    # bash_guard.py imports tool_path.py (#294); a real cache holds both.
-    for _name in ("bash_guard.py", "tool_path.py"):
-        shutil.copy(f"{PLUGIN}-codex/scripts/{_name}", _codex_version_scripts)
-
-    CODEX_GUARD_CASES = [
-        # (Codex-shaped payload, expected exit code)
-        ({"tool_input": {"command": "git push --force origin main"}, "cwd": WORK}, 2),
-        # List-form commands name their own program in command[0], so
-        # _tool_name() (launcher.py:134-144) resolves Bash vs PowerShell from
-        # that rather than the host OS -- the bare-string form falls back to
-        # os.name and is ambiguous on a Windows host running a POSIX guard
-        # under test, which is exactly what these two rows need to avoid.
-        ({"tool_input": {"command": ["bash", "-c", 'git commit -m "fix `None`"']}, "cwd": WORK}, 2),
-        ({"tool_input": {"command": ["powershell.exe", "-Command", 'git commit -m "fix `None`"']}, "cwd": WORK}, 0),
-        ({"tool_input": {"command": ["bash", "-c", "cat <<EOF\n$(git push --force origin main)\nEOF"]}, "cwd": WORK}, 2),
-        ({"tool_input": {"command": ["bash", "-c", "git commit -m 'fix: it's $(echo hi)'s bug'"]}, "cwd": WORK}, 2),
-        # #194 follow-up: Codex's hook host parses but does not act on an
-        # "ask" permission decision, so the launcher sets CAI_CODEX_GUARD=1
-        # before invoking bash_guard.py and a merge is denied here instead of
-        # asked, unlike the Claude Code case above.
-        ({"tool_input": {"command": "gh pr merge 123"}, "cwd": WORK}, 2),
-        # The launcher joins a list like ["bash", "-lc", script] with spaces
-        # (launcher.py), so the wrapped merge reaches the guard as one line.
-        ({"tool_input": {"command": ["bash", "-lc", "gh pr merge 123"]}, "cwd": WORK}, 2),
-        ({"tool_input": {"command": ["bash", "-c", "if true; then gh pr merge 123; fi"]}, "cwd": WORK}, 2),
-        ({"tool_input": {"command": ["bash", "-c", "echo gh pr merge 123"]}, "cwd": WORK}, 0),
-        ({"tool_input": {"command": ["bash", "-lc", "echo x | xargs -I {} gh pr merge {}"]}, "cwd": WORK}, 2),
-        ({"tool_input": {"command": ["bash", "-c", "env FOO=1 gh pr merge 123"]}, "cwd": WORK}, 2),
-    ]
-
-    def run_codex_guard(payload):
-        env = dict(os.environ)
-        env["CODEX_HOME"] = CODEX_GUARD_HOME
-        return subprocess.run(
-            [sys.executable, LAUNCHER, "guard"],
-            input=json.dumps(payload), capture_output=True, text=True, env=env,
-        ).returncode
-
-    for payload, expected in CODEX_GUARD_CASES:
-        cmd = payload["tool_input"]["command"]
-        check(f"codex guard [{cmd}] -> {expected}", run_codex_guard(payload) == expected)
-
-
-# design_probe.py holds the two design commands' absolutes -- every capability
-# cites evidence, every use case reaches a component, every glossary term points
-# at a line that exists. Prose cannot hold those, so the probe has to actually
-# work: one clean document per kind, then one deliberate defect per probe. A
-# case asserts the exit code *and* which probe reported it, because a probe that
-# fails for the wrong reason is a probe nobody can act on.
-PROBE = f"{PLUGIN}/scripts/design_probe.py"
-PROBE_DIR = tempfile.mkdtemp(prefix="cai-design-probe-")
 FENCE = "```mermaid\nflowchart LR\n  A --> B\n```\n\n"
 SEQ = "```mermaid\nsequenceDiagram\n  A->>B: go\n```\n\n"
 
@@ -1542,696 +353,1932 @@ The collector wrote to stdout before; it writes to the session log now.
 Cross-repo runs stay out of scope; this reads the local session log only.
 """
 
-# The detail fixtures name this in ## Reference, and the probe looks for it
-# beside the document it is checking.
-with open(os.path.join(PROBE_DIR, "hld.md"), "w", encoding="utf-8") as fh:
-    fh.write(HLD_OK)
 
-PROBE_CASES = [
-    # (kind, fixture text, expected exit, the probe that must be the one to fail)
-    ("hld", HLD_OK, 0, ""),
-    ("hld", HLD_OK.replace(" Rests on C1,", ""), 2, "pairs_covered"),
-    ("hld", HLD_OK.replace("| verified |", "| UNVERIFIED |"), 2, "recommendation_is_verified"),
-    ("hld", HLD_OK.replace("scripts/validate.py:41", "the session log"), 2, "feasibility_evidence"),
-    ("hld", HLD_OK.replace("## Out of scope", "## Elsewhere"), 2, "headings_complete"),
-    ("detail", DETAIL_OK, 0, ""),
-    ("detail", DETAIL_OK.replace("UC1", "the use case"), 2, "traceability"),
-    ("detail", DETAIL_OK.replace("validate.py:41", "validate.py:99999"), 2, "glossary_citations"),
-    ("hld", HLD_OK.replace("approved 2026-08-25", "signed off, looks good"), 2, "status_is_well_formed"),
-    ("hld", re.sub(r"\n\| C1 .*", "", HLD_OK), 2, "feasibility_has_rows"),
-    ("hld", HLD_OK.replace("| C1 |", "| the log |"), 2, "feasibility_ids"),
-    ("detail", DETAIL_OK.replace(FENCE * 3 + SEQ, FENCE * 2 + SEQ), 2, "diagrams_present"),
-    ("detail", DETAIL_OK.replace(SEQ, FENCE), 2, "sequence_diagram_present"),
-    ("detail", DETAIL_OK.replace("up to 400", "as many as we get"), 2, "budgets_are_numeric"),
-    ("detail", DETAIL_OK.replace("## Rollout", "## Shipping"), 2, "headings_complete"),
-    ("detail", DETAIL_OK.replace("hld.md", "no-such-design.md"), 2, "reference_resolves"),
-    ("delta", DELTA_OK, 0, ""),
-    ("delta", DELTA_OK.replace("a3f21bc..HEAD", "the tip of the branch"), 2, "scope_names_a_range"),
-    ("delta", DELTA_OK.replace(FENCE * 2, FENCE), 2, "before_after_diagrams"),
-    ("delta", re.sub(r"\n\| (?:write|drop) .*", "", DELTA_OK), 2, "decisions_have_rows"),
-    ("delta", DELTA_OK.replace("scripts/validate.py:41", "it seemed better"), 2, "decisions_evidence"),
-    ("delta", re.sub(r"\n\| the runner's log path .*", "", DELTA_OK), 2, "impact_has_rows"),
-    ("delta", DELTA_OK.replace("## Limits", "## Caveats"), 2, "headings_complete"),
-]
-
-for i, (kind, fixture_text, expected, probe) in enumerate(PROBE_CASES):
-    fixture = os.path.join(PROBE_DIR, f"case{i}.md")
-    with open(fixture, "w", encoding="utf-8") as fh:
-        fh.write(fixture_text)
-    done = subprocess.run([sys.executable, PROBE, "--kind", kind, fixture],
-                          capture_output=True, text=True)
-    check(f"design_probe {kind} [{probe or 'clean document'}] -> {expected}",
-          done.returncode == expected)
-    if probe:
-        check(f"design_probe {kind} names {probe}", f"FAIL {probe}" in done.stdout)
-
-# The templates are the shape both commands write to, so they and the probe have
-# to agree on the headings -- if they drift, every real document fails a check
-# whose source nobody can find. And an untouched template must FAIL its own
-# probe: its guidance lives in HTML comments, and the day those start counting
-# as content is the day a blank template passes everything.
-sys.path.insert(0, f"{PLUGIN}/scripts")
-import design_probe  # noqa: E402
-import ledger  # noqa: E402
-
-for kind, want in (("diagnosis", design_probe.DIAGNOSIS_HEADINGS),
-                   ("stance", design_probe.STANCE_HEADINGS),
-                   ("decisions", design_probe.DECISIONS_HEADINGS),
-                   ("hld", design_probe.HLD_HEADINGS),
-                   ("detail", design_probe.DETAIL_HEADINGS),
-                   ("delta", design_probe.DELTA_HEADINGS)):
-    tpl = f"{PLUGIN}/templates/{design_probe.TEMPLATES[kind]}"
-    check(f"{kind} design template ships", os.path.isfile(tpl))
-    if not os.path.isfile(tpl):
-        continue
-    got = list(design_probe.sections(read_text(tpl)))
-    check(f"{kind} template headings match the probe", got == want)
-    if got != want:
-        print("     template:", got)
-        print("     probe   :", want)
-    blank = subprocess.run([sys.executable, PROBE, "--kind", kind, tpl],
-                           capture_output=True, text=True)
-    check(f"{kind} template does not pass its own probe", blank.returncode == 2)
-
-# preflight.py's design check reads state.md's design row and hands the
-# artifact to design_probe.py, so its fixture needs a real track state next
-# to a real (or deliberately broken) design document -- same shape as the
-# PROBE_CASES above, one level up the stack.
-PREFLIGHT = f"{PLUGIN}/scripts/preflight.py"
-PREFLIGHT_PROJECT = temp_repo("preflight-fixture")
-PREFLIGHT_TRACK = os.path.join(PREFLIGHT_PROJECT, "track")
-os.makedirs(os.path.join(PREFLIGHT_PROJECT, "docs", "design"), exist_ok=True)
-os.makedirs(PREFLIGHT_TRACK, exist_ok=True)
-
-with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "hld.md"), "w", encoding="utf-8") as fh:
-    fh.write(HLD_OK)
-with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md"),
-          "w", encoding="utf-8") as fh:
-    # DETAIL_OK's glossary cites scripts/validate.py:41, which does not exist
-    # inside this throwaway project root; point it at the sibling hld.md
-    # written above instead, which does.
-    fh.write(DETAIL_OK.replace("scripts/validate.py:41", "docs/design/hld.md:1"))
+SECTIONS = {}
 
 
-def write_preflight_state(artifact_cell, design_status="done"):
-    # state.md is overwritten in place, never appended to -- each case
-    # replaces the whole file rather than editing one cell.
-    text = ("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
-            "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-            "|---|---|---|---|\n| intake | done | — | |\n"
-            "| discover | done | — | |\n"
-            "| design | %s | %s | |\n"
-            "| build | | | |\n| verify | | | |\n| ship | | | |\n"
-            % (design_status, artifact_cell))
-    with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
-        fh.write(text)
+def section(name):
+    """Register a block of checks under a name the command line can select
+    (#305). Registration order is run order, and a run that names nothing
+    runs every one of them, so no block can be left out of the full run."""
+    def register(fn):
+        SECTIONS[name] = fn
+        return fn
+    return register
 
 
-def run_preflight(stage, track_dir=PREFLIGHT_TRACK):
-    return subprocess.run(
-        [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
-         "--project-dir", PREFLIGHT_PROJECT],
-        capture_output=True, text=True)
+@section("manifests")
+def _manifests():
+    mp = json.load(open(".claude-plugin/marketplace.json"))
+    check("marketplace has name/owner/plugins", all(k in mp for k in ("name", "owner", "plugins")))
+
+    for entry in mp["plugins"]:
+        source = entry["source"]
+        src = source if isinstance(source, str) else source["path"]
+        manifest = f"{src}/.claude-plugin/plugin.json"
+        pl = json.load(open(manifest))
+        check(f"{manifest} has name/version", "name" in pl and "version" in pl)
+        check(f"names match ({entry['name']})", pl["name"] == entry["name"])
+
+    # Component frontmatter. A missing key means Claude Code silently skips the
+    # component, so catch it here rather than at someone else's runtime.
+    for path in sorted(glob.glob(f"{PLUGIN}/agents/*.md")):
+        keys = frontmatter_keys(path)
+        check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
 
 
-write_preflight_state("docs/design/billing-detail.md")
-done = run_preflight("design")
-check("preflight design [clean detail doc] -> 0", done.returncode == 0)
+@section("skills")
+def _skills():
+    # goal.md routes rather than implements, so it is read start to finish every
+    # time someone reaches for it -- and prose that outgrows a screen is prose that
+    # gets skimmed past the branch it was carrying. The ceiling is the number the
+    # design settled on (docs/design/2026-08-25-goal-command-routing-detail.md,
+    # Budgets); this is what stops it being a number nobody ever checks again.
+    GOAL = f"{PLUGIN}/skills/goal/SKILL.md"
+    goal_text = read_text(GOAL)
+    # The ceiling is on the body a human reads, not the frontmatter the move to
+    # skills/ requires (a `name:` field commands never carried) -- counting the
+    # whole file would fail this check by exactly the one line that move added,
+    # for a reason unrelated to the prose the budget was set against.
+    goal_body_start = goal_text.find("\n---", 3) + 4 if goal_text.startswith("---") else 0
+    goal_lines = len(goal_text[goal_body_start:].splitlines())
+    check(f"{GOAL} is within its 120-line ceiling ({goal_lines})", goal_lines <= 120)
 
-write_preflight_state("docs/design/does-not-exist-detail.md")
-done = run_preflight("design")
-check("preflight design [artifact missing] -> 2", done.returncode == 2)
-check("preflight design names artifact_exists", "FAIL artifact_exists" in done.stdout)
+    skills = sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+    check("at least one skill ships", bool(skills))
+    for path in skills:
+        keys = frontmatter_keys(path)
+        check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
 
-write_preflight_state("docs/design/billing-export.txt")
-done = run_preflight("design")
-check("preflight design [unrecognized suffix] -> 2", done.returncode == 2)
-check("preflight design names artifact_kind", "FAIL artifact_kind" in done.stdout)
+    # A skill body that tells the model to invoke /cai:x, or to read a file under
+    # the plugin, is only as good as x and that file still existing. This is the
+    # check that was missing when a restructure retired eight skills: goal.md went
+    # on naming three of them, every other check stayed green, and the command was
+    # broken for anyone who ran it. A body is instructions -- a name in it that
+    # resolves to nothing is a 404 handed to a model mid-task.
+    CMD_REF = re.compile(r"/cai:([a-z][a-z0-9-]*)")
+    PLUGIN_PATH_REF = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+\.\w+)")
+    # Names that resolve to something other than a directory under skills/.
+    KNOWN_NON_SKILL = {"setup"}
 
-# A design row that names nothing is the normal state before the stage runs --
-# SKILL.md creates every row empty, and the document is what the stage writes.
-# These two cases used to assert the opposite, which locked in a gate that
-# could never open on a fresh track: `design` was unreachable and nobody knew
-# until someone ran it. Both now assert the stage is allowed to start.
-write_preflight_state("—")
-done = run_preflight("design")
-check("preflight design [no artifact named yet] -> 0", done.returncode == 0)
-check("preflight design says the stage writes it",
-      "PASS artifact_named (no design document yet" in done.stdout)
+    def invocable_names():
+        """Everything /cai:<name> can legitimately resolve to."""
+        names = {os.path.basename(os.path.dirname(p)) for p in skills}
+        names |= {os.path.basename(os.path.dirname(p))
+                  for p in glob.glob(f"{PLUGIN}/refactoring-catalog/*/SKILL.md")}
+        return names | KNOWN_NON_SKILL
 
-# ...but naming something that is not there is still a block: that is a design
-# row pointing at a document somebody moved or misspelled, not a fresh track.
-write_preflight_state("docs/design/never-written-detail.md")
-done = run_preflight("design")
-check("preflight design [named but missing] -> 2", done.returncode == 2)
-check("preflight design names artifact_exists", "FAIL artifact_exists" in done.stdout)
-
-PREFLIGHT_NO_STATE = tempfile.mkdtemp(prefix="cai-preflight-no-state-")
-done = run_preflight("design", track_dir=PREFLIGHT_NO_STATE)
-check("preflight design [no state.md] -> 2", done.returncode == 2)
-check("preflight design names state_md", "FAIL state_md" in done.stdout)
-
-# design's suffix routing for the other two kinds -- only -detail.md is
-# exercised above, so mapping -high-level.md or -delta.md to the wrong kind
-# would go unnoticed.
-with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-high-level.md"),
-          "w", encoding="utf-8") as fh:
-    fh.write(HLD_OK)
-with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-delta.md"),
-          "w", encoding="utf-8") as fh:
-    fh.write(DELTA_OK)
-
-write_preflight_state("docs/design/widget-high-level.md")
-done = run_preflight("design")
-check("preflight design [-high-level.md routes to hld probe] -> 0", done.returncode == 0)
-
-write_preflight_state("docs/design/widget-delta.md")
-done = run_preflight("design")
-check("preflight design [-delta.md routes to delta probe] -> 0", done.returncode == 0)
-
-done = subprocess.run([sys.executable, PREFLIGHT, "no-such-stage",
-                       "--track-dir", PREFLIGHT_TRACK],
-                      capture_output=True, text=True)
-check("preflight unknown stage id -> 1", done.returncode == 1)
-
-# build reads the same design row as the design check above, but only cares
-# whether the artifact names a work breakdown -- so its broken fixture is
-# DETAIL_OK with that one heading (and everything after it) removed.
-NO_BREAKDOWN = DETAIL_OK.split("## Work breakdown")[0].replace(
-    "scripts/validate.py:41", "docs/design/hld.md:1")
-with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "no-breakdown-detail.md"),
-          "w", encoding="utf-8") as fh:
-    fh.write(NO_BREAKDOWN)
-
-# build also requires a human sign-off on the ledger (design_signed_off) --
-# recorded once here, against billing-detail.md: an Approve only signs off
-# the document whose sha it carries, so it covers the one case below that is
-# meant to pass. The others fail for the reason their own name says, and on
-# design_signed_off as well, which none of them assert on.
-#
-# ledger.append() also copies every record to the cross-project central
-# ledger, and this script runs by hand, in CI and from the PostToolUse hook --
-# none of them under tests/conftest.py's isolation. Point that copy at a
-# throwaway file and drop the session id, or each run adds a fake record to
-# the history /cai:usage reads (tests/test_validate_keeps_central_ledger_clean.py).
-os.environ["CAI_USAGE_LEDGER"] = os.path.join(
-    tempfile.mkdtemp(prefix="cai-validate-central-"), "usage.jsonl")
-os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
-ledger.append(PREFLIGHT_TRACK, "design", "passed",
-              artifact=os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md"),
-              gate="human")
-
-write_preflight_state("docs/design/billing-detail.md")
-done = run_preflight("build")
-check("preflight build [work breakdown present] -> 0", done.returncode == 0)
-
-write_preflight_state("docs/design/no-breakdown-detail.md")
-done = run_preflight("build")
-check("preflight build [no work breakdown] -> 2", done.returncode == 2)
-check("preflight build names work_breakdown", "FAIL work_breakdown" in done.stdout)
-
-PREFLIGHT_NO_SIGNOFF_TRACK = tempfile.mkdtemp(prefix="cai-preflight-no-signoff-")
-with open(os.path.join(PREFLIGHT_NO_SIGNOFF_TRACK, "state.md"), "w", encoding="utf-8") as fh:
-    fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
-             "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-             "|---|---|---|---|\n| intake | done | — | |\n"
-             "| discover | done | — | |\n"
-             "| design | done | docs/design/billing-detail.md | |\n"
-             "| build | | | |\n| verify | | | |\n| ship | | | |\n")
-done = run_preflight("build", track_dir=PREFLIGHT_NO_SIGNOFF_TRACK)
-check("preflight build [no design sign-off] -> 2", done.returncode == 2)
-check("preflight build names design_signed_off", "FAIL design_signed_off" in done.stdout)
-
-# `/cai:track skip design` is supported, and it lands on this check for the
-# rest of the track's life. Blocking is right -- there is no design to build
-# from -- but the reason has to say so, or it reads as a broken state.md and
-# leaves the person guessing that `skip build` is the way on.
-write_preflight_state("—", design_status="skipped")
-done = run_preflight("build")
-check("preflight build [design was skipped] -> 2", done.returncode == 2)
-check("preflight build says the design was skipped",
-      "design was skipped" in done.stdout and "skip build too" in done.stdout)
-
-# build reads the same design row as design() -- same two block reasons apply
-# before the artifact is even resolved to a work breakdown.
-write_preflight_state("—")
-done = run_preflight("build")
-check("preflight build [no artifact named] -> 2", done.returncode == 2)
-check("preflight build names artifact_named", "FAIL artifact_named" in done.stdout)
-
-done = run_preflight("build", track_dir=PREFLIGHT_NO_STATE)
-check("preflight build [no state.md] -> 2", done.returncode == 2)
-check("preflight build names state_md", "FAIL state_md" in done.stdout)
-
-# discover only needs the intake row's status; write_preflight_state's default
-# (intake: done) is the passing fixture, an empty status is the blocking one.
-write_preflight_state("docs/design/billing-detail.md")
-done = run_preflight("discover")
-check("preflight discover [intake done] -> 0", done.returncode == 0)
-
-with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
-    fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
-             "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-             "|---|---|---|---|\n| intake | | — | |\n| discover | | — | |\n"
-             "| design | | | |\n| build | | | |\n| verify | | | |\n| ship | | | |\n")
-done = run_preflight("discover")
-check("preflight discover [intake status empty] -> 2", done.returncode == 2)
-check("preflight discover names intake_status", "FAIL intake_status" in done.stdout)
-
-
-def run_preflight_at(stage, project_dir, track_dir):
-    return subprocess.run(
-        [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
-         "--project-dir", project_dir],
-        capture_output=True, text=True)
-
-
-# intake decides whether a track may even start, so its fixtures are plain
-# repos with no state.md at all -- the checks it runs never look for one.
-INTAKE_MAIN = temp_repo("main")
-done = run_preflight_at("intake", INTAKE_MAIN, os.path.join(INTAKE_MAIN, "track", "feature-a"))
-check("preflight intake [on main] -> 2", done.returncode == 2)
-check("preflight intake names not_main_branch", "FAIL not_main_branch" in done.stdout)
-
-INTAKE_FULL = temp_repo("work")
-INTAKE_FULL_ROOT = os.path.join(INTAKE_FULL, "track")
-for i in range(5):
-    os.makedirs(os.path.join(INTAKE_FULL_ROOT, f"f{i}"))
-done = run_preflight_at("intake", INTAKE_FULL, os.path.join(INTAKE_FULL_ROOT, "f-new"))
-check("preflight intake [5 active tracks] -> 2", done.returncode == 2)
-check("preflight intake names active_tracks", "FAIL active_tracks" in done.stdout)
-
-INTAKE_RESERVED = temp_repo("work")
-done = run_preflight_at("intake", INTAKE_RESERVED,
-                        os.path.join(INTAKE_RESERVED, "track", "current"))
-check("preflight intake [reserved feature name] -> 2", done.returncode == 2)
-check("preflight intake names reserved_name", "FAIL reserved_name" in done.stdout)
-
-# The passing fixture is the one that proves done/ is excluded: 4 active
-# tracks plus a done/ archive holding its own subdirectory would block at the
-# 5-track ceiling if the archive were counted.
-INTAKE_OK = temp_repo("work")
-INTAKE_OK_ROOT = os.path.join(INTAKE_OK, "track")
-for i in range(4):
-    os.makedirs(os.path.join(INTAKE_OK_ROOT, f"f{i}"))
-os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
-done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
-check("preflight intake [4 active + done/ archive ignored] -> 0", done.returncode == 0)
-
-# A track that git tracks makes the working tree dirty by existing, and the
-# stage that then refuses is `ship`, whose clean_tree failure says nothing
-# about why. intake says so while the fix is still one line -- and says it
-# without blocking, because committing your track is a legitimate choice.
-check("preflight intake warns when the track is not ignored",
-      "track_ignored" in done.stdout and "NOT ignored" in done.stdout)
-check("preflight intake does not block on it", done.returncode == 0)
-
-with open(os.path.join(INTAKE_OK, ".gitignore"), "w", encoding="utf-8") as fh:
-    fh.write("track/\n")
-done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
-check("preflight intake is quiet once the track is ignored",
-      "track_ignored" in done.stdout and "NOT ignored" not in done.stdout)
-
-# Regression: a bare relative --track-dir (what a caller already sitting in
-# .claude/track/ passes) used to derive an empty parent, count zero active
-# tracks, and let a sixth one through. Exercised with cwd set to the track
-# root itself, since that is what makes the value bare in the first place.
-INTAKE_BARE = temp_repo("work")
-INTAKE_BARE_ROOT = os.path.join(INTAKE_BARE, "track")
-for i in range(5):
-    os.makedirs(os.path.join(INTAKE_BARE_ROOT, f"f{i}"))
-done = subprocess.run(
-    [sys.executable, os.path.abspath(PREFLIGHT), "intake", "--track-dir", "f-new",
-     "--project-dir", os.path.abspath(INTAKE_BARE)],
-    capture_output=True, text=True, cwd=INTAKE_BARE_ROOT)
-check("preflight intake [bare relative --track-dir, 5 active tracks] -> 2",
-      done.returncode == 2)
-check("preflight intake bare --track-dir names active_tracks",
-      "FAIL active_tracks" in done.stdout)
-
-
-# verify has nothing to read from state.md -- it only asks git whether there
-# is a diff to review, so its fixtures are bare repos.
-VERIFY_CLEAN = temp_repo("clean-branch")
-done = run_preflight_at("verify", VERIFY_CLEAN, os.path.join(VERIFY_CLEAN, "track"))
-check("preflight verify [clean tree, no base diff] -> 2", done.returncode == 2)
-check("preflight verify names has_changes", "FAIL has_changes" in done.stdout)
-
-VERIFY_DIRTY = temp_repo("dirty-branch")
-with open(os.path.join(VERIFY_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
-    fh.write("scratch\n")
-done = run_preflight_at("verify", VERIFY_DIRTY, os.path.join(VERIFY_DIRTY, "track"))
-check("preflight verify [uncommitted changes] -> 0", done.returncode == 0)
-
-
-def write_ship_state(track_dir, verify_status):
-    os.makedirs(track_dir, exist_ok=True)
-    with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
-        fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
-                  "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-                  "|---|---|---|---|\n| intake | done | — | |\n"
-                  "| discover | done | — | |\n| design | done | — | |\n"
-                  "| build | done | — | |\n| verify | %s | — | |\n"
-                  "| ship | | | |\n" % verify_status)
-
-
-# ship's own repo fixtures live outside the track directory it reads, so
-# writing state.md never touches the git status this check is also reading.
-# A tracked file with an uncommitted change, not an untracked one (#198):
-# untracked files never block ship, so an untracked-only fixture here would
-# now prove the opposite of what "dirty tree" means to name.
-SHIP_DIRTY = dirty_repo()
-SHIP_DIRTY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
-write_ship_state(SHIP_DIRTY_TRACK, "done")
-done = run_preflight_at("ship", SHIP_DIRTY, SHIP_DIRTY_TRACK)
-check("preflight ship [dirty tree] -> 2", done.returncode == 2)
-check("preflight ship names clean_tree", "FAIL clean_tree" in done.stdout)
-
-SHIP_CLEAN = temp_repo("ship-clean")
-SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
-write_ship_state(SHIP_CLEAN_TRACK, "done")
-done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
-check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
-
-# #198's decision: untracked files never block ship, whatever their number.
-SHIP_UNTRACKED_ONLY = dirty_repo(untracked_only=True)
-SHIP_UNTRACKED_ONLY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
-write_ship_state(SHIP_UNTRACKED_ONLY_TRACK, "done")
-done = run_preflight_at("ship", SHIP_UNTRACKED_ONLY, SHIP_UNTRACKED_ONLY_TRACK)
-check("preflight ship [untracked only] -> 0", done.returncode == 0)
-
-# ship's other two reasons: the fixtures above always fill verify's status and
-# always run on a feature branch, so only clean_tree was ever exercised.
-SHIP_NO_VERIFY = temp_repo("ship-no-verify")
-SHIP_NO_VERIFY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
-write_ship_state(SHIP_NO_VERIFY_TRACK, "")
-done = run_preflight_at("ship", SHIP_NO_VERIFY, SHIP_NO_VERIFY_TRACK)
-check("preflight ship [verify status empty] -> 2", done.returncode == 2)
-check("preflight ship names verify_status", "FAIL verify_status" in done.stdout)
-
-SHIP_ON_MAIN = temp_repo("main")
-SHIP_ON_MAIN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
-write_ship_state(SHIP_ON_MAIN_TRACK, "done")
-done = run_preflight_at("ship", SHIP_ON_MAIN, SHIP_ON_MAIN_TRACK)
-check("preflight ship [on main branch] -> 2", done.returncode == 2)
-check("preflight ship names not_main_branch", "FAIL not_main_branch" in done.stdout)
-
-# Model tiers live in models.json, not in eighteen frontmatters. Three checks,
-# because the failure modes are different: drift (someone edited a frontmatter
-# by hand), escape (a new component nobody assigned a role), and regression
-# (someone pinned a concrete version again, which is what models.json exists to
-# stop -- an alias tracks its family, `claude-haiku-4-5-20251001` does not).
-GEN_MODELS = f"{PLUGIN}/scripts/gen-models.py"
-MODELS_JSON = f"{PLUGIN}/models.json"
-check(f"models.json ships ({MODELS_JSON})", os.path.isfile(MODELS_JSON))
-check(f"gen-models.py ships ({GEN_MODELS})", os.path.isfile(GEN_MODELS))
-
-if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
-    drifted = subprocess.run([sys.executable, GEN_MODELS, "--check"],
-                             capture_output=True, text=True)
-    check("every component's model matches its role in models.json",
-          drifted.returncode == 0)
-    if drifted.returncode != 0:
-        print("    ", drifted.stdout.strip().replace("\n", "\n     "))
-
-    spec = json.load(open(MODELS_JSON, encoding="utf-8"))
-    aliases = {r["alias"] for r in spec["roles"].values()}
-    assigned = set(spec["assignments"])
-
-    # The other direction from the orphan check below: a role assignment that
-    # names a file nobody shipped (or already deleted, e.g. a retired agent)
-    # is stale the moment it's written -- exactly the failure mode retiring
-    # refactoring-detector/refactoring-surgeon into skills/refactor/ could
-    # leave behind if their models.json rows were not removed with them.
-    dangling = sorted(p for p in assigned if not os.path.isfile(f"{PLUGIN}/{p}"))
-    check(f"models.json names no assignment whose file is missing ({len(dangling)} dangling)",
-          not dangling)
-    for p in dangling[:5]:
-        print("     dangling assignment:", p)
-
-    # Anything that declares a model must be in the table. Without this, a new
-    # agent silently keeps whatever tier its author typed and re-tiering a role
-    # quietly skips it.
-    declaring = set()
-    for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
-                 + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
+    ALL_INVOCABLE = invocable_names()
+    for path in skills:
         body = read_text(path)
-        end = body.find("\n---", 3) if body.startswith("---") else -1
-        if end == -1:
-            continue
-        m = re.search(r"^model:[ \t]*(\S+)", body[3:end], re.MULTILINE)
-        if not m:
-            continue
-        rel = path.replace("\\", "/")[len(PLUGIN) + 1:]
-        declaring.add(rel)
-        check(f"{rel} uses a family alias, not a pinned version ({m.group(1)})",
-              m.group(1) in aliases)
+        dead_cmds = sorted({m for m in CMD_REF.findall(body) if m not in ALL_INVOCABLE})
+        check(f"{path} names no command that does not exist "
+              f"({len(dead_cmds)}{': ' + ', '.join(dead_cmds[:3]) if dead_cmds else ''})",
+              not dead_cmds)
+        dead_paths = sorted({rel for rel in PLUGIN_PATH_REF.findall(body)
+                             if not os.path.isfile(os.path.join(PLUGIN, rel))})
+        check(f"{path} names no plugin file that does not exist "
+              f"({len(dead_paths)}{': ' + ', '.join(dead_paths[:2]) if dead_paths else ''})",
+              not dead_paths)
 
-    orphans = sorted(declaring - assigned)
-    check(f"every component declaring a model is in models.json "
-          f"({len(orphans)} unassigned)", not orphans)
-    for rel in orphans:
-        print(f"     unassigned: {rel}")
+    # R1: the design's target is 14 skills; it is len(SKILL_NAMES) today, for the
+    # three reasons below. (This sentence carried a hard-coded 16 while the list
+    # already held 17 -- a count written in prose beside the list it counts goes
+    # stale in silence, so it names the list instead.)
+    #
+    # `goal` stays until someone has actually run a track end to end, which has not
+    # happened yet (Unit 8 decision, 2026-08-27); once it retires this drops by one.
+    #
+    # `options` is an addition rather than a leftover: the always-on rule it backs
+    # (rules/option-explainer.md) has to fit in 45 lines, and the skeleton,
+    # dimension library and worked example do not
+    # (docs/design/2026-08-29-option-explainer-with-eli5-high-level.md, Decision 2).
+    # It carries `disable-model-invocation: true`, so it costs the always-on budget
+    # below nothing.
+    #
+    # `git-sweep` is an addition of the same kind: what it decides is deterministic
+    # and lives in scripts/branch_sweep.py, so the skill is a thin relay over a
+    # script rather than a procedure a model reasons through, and a person invokes
+    # it by name. It carries the same flag for the same reason -- the budget below
+    # reads 5674 of 5697 both before and after it was added, because the flag is
+    # what excludes it from that sum. Its description is 142 characters against 23
+    # of headroom, so always-on it would not have fitted at all: the choice was the
+    # flag or a ceiling raise, and a ceiling raise is a decision, not a chore.
+    #
+    # `models` is the same kind again: a person runs it by name when a new model
+    # comes out, so it carries the flag, and what it decides lives in
+    # scripts/model_choice.py. It declares no model of its own on purpose -- a
+    # tier set to a model that does not start must not take down the command
+    # that fixes it.
+    SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git",
+                   "git-sweep", "goal", "intake", "models", "options", "plan-review",
+                   "quiz", "refactor", "setup", "ship", "track", "usage", "verify",
+                   "viewer"]
+    skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
+    check(f"skills/ holds exactly the {len(SKILL_NAMES)} names {SKILL_NAMES} "
+          f"({skill_dirs})", skill_dirs == SKILL_NAMES)
 
-    # Frontmatter is only half of it. The bigger drift was in prose -- a file
-    # that said "dispatch `explorer` (Haiku)" carried a second copy of a fact
-    # agents/explorer.md already owned, and the two diverge the moment a tier
-    # moves. Components name TIERS (chore/build/think); only models.json and
-    # rules/model-selection.md name families. rules/ is excluded because
-    # defining the tiers is exactly its job.
-    FAMILY = re.compile(r"\b(haiku|sonnet|opus|fable)\b", re.IGNORECASE)
-    leaked = []
-    for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
-                 + sorted(glob.glob(f"{PLUGIN}/skills/*/references/*.md"))
-                 + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
-        for n, line in enumerate(read_text(path).splitlines(), 1):
-            if line.startswith("model:"):
+    # The 72 generated refactoring aliases moved out of the main line into their
+    # own directory (see .claude-plugin/plugin.json's additive "skills" key), so
+    # they get the same frontmatter check plus the one property that keeps their
+    # descriptions out of the always-on budget while leaving them user-invocable.
+    catalog_skills = sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))
+    check(f"refactoring-catalog holds exactly 72 skills ({len(catalog_skills)})", len(catalog_skills) == 72)
+    for path in catalog_skills:
+        keys = frontmatter_keys(path)
+        check(f"{path} frontmatter has name+description", bool(keys) and {"name", "description"} <= keys)
+        check(f"{path} disables model invocation", "disable-model-invocation: true" in read_text(path))
+
+    # commands/ is retired: a file there and a same-named skill both create the
+    # same slash command, and that collision already shadowed a skill once. The
+    # 72 aliases must not have leaked back into the main skills/ line either.
+    check(f"{PLUGIN}/commands is gone", not os.path.isdir(f"{PLUGIN}/commands"))
+    alias_slugs = {os.path.basename(os.path.dirname(p)) for p in catalog_skills}
+    leaked_aliases = sorted(alias_slugs & {os.path.basename(os.path.dirname(p)) for p in skills})
+    check(f"skills/ holds no refactoring alias ({len(leaked_aliases)} found)", not leaked_aliases)
+
+
+@section("always-on-budget")
+def _always_on_budget():
+    # The always-on budget: every description a model can match on without being
+    # asked is sent to it in every session, whether or not that component ever
+    # fires. Scanned by directory shape rather than by tag, on purpose -- the
+    # restructure moved files between directories, and a check keyed to a
+    # directory would have moved with them, changing the number without changing
+    # what it costs. Skips anything gated by `disable-model-invocation: true`
+    # (the 72 catalog aliases, plus any main-line skill given the same flag),
+    # since those never reach the model unbidden.
+    #
+    # This is a ratchet, not the design's target. UC4's target is 4,673
+    # characters; measured here, this repo was not there until MP-05 (the last
+    # paragraph below), and a ratchet is what stops the total drifting back up
+    # while that gap is still open. Two things were known to be on the table for
+    # closing it: retiring `goal` once a track has actually been run end to end
+    # (see the SKILL_NAMES comment above), and shortening the longest
+    # descriptions -- which trades against those same descriptions still needing
+    # to be long enough to trigger, so it was not done here until MP-05 did it
+    # description by description.
+    #
+    # Raised to 5697 for pb04. The fourth verify lens is a tenth agent, and its
+    # description is 187 characters measured, not estimated. Two existing
+    # descriptions had to move with it: verify/SKILL.md's went 446 -> 455 and
+    # verifier.md's 189 -> 222, because both said "three" about something that is
+    # now four and the cheapest true rewording is longer, not shorter. 187 + 9 +
+    # 33 = 229, and 5468 + 229 = 5697 -- the 41 characters of headroom measured on
+    # 2026-09-13 are carried over unchanged rather than widened, so this stays a
+    # budget and not a tripwire. Q3 (user, 2026-09-13) chose raising this over
+    # shortening the six longest descriptions; the comment above says why that
+    # trade is not free. Raising it further is a decision: every character here is
+    # read by every session, forever.
+    #
+    # Lowered to 3836 for MP-05 of the 2026-09-25 mattpocock/skills gap analysis
+    # (its record is a local design document, not in git).
+    # All nineteen descriptions were rewritten by three rules -- the triggering
+    # situation opens the sentence, one trigger per branch, and nothing the body
+    # already says -- and the total measured afterwards is 3836, which is what
+    # the ratchet is set to: zero headroom, on purpose, because the next
+    # description that grows should have to say why. 34 of those characters are
+    # "Use PROACTIVELY." kept in explorer.md and test-runner.md (the first cut
+    # measured 3802 without them): the Claude Code sub-agents doc names that
+    # phrase as the lever for proactive delegation, it is not identity, and no
+    # eval here would show it going missing, so it stays. This is the first time
+    # the number sits under the 4,673 design target; the target line above stays
+    # as the number the design asked for.
+    ALWAYS_ON_CEILING = 3836
+    always_on_paths = (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+                       + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                       + sorted(glob.glob(f"{CATALOG}/*/SKILL.md")))
+    always_on_total = sum(
+        len(frontmatter_description(p)) for p in always_on_paths
+        if "disable-model-invocation: true" not in read_text(p))
+    print(f"     always-on description budget: {always_on_total} chars "
+          f"(design target: 4673)")
+    check(f"always-on description budget does not exceed {ALWAYS_ON_CEILING} chars "
+          f"({always_on_total})", always_on_total <= ALWAYS_ON_CEILING)
+
+
+@section("options")
+def _options():
+    # `options` has to keep that flag, and the budget above is the wrong thing to
+    # rely on for it: dropping the flag does trip the ceiling today, but only
+    # because the ratchet happens to leave 17 characters of headroom. Say it
+    # outright instead, the way the catalog aliases already do above.
+    OPTIONS_SKILL = f"{PLUGIN}/skills/options/SKILL.md"
+    check(f"{OPTIONS_SKILL} disables model invocation",
+          "disable-model-invocation: true" in read_text(OPTIONS_SKILL))
+
+    # #73: the six fields were named in the rule and their layout was not, so a
+    # reply that ran all six into one paragraph per option broke no line of it.
+    # options_lint.py holds the half a rule cannot -- but a probe nobody is told to
+    # run is a file, not a check, so both pointers are pinned. The rule carries the
+    # self-check box, because it fires whether or not the skill was invoked; the
+    # skill and the template carry the runnable path. What the probe *does* is held
+    # by tests/test_options_lint.py, per the split CLAUDE.md draws between the two.
+    OPTIONS_LINT = f"{PLUGIN}/scripts/options_lint.py"
+    OPTION_RULE = f"{PLUGIN}/rules/option-explainer.md"
+    OPTIONS_TEMPLATE = f"{PLUGIN}/skills/options/references/template.md"
+    check(f"options_lint ships ({OPTIONS_LINT})", os.path.isfile(OPTIONS_LINT))
+    for path in (OPTION_RULE, OPTIONS_SKILL, OPTIONS_TEMPLATE):
+        check(f"{path} points at options_lint.py", "options_lint.py" in read_text(path))
+
+    # The literal the probe reads for "a pick was made", and the same one
+    # stage-design.md and stage-intake.md already ask a design's options to carry.
+    # Reword it out of the rule and every draft fails one_recommended with nothing
+    # saying why -- the marker is a contract between three files and a script.
+    for path in (OPTION_RULE, OPTIONS_TEMPLATE):
+        check(f"{path} names the `(recommended)` marker",
+              "(recommended)" in read_text(path))
+
+
+@section("rules")
+def _rules():
+    # /cai:setup copies these out to ~/.claude/rules/; an empty dir would
+    # make setup a silent no-op.
+    rules = sorted(glob.glob(f"{PLUGIN}/rules/*.md"))
+    check("rules ship with the plugin", bool(rules))
+
+    # Every rules/*.md file is L1: loaded into every session whether or not it
+    # ever fires, unlike a skill body that is only read once invoked. There was
+    # no check on that cost until option-explainer.md's own design set 45 as the
+    # ceiling (its trailing comment carries the reasoning); this is what stops a
+    # future edit drifting past it unnoticed the way it could before this check
+    # existed. Same pattern as the goal.md line-ceiling check above.
+    #
+    # Raised to 56 for #73. option-explainer.md sat exactly on 45, which is a
+    # ceiling that has stopped measuring anything -- the next line to be added
+    # fails regardless of whether it earns its place, and what it had to hold was
+    # the one thing the rule was missing: the six fields were named and their
+    # layout was not. Ten of the eleven went there (shape, the `(recommended)`
+    # marker, the lint box); the eleventh is headroom, deliberately, so the number
+    # is a budget again and not a tripwire. Same reasoning as TRACK_SKILL_MAX
+    # below. Raising it further is a decision: every line here is read by every
+    # session, forever.
+    #
+    # Raised to 59, and this time the headroom is deliberately not restored. The
+    # four lines are the sample rule and its self-check box: an option list whose
+    # options differ in what the reader will see was being written as prose about
+    # the difference, which no reader can compare against anything. The user who
+    # reported it chose these four lines over a one-line version that named the
+    # trigger and left "same input, elided where identical" in the skill -- and a
+    # skill nobody can auto-invoke (`disable-model-invocation: true`) is not where
+    # the half that makes two samples comparable belongs. Sitting exactly on the
+    # ceiling is the point: the next line costs another decision, by a person.
+    RULES_LINE_CEILING = 59
+    for path in rules:
+        n = len(read_text(path).splitlines())
+        check(f"{path} is within its {RULES_LINE_CEILING}-line ceiling ({n})", n <= RULES_LINE_CEILING)
+
+    # The root CLAUDE.md's @-imports are what makes a rule file active for anyone
+    # working in this checkout; nothing compared that list to rules/*.md itself,
+    # so a new rule file could land with no import line and every check above
+    # would still be green. communication.md is the one deliberate exception --
+    # CLAUDE.md:15-17 explains why it is not imported (response language is
+    # per-user, set by /cai:setup into ~/.claude/rules/, not by this repo) -- so
+    # it is carved out here rather than failing on it every run.
+    KNOWN_UNIMPORTED_RULES = {"communication"}
+    # Pinned, because the set is an escape hatch from the check right below it:
+    # adding a name here silences a genuinely missing import and nothing else
+    # would notice. Growing it should take deleting this line, so that whoever
+    # does has to say why in the same edit.
+    check(f"{ROOT_CLAUDE} import exceptions are exactly ['communication'] "
+          f"({sorted(KNOWN_UNIMPORTED_RULES)})",
+          KNOWN_UNIMPORTED_RULES == {"communication"})
+    imported_rules = set(re.findall(r"^@plugins/cai/rules/([\w-]+)\.md$", read_text(ROOT_CLAUDE), re.MULTILINE))
+    rule_names = {os.path.splitext(os.path.basename(p))[0] for p in rules}
+    missing_imports = sorted(rule_names - imported_rules - KNOWN_UNIMPORTED_RULES)
+    extra_imports = sorted(imported_rules - rule_names)
+    check(f"{ROOT_CLAUDE} imports match rules/*.md, exceptions {sorted(KNOWN_UNIMPORTED_RULES)} "
+          f"({len(missing_imports)} missing, {len(extra_imports)} extra)",
+          not missing_imports and not extra_imports)
+    for name in missing_imports[:5]:
+        print("     rules/ has it but CLAUDE.md does not import it:", name)
+    for name in extra_imports[:5]:
+        print("     CLAUDE.md imports it but rules/ does not have it:", name)
+
+
+@section("provenance")
+def _provenance():
+    LEDGER = "docs/rule-provenance.md"
+
+    ledger_import_lines = re.findall(r"^@.*rule-provenance.*$", read_text(ROOT_CLAUDE), re.MULTILINE)
+    check(f"CLAUDE.md does not @-import the provenance ledger ({len(ledger_import_lines)} import line(s))",
+          len(ledger_import_lines) == 0)
+
+    provenance_done = subprocess.run(
+        [sys.executable, f"{PLUGIN}/scripts/provenance.py", "--ledger", LEDGER],
+        capture_output=True, text=True, encoding="utf-8")
+    # A crash (exit 1, e.g. an uncaught exception) prints no PASS/FAIL lines, so
+    # the loop below silently relays nothing and this script would stay exit 0 --
+    # check the subprocess's own health first, or a broken provenance.py goes
+    # unnoticed by the one thing meant to catch it.
+    check("provenance.py subprocess did not crash", provenance_done.returncode in (0, 2))
+    for line in provenance_done.stdout.splitlines():
+        if line.startswith("PASS ") or line.startswith("FAIL "):
+            check(line[5:], line.startswith("PASS "))
+
+
+@section("templates")
+def _templates():
+    rules = sorted(glob.glob(f"{PLUGIN}/rules/*.md"))
+    TEMPLATE = f"{PLUGIN}/templates/CLAUDE.md.tpl"
+    check("user CLAUDE.md template ships", os.path.isfile(TEMPLATE))
+
+    def bullets(path):
+        with open(path, encoding="utf-8") as fh:
+            return {line.strip() for line in fh if line.strip().startswith("- ")}
+
+    # The template seeds ~/.claude/CLAUDE.md, which loads alongside ~/.claude/rules/.
+    # Anything restated in both is sent to the model twice in every session, and the
+    # copies drift the moment one is edited. Keep them disjoint.
+    if os.path.isfile(TEMPLATE) and rules:
+        ruleset = set().union(*(bullets(p) for p in rules))
+        clashes = sorted(bullets(TEMPLATE) & ruleset)
+        check(f"template does not restate rules ({len(clashes)} duplicated)", not clashes)
+        for line in clashes[:5]:
+            print("     also in rules/:", line[:90])
+
+    PROJECT_TEMPLATE = f"{PLUGIN}/templates/CLAUDE-project.md.tpl"
+    check("project CLAUDE.md template ships", os.path.isfile(PROJECT_TEMPLATE))
+
+    def rule_sentences(path):
+        """Every sentence of five words or more in a rules file's bullets, wrapped
+    lines joined. A bullet ends at a blank line or a heading."""
+        out = set()
+        for item in re.split(r"^\s*- ", read_text(path), flags=re.MULTILINE)[1:]:
+            item = re.split(r"\n\s*\n|\n#", item)[0]
+            for sentence in re.split(r"(?<=[.!?])\s+", " ".join(item.split())):
+                if len(sentence.split()) >= 5:
+                    out.add(sentence)
+        return out
+
+    # Same drift risk as the user template above, but this one seeds a project's
+    # own CLAUDE.md, and keeps its guidance as prose inside HTML comments with no
+    # bullet lines -- so comparing bullets() would see nothing and never fail.
+    # Compare rule sentences against the template's whitespace-flattened text
+    # instead, which a rewrap cannot slip past.
+    if os.path.isfile(PROJECT_TEMPLATE) and rules:
+        flat = " ".join(read_text(PROJECT_TEMPLATE).split())
+        clashes = sorted(s for s in set().union(*(rule_sentences(p) for p in rules))
+                         if s in flat)
+        check(f"project template does not restate rules ({len(clashes)} duplicated)", not clashes)
+        for line in clashes[:5]:
+            print("     also in rules/:", line[:90])
+
+
+@section("refactor")
+def _refactor():
+    REFACTORING = f"{PLUGIN}/skills/refactor"
+
+    def referenced_paths(path):
+        """Sub-file paths the refactoring SKILL.md points models at, e.g. the
+    reference table and the smell lookup. A path named here that does not
+    exist on disk is a model told to read something that was never shipped."""
+        text = read_text(path)
+        return {f"{PLUGIN}{m}" for m in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}([^`\s]+)", text)}
+
+    def index_slugs(path):
+        """Slugs the catalog index declares as the single source of truth for
+    what /cai:<slug> and procedure-apply.md can be called with."""
+        text = read_text(path)
+        return set(re.findall(r"^\|\s*\d+\s*\|[^|]*\|\s*`([a-z0-9-]+)`\s*\|", text, re.MULTILINE))
+
+    def card_slugs(paths):
+        """Slugs actually defined by a '### N. Name `slug`' heading in the card
+    files. If the index and this ever disagree, procedure-apply.md looks
+    up a slug the index promised and the card never defines."""
+        slugs = set()
+        for path in paths:
+            text = read_text(path)
+            slugs |= set(re.findall(r"^### \d+\.\s.*`([a-z0-9-]+)`\s*$", text, re.MULTILINE))
+        return slugs
+
+    def protocol_lines(path):
+        """Entries of the safety protocol: the numbered loop steps and the hard-rule
+    bullets. Both halves count -- the numbered loop is the half a process skill
+    is most likely to paste, since it reads like a procedure. Like bullets()
+    above, this compares first lines only, so a wrapped entry is matched on the
+    line that carries its opening words."""
+        text = read_text(path)
+        section = text.split("## Non-negotiable safety protocol", 1)[1]
+        section = section.split("\n## ", 1)[0]
+        return {line.strip() for line in section.splitlines()
+                if line.strip().startswith("- ") or re.match(r"^\d+\.\s", line.strip())}
+
+    # Check 1: a body that points at a card the refactor never shipped leaves a
+    # model to improvise the mechanics instead of reading them.
+    SKILL = f"{REFACTORING}/SKILL.md"
+    refs = referenced_paths(SKILL)
+    missing_refs = sorted(p for p in refs if not os.path.isfile(p))
+    check(f"{SKILL} sub-files all exist ({len(missing_refs)} missing)", not missing_refs)
+    for p in missing_refs[:5]:
+        print("     missing:", p)
+
+    # Check 2: the index is the single source of truth for slugs (see design
+    # decisions #4). A slug it declares but no card defines is a 404 the moment
+    # /cai:<slug> is invoked; the reverse means a card nobody can reach.
+    INDEX = f"{REFACTORING}/references/catalog-index.md"
+    CARDS = sorted(glob.glob(f"{REFACTORING}/references/cat-*.md"))
+    idx_slugs = index_slugs(INDEX)
+    crd_slugs = card_slugs(CARDS)
+    missing_cards = sorted(idx_slugs - crd_slugs)
+    extra_cards = sorted(crd_slugs - idx_slugs)
+    check(f"catalog-index slugs match card files ({len(missing_cards)} missing, {len(extra_cards)} extra)",
+          not missing_cards and not extra_cards)
+    for slug in missing_cards[:5]:
+        print("     index names but no card defines:", slug)
+    for slug in extra_cards[:5]:
+        print("     card defines but index omits:", slug)
+
+    # The catalog count check above (72 dirs) only counts; it does not compare
+    # names, so renaming a directory keeps the total at 72 and nothing notices.
+    alias_slugs = {os.path.basename(os.path.dirname(p))
+                   for p in glob.glob(f"{CATALOG}/*/SKILL.md")}
+    missing_dirs = sorted(idx_slugs - alias_slugs)
+    extra_dirs = sorted(alias_slugs - idx_slugs)
+    check(f"refactoring-catalog dirs match catalog-index slugs "
+          f"({len(missing_dirs)} missing, {len(extra_dirs)} extra)",
+          not missing_dirs and not extra_dirs)
+    for slug in missing_dirs[:5]:
+        print("     index names but no catalog dir exists:", slug)
+    for slug in extra_dirs[:5]:
+        print("     catalog dir exists but index omits:", slug)
+
+    # gen-commands.py is never invoked by this suite, so a hand-edit to a
+    # generated file, or a template drift from what is committed, is invisible.
+    # Run it against a scratch copy of just what it reads (its own script plus
+    # the single source-of-truth index) so the real refactoring-catalog/ is never
+    # touched -- exercising the generator must not leave the tree dirty.
+    GEN_COMMANDS = f"{PLUGIN}/scripts/gen-commands.py"
+    GEN_SCRATCH = tempfile.mkdtemp(prefix="cai-gen-commands-")
+    os.makedirs(os.path.join(GEN_SCRATCH, "scripts"), exist_ok=True)
+    shutil.copy(GEN_COMMANDS, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py"))
+    os.makedirs(os.path.join(GEN_SCRATCH, "skills", "refactor", "references"), exist_ok=True)
+    shutil.copy(INDEX, os.path.join(GEN_SCRATCH, "skills", "refactor", "references", "catalog-index.md"))
+    gen_done = subprocess.run([sys.executable, os.path.join(GEN_SCRATCH, "scripts", "gen-commands.py")],
+                              capture_output=True, text=True)
+    check("gen-commands.py runs cleanly against a scratch copy of the index",
+          gen_done.returncode == 0)
+
+    generated = sorted(glob.glob(os.path.join(GEN_SCRATCH, "refactoring-catalog", "*", "SKILL.md")))
+    gen_slugs = {os.path.basename(os.path.dirname(p)) for p in generated}
+    check(f"gen-commands.py produces the same slugs as committed ({len(gen_slugs)})",
+          gen_slugs == alias_slugs)
+
+    regen_mismatches = []
+    for slug in sorted(gen_slugs & alias_slugs):
+        gen_text = read_text(os.path.join(GEN_SCRATCH, "refactoring-catalog", slug, "SKILL.md"))
+        committed_text = read_text(os.path.join(CATALOG, slug, "SKILL.md"))
+        if gen_text != committed_text:
+            regen_mismatches.append(slug)
+    check(f"gen-commands.py output matches committed refactoring-catalog/ "
+          f"({len(regen_mismatches)} mismatched)", not regen_mismatches)
+    for slug in regen_mismatches[:5]:
+        print("     regenerating differs from committed:", slug)
+
+    shutil.rmtree(GEN_SCRATCH, ignore_errors=True)
+
+    # Check 3: the safety protocol lives in the knowledge skill only (design
+    # decisions #3). A component that pastes a rule verbatim instead of pointing
+    # back here is exactly what goes stale the day the rule changes.
+    #
+    # refactoring-detector and refactoring-surgeon retired into this skill (Unit
+    # 6b), and refactor-scan/plan/apply/safety-net/auto are now reference files
+    # under skills/refactor/references/ rather than separate agents or skills --
+    # those reference files are what this check watches for a pasted copy now.
+    proto_lines = protocol_lines(SKILL)
+    for path in sorted(glob.glob(f"{REFACTORING}/references/procedure-*.md")):
+        # Both sides must extract the same shapes, or widening one half silently
+        # guards nothing: bullets() alone would miss a pasted numbered loop step.
+        with open(path, encoding="utf-8") as fh:
+            candidates = {ln.strip() for ln in fh
+                          if ln.strip().startswith("- ") or re.match(r"^\d+\.\s", ln.strip())}
+        restated = sorted(candidates & proto_lines)
+        check(f"{path} does not restate the safety protocol ({len(restated)} duplicated)", not restated)
+        for line in restated[:5]:
+            print("     also in refactor/SKILL.md:", line[:90])
+
+    # Unit 6b: six refactoring skills collapsed into one (skills/refactor/), and
+    # two single-caller agents retired into it. The rename itself is worth its
+    # own check, separately from the drift check above -- a stray refactor-*/
+    # directory left behind after the merge is exactly the kind of thing nobody
+    # notices until someone opens the wrong one.
+    check(f"{REFACTORING} exists", os.path.isdir(REFACTORING))
+    stray_refactor_dirs = sorted(
+        d for d in glob.glob(f"{PLUGIN}/skills/refactor-*") if os.path.isdir(d))
+    check(f"no skills/refactor-*/ directory remains ({len(stray_refactor_dirs)} found)",
+          not stray_refactor_dirs)
+
+    # The heading itself, not just the bullet shapes protocol_lines() extracts --
+    # a second copy that paraphrases the loop instead of pasting it verbatim
+    # would slip past the restatement check above but still be a second place to
+    # keep the protocol in sync. Matched as an actual heading line, not the
+    # quoted citation procedure-apply.md and others make in prose when pointing
+    # back at it.
+    protocol_heading_files = sorted(
+        p for p in glob.glob(f"{REFACTORING}/**/*.md", recursive=True)
+        if re.search(r"^## Non-negotiable safety protocol$", read_text(p), re.MULTILINE))
+    check(f"the safety protocol appears in exactly one file under {REFACTORING} "
+          f"({len(protocol_heading_files)} found)", len(protocol_heading_files) == 1)
+
+
+@section("agents-and-hooks")
+def _agents_and_hooks():
+    # Six, not five. `refactoring-surgeon` merged into the refactor skill because
+    # it executes one refactoring on one target -- sequential work with nothing to
+    # parallelise. `refactoring-detector` did not: procedure-scan dispatches one
+    # per module group, in parallel, and merging it away silently turned a
+    # whole-project scan sequential. Caller count was the wrong test on its own.
+    # Ten, not nine, as of pb04: `security-reviewer` is verify's fourth lens,
+    # dispatched alongside the three `reviewer` agents, one per module the way
+    # `refactoring-detector` already was above.
+    AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+    check(f"agents/ holds exactly 10 files ({len(AGENTS)})", len(AGENTS) == 10)
+
+    hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
+    print("PASS hooks.json is valid JSON")
+
+    for event in hooks.get("hooks", {}).values():
+        for matcher in event:
+            for hook in matcher.get("hooks", []):
+                for ref in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}([^\"]*)", hook.get("command", "")):
+                    target = f"{PLUGIN}{ref.strip()}"
+                    check(f"hook target exists ({target})", os.path.isfile(target))
+
+    # .claude/settings.json points at a repo-local hook the same way hooks.json
+    # points at a shipped one. A rename should fail here, not at someone's runtime.
+    SETTINGS = ".claude/settings.json"
+    if os.path.isfile(SETTINGS):
+        for event in json.load(open(SETTINGS)).get("hooks", {}).values():
+            for matcher in event:
+                for hook in matcher.get("hooks", []):
+                    for ref in re.findall(r"\$\{CLAUDE_PROJECT_DIR\}([^\"]*)", hook.get("command", "")):
+                        target = ref.strip().lstrip("/")
+                        check(f"project hook target exists ({target})", os.path.isfile(target))
+
+
+@section("setup")
+def _setup():
+    # /cai:setup step 5 runs the dispatcher through cmd, and the Bash tool on
+    # Windows is Git Bash, which rewrites a lone /c into C:/. cmd then never sees
+    # the switch and exits 0 -- the exact code step 5 reads as "the guard is inert".
+    # A healthy guard reported as broken is worse than no check at all.
+    SETUP = f"{PLUGIN}/skills/setup/SKILL.md"
+    setup_text = read_text(SETUP)
+    check("setup.md invokes cmd as //c (MSYS would eat a lone /c)",
+          "cmd //c" in setup_text and not re.search(r"cmd\s+/(?!/)c\b", setup_text))
+
+    # Step 3 is the one place that rewrites a shipped rule into ~/.claude, and the
+    # bullets it quotes are the whole specification of what that rewrite may touch.
+    # They drifted: the worked example replaced the language-neutral second clause
+    # with "keep technical terms in English", so /cai:setup wrote that into a real
+    # user's installed rules -- a rule the plugin never shipped -- while every
+    # check here stayed green. Both bullets now carry <language> or English in the
+    # one slot that varies, and reduce to the shipped line; a future edit that
+    # rewrites anything else fails here instead of in someone's ~/.claude.
+    COMMUNICATION = f"{PLUGIN}/rules/communication.md"
+    shipped_bullets = re.findall(r"^- Respond in .*$", read_text(COMMUNICATION), re.M)
+    setup_bullets = re.findall(r"^- Respond in .*$", setup_text, re.M)
+    check(f"{COMMUNICATION} has exactly one 'Respond in' bullet "
+          f"({len(shipped_bullets)})", len(shipped_bullets) == 1)
+    check(f"setup.md quotes that bullet twice -- the current line and the "
+          f"<language> template ({len(setup_bullets)})", len(setup_bullets) == 2)
+    if shipped_bullets and len(setup_bullets) == 2:
+        check("setup.md's bullets differ from communication.md's in the language "
+              "name alone",
+              all(b.replace("<language>", "English") == shipped_bullets[0]
+                  for b in setup_bullets))
+
+    # A plugin cannot ship a `statusLine` -- Claude Code reads only `agent` and
+    # `subagentStatusLine` out of a plugin's settings -- so step 6 delegates to a
+    # script that writes the user's own settings.json. Two halves, each one rename
+    # away from doing nothing: the step has to name the installer, and the
+    # installer copies scripts/statusline.py by a path fixed at import time.
+    for path in (f"{PLUGIN}/scripts/statusline.py",
+                 f"{PLUGIN}/scripts/install_statusline.py"):
+        check(f"{path} ships with the plugin", os.path.isfile(path))
+    check("setup.md delegates the settings.json write to install_statusline.py",
+          "install_statusline.py" in setup_text)
+
+
+@section("encoding")
+def _encoding():
+    # CMD.exe reads batch files through the OEM codepage, so one multi-byte
+    # character desyncs its parser and every later line runs mangled ('cho' for
+    # 'echo'). The sh branch is unaffected, so this breaks on Windows only.
+    for path in sorted(glob.glob("**/*.cmd", recursive=True)):
+        with open(path, "rb") as fh:
+            non_ascii = [b for b in fh.read() if b > 127]
+        check(f"{path} is pure ASCII ({len(non_ascii)} byte(s) over 127)", not non_ascii)
+
+    # CMD finds the label of a `goto` or `call :` by reading the batch file in
+    # 512-byte pieces, counted from the end of the jump line, and an LF-only file
+    # (which this one has to be, for sh) loses a label whose colon-and-name straddles
+    # a piece boundary: "cannot find the batch label", on Windows only, after some
+    # later edit shifted a few bytes. Measured on Windows 11 with goto and call, a
+    # 1- and a 13-character name: it fails for exactly those distances. Only forward
+    # jumps are modelled, so a backward one counts as a failure too.
+    for launcher in (DISPATCHER, f"{PLUGIN}/hooks/run-timing.cmd"):
+        with open(launcher, "rb") as fh:
+            cmd_block = fh.read().split(b"\nCMDBLOCK\n")[0]
+        cmd_labels = {m.group(1).lower(): m.start() for m in re.finditer(rb"^:(\w+)", cmd_block, re.M)}
+        lost_labels = []
+        for m in re.finditer(rb"^(?!REM\b)[^\n]*?\b(?:goto\s+:?|call\s+:)(\w+)[^\n]*\n", cmd_block, re.M | re.I):
+            name = m.group(1).lower()
+            if name == b"eof":
                 continue
-            if FAMILY.search(line):
-                leaked.append(f"{path.replace(chr(92), '/')}:{n}: {line.strip()[:70]}")
-    check(f"no component names a model family in prose ({len(leaked)} leak(s))",
-          not leaked)
-    for line in leaked[:8]:
-        print(f"     {line}")
+            start = cmd_labels.get(name)
+            if start is None or start < m.end() or (start - m.end()) % 512 + len(name) >= 512:
+                lost_labels.append(name.decode())
+        check(f"{launcher} has no goto or call label CMD can lose at a 512-byte boundary "
+              f"({len(lost_labels)} found)", not lost_labels)
+        for name in lost_labels[:5]:
+            print("     label:", name)
 
-# plugins/cai-codex/ is generated from plugins/cai/ (gen-codex.py); a plugin
-# edit that drifts the two apart is caught here rather than at Codex install
-# time, the same way the gen-models block above catches a hand-edited tier.
-GEN_CODEX = "scripts/gen-codex.py"
-if os.path.isfile(GEN_CODEX):
-    codex_check = subprocess.run([sys.executable, GEN_CODEX, "--check"],
-                                 capture_output=True, encoding="utf-8")
-    check("plugins/cai-codex matches gen-codex.py", codex_check.returncode == 0)
-    if codex_check.returncode != 0:
-        print("    ", codex_check.stdout.strip().replace("\n", "\n     "))
+    # A UTF-8 BOM is invisible in an editor and breaks readers that expect the file
+    # to start with content: mermaid-cli refuses the diagram outright ("Parse error
+    # on line 1"), and CMD.exe prints the three bytes before the first line runs.
+    # On Windows PowerShell's `>`, `>>` and `Out-File` write one by default, which
+    # is how it gets in -- so this catches a redirect that should have been an edit.
+    BOM = b"\xef\xbb\xbf"
+    TEXT = (".md", ".json", ".py", ".cmd", ".sh", ".tpl", ".yml", ".yaml", ".mmd")
+    bom_files = []
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for name in sorted(files):
+            if not name.endswith(TEXT):
+                continue
+            path = os.path.join(root, name)
+            with open(path, "rb") as fh:
+                if fh.read(3) == BOM:
+                    bom_files.append(os.path.relpath(path).replace(os.sep, "/"))
+    check(f"no text file carries a UTF-8 BOM ({len(bom_files)} found)", not bom_files)
+    for path in bom_files[:5]:
+        print("     BOM:", path)
 
-# Release versioning (docs/design/2026-09-26-release-versioning-detail.md):
-# scripts/release.py owns pinning both marketplace files to a git-subdir
-# source once a release is cut, and MARKETPLACES is the one list both it and
-# this check read -- a third platform is one more row there, not a new code
-# path here (UC5; see tests/test_release.py's fake_platforms test).
-sys.path.insert(0, "scripts")
-import release  # noqa: E402
-
-product_manifest_text = read_text(release.PRODUCT_MANIFEST)
-
-# release.pinned_ref returns None for the legacy bare-string `source` and the
-# pinned ref for the git-subdir object form, so it doubles as the form probe.
-# Only the git-subdir form passes (stance I5); the legacy string FAILs. UC4's
-# full revert (detail.md:657) reverts this change first.
-forms = {}
-for market in release.MARKETPLACES:
-    try:
-        text = read_text(market.file)
-        forms[market.file] = "legacy" if release.pinned_ref(text, market) is None else "subdir"
-    except (OSError, json.JSONDecodeError, ValueError):
-        forms[market.file] = "unreadable"
-
-all_subdir = all(form == "subdir" for form in forms.values())
-check("every marketplace entry uses a git-subdir source", all_subdir)
-if not all_subdir:
-    for file, form in forms.items():
-        print(f"     {file}: {form}")
-
-if all_subdir:
-    expected_url = release.repository_git_url(product_manifest_text)
-    expected_ref = "v" + release.product_version(product_manifest_text)
-    for market in release.MARKETPLACES:
-        obj = json.load(open(market.file, encoding="utf-8"))
-        entry = next(p for p in obj.get("plugins", []) if p.get("name") == market.plugin)
-        source = entry.get("source") or {}
-        ok = (source.get("source") == "git-subdir"
-              and source.get("url") == expected_url
-              and source.get("path") == market.path
-              and source.get("ref") == expected_ref)
-        check(f"{market.file} pins {market.plugin} correctly (url/path/ref)", ok)
-        if not ok:
-            print(f"     {market.file}: got {source}, want "
-                  f"url={expected_url!r} path={market.path!r} ref={expected_ref!r}")
-
-CAI_CODEX_MANIFEST = "plugins/cai-codex/.codex-plugin/plugin.json"
-try:
-    codex_manifest = json.load(open(CAI_CODEX_MANIFEST, encoding="utf-8"))
-    codex_version_matches = codex_manifest.get("version") == release.product_version(product_manifest_text)
-except (OSError, json.JSONDecodeError, ValueError):
-    codex_version_matches = False
-check(f"{CAI_CODEX_MANIFEST} version matches the product version (R4)", codex_version_matches)
-
-# What each stage's agent must be granted, checked against its `tools:`
-# frontmatter rather than its name -- picking an agent by tier alone is
-# exactly what pointed design at architect (can't Write) and ship at
-# explorer (can't run git) before designer/verifier/shipper existed.
-STAGE_TOOL_NEEDS = {
-    # intake and discover both run on `architect` (stages.json), which
-    # stays read-only: D6-1/2/3 rewrote the three imperatives out rather
-    # than grant it `Agent` or `Write`. `Agent` reaches `implementer`, so
-    # it is a `Write` grant wearing another name -- and it cannot be
-    # narrowed, because the type list in the parentheses is ignored in a
-    # subagent definition (verifier.md). Three separate files say this
-    # agent is read-only: architect.md, plan-review/SKILL.md,
-    # stage-design.md. RETIRED_IMPERATIVES below is what keeps the
-    # rewrite from quietly coming back.
-    "intake": [
-        ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
-        ("a search tool",
-         lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
-    ],
-    "discover": [
-        ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
-        ("a search tool",
-         lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
-    ],
-    "design": [
-        ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
-        ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
-        # stage-design.md runs design_probe.py and mmdc; designer.md's own
-        # body says to render before handing off. Routing those through a
-        # dispatched runner instead would move a zero-token check onto a
-        # model turn -- the opposite of the reason the probe exists at all.
-        ("a python interpreter", _grants_python),
-        ("a mermaid renderer", _grants_mermaid),
-    ],
-    "build": [
-        ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
-        # stage-build.md runs design_probe.py before reading the design.
-        # implementer.md already satisfies this; the entry was simply
-        # missing, and a stage with no entry reads exactly like a stage
-        # that passed.
-        ("a python interpreter", _grants_python),
-    ],
-    "verify": [
-        # No per-runner grants any more: which command runs is decided by the
-        # resolver and held by the PreToolUse hook (runner_guard.py), so the
-        # agent needs a shell and nothing narrower than that can express it.
-        ("a shell", lambda tools: re.search(r"\bBash\b(?!\()", tools) is not None),
-        ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
-        # stage-verify.md tells this stage to write the failing test first
-        # and then fix. So do verifier.md's own description, its body, and
-        # its finding format. Four statements say it fixes; only the tools
-        # line said it could not, so this corrects the tools line. Write
-        # opens the new test file, Edit changes the code under it -- both,
-        # not one.
-        ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
-        ("Edit", lambda tools: re.search(r"\bEdit\b", tools) is not None),
-        # stage-verify.md's Step 0.5 runs provenance.py directly, same
-        # reasoning as "build"'s own comment about design_probe.py --
-        # routing a zero-token check through a dispatched agent would move
-        # it onto a model turn for no reason.
-        ("a python interpreter", _grants_python),
-    ],
-    "ship": [
-        ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
-        # stage-ship.md's release note now always goes to the PR
-        # description; `gh` is how it gets there. Granting `Write` instead
-        # would hand a general file writer to the agent that runs
-        # `git push --force-with-lease` and sits on one of the two human
-        # gates.
-        ("a gh command",
-         lambda tools: re.search(r"\bgh\b", tools) is not None),
-    ],
-}
-
-# The track skill's stage table. Shape checks only -- the six stage prose
-# files and their wrapper skills are later units and do not exist yet.
-STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
-STAGE_ORDER = ["intake", "discover", "design", "build", "verify", "ship"]
-missing_stages = sorted(set(STAGE_ORDER) - set(STAGE_TOOL_NEEDS))
-check("STAGE_TOOL_NEEDS covers every stage id (%s)"
-      % (", ".join(missing_stages) or "all six"),
-      set(STAGE_TOOL_NEEDS) == set(STAGE_ORDER))
-check(f"stages.json ships ({STAGES_JSON})", os.path.isfile(STAGES_JSON))
-if os.path.isfile(STAGES_JSON):
-    stages_text = read_text(STAGES_JSON)
-    stages = json.loads(stages_text)["stages"]
-    check(f"stages.json has {len(STAGE_ORDER)} rows ({len(stages)})",
-          len(stages) == len(STAGE_ORDER))
-    keys_ok = all(set(row) == {"id", "agent", "reference", "auto_invoke"} for row in stages)
-    check("every stage row has exactly id/agent/reference/auto_invoke", keys_ok)
-    ids = [row.get("id") for row in stages]
-    check(f"stage ids are {STAGE_ORDER} in order ({ids})", ids == STAGE_ORDER)
-
-    # Model tier lives only in models.json; a second copy here would drift
-    # the moment a role is re-tiered. "build" is also a legitimate stage id
-    # and names its reference file, so only flag it elsewhere.
-    BUILD_LEGIT = re.compile(r'"id"\s*:\s*"build"|stage-build\.md')
-    tier_leaks = []
-    for ln in stages_text.splitlines():
-        if re.search(r"\btier\b|\b(chore|think)\b", ln, re.IGNORECASE):
-            tier_leaks.append(ln)
-        elif re.search(r"\bbuild\b", ln, re.IGNORECASE) and not BUILD_LEGIT.search(ln):
-            tier_leaks.append(ln)
-    check(f"stages.json names no model tier ({len(tier_leaks)} leak(s))", not tier_leaks)
-
-    # Unit 6a: the six stage reference files and their thin wrapper skills.
-    # A `reference` path that resolves to nothing leaves the subagent track
-    # dispatches with a Read call that 404s mid-stage.
-    for row in stages:
-        ref = f"{PLUGIN}/skills/track/{row['reference']}"
-        check(f"stage {row['id']} reference exists ({ref})", os.path.isfile(ref))
-
-        wrapper = f"{PLUGIN}/skills/{row['id']}/SKILL.md"
-        check(f"stage {row['id']} has a wrapper skill ({wrapper})", os.path.isfile(wrapper))
-        if not os.path.isfile(wrapper):
+    # The reduced check hands one pattern file to both `findstr /R /G:` and
+    # `grep -f`. A blank line makes grep match every call, a CR leaves a stray \r on
+    # every Linux pattern, and a `\>` before the last two characters makes findstr
+    # silently skip the line (E6: every rm rule went missing, no error). The BOM
+    # check above only scans TEXT's extensions, so these files get their own. The
+    # agent file is the one Agent calls read (#277).
+    for pattern_name in ("reduced-check-patterns.txt", "reduced-check-agent-patterns.txt"):
+        pattern_path = f"{PLUGIN}/hooks/{pattern_name}"
+        check(f"{pattern_name} ships with the plugin", os.path.isfile(pattern_path))
+        if not os.path.isfile(pattern_path):
             continue
-
-        wrapper_text = read_text(wrapper)
-        has_flag = "disable-model-invocation: true" in wrapper_text
-        # auto_invoke says whether this skill may start the stage on its own;
-        # a stage that writes things (auto_invoke: false) must carry the flag
-        # or a matching description starts it unbidden, and a stage that only
-        # reads (auto_invoke: true) must not carry it or the capability it
-        # exists to keep -- firing on "review this diff" -- regresses silently.
-        if row["auto_invoke"]:
-            check(f"{wrapper} has no disable-model-invocation (auto_invoke: true)", not has_flag)
+        # findstr /G: holds the file against every reader while it runs, and a
+        # parallel pytest worker may be inside one -- wait it out rather than crash.
+        for _attempt in range(20):
+            try:
+                with open(pattern_path, "rb") as fh:
+                    pattern_bytes = fh.read()
+                break
+            except PermissionError:
+                time.sleep(0.05)
         else:
-            check(f"{wrapper} disables model invocation (auto_invoke: false)", has_flag)
+            raise SystemExit(f"cannot read {pattern_path}")
+        pattern_lines = pattern_bytes.decode("latin-1").split("\n")[:-1]
+        check(f"{pattern_name} is ASCII without a BOM",
+              all(b < 128 for b in pattern_bytes) and not pattern_bytes.startswith(BOM))
+        check(f"{pattern_name} is LF only", b"\r" not in pattern_bytes)
+        check(f"{pattern_name} has no blank line and one final LF",
+              pattern_bytes.endswith(b"\n") and all(pattern_lines))
+        check(f"{pattern_name} never puts a backslash-greater-than mid-pattern",
+              not any("\\>" in line[:-2] for line in pattern_lines))
 
-        wrapper_end = wrapper_text.find("\n---", 3) + 4 if wrapper_text.startswith("---") else 0
-        wrapper_lines = len(wrapper_text[wrapper_end:].splitlines())
-        check(f"{wrapper} body is under 25 lines ({wrapper_lines})", wrapper_lines < 25)
 
-    # Step 1 and Step 6.1 both used to send the build stage into the design
-    # document -- Step 1 for the progress columns, Step 6.1 for the
-    # traceability table. `artifact_unchanged` hashes that document against
-    # the digest the ledger recorded at sign-off, so either edit makes every
-    # later `preflight.py build` exit 2, including the resumed run those
-    # instructions exist to serve.
+@section("plugin-root-paths")
+def _plugin_root_paths():
+    # A component that tells the model to run `plugins/cai/scripts/...` works only
+    # inside this checkout. Anyone who installed from the marketplace has the plugin
+    # under ~/.claude/plugins/cache/, so the command silently stops working for
+    # every real user -- the failure this repo is least able to notice.
+    for path in sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md")
+                       + glob.glob(f"{CATALOG}/*/SKILL.md")
+                       + glob.glob(f"{PLUGIN}/skills/*/references/*.md")):
+        check(f"{path} runs scripts via <plugin-root>",
+              f"{PLUGIN}/scripts/" not in read_text(path))
+
+
+@section("guard")
+def _guard():
+    WORK = temp_repo("work")
+    MAIN = temp_repo("main")
+    DIRTY = dirty_repo()
+    UNTRACKED_ONLY = dirty_repo(untracked_only=True)
+    NOT_A_REPO = tempfile.mkdtemp(prefix="cai-guard-bare-")
+    DETACHED = detached_repo()
+    UNBORN = temp_repo("main", commit=False)
+    # Feature branch, remote already has main/master: proves the exemption reads
+    # the remote, not the current branch -- a push naming main explicitly must
+    # still be blocked from a feature checkout.
+    REMOTE = remote_ref_repo("work")
+    # On main, remote already has main/master: the fixture a bare push or a bare
+    # `--force-with-lease` while on main resolves against.
+    MAIN_REMOTE = remote_ref_repo("main")
+    # Same as MAIN_REMOTE, but the repo directory itself has a space in its path
+    # -- `-C <dir>`'s value pattern must not stop parsing at the first
+    # whitespace (#194 review).
+    SPACED_MAIN_REMOTE = remote_ref_repo("main", spaced=True)
+    # main present locally with a remote-tracking ref, but checked out on a
+    # feature branch: proves `--all`/`--mirror` are blocked regardless of which
+    # branch the session happens to be on, not only when cwd is already on main
+    # (#194 review).
+    FEATURE_WITH_LOCAL_MAIN = remote_ref_repo("main")
+    subprocess.run(["git", "-C", FEATURE_WITH_LOCAL_MAIN, "checkout", "-b", "feature"],
+                   capture_output=True, text=True)
+    # Only a Cargo.toml and no `git init`, so the runner guard's root falls back to
+    # the directory itself and the one resolved command is `cargo test`.
+    CARGO = tempfile.mkdtemp(prefix="cai-guard-cargo-")
+    with open(os.path.join(CARGO, "Cargo.toml"), "w", encoding="utf-8") as fh:
+        fh.write('[package]\nname = "probe"\nversion = "0.1.0"\n')
+
+    CASES = [
+        # (tool_name, command, expected, cwd[, agent_type])
+        # The scoped agents, by the `agent_type` the platform puts in the hook
+        # input. AC8: only the resolver and the command it resolved get through
+        # for test-runner; the last two of this block are habits the old agents
+        # had (`2>&1`, `cd <dir> &&`) that the new rule blocks. D7: what the
+        # verifier may also run. AC15: designer, which never had a working hook.
+        ("Bash", "cargo test", 0, CARGO, "cai:test-runner"),
+        ("Bash", "cargo test my_test", 0, CARGO, "cai:test-runner"),
+        ("Bash", "cargo test", 2, WORK, "cai:test-runner"),
+        ("Bash", "rm -rf target", 2, CARGO, "cai:test-runner"),
+        ("Bash", "cargo test; git stash", 2, CARGO, "cai:test-runner"),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py", 0, WORK, "cai:test-runner"),
+        ("Bash", "python -c 'print(1)'", 2, WORK, "cai:test-runner"),
+        ("Bash", "cargo test", 0, WORK),
+        ("Bash", "cargo test 2>&1", 2, CARGO, "cai:test-runner"),
+        ("Bash", "cd D:/x && git status", 2, CARGO, "cai:test-runner"),
+        ("Bash", "git diff --stat a...HEAD", 0, WORK, "cai:verifier"),
+        ("Bash", "git symbolic-ref --short refs/remotes/origin/HEAD", 0, WORK, "cai:verifier"),
+        ("Bash", "git symbolic-ref HEAD refs/heads/x", 2, WORK, "cai:verifier"),
+        # #277: --output makes the read-only verbs write a file.
+        ("Bash", "git log --output=out.txt -1", 2, WORK, "cai:verifier"),
+        ("Bash", "git diff --output out.txt", 2, WORK, "cai:verifier"),
+        ("Bash", "git log --oneline -1", 0, WORK, "cai:verifier"),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", 0, WORK, "cai:verifier"),
+        ("Bash", "git push origin x", 2, WORK, "cai:verifier"),
+        ("Bash", "git status", 2, WORK, "cai:designer"),
+        ("Bash", "mmdc -i a.mmd -o a.svg", 0, WORK, "cai:designer"),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md", 0, WORK, "cai:designer"),
+        ("Bash", "date +%F", 0, WORK, "cai:designer"),
+        ("Bash", "git rev-parse --show-toplevel", 0, WORK, "cai:designer"),
+        ("Bash", "git push --force origin main", 2, WORK),
+        ("Bash", "git push -f origin main", 2, WORK),
+        # #194: a `+refspec` forces exactly like --force/-f, on any target.
+        ("Bash", "git push origin +HEAD:main", 2, WORK),
+        ("Bash", "git push origin +main", 2, WORK),
+        # #194 maintainer decision: --force-with-lease to main/master is now
+        # blocked too, reversing this pin -- a lease protects against overwriting
+        # someone else's push, not against rewriting main itself.
+        ("Bash", "git push --force-with-lease origin main", 2, WORK),
+        ("Bash", "git push --force-with-lease origin master", 2, WORK),
+        # A lease push to a feature branch stays allowed -- the shipper's own
+        # documented push (agents/shipper.md:21).
+        ("Bash", "git push --force-with-lease origin feat/x", 0, WORK),
+        ("Bash", "git push --force-with-lease", 0, WORK),
+        # No refspec, so the destination is the current branch -- main here, with
+        # no remote-tracking ref needed since a lease gets no new-remote exemption.
+        ("Bash", "git push --force-with-lease", 2, MAIN),
+        # A non-force push whose destination resolves to main/master, once a
+        # remote-tracking ref for it already exists (REMOTE), in every shape that
+        # names main without saying --force.
+        ("Bash", "git push origin HEAD:main", 2, REMOTE),
+        ("Bash", "git push origin main", 2, REMOTE),
+        ("Bash", "git push origin refs/heads/main", 2, REMOTE),
+        ("Bash", "git push origin :main", 2, REMOTE),
+        ("Bash", "git push origin --delete main", 2, REMOTE),
+        ("Bash", "echo hi && git push origin HEAD:main", 2, REMOTE),
+        ("PowerShell", "git push origin HEAD:main", 2, REMOTE),
+        # Bare pushes and --all/--mirror read the current branch -- main, with a
+        # remote-tracking ref already present.
+        ("Bash", "git push", 2, MAIN_REMOTE),
+        ("Bash", "git push origin", 2, MAIN_REMOTE),
+        ("Bash", "git push origin HEAD", 2, MAIN_REMOTE),
+        ("Bash", "git push --all origin", 2, MAIN_REMOTE),
+        ("Bash", "git push --mirror", 2, MAIN_REMOTE),
+        # --all/--mirror push every local branch, not just whichever one is
+        # checked out -- blocked even from a feature checkout with a local main
+        # present, not only when cwd already resolves to main (#194 review).
+        ("Bash", "git push --all origin", 2, FEATURE_WITH_LOCAL_MAIN),
+        ("Bash", "git push --mirror", 2, FEATURE_WITH_LOCAL_MAIN),
+        # A redirection token must not be misread as the remote or a refspec --
+        # this is still a bare push, not one naming something else.
+        ("Bash", "git push 2>&1", 2, MAIN_REMOTE),
+        # Nor must the filename a `>`/`>>` operator redirects to, even when a
+        # space separates the operator from its target (#194 review).
+        ("Bash", "git push origin > out.txt", 2, MAIN_REMOTE),
+        ("Bash", "git push origin feat/x > out.txt 2>&1", 0, WORK),
+        # `-C <dir>` names a different repo than the session cwd -- this session's
+        # own worktrees make that the common case, not an edge one. Reading only
+        # the hook cwd would get both of these backwards.
+        ("Bash", f"git -C {MAIN_REMOTE} push origin HEAD:master", 2, WORK),
+        ("Bash", f"git -C {MAIN_REMOTE} push --force-with-lease", 2, WORK),
+        ("Bash", f"git -C {WORK} push --force-with-lease", 0, MAIN_REMOTE),
+        # A `-C <dir>` value containing a space (an ordinary Windows user
+        # directory) must not truncate at the first whitespace and silently drop
+        # the whole push rule (#194 review).
+        ("Bash", f'git -C "{SPACED_MAIN_REMOTE}" push origin main', 2, WORK),
+        ("Bash", f'git -C "{SPACED_MAIN_REMOTE}" push --force origin main', 2, WORK),
+        # The first push of a brand-new repo: no `refs/remotes/*/main` exists
+        # anywhere, so there is no PR to open into. Force/lease get no such
+        # exemption (both proven above).
+        ("Bash", "git push -u origin main", 0, MAIN),
+        # Ordinary pushes that must stay allowed.
+        ("Bash", "git push -u origin feat/x", 0, WORK),
+        ("Bash", "git push origin main:feat/x", 0, WORK),
+        ("Bash", "git push origin v1.0", 0, WORK),
+        ("Bash", "git push --tags", 0, WORK),
+        ("Bash", "git push", 0, WORK),
+        ("Bash", "git log --grep='git push origin main'", 0, MAIN),
+        ("Bash", "cat > n.md <<'EOF'\ngit push origin main\nEOF", 0, MAIN),
+        # A push hidden in an unquoted heredoc substitution is still a push.
+        ("Bash", "cat <<EOF\n$(git push origin HEAD:main)\nEOF", 2, REMOTE),
+        ("Bash", "git reset --hard HEAD~1", 2, WORK),
+        ("Bash", "git commit --no-verify -m x", 2, WORK),
+        ("Bash", "rm -rf build/", 2, WORK),
+        ("Bash", "git status", 0, WORK),
+        # git global options before the verb: one flag used to defeat every rule.
+        ("Bash", "git -C /repo push --force origin main", 2, WORK),
+        ("Bash", "git -c user.name=x reset --hard HEAD~1", 2, WORK),
+        ("Bash", "git --no-pager clean -fd", 2, WORK),
+        # Split and long delete flags reach the same files as -rf.
+        ("Bash", "rm -r -f build/", 2, WORK),
+        ("Bash", "rm --recursive --force build/", 2, WORK),
+        ("Bash", "rm -f notes.txt", 0, WORK),
+        # ...but the match must not run past the command it belongs to.
+        ("Bash", "git status && npm publish --no-verify", 0, WORK),
+        # A here-string is a typo in Bash and correct in PowerShell, so the verdict
+        # depends on tool_name alone. Both directions matter: blocking the second
+        # would be a false positive on valid PowerShell.
+        ("Bash", "git commit -m @'\nfeat: x\n'@", 2, WORK),
+        ("PowerShell", "git commit -m @'\nfeat: x\n'@", 0, WORK),
+        # The pattern backreferences the opening quote, so the double-quoted form
+        # has to be caught too or the character class is decoration.
+        ('Bash', 'git commit -m @"\nfeat: x\n"@', 2, WORK),
+        ("Bash", "git commit -F - <<'EOF'\nfeat: x\nEOF", 0, WORK),
+        ("Bash", "grep '@\"' README.md", 0, WORK),
+        ("Bash", 'curl -o x "https://user:tok@"', 0, WORK),  # opener shape, no terminator
+        ("Bash", "git log --grep='git commit' --oneline", 0, MAIN),  # not a commit
+        # rm -rf spelled the PowerShell way; the shared patterns never see it.
+        ("PowerShell", "Remove-Item -Recurse -Force build", 2, WORK),
+        ("PowerShell", "Remove-Item -Force build.txt", 0, WORK),
+        # The spellings a PowerShell user actually types: aliases, lower case, and
+        # any unambiguous parameter prefix.
+        ("PowerShell", "rm -Recurse -Force build", 2, WORK),
+        ("PowerShell", "remove-item -recurse -force build", 2, WORK),
+        ("PowerShell", "ri -Recurse -Force build", 2, WORK),
+        ("PowerShell", "Remove-Item -Rec -Fo build", 2, WORK),
+        # rules/workflow.md says never work directly on main. This is the half of
+        # that absolute a hook can actually decide.
+        ("Bash", "git commit -m 'feat: x'", 2, MAIN),
+        ("Bash", "git commit -m 'feat: x'", 0, WORK),
+        # The whole point of anchoring to a command boundary rather than matching
+        # `git commit` anywhere. Drop the anchor back to ^ and only these two fail.
+        ("Bash", "echo hi && git commit -m 'feat: x'", 2, MAIN),
+        ("Bash", "echo hi; git commit -m 'feat: x'", 2, MAIN),
+        # The shapes a commit really arrives in. Each one walked past the old anchor.
+        ("Bash", "GIT_EDITOR=true git commit -m x", 2, MAIN),
+        ("Bash", "(git commit -m x)", 2, MAIN),
+        ("Bash", "echo $(git commit -m x)", 2, MAIN),
+        ("Bash", "git -c user.name=x commit -m y", 2, MAIN),
+        # Git cannot name a branch with no repo, and names none when HEAD is
+        # detached. Fail open for both: a guard that blocks every commit the moment
+        # git can't answer is worse than the rule it enforces.
+        ("Bash", "git commit -m 'feat: x'", 0, NOT_A_REPO),
+        ("Bash", "git commit -m 'feat: x'", 0, DETACHED),
+        # A repo with no commits yet reports branch `main`, but blocking its first
+        # commit is unescapable: you cannot branch off a history that isn't there.
+        ("Bash", "git commit -m 'chore: initial commit'", 0, UNBORN),
+        # #233: every rule reads the directory the git invocation acts on -- a
+        # `cd <dir>` earlier on the line or its own `-C <dir>` -- not the session
+        # cwd. Each pair gets the verdict backwards when only the cwd is read.
+        ("Bash", f'cd "{MAIN}" && git commit -m x', 2, WORK),
+        ("Bash", f'git -C "{MAIN}" commit -m x', 2, WORK),
+        ("Bash", f'cd "{WORK}" && git commit -m x', 0, MAIN),
+        ("Bash", f'git -C "{WORK}" commit -m x', 0, MAIN),
+        ("PowerShell", f'Set-Location "{MAIN}"; git commit -m x', 2, WORK),
+        ("Bash", f'cd "{DIRTY}" && git restore tracked.txt', 2, WORK),
+        ("Bash", f'git -C "{WORK}" restore tracked.txt', 0, DIRTY),
+        ("Bash", f'cd "{MAIN_REMOTE}" && git push', 2, WORK),
+        # A subshell that already closed moved nothing for the git after it.
+        ("Bash", f'(cd "{MAIN}" && git status); git commit -m x', 0, WORK),
+        # Discarding uncommitted work. Both halves of the gate matter: blocked on
+        # a dirty tree, allowed on a clean one, where the same command throws
+        # nothing away and refusing it would be the guard blocking ordinary work.
+        ("Bash", "git checkout -- .", 2, DIRTY),
+        ("Bash", "git checkout -- src/foo.py", 2, DIRTY),
+        ("Bash", "git checkout .", 2, DIRTY),
+        ("Bash", "git restore src/foo.py", 2, DIRTY),
+        ("Bash", "git restore --staged --worktree src/foo.py", 2, DIRTY),
+        ("PowerShell", "git checkout -- .", 2, DIRTY),
+        ("Bash", "git checkout -- .", 0, WORK),
+        ("Bash", "git restore src/foo.py", 0, WORK),
+        # Untracked files are not at risk from either command, and treating them
+        # as dirty would block both in every repo carrying build output.
+        ("Bash", "git checkout -- .", 0, UNTRACKED_ONLY),
+        ("Bash", "git restore src/foo.py", 0, UNTRACKED_ONLY),
+        # Branch moves are not pathspec mode. `-b` creates, a bare name switches,
+        # and git refuses either itself rather than overwriting a modified file --
+        # blocking them would break the branch-first rule the guard also enforces.
+        ("Bash", "git checkout -b fix/thing", 0, DIRTY),
+        ("Bash", "git checkout main", 0, DIRTY),
+        ("Bash", "git checkout -b feat/v1.2", 0, DIRTY),
+        # `--staged` on its own unstages and touches no file in the working tree.
+        ("Bash", "git restore --staged src/foo.py", 0, DIRTY),
+        # Same command-boundary discipline as the rules above.
+        ("Bash", "git log --oneline && ls .", 0, DIRTY),
+        ("Bash", "git checkout -- .", 0, NOT_A_REPO),
+        # Heredoc bodies are data. Writing a PR body or release note that mentions
+        # a git command is not running that command.
+        ("Bash", "cat > notes.md <<'EOF'\ngit checkout -- . undoes edits\nEOF", 0, DIRTY),
+        ("Bash", "cat > notes.md <<'EOF'\ngit commit -m x rewrites nothing\nEOF", 0, MAIN),
+        ("Bash", "cat > s.ps1 <<'EOF'\n$m = @'\nhello\n'@\nEOF", 0, WORK),
+        # ...but the heredoc feeding a real commit must not hide the commit itself.
+        ("Bash", "git commit -F - <<'EOF'\nfeat: x\nEOF", 2, MAIN),
+        # --- U1: scan_command's heredoc half (opener/body/segment scan, replacing HEREDOC) ---
+        ("Bash", "cat <<EOF\n$(git push --force origin main)\nEOF", 2, WORK),
+        ("Bash", "cat <<EOF\n`git push --force origin main`\nEOF", 2, WORK),
+        ("Bash", "cat <<EOF\n$(git commit -m x)\nEOF", 2, MAIN),
+        ("Bash", "cat > notes.md <<EOF\ngit commit -m x rewrites nothing\nEOF", 0, MAIN),
+        ("Bash", "cat <<'EOF' && git push --force origin main\nx\nEOF", 2, WORK),
+        ("Bash", "cat <<EOF && git push --force origin main\nx\nEOF", 2, WORK),
+        ("Bash", "cat <<\\EOF\n$(git push --force origin main)\nEOF", 0, WORK),
+        ("Bash", "cat <<'A' > a\nx\nA\ncat <<'B' > b\ngit push --force origin main\nB", 0, WORK),
+        ("Bash", "cat <<A <<'B'\n$(git push --force origin main)\nA\nplain\nB", 2, WORK),
+        ("Bash", "cat <<'A' <<B\nplain\nA\n$(git push --force origin main)\nB", 2, WORK),
+        ("Bash", "cat <<EOF\n$(git push --force origin main", 2, WORK),
+        ("Bash", "echo '<<EOF'\ngit push --force origin main\nEOF", 2, WORK),
+        ("Bash", 'echo "<<EOF"\ngit push --force origin main\nEOF', 2, WORK),
+        ("Bash", "ls # <<EOF\ngit push --force origin main\nEOF", 2, WORK),
+        ("Bash", "echo '<<EOF'", 0, WORK),
+        # A delimiter quoted only in part (`<<E"O"F`) must not fall back to the
+        # bare-word alternative and silently truncate to "E" -- that treats
+        # everything up to a later coincidental "E" line, including a real
+        # command past the true "EOF" terminator, as a dropped heredoc body.
+        ("Bash", "cat <<E\"O\"F\nharmless data\nEOF\ngit push --force origin main\nE", 2, WORK),
+        # --- U2: scan_command's verdict (backtick / unmodelled rules) ---
+        ("Bash", 'git commit -m "fix: handle `None` in parse"', 2, WORK),
+        ("Bash", 'gh pr create --title x --body "uses `foo()` now"', 2, WORK),
+        ("Bash", "git commit -m 'fix: `None`'", 0, WORK),
+        ('Bash', 'git commit -m "fix: \\`None\\`"', 0, WORK),
+        ("PowerShell", 'git commit -m "fix `None`"', 0, WORK),
+        ("Bash", 'git branch "backup/${B}-$(date +%s)"', 0, WORK),
+        ("Bash", "git commit -m \"$(cat <<'EOF'\nfix `x`\nEOF\n)\"", 0, WORK),
+        ("Bash", "cat > f <<EOF\nuse `x`\nEOF", 2, WORK),
+        ("Bash", "cat > f <<'EOF'\nuse `x`\nEOF", 0, WORK),
+        ("Bash", "ls # don't\necho 'it`s'", 2, WORK),
+        ("Bash", "echo $'it\\'s `x`'", 2, WORK),
+        ("Bash", 'echo "$(printf \'%s\' `date`)"', 2, WORK),
+        ("Bash", "cat <<'A-B'\nuse `x`\nA-B", 2, WORK),
+        ("Bash", 'echo "#1" \'a`b\'', 0, WORK),
+        ("Bash", "echo a#b 'x`y'", 0, WORK),
+        ("Bash", "echo $'a\\tb'", 0, WORK),
+        ("Bash", "cat <<< 'x'", 0, WORK),
+        ("Bash", 'cat <<< "`x`"', 2, WORK),
+        ("Bash", "git commit -F notes.txt", 0, WORK),
+        ("Bash", 'echo "$(date)"', 0, WORK),
+        # --- U4: shipped commit/PR forms pass the new backtick block ---
+        ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 0, WORK),
+        ("Bash", "git commit -F - <<'EOF'\nfix: handle `None`\n\nbody `x`\nEOF", 2, MAIN),
+        ("Bash", "gh pr create --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
+        # --- ship-pr-inline-comments: the fix round's update and the findings script ---
+        ("Bash", "gh pr edit 12 --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py --track-dir .claude/track/x --project-dir .", 0, WORK),
+        # --- #130: a $(...) a stray apostrophe left outside its single quotes ---
+        # Two apostrophes close the quote early and re-open it later, and Bash
+        # runs the $(...) between them before the command. A contraction glues the
+        # first to a letter, a plural possessive the second; either is enough.
+        ("Bash", "git commit -m 'fix: it's $(echo hi)'s bug'", 2, WORK),
+        ("Bash", "git commit -m 'the users' data $(echo hi) the owners' view'", 2, WORK),
+        ("Bash", "git commit -m 'first line\nit's $(echo hi)\nthat's all'", 2, WORK),
+        # One stray apostrophe leaves the quote open, so Bash refuses the line --
+        # blocked anyway, since the advice is the same fix to the quoting.
+        ("Bash", "git commit -m 'don't $(echo hi)'", 2, WORK),
+        # Deliberate substitution: nothing glues it to a quote that closed early.
+        ("Bash", "x=$(git merge-base HEAD main)", 0, WORK),
+        ("Bash", "git diff $(git merge-base HEAD main)..HEAD", 0, WORK),
+        ("Bash", "grep -rn 'pattern' $(git ls-files '*.py')", 0, WORK),
+        ("Bash", "cd 'dir' && make -j$(nproc) && echo 'done'", 0, WORK),
+        ("Bash", "git log --format='%h %s' $(git merge-base HEAD main)..HEAD -- 'src/*.py'", 0, WORK),
+        ("Bash", "echo 'prefix'$(date)'suffix'", 0, WORK),
+        ("Bash", "echo 'it'\\''s $(date)'", 0, WORK),
+        ("Bash", "git commit -m 'use $(pwd) here'", 0, WORK),
+        ("Bash", "ls # a comment\necho $(date)", 0, WORK),
+        # After a shape the scan does not model, a $(...) it takes to be inside
+        # single quotes is blocked, as a backtick there is (stance trade T-b).
+        ("Bash", "ls # it's\necho $(date)", 2, WORK),
+        ("PowerShell", "git commit -m 'fix: it's $(echo hi)'s bug'", 0, WORK),
+        # --- #194 follow-up: `gh pr merge` asks (Claude Code) rather than blocks
+        # or silently allows, so its exit code alone reads the same as a plain
+        # allow -- the ask JSON on stdout is what tests/test_bash_guard_merge.py
+        # checks; this file only proves these shapes don't trip a 2 here.
+        ("Bash", "gh pr merge 123 --squash", 0, WORK),
+        ("Bash", "gh api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
+        ("Bash", "gh --repo=owner/repo pr merge 123", 0, WORK),
+        ("Bash", "gh -Rowner/repo pr merge 123", 0, WORK),
+        ("Bash", "gh --repo owner/repo api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
+        ("Bash", "gh pr \\\nmerge 123", 0, WORK),
+        # A merge the shell runs from inside a compound statement, a wrapper or a
+        # string handed to a shell: also an ask (stdout JSON, checked in
+        # tests/test_bash_guard_merge.py), so exit 0 here as well.
+        ("Bash", "if true; then gh pr merge 1; fi", 0, WORK),
+        ("Bash", "if false; then :; else gh pr merge 1; fi", 0, WORK),
+        ("Bash", "for i in 1; do gh pr merge 1; done", 0, WORK),
+        ("Bash", "{ gh pr merge 1; }", 0, WORK),
+        ("Bash", "bash -c 'gh pr merge 1'", 0, WORK),
+        ("Bash", 'sh -c "gh pr merge 1"', 0, WORK),
+        ("Bash", "eval gh pr merge 1", 0, WORK),
+        ("Bash", "env gh pr merge 1", 0, WORK),
+        ("Bash", "command gh pr merge 1", 0, WORK),
+        ("Bash", "echo x | xargs gh pr merge", 0, WORK),
+        ("Bash", "while false; do gh pr merge 1; done", 0, WORK),
+        ("Bash", "! gh pr merge 1", 0, WORK),
+        ("Bash", "time gh pr merge 1", 0, WORK),
+        ("Bash", "nohup gh pr merge 1", 0, WORK),
+        ("Bash", "exec gh pr merge 1", 0, WORK),
+        ("Bash", "env FOO=1 gh pr merge 1", 0, WORK),
+        ("Bash", "env -u VAR gh pr merge 1", 0, WORK),
+        ("Bash", "echo x | xargs -n1 gh pr merge", 0, WORK),
+        ("Bash", "echo x | xargs -I {} gh pr merge {}", 0, WORK),
+        ("Bash", "bash -lc 'gh pr merge 1'", 0, WORK),
+        ("Bash", "bash -o pipefail -c 'gh pr merge 1'", 0, WORK),
+        ("Bash", "zsh -c 'gh pr merge 1'", 0, WORK),
+        ("Bash", "dash -c 'gh pr merge 1'", 0, WORK),
+        ("Bash", "bash -c \"bash -c 'gh pr merge 1'\"", 0, WORK),
+        ("Bash", "eval \"gh pr merge 1\"", 0, WORK),
+        ("Bash", "bash -c 'gh api -X PUT repos/o/r/pulls/5/merge'", 0, WORK),
+        ("PowerShell", "pwsh -Command 'gh pr merge 1'", 0, WORK),
+        ("PowerShell", "powershell -c \"gh pr merge 1\"", 0, WORK),
+        ("PowerShell", "powershell -NoProfile -ExecutionPolicy Bypass -Command \"gh pr merge 1\"", 0, WORK),
+        ("PowerShell", "Invoke-Expression 'gh pr merge 1'", 0, WORK),
+        # Look-alikes: neither a merge nor a block.
+        ("Bash", "bash -c 'echo gh pr merge'", 0, WORK),
+        ("Bash", 'git commit -m "then gh pr merge"', 0, WORK),
+        ("Bash", "gh pr view 123", 0, WORK),
+        ("Bash", "git merge feature", 0, WORK),
+        ("Bash", 'git commit -m "please gh pr merge later"', 0, WORK),
+        ("Bash", "gh api repos/o/r/pulls/5/merge", 0, WORK),
+        ("PowerShell", 'git commit -m "docs: mention that `gh pr merge` requires review before use"', 0, WORK),
+        # An existing deny rule stays denied even on a command that also merges --
+        # ask never weakens a deny.
+        ("Bash", "git push --force origin main && gh pr merge 5", 2, WORK),
+    ]
+
+    def run_process(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
+        payload = {"tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}
+        if agent:
+            payload["agent_type"] = agent
+        return subprocess.run(
+            argv, input=json.dumps(payload), capture_output=True, text=True, env=env,
+        )
+
+    def run(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
+        return run_process(argv, cmd, tool, cwd, agent, env).returncode
+
+    for tool, cmd, expected, cwd, *agent in CASES:
+        label = cmd.replace("\n", "\\n") + (f" as {agent[0]}" if agent else "")
+        check(f"guard {tool} [{label}] -> {expected}",
+              run([sys.executable, GUARD], cmd, tool, cwd, *agent) == expected)
+
+    # The dispatcher is what hooks.json actually invokes. Exercise the branch this
+    # platform would take, so a broken interpreter lookup or a swallowed exit code
+    # fails here instead of silently disarming the guard.
+    dispatch = ["cmd", "/c", DISPATCHER.replace("/", "\\")] if os.name == "nt" else ["sh", DISPATCHER]
+    # The dispatcher writes a launcher record under the config root on a first call.
+    # A temporary one keeps every run here off the real ~/.claude/cai/, where the
+    # record would make the next run skip the probe these cases are meant to reach.
+    dispatch_env = dict(os.environ, CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-"))
+    for cmd, expected in [("git reset --hard HEAD~1", 2), ("git status", 0)]:
+        check(f"dispatcher [{cmd}] -> {expected}",
+              run(dispatch, cmd, "Bash", WORK, env=dispatch_env) == expected)
+    # Through the dispatcher a scoped agent's call reaches runner_guard too.
+    check("dispatcher [git status as cai:test-runner] -> 2",
+          run(dispatch, "git status", "Bash", WORK, "cai:test-runner", env=dispatch_env) == 2)
+    # A call the guard blocks says so itself: /cai:setup tells it apart from the
+    # dispatcher's own lines by that text, since all of them exit 2.
+    forced = run_process(dispatch, "git push --force origin main", "Bash", WORK, env=dispatch_env)
+    check("dispatcher [git push --force origin main] -> 2 with the guard's own message",
+          forced.returncode == 2 and "bash_guard blocked this command" in forced.stderr)
+
+    # With no interpreter on PATH the dispatcher runs its reduced check: exit 2 and
+    # a line of its own, never the guard's text (D6, which /cai:setup step 6 reads).
+    # Windows: System32 holds neither py nor python. POSIX: a directory linking only
+    # the four programs the sh block calls. A config root of its own: the one above
+    # now holds a record, and a record skips the probe this case is about.
+    if os.name == "nt":
+        bare_dir = os.path.join(os.environ["SystemRoot"], "System32")
+        bare_dispatch = dispatch
+    else:
+        bare_dir = tempfile.mkdtemp(prefix="cai-guard-bare-")
+        for tool_name in ("sh", "grep", "dirname", "rm"):
+            os.symlink(shutil.which(tool_name), os.path.join(bare_dir, tool_name))
+        bare_dispatch = [os.path.join(bare_dir, "sh"), DISPATCHER]
+    if any(shutil.which(name, path=bare_dir) for name in ("py", "python", "python3")):
+        check("dispatcher without an interpreter: skipped, one is on the reduced PATH", True)
+    else:
+        bare = run_process(bare_dispatch, "git push --force origin main", "Bash", WORK,
+                           env=dict(dispatch_env, PATH=bare_dir,
+                                    CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-")))
+        check("dispatcher without an interpreter [git push --force origin main] -> 2 "
+              "with its own reduced-check line",
+              bare.returncode == 2 and "cai guard reduced check:" in bare.stderr
+              and "bash_guard blocked this command" not in bare.stderr)
+        # Without Python nothing can ask, so a merge is blocked and the person runs
+        # it (stance I3); the Python guard asks instead, which exits 0.
+        bare_merge = run_process(bare_dispatch, "gh pr merge 123", "Bash", WORK,
+                                 env=dict(dispatch_env, PATH=bare_dir,
+                                          CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-")))
+        check("dispatcher without an interpreter [gh pr merge 123] -> 2 "
+              "with its own reduced-check line",
+              bare_merge.returncode == 2 and "cai guard reduced check:" in bare_merge.stderr
+              and "bash_guard blocked this command" not in bare_merge.stderr)
+
+
+@section("models-dispatcher")
+def _models_dispatcher():
+    # The SessionStart launcher runs model_choice.py against the plugin root it
+    # sits in. Run from here, that root is this repo's own source tree, and a
+    # person's saved choice must never be written into it -- so run it with one
+    # saved, then check it exited 0 and every component still matches models.json.
+    MODELS_DISPATCHER = f"{PLUGIN}/hooks/run-models.cmd"
+    _models_config = tempfile.mkdtemp(prefix="cai-models-config-")
+    os.makedirs(os.path.join(_models_config, "cai"))
+    with open(os.path.join(_models_config, "cai", "model-choice.json"), "w", encoding="utf-8") as fh:
+        json.dump({"format": 1, "roles": {"think": "claude-validate-probe"}}, fh)
+    _models_dispatch = (["cmd", "/c", MODELS_DISPATCHER.replace("/", "\\")] if os.name == "nt"
+                        else ["sh", MODELS_DISPATCHER])
+    _models_done = subprocess.run(_models_dispatch, capture_output=True, text=True,
+                                  env=dict(os.environ, CLAUDE_CONFIG_DIR=_models_config))
+    check("models dispatcher [SessionStart, source tree] -> 0", _models_done.returncode == 0)
+    _models_drift = subprocess.run([sys.executable, f"{PLUGIN}/scripts/gen-models.py", "--check"],
+                                   capture_output=True, text=True)
+    check("models dispatcher leaves the source tree's model lines alone",
+          _models_drift.returncode == 0)
+
+
+@section("codex-guard")
+def _codex_guard():
+    # launcher.py guard -- the Codex counterpart of the two checks above. Codex's
+    # own hook payload shape is UNVERIFIED (C9); this follows the documented form
+    # in docs/design/2026-09-18-codex-support-detail.md, "### launcher.py", and
+    # real verify (C9) is what confirms or corrects it. A temp $CODEX_HOME whose
+    # cache points at this repo's own plugins/cai-codex/scripts/bash_guard.py lets
+    # the adapter's real child process run, rather than adding launcher behaviour
+    # the spec does not describe just to make it testable.
+    LAUNCHER = f"{PLUGIN}-codex/scripts/launcher.py"
+    if os.path.isfile(LAUNCHER):
+        WORK = temp_repo("work")
+        CODEX_GUARD_HOME = tempfile.mkdtemp(prefix="cai-codex-guard-home-")
+        _codex_version_scripts = os.path.join(
+            CODEX_GUARD_HOME, "plugins", "cache", "local", "cai-codex", "0.1.0", "scripts")
+        os.makedirs(_codex_version_scripts, exist_ok=True)
+        # bash_guard.py imports tool_path.py (#294); a real cache holds both.
+        for _name in ("bash_guard.py", "tool_path.py"):
+            shutil.copy(f"{PLUGIN}-codex/scripts/{_name}", _codex_version_scripts)
+
+        CODEX_GUARD_CASES = [
+            # (Codex-shaped payload, expected exit code)
+            ({"tool_input": {"command": "git push --force origin main"}, "cwd": WORK}, 2),
+            # List-form commands name their own program in command[0], so
+            # _tool_name() (launcher.py:134-144) resolves Bash vs PowerShell from
+            # that rather than the host OS -- the bare-string form falls back to
+            # os.name and is ambiguous on a Windows host running a POSIX guard
+            # under test, which is exactly what these two rows need to avoid.
+            ({"tool_input": {"command": ["bash", "-c", 'git commit -m "fix `None`"']}, "cwd": WORK}, 2),
+            ({"tool_input": {"command": ["powershell.exe", "-Command", 'git commit -m "fix `None`"']}, "cwd": WORK}, 0),
+            ({"tool_input": {"command": ["bash", "-c", "cat <<EOF\n$(git push --force origin main)\nEOF"]}, "cwd": WORK}, 2),
+            ({"tool_input": {"command": ["bash", "-c", "git commit -m 'fix: it's $(echo hi)'s bug'"]}, "cwd": WORK}, 2),
+            # #194 follow-up: Codex's hook host parses but does not act on an
+            # "ask" permission decision, so the launcher sets CAI_CODEX_GUARD=1
+            # before invoking bash_guard.py and a merge is denied here instead of
+            # asked, unlike the Claude Code case above.
+            ({"tool_input": {"command": "gh pr merge 123"}, "cwd": WORK}, 2),
+            # The launcher joins a list like ["bash", "-lc", script] with spaces
+            # (launcher.py), so the wrapped merge reaches the guard as one line.
+            ({"tool_input": {"command": ["bash", "-lc", "gh pr merge 123"]}, "cwd": WORK}, 2),
+            ({"tool_input": {"command": ["bash", "-c", "if true; then gh pr merge 123; fi"]}, "cwd": WORK}, 2),
+            ({"tool_input": {"command": ["bash", "-c", "echo gh pr merge 123"]}, "cwd": WORK}, 0),
+            ({"tool_input": {"command": ["bash", "-lc", "echo x | xargs -I {} gh pr merge {}"]}, "cwd": WORK}, 2),
+            ({"tool_input": {"command": ["bash", "-c", "env FOO=1 gh pr merge 123"]}, "cwd": WORK}, 2),
+        ]
+
+        def run_codex_guard(payload):
+            env = dict(os.environ)
+            env["CODEX_HOME"] = CODEX_GUARD_HOME
+            return subprocess.run(
+                [sys.executable, LAUNCHER, "guard"],
+                input=json.dumps(payload), capture_output=True, text=True, env=env,
+            ).returncode
+
+        for payload, expected in CODEX_GUARD_CASES:
+            cmd = payload["tool_input"]["command"]
+            check(f"codex guard [{cmd}] -> {expected}", run_codex_guard(payload) == expected)
+
+
+@section("design-probe")
+def _design_probe():
+    # design_probe.py holds the two design commands' absolutes -- every capability
+    # cites evidence, every use case reaches a component, every glossary term points
+    # at a line that exists. Prose cannot hold those, so the probe has to actually
+    # work: one clean document per kind, then one deliberate defect per probe. A
+    # case asserts the exit code *and* which probe reported it, because a probe that
+    # fails for the wrong reason is a probe nobody can act on.
+    PROBE = f"{PLUGIN}/scripts/design_probe.py"
+    PROBE_DIR = tempfile.mkdtemp(prefix="cai-design-probe-")
+    # The detail fixtures name this in ## Reference, and the probe looks for it
+    # beside the document it is checking.
+    with open(os.path.join(PROBE_DIR, "hld.md"), "w", encoding="utf-8") as fh:
+        fh.write(HLD_OK)
+
+    PROBE_CASES = [
+        # (kind, fixture text, expected exit, the probe that must be the one to fail)
+        ("hld", HLD_OK, 0, ""),
+        ("hld", HLD_OK.replace(" Rests on C1,", ""), 2, "pairs_covered"),
+        ("hld", HLD_OK.replace("| verified |", "| UNVERIFIED |"), 2, "recommendation_is_verified"),
+        ("hld", HLD_OK.replace("scripts/validate.py:41", "the session log"), 2, "feasibility_evidence"),
+        ("hld", HLD_OK.replace("## Out of scope", "## Elsewhere"), 2, "headings_complete"),
+        ("detail", DETAIL_OK, 0, ""),
+        ("detail", DETAIL_OK.replace("UC1", "the use case"), 2, "traceability"),
+        ("detail", DETAIL_OK.replace("validate.py:41", "validate.py:99999"), 2, "glossary_citations"),
+        ("hld", HLD_OK.replace("approved 2026-08-25", "signed off, looks good"), 2, "status_is_well_formed"),
+        ("hld", re.sub(r"\n\| C1 .*", "", HLD_OK), 2, "feasibility_has_rows"),
+        ("hld", HLD_OK.replace("| C1 |", "| the log |"), 2, "feasibility_ids"),
+        ("detail", DETAIL_OK.replace(FENCE * 3 + SEQ, FENCE * 2 + SEQ), 2, "diagrams_present"),
+        ("detail", DETAIL_OK.replace(SEQ, FENCE), 2, "sequence_diagram_present"),
+        ("detail", DETAIL_OK.replace("up to 400", "as many as we get"), 2, "budgets_are_numeric"),
+        ("detail", DETAIL_OK.replace("## Rollout", "## Shipping"), 2, "headings_complete"),
+        ("detail", DETAIL_OK.replace("hld.md", "no-such-design.md"), 2, "reference_resolves"),
+        ("delta", DELTA_OK, 0, ""),
+        ("delta", DELTA_OK.replace("a3f21bc..HEAD", "the tip of the branch"), 2, "scope_names_a_range"),
+        ("delta", DELTA_OK.replace(FENCE * 2, FENCE), 2, "before_after_diagrams"),
+        ("delta", re.sub(r"\n\| (?:write|drop) .*", "", DELTA_OK), 2, "decisions_have_rows"),
+        ("delta", DELTA_OK.replace("scripts/validate.py:41", "it seemed better"), 2, "decisions_evidence"),
+        ("delta", re.sub(r"\n\| the runner's log path .*", "", DELTA_OK), 2, "impact_has_rows"),
+        ("delta", DELTA_OK.replace("## Limits", "## Caveats"), 2, "headings_complete"),
+    ]
+
+    for i, (kind, fixture_text, expected, probe) in enumerate(PROBE_CASES):
+        fixture = os.path.join(PROBE_DIR, f"case{i}.md")
+        with open(fixture, "w", encoding="utf-8") as fh:
+            fh.write(fixture_text)
+        done = subprocess.run([sys.executable, PROBE, "--kind", kind, fixture],
+                              capture_output=True, text=True)
+        check(f"design_probe {kind} [{probe or 'clean document'}] -> {expected}",
+              done.returncode == expected)
+        if probe:
+            check(f"design_probe {kind} names {probe}", f"FAIL {probe}" in done.stdout)
+
+    # The templates are the shape both commands write to, so they and the probe have
+    # to agree on the headings -- if they drift, every real document fails a check
+    # whose source nobody can find. And an untouched template must FAIL its own
+    # probe: its guidance lives in HTML comments, and the day those start counting
+    # as content is the day a blank template passes everything.
+
+    for kind, want in (("diagnosis", design_probe.DIAGNOSIS_HEADINGS),
+                       ("stance", design_probe.STANCE_HEADINGS),
+                       ("decisions", design_probe.DECISIONS_HEADINGS),
+                       ("hld", design_probe.HLD_HEADINGS),
+                       ("detail", design_probe.DETAIL_HEADINGS),
+                       ("delta", design_probe.DELTA_HEADINGS)):
+        tpl = f"{PLUGIN}/templates/{design_probe.TEMPLATES[kind]}"
+        check(f"{kind} design template ships", os.path.isfile(tpl))
+        if not os.path.isfile(tpl):
+            continue
+        got = list(design_probe.sections(read_text(tpl)))
+        check(f"{kind} template headings match the probe", got == want)
+        if got != want:
+            print("     template:", got)
+            print("     probe   :", want)
+        blank = subprocess.run([sys.executable, PROBE, "--kind", kind, tpl],
+                               capture_output=True, text=True)
+        check(f"{kind} template does not pass its own probe", blank.returncode == 2)
+
+
+@section("preflight")
+def _preflight():
+    # preflight.py's design check reads state.md's design row and hands the
+    # artifact to design_probe.py, so its fixture needs a real track state next
+    # to a real (or deliberately broken) design document -- same shape as the
+    # PROBE_CASES above, one level up the stack.
+    PREFLIGHT = f"{PLUGIN}/scripts/preflight.py"
+    PREFLIGHT_PROJECT = temp_repo("preflight-fixture")
+    PREFLIGHT_TRACK = os.path.join(PREFLIGHT_PROJECT, "track")
+    os.makedirs(os.path.join(PREFLIGHT_PROJECT, "docs", "design"), exist_ok=True)
+    os.makedirs(PREFLIGHT_TRACK, exist_ok=True)
+
+    with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "hld.md"), "w", encoding="utf-8") as fh:
+        fh.write(HLD_OK)
+    with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md"),
+              "w", encoding="utf-8") as fh:
+        # DETAIL_OK's glossary cites scripts/validate.py:41, which does not exist
+        # inside this throwaway project root; point it at the sibling hld.md
+        # written above instead, which does.
+        fh.write(DETAIL_OK.replace("scripts/validate.py:41", "docs/design/hld.md:1"))
+
+    def write_preflight_state(artifact_cell, design_status="done"):
+        # state.md is overwritten in place, never appended to -- each case
+        # replaces the whole file rather than editing one cell.
+        text = ("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+                "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+                "|---|---|---|---|\n| intake | done | — | |\n"
+                "| discover | done | — | |\n"
+                "| design | %s | %s | |\n"
+                "| build | | | |\n| verify | | | |\n| ship | | | |\n"
+                % (design_status, artifact_cell))
+        with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def run_preflight(stage, track_dir=PREFLIGHT_TRACK):
+        return subprocess.run(
+            [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
+             "--project-dir", PREFLIGHT_PROJECT],
+            capture_output=True, text=True)
+
+    write_preflight_state("docs/design/billing-detail.md")
+    done = run_preflight("design")
+    check("preflight design [clean detail doc] -> 0", done.returncode == 0)
+
+    write_preflight_state("docs/design/does-not-exist-detail.md")
+    done = run_preflight("design")
+    check("preflight design [artifact missing] -> 2", done.returncode == 2)
+    check("preflight design names artifact_exists", "FAIL artifact_exists" in done.stdout)
+
+    write_preflight_state("docs/design/billing-export.txt")
+    done = run_preflight("design")
+    check("preflight design [unrecognized suffix] -> 2", done.returncode == 2)
+    check("preflight design names artifact_kind", "FAIL artifact_kind" in done.stdout)
+
+    # A design row that names nothing is the normal state before the stage runs --
+    # SKILL.md creates every row empty, and the document is what the stage writes.
+    # These two cases used to assert the opposite, which locked in a gate that
+    # could never open on a fresh track: `design` was unreachable and nobody knew
+    # until someone ran it. Both now assert the stage is allowed to start.
+    write_preflight_state("—")
+    done = run_preflight("design")
+    check("preflight design [no artifact named yet] -> 0", done.returncode == 0)
+    check("preflight design says the stage writes it",
+          "PASS artifact_named (no design document yet" in done.stdout)
+
+    # ...but naming something that is not there is still a block: that is a design
+    # row pointing at a document somebody moved or misspelled, not a fresh track.
+    write_preflight_state("docs/design/never-written-detail.md")
+    done = run_preflight("design")
+    check("preflight design [named but missing] -> 2", done.returncode == 2)
+    check("preflight design names artifact_exists", "FAIL artifact_exists" in done.stdout)
+
+    PREFLIGHT_NO_STATE = tempfile.mkdtemp(prefix="cai-preflight-no-state-")
+    done = run_preflight("design", track_dir=PREFLIGHT_NO_STATE)
+    check("preflight design [no state.md] -> 2", done.returncode == 2)
+    check("preflight design names state_md", "FAIL state_md" in done.stdout)
+
+    # design's suffix routing for the other two kinds -- only -detail.md is
+    # exercised above, so mapping -high-level.md or -delta.md to the wrong kind
+    # would go unnoticed.
+    with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-high-level.md"),
+              "w", encoding="utf-8") as fh:
+        fh.write(HLD_OK)
+    with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "widget-delta.md"),
+              "w", encoding="utf-8") as fh:
+        fh.write(DELTA_OK)
+
+    write_preflight_state("docs/design/widget-high-level.md")
+    done = run_preflight("design")
+    check("preflight design [-high-level.md routes to hld probe] -> 0", done.returncode == 0)
+
+    write_preflight_state("docs/design/widget-delta.md")
+    done = run_preflight("design")
+    check("preflight design [-delta.md routes to delta probe] -> 0", done.returncode == 0)
+
+    done = subprocess.run([sys.executable, PREFLIGHT, "no-such-stage",
+                           "--track-dir", PREFLIGHT_TRACK],
+                          capture_output=True, text=True)
+    check("preflight unknown stage id -> 1", done.returncode == 1)
+
+    # build reads the same design row as the design check above, but only cares
+    # whether the artifact names a work breakdown -- so its broken fixture is
+    # DETAIL_OK with that one heading (and everything after it) removed.
+    NO_BREAKDOWN = DETAIL_OK.split("## Work breakdown")[0].replace(
+        "scripts/validate.py:41", "docs/design/hld.md:1")
+    with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "no-breakdown-detail.md"),
+              "w", encoding="utf-8") as fh:
+        fh.write(NO_BREAKDOWN)
+
+    # build also requires a human sign-off on the ledger (design_signed_off) --
+    # recorded once here, against billing-detail.md: an Approve only signs off
+    # the document whose sha it carries, so it covers the one case below that is
+    # meant to pass. The others fail for the reason their own name says, and on
+    # design_signed_off as well, which none of them assert on.
     #
-    # The behaviour half of that claim is already owned by tests
-    # (tests/test_preflight_build_gate.py, tests/test_preflight_ledger.py),
-    # so these two do the weaker job a prose guard should do once a test
-    # holds the truth: prove the instruction still says it. Update either
-    # string only after re-confirming against those tests that the probe
-    # still behaves this way -- a matching string is not a true claim.
-    #
-    build_ref = f"{PLUGIN}/skills/track/references/stage-build.md"
-    if os.path.isfile(build_ref):
-        build_text = read_text(build_ref)
+    # ledger.append() also copies every record to the cross-project central
+    # ledger, and this script runs by hand, in CI and from the PostToolUse hook --
+    # none of them under tests/conftest.py's isolation. Point that copy at a
+    # throwaway file and drop the session id, or each run adds a fake record to
+    # the history /cai:usage reads (tests/test_validate_keeps_central_ledger_clean.py).
+    os.environ["CAI_USAGE_LEDGER"] = os.path.join(
+        tempfile.mkdtemp(prefix="cai-validate-central-"), "usage.jsonl")
+    os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+    ledger.append(PREFLIGHT_TRACK, "design", "passed",
+                  artifact=os.path.join(PREFLIGHT_PROJECT, "docs", "design", "billing-detail.md"),
+                  gate="human")
 
-        def build_step(heading):
-            """One step's own words, whitespace folded.
+    write_preflight_state("docs/design/billing-detail.md")
+    done = run_preflight("build")
+    check("preflight build [work breakdown present] -> 0", done.returncode == 0)
+
+    write_preflight_state("docs/design/no-breakdown-detail.md")
+    done = run_preflight("build")
+    check("preflight build [no work breakdown] -> 2", done.returncode == 2)
+    check("preflight build names work_breakdown", "FAIL work_breakdown" in done.stdout)
+
+    PREFLIGHT_NO_SIGNOFF_TRACK = tempfile.mkdtemp(prefix="cai-preflight-no-signoff-")
+    with open(os.path.join(PREFLIGHT_NO_SIGNOFF_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+                 "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+                 "|---|---|---|---|\n| intake | done | — | |\n"
+                 "| discover | done | — | |\n"
+                 "| design | done | docs/design/billing-detail.md | |\n"
+                 "| build | | | |\n| verify | | | |\n| ship | | | |\n")
+    done = run_preflight("build", track_dir=PREFLIGHT_NO_SIGNOFF_TRACK)
+    check("preflight build [no design sign-off] -> 2", done.returncode == 2)
+    check("preflight build names design_signed_off", "FAIL design_signed_off" in done.stdout)
+
+    # `/cai:track skip design` is supported, and it lands on this check for the
+    # rest of the track's life. Blocking is right -- there is no design to build
+    # from -- but the reason has to say so, or it reads as a broken state.md and
+    # leaves the person guessing that `skip build` is the way on.
+    write_preflight_state("—", design_status="skipped")
+    done = run_preflight("build")
+    check("preflight build [design was skipped] -> 2", done.returncode == 2)
+    check("preflight build says the design was skipped",
+          "design was skipped" in done.stdout and "skip build too" in done.stdout)
+
+    # build reads the same design row as design() -- same two block reasons apply
+    # before the artifact is even resolved to a work breakdown.
+    write_preflight_state("—")
+    done = run_preflight("build")
+    check("preflight build [no artifact named] -> 2", done.returncode == 2)
+    check("preflight build names artifact_named", "FAIL artifact_named" in done.stdout)
+
+    done = run_preflight("build", track_dir=PREFLIGHT_NO_STATE)
+    check("preflight build [no state.md] -> 2", done.returncode == 2)
+    check("preflight build names state_md", "FAIL state_md" in done.stdout)
+
+    # discover only needs the intake row's status; write_preflight_state's default
+    # (intake: done) is the passing fixture, an empty status is the blocking one.
+    write_preflight_state("docs/design/billing-detail.md")
+    done = run_preflight("discover")
+    check("preflight discover [intake done] -> 0", done.returncode == 0)
+
+    with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+                 "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+                 "|---|---|---|---|\n| intake | | — | |\n| discover | | — | |\n"
+                 "| design | | | |\n| build | | | |\n| verify | | | |\n| ship | | | |\n")
+    done = run_preflight("discover")
+    check("preflight discover [intake status empty] -> 2", done.returncode == 2)
+    check("preflight discover names intake_status", "FAIL intake_status" in done.stdout)
+
+    def run_preflight_at(stage, project_dir, track_dir):
+        return subprocess.run(
+            [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
+             "--project-dir", project_dir],
+            capture_output=True, text=True)
+
+    # intake decides whether a track may even start, so its fixtures are plain
+    # repos with no state.md at all -- the checks it runs never look for one.
+    INTAKE_MAIN = temp_repo("main")
+    done = run_preflight_at("intake", INTAKE_MAIN, os.path.join(INTAKE_MAIN, "track", "feature-a"))
+    check("preflight intake [on main] -> 2", done.returncode == 2)
+    check("preflight intake names not_main_branch", "FAIL not_main_branch" in done.stdout)
+
+    INTAKE_FULL = temp_repo("work")
+    INTAKE_FULL_ROOT = os.path.join(INTAKE_FULL, "track")
+    for i in range(5):
+        os.makedirs(os.path.join(INTAKE_FULL_ROOT, f"f{i}"))
+    done = run_preflight_at("intake", INTAKE_FULL, os.path.join(INTAKE_FULL_ROOT, "f-new"))
+    check("preflight intake [5 active tracks] -> 2", done.returncode == 2)
+    check("preflight intake names active_tracks", "FAIL active_tracks" in done.stdout)
+
+    INTAKE_RESERVED = temp_repo("work")
+    done = run_preflight_at("intake", INTAKE_RESERVED,
+                            os.path.join(INTAKE_RESERVED, "track", "current"))
+    check("preflight intake [reserved feature name] -> 2", done.returncode == 2)
+    check("preflight intake names reserved_name", "FAIL reserved_name" in done.stdout)
+
+    # The passing fixture is the one that proves done/ is excluded: 4 active
+    # tracks plus a done/ archive holding its own subdirectory would block at the
+    # 5-track ceiling if the archive were counted.
+    INTAKE_OK = temp_repo("work")
+    INTAKE_OK_ROOT = os.path.join(INTAKE_OK, "track")
+    for i in range(4):
+        os.makedirs(os.path.join(INTAKE_OK_ROOT, f"f{i}"))
+    os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
+    done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
+    check("preflight intake [4 active + done/ archive ignored] -> 0", done.returncode == 0)
+
+    # A track that git tracks makes the working tree dirty by existing, and the
+    # stage that then refuses is `ship`, whose clean_tree failure says nothing
+    # about why. intake says so while the fix is still one line -- and says it
+    # without blocking, because committing your track is a legitimate choice.
+    check("preflight intake warns when the track is not ignored",
+          "track_ignored" in done.stdout and "NOT ignored" in done.stdout)
+    check("preflight intake does not block on it", done.returncode == 0)
+
+    with open(os.path.join(INTAKE_OK, ".gitignore"), "w", encoding="utf-8") as fh:
+        fh.write("track/\n")
+    done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
+    check("preflight intake is quiet once the track is ignored",
+          "track_ignored" in done.stdout and "NOT ignored" not in done.stdout)
+
+    # Regression: a bare relative --track-dir (what a caller already sitting in
+    # .claude/track/ passes) used to derive an empty parent, count zero active
+    # tracks, and let a sixth one through. Exercised with cwd set to the track
+    # root itself, since that is what makes the value bare in the first place.
+    INTAKE_BARE = temp_repo("work")
+    INTAKE_BARE_ROOT = os.path.join(INTAKE_BARE, "track")
+    for i in range(5):
+        os.makedirs(os.path.join(INTAKE_BARE_ROOT, f"f{i}"))
+    done = subprocess.run(
+        [sys.executable, os.path.abspath(PREFLIGHT), "intake", "--track-dir", "f-new",
+         "--project-dir", os.path.abspath(INTAKE_BARE)],
+        capture_output=True, text=True, cwd=INTAKE_BARE_ROOT)
+    check("preflight intake [bare relative --track-dir, 5 active tracks] -> 2",
+          done.returncode == 2)
+    check("preflight intake bare --track-dir names active_tracks",
+          "FAIL active_tracks" in done.stdout)
+
+    # verify has nothing to read from state.md -- it only asks git whether there
+    # is a diff to review, so its fixtures are bare repos.
+    VERIFY_CLEAN = temp_repo("clean-branch")
+    done = run_preflight_at("verify", VERIFY_CLEAN, os.path.join(VERIFY_CLEAN, "track"))
+    check("preflight verify [clean tree, no base diff] -> 2", done.returncode == 2)
+    check("preflight verify names has_changes", "FAIL has_changes" in done.stdout)
+
+    VERIFY_DIRTY = temp_repo("dirty-branch")
+    with open(os.path.join(VERIFY_DIRTY, "note.txt"), "w", encoding="utf-8") as fh:
+        fh.write("scratch\n")
+    done = run_preflight_at("verify", VERIFY_DIRTY, os.path.join(VERIFY_DIRTY, "track"))
+    check("preflight verify [uncommitted changes] -> 0", done.returncode == 0)
+
+    def write_ship_state(track_dir, verify_status):
+        os.makedirs(track_dir, exist_ok=True)
+        with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
+            fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+                      "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+                      "|---|---|---|---|\n| intake | done | — | |\n"
+                      "| discover | done | — | |\n| design | done | — | |\n"
+                      "| build | done | — | |\n| verify | %s | — | |\n"
+                      "| ship | | | |\n" % verify_status)
+
+    # ship's own repo fixtures live outside the track directory it reads, so
+    # writing state.md never touches the git status this check is also reading.
+    # A tracked file with an uncommitted change, not an untracked one (#198):
+    # untracked files never block ship, so an untracked-only fixture here would
+    # now prove the opposite of what "dirty tree" means to name.
+    SHIP_DIRTY = dirty_repo()
+    SHIP_DIRTY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+    write_ship_state(SHIP_DIRTY_TRACK, "done")
+    done = run_preflight_at("ship", SHIP_DIRTY, SHIP_DIRTY_TRACK)
+    check("preflight ship [dirty tree] -> 2", done.returncode == 2)
+    check("preflight ship names clean_tree", "FAIL clean_tree" in done.stdout)
+
+    SHIP_CLEAN = temp_repo("ship-clean")
+    SHIP_CLEAN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+    write_ship_state(SHIP_CLEAN_TRACK, "done")
+    done = run_preflight_at("ship", SHIP_CLEAN, SHIP_CLEAN_TRACK)
+    check("preflight ship [clean tree, verify done, not main] -> 0", done.returncode == 0)
+
+    # #198's decision: untracked files never block ship, whatever their number.
+    SHIP_UNTRACKED_ONLY = dirty_repo(untracked_only=True)
+    SHIP_UNTRACKED_ONLY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+    write_ship_state(SHIP_UNTRACKED_ONLY_TRACK, "done")
+    done = run_preflight_at("ship", SHIP_UNTRACKED_ONLY, SHIP_UNTRACKED_ONLY_TRACK)
+    check("preflight ship [untracked only] -> 0", done.returncode == 0)
+
+    # ship's other two reasons: the fixtures above always fill verify's status and
+    # always run on a feature branch, so only clean_tree was ever exercised.
+    SHIP_NO_VERIFY = temp_repo("ship-no-verify")
+    SHIP_NO_VERIFY_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+    write_ship_state(SHIP_NO_VERIFY_TRACK, "")
+    done = run_preflight_at("ship", SHIP_NO_VERIFY, SHIP_NO_VERIFY_TRACK)
+    check("preflight ship [verify status empty] -> 2", done.returncode == 2)
+    check("preflight ship names verify_status", "FAIL verify_status" in done.stdout)
+
+    SHIP_ON_MAIN = temp_repo("main")
+    SHIP_ON_MAIN_TRACK = tempfile.mkdtemp(prefix="cai-ship-track-")
+    write_ship_state(SHIP_ON_MAIN_TRACK, "done")
+    done = run_preflight_at("ship", SHIP_ON_MAIN, SHIP_ON_MAIN_TRACK)
+    check("preflight ship [on main branch] -> 2", done.returncode == 2)
+    check("preflight ship names not_main_branch", "FAIL not_main_branch" in done.stdout)
+
+
+@section("models")
+def _models():
+    # Model tiers live in models.json, not in eighteen frontmatters. Three checks,
+    # because the failure modes are different: drift (someone edited a frontmatter
+    # by hand), escape (a new component nobody assigned a role), and regression
+    # (someone pinned a concrete version again, which is what models.json exists to
+    # stop -- an alias tracks its family, `claude-haiku-4-5-20251001` does not).
+    GEN_MODELS = f"{PLUGIN}/scripts/gen-models.py"
+    MODELS_JSON = f"{PLUGIN}/models.json"
+    check(f"models.json ships ({MODELS_JSON})", os.path.isfile(MODELS_JSON))
+    check(f"gen-models.py ships ({GEN_MODELS})", os.path.isfile(GEN_MODELS))
+
+    if os.path.isfile(MODELS_JSON) and os.path.isfile(GEN_MODELS):
+        drifted = subprocess.run([sys.executable, GEN_MODELS, "--check"],
+                                 capture_output=True, text=True)
+        check("every component's model matches its role in models.json",
+              drifted.returncode == 0)
+        if drifted.returncode != 0:
+            print("    ", drifted.stdout.strip().replace("\n", "\n     "))
+
+        spec = json.load(open(MODELS_JSON, encoding="utf-8"))
+        aliases = {r["alias"] for r in spec["roles"].values()}
+        assigned = set(spec["assignments"])
+
+        # The other direction from the orphan check below: a role assignment that
+        # names a file nobody shipped (or already deleted, e.g. a retired agent)
+        # is stale the moment it's written -- exactly the failure mode retiring
+        # refactoring-detector/refactoring-surgeon into skills/refactor/ could
+        # leave behind if their models.json rows were not removed with them.
+        dangling = sorted(p for p in assigned if not os.path.isfile(f"{PLUGIN}/{p}"))
+        check(f"models.json names no assignment whose file is missing ({len(dangling)} dangling)",
+              not dangling)
+        for p in dangling[:5]:
+            print("     dangling assignment:", p)
+
+        # Anything that declares a model must be in the table. Without this, a new
+        # agent silently keeps whatever tier its author typed and re-tiering a role
+        # quietly skips it.
+        declaring = set()
+        for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+                     + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                     + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
+            body = read_text(path)
+            end = body.find("\n---", 3) if body.startswith("---") else -1
+            if end == -1:
+                continue
+            m = re.search(r"^model:[ \t]*(\S+)", body[3:end], re.MULTILINE)
+            if not m:
+                continue
+            rel = path.replace("\\", "/")[len(PLUGIN) + 1:]
+            declaring.add(rel)
+            check(f"{rel} uses a family alias, not a pinned version ({m.group(1)})",
+                  m.group(1) in aliases)
+
+        orphans = sorted(declaring - assigned)
+        check(f"every component declaring a model is in models.json "
+              f"({len(orphans)} unassigned)", not orphans)
+        for rel in orphans:
+            print(f"     unassigned: {rel}")
+
+        # Frontmatter is only half of it. The bigger drift was in prose -- a file
+        # that said "dispatch `explorer` (Haiku)" carried a second copy of a fact
+        # agents/explorer.md already owned, and the two diverge the moment a tier
+        # moves. Components name TIERS (chore/build/think); only models.json and
+        # rules/model-selection.md name families. rules/ is excluded because
+        # defining the tiers is exactly its job.
+        FAMILY = re.compile(r"\b(haiku|sonnet|opus|fable)\b", re.IGNORECASE)
+        leaked = []
+        for path in (sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
+                     + sorted(glob.glob(f"{PLUGIN}/skills/*/SKILL.md"))
+                     + sorted(glob.glob(f"{PLUGIN}/skills/*/references/*.md"))
+                     + sorted(glob.glob(f"{CATALOG}/*/SKILL.md"))):
+            for n, line in enumerate(read_text(path).splitlines(), 1):
+                if line.startswith("model:"):
+                    continue
+                if FAMILY.search(line):
+                    leaked.append(f"{path.replace(chr(92), '/')}:{n}: {line.strip()[:70]}")
+        check(f"no component names a model family in prose ({len(leaked)} leak(s))",
+              not leaked)
+        for line in leaked[:8]:
+            print(f"     {line}")
+
+
+@section("codex-drift")
+def _codex_drift():
+    # plugins/cai-codex/ is generated from plugins/cai/ (gen-codex.py); a plugin
+    # edit that drifts the two apart is caught here rather than at Codex install
+    # time, the same way the gen-models block above catches a hand-edited tier.
+    GEN_CODEX = "scripts/gen-codex.py"
+    if os.path.isfile(GEN_CODEX):
+        codex_check = subprocess.run([sys.executable, GEN_CODEX, "--check"],
+                                     capture_output=True, encoding="utf-8")
+        check("plugins/cai-codex matches gen-codex.py", codex_check.returncode == 0)
+        if codex_check.returncode != 0:
+            print("    ", codex_check.stdout.strip().replace("\n", "\n     "))
+
+
+@section("release-manifests")
+def _release_manifests():
+    # Release versioning (docs/design/2026-09-26-release-versioning-detail.md):
+    # scripts/release.py owns pinning both marketplace files to a git-subdir
+    # source once a release is cut, and MARKETPLACES is the one list both it and
+    # this check read -- a third platform is one more row there, not a new code
+    # path here (UC5; see tests/test_release.py's fake_platforms test).
+
+    product_manifest_text = read_text(release.PRODUCT_MANIFEST)
+
+    # release.pinned_ref returns None for the legacy bare-string `source` and the
+    # pinned ref for the git-subdir object form, so it doubles as the form probe.
+    # Only the git-subdir form passes (stance I5); the legacy string FAILs. UC4's
+    # full revert (detail.md:657) reverts this change first.
+    forms = {}
+    for market in release.MARKETPLACES:
+        try:
+            text = read_text(market.file)
+            forms[market.file] = "legacy" if release.pinned_ref(text, market) is None else "subdir"
+        except (OSError, json.JSONDecodeError, ValueError):
+            forms[market.file] = "unreadable"
+
+    all_subdir = all(form == "subdir" for form in forms.values())
+    check("every marketplace entry uses a git-subdir source", all_subdir)
+    if not all_subdir:
+        for file, form in forms.items():
+            print(f"     {file}: {form}")
+
+    if all_subdir:
+        expected_url = release.repository_git_url(product_manifest_text)
+        expected_ref = "v" + release.product_version(product_manifest_text)
+        for market in release.MARKETPLACES:
+            obj = json.load(open(market.file, encoding="utf-8"))
+            entry = next(p for p in obj.get("plugins", []) if p.get("name") == market.plugin)
+            source = entry.get("source") or {}
+            ok = (source.get("source") == "git-subdir"
+                  and source.get("url") == expected_url
+                  and source.get("path") == market.path
+                  and source.get("ref") == expected_ref)
+            check(f"{market.file} pins {market.plugin} correctly (url/path/ref)", ok)
+            if not ok:
+                print(f"     {market.file}: got {source}, want "
+                      f"url={expected_url!r} path={market.path!r} ref={expected_ref!r}")
+
+    CAI_CODEX_MANIFEST = "plugins/cai-codex/.codex-plugin/plugin.json"
+    try:
+        codex_manifest = json.load(open(CAI_CODEX_MANIFEST, encoding="utf-8"))
+        codex_version_matches = codex_manifest.get("version") == release.product_version(product_manifest_text)
+    except (OSError, json.JSONDecodeError, ValueError):
+        codex_version_matches = False
+    check(f"{CAI_CODEX_MANIFEST} version matches the product version (R4)", codex_version_matches)
+
+
+@section("track-stages")
+def _track_stages():
+    # What each stage's agent must be granted, checked against its `tools:`
+    # frontmatter rather than its name -- picking an agent by tier alone is
+    # exactly what pointed design at architect (can't Write) and ship at
+    # explorer (can't run git) before designer/verifier/shipper existed.
+    STAGE_TOOL_NEEDS = {
+        # intake and discover both run on `architect` (stages.json), which
+        # stays read-only: D6-1/2/3 rewrote the three imperatives out rather
+        # than grant it `Agent` or `Write`. `Agent` reaches `implementer`, so
+        # it is a `Write` grant wearing another name -- and it cannot be
+        # narrowed, because the type list in the parentheses is ignored in a
+        # subagent definition (verifier.md). Three separate files say this
+        # agent is read-only: architect.md, plan-review/SKILL.md,
+        # stage-design.md. RETIRED_IMPERATIVES below is what keeps the
+        # rewrite from quietly coming back.
+        "intake": [
+            ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
+            ("a search tool",
+             lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
+        ],
+        "discover": [
+            ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
+            ("a search tool",
+             lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
+        ],
+        "design": [
+            ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
+            ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+            # stage-design.md runs design_probe.py and mmdc; designer.md's own
+            # body says to render before handing off. Routing those through a
+            # dispatched runner instead would move a zero-token check onto a
+            # model turn -- the opposite of the reason the probe exists at all.
+            ("a python interpreter", _grants_python),
+            ("a mermaid renderer", _grants_mermaid),
+        ],
+        "build": [
+            ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+            # stage-build.md runs design_probe.py before reading the design.
+            # implementer.md already satisfies this; the entry was simply
+            # missing, and a stage with no entry reads exactly like a stage
+            # that passed.
+            ("a python interpreter", _grants_python),
+        ],
+        "verify": [
+            # No per-runner grants any more: which command runs is decided by the
+            # resolver and held by the PreToolUse hook (runner_guard.py), so the
+            # agent needs a shell and nothing narrower than that can express it.
+            ("a shell", lambda tools: re.search(r"\bBash\b(?!\()", tools) is not None),
+            ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
+            # stage-verify.md tells this stage to write the failing test first
+            # and then fix. So do verifier.md's own description, its body, and
+            # its finding format. Four statements say it fixes; only the tools
+            # line said it could not, so this corrects the tools line. Write
+            # opens the new test file, Edit changes the code under it -- both,
+            # not one.
+            ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
+            ("Edit", lambda tools: re.search(r"\bEdit\b", tools) is not None),
+            # stage-verify.md's Step 0.5 runs provenance.py directly, same
+            # reasoning as "build"'s own comment about design_probe.py --
+            # routing a zero-token check through a dispatched agent would move
+            # it onto a model turn for no reason.
+            ("a python interpreter", _grants_python),
+        ],
+        "ship": [
+            ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
+            # stage-ship.md's release note now always goes to the PR
+            # description; `gh` is how it gets there. Granting `Write` instead
+            # would hand a general file writer to the agent that runs
+            # `git push --force-with-lease` and sits on one of the two human
+            # gates.
+            ("a gh command",
+             lambda tools: re.search(r"\bgh\b", tools) is not None),
+        ],
+    }
+
+    # The track skill's stage table. Shape checks only -- the six stage prose
+    # files and their wrapper skills are later units and do not exist yet.
+    STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
+    STAGE_ORDER = ["intake", "discover", "design", "build", "verify", "ship"]
+    missing_stages = sorted(set(STAGE_ORDER) - set(STAGE_TOOL_NEEDS))
+    check("STAGE_TOOL_NEEDS covers every stage id (%s)"
+          % (", ".join(missing_stages) or "all six"),
+          set(STAGE_TOOL_NEEDS) == set(STAGE_ORDER))
+    check(f"stages.json ships ({STAGES_JSON})", os.path.isfile(STAGES_JSON))
+    if os.path.isfile(STAGES_JSON):
+        stages_text = read_text(STAGES_JSON)
+        stages = json.loads(stages_text)["stages"]
+        check(f"stages.json has {len(STAGE_ORDER)} rows ({len(stages)})",
+              len(stages) == len(STAGE_ORDER))
+        keys_ok = all(set(row) == {"id", "agent", "reference", "auto_invoke"} for row in stages)
+        check("every stage row has exactly id/agent/reference/auto_invoke", keys_ok)
+        ids = [row.get("id") for row in stages]
+        check(f"stage ids are {STAGE_ORDER} in order ({ids})", ids == STAGE_ORDER)
+
+        # Model tier lives only in models.json; a second copy here would drift
+        # the moment a role is re-tiered. "build" is also a legitimate stage id
+        # and names its reference file, so only flag it elsewhere.
+        BUILD_LEGIT = re.compile(r'"id"\s*:\s*"build"|stage-build\.md')
+        tier_leaks = []
+        for ln in stages_text.splitlines():
+            if re.search(r"\btier\b|\b(chore|think)\b", ln, re.IGNORECASE):
+                tier_leaks.append(ln)
+            elif re.search(r"\bbuild\b", ln, re.IGNORECASE) and not BUILD_LEGIT.search(ln):
+                tier_leaks.append(ln)
+        check(f"stages.json names no model tier ({len(tier_leaks)} leak(s))", not tier_leaks)
+
+        # Unit 6a: the six stage reference files and their thin wrapper skills.
+        # A `reference` path that resolves to nothing leaves the subagent track
+        # dispatches with a Read call that 404s mid-stage.
+        for row in stages:
+            ref = f"{PLUGIN}/skills/track/{row['reference']}"
+            check(f"stage {row['id']} reference exists ({ref})", os.path.isfile(ref))
+
+            wrapper = f"{PLUGIN}/skills/{row['id']}/SKILL.md"
+            check(f"stage {row['id']} has a wrapper skill ({wrapper})", os.path.isfile(wrapper))
+            if not os.path.isfile(wrapper):
+                continue
+
+            wrapper_text = read_text(wrapper)
+            has_flag = "disable-model-invocation: true" in wrapper_text
+            # auto_invoke says whether this skill may start the stage on its own;
+            # a stage that writes things (auto_invoke: false) must carry the flag
+            # or a matching description starts it unbidden, and a stage that only
+            # reads (auto_invoke: true) must not carry it or the capability it
+            # exists to keep -- firing on "review this diff" -- regresses silently.
+            if row["auto_invoke"]:
+                check(f"{wrapper} has no disable-model-invocation (auto_invoke: true)", not has_flag)
+            else:
+                check(f"{wrapper} disables model invocation (auto_invoke: false)", has_flag)
+
+            wrapper_end = wrapper_text.find("\n---", 3) + 4 if wrapper_text.startswith("---") else 0
+            wrapper_lines = len(wrapper_text[wrapper_end:].splitlines())
+            check(f"{wrapper} body is under 25 lines ({wrapper_lines})", wrapper_lines < 25)
+
+        # Step 1 and Step 6.1 both used to send the build stage into the design
+        # document -- Step 1 for the progress columns, Step 6.1 for the
+        # traceability table. `artifact_unchanged` hashes that document against
+        # the digest the ledger recorded at sign-off, so either edit makes every
+        # later `preflight.py build` exit 2, including the resumed run those
+        # instructions exist to serve.
+        #
+        # The behaviour half of that claim is already owned by tests
+        # (tests/test_preflight_build_gate.py, tests/test_preflight_ledger.py),
+        # so these two do the weaker job a prose guard should do once a test
+        # holds the truth: prove the instruction still says it. Update either
+        # string only after re-confirming against those tests that the probe
+        # still behaves this way -- a matching string is not a true claim.
+        #
+        build_ref = f"{PLUGIN}/skills/track/references/stage-build.md"
+        if os.path.isfile(build_ref):
+            build_text = read_text(build_ref)
+
+            def build_step(heading):
+                """One step's own words, whitespace folded.
 
             Sliced to the step rather than searched across the whole file:
             the label below claims *this step* still carries the sentence, so
@@ -2240,362 +2287,366 @@ if os.path.isfile(STAGES_JSON):
             legitimate rewrap through while a change to the words does not.
             An absent heading yields "", which fails the check -- a step that
             went missing is not a step that still says this."""
-            start = build_text.find(heading)
-            if start < 0:
-                return ""
-            end = build_text.find("\n## ", start + 1)
-            return " ".join(build_text[start:end if end > 0 else None].split())
+                start = build_text.find(heading)
+                if start < 0:
+                    return ""
+                end = build_text.find("\n## ", start + 1)
+                return " ".join(build_text[start:end if end > 0 else None].split())
 
-        for label, heading, phrase in (
-                ("Step 1", "## Step 1",
-                 "never in the design document itself"),
-                ("Step 6.1", "## Step 6",
-                 "never back into the design document's own `### Traceability`"),
-                ("Step 6.1 diagnosis", "## Step 6",
-                 "never goes back into the diagnosis document either")):
-            check(f"{build_ref}'s {label} keeps build out of the signed-off "
-                  f"design ({phrase})", phrase in build_step(heading))
+            for label, heading, phrase in (
+                    ("Step 1", "## Step 1",
+                     "never in the design document itself"),
+                    ("Step 6.1", "## Step 6",
+                     "never back into the design document's own `### Traceability`"),
+                    ("Step 6.1 diagnosis", "## Step 6",
+                     "never goes back into the diagnosis document either")):
+                check(f"{build_ref}'s {label} keeps build out of the signed-off "
+                      f"design ({phrase})", phrase in build_step(heading))
 
-        # The diagnosis path's own promise -- four documents say "build
-        # starts from its `## Failing test`" (stage-design.md,
-        # design-diagnosis.md.tpl, design-detail.md.tpl, design_probe.py's
-        # not-applicable label) -- names Step 3.3 as the starting point and
-        # Step 6.1 as where that test's red/green gets recorded. This is a
-        # prose guard with no behaviour test behind it: build is a
-        # model-run stage, so there is no behaviour to assert here, only
-        # the instruction's own words.
-        for label, heading, phrase in (
-                ("Step 3.3", "## Step 3", "`## Failing test`"),
-                ("Step 6.1", "## Step 6", "`## Failing test`")):
-            check(f"{build_ref}'s {label} names the diagnosis path's "
-                  f"`## Failing test`", phrase in build_step(heading))
+            # The diagnosis path's own promise -- four documents say "build
+            # starts from its `## Failing test`" (stage-design.md,
+            # design-diagnosis.md.tpl, design-detail.md.tpl, design_probe.py's
+            # not-applicable label) -- names Step 3.3 as the starting point and
+            # Step 6.1 as where that test's red/green gets recorded. This is a
+            # prose guard with no behaviour test behind it: build is a
+            # model-run stage, so there is no behaviour to assert here, only
+            # the instruction's own words.
+            for label, heading, phrase in (
+                    ("Step 3.3", "## Step 3", "`## Failing test`"),
+                    ("Step 6.1", "## Step 6", "`## Failing test`")):
+                check(f"{build_ref}'s {label} names the diagnosis path's "
+                      f"`## Failing test`", phrase in build_step(heading))
 
-        # #199: a test-runner report with 0 failures used to read as green
-        # even when a named file collected 0 tests or skipped every test
-        # (a conftest that skips the whole package, say). Step 3.4 has to
-        # treat that report as red, or the bounded retry never fires.
-        check(f"{build_ref}'s Step 3.4 treats a NOT RUN test file as red",
-              "no NOT RUN file" in build_step("## Step 3"))
+            # #199: a test-runner report with 0 failures used to read as green
+            # even when a named file collected 0 tests or skipped every test
+            # (a conftest that skips the whole package, say). Step 3.4 has to
+            # treat that report as red, or the bounded retry never fires.
+            check(f"{build_ref}'s Step 3.4 treats a NOT RUN test file as red",
+                  "no NOT RUN file" in build_step("## Step 3"))
 
-    test_runner_ref = f"{PLUGIN}/agents/test-runner.md"
-    if os.path.isfile(test_runner_ref):
-        # #199: the report format has to name the zero-collected/all-skipped
-        # case explicitly, or test-runner has no words telling it to.
-        check(f"{test_runner_ref} reports a named file that collected 0 "
-              "tests or skipped them all as NOT RUN",
-              "NOT RUN" in read_text(test_runner_ref))
+        test_runner_ref = f"{PLUGIN}/agents/test-runner.md"
+        if os.path.isfile(test_runner_ref):
+            # #199: the report format has to name the zero-collected/all-skipped
+            # case explicitly, or test-runner has no words telling it to.
+            check(f"{test_runner_ref} reports a named file that collected 0 "
+                  "tests or skipped them all as NOT RUN",
+                  "NOT RUN" in read_text(test_runner_ref))
 
-        # AC10: NOT RUN is the same rule whatever the runner, so the agent's
-        # own words may not name one -- naming pytest is what once made the
-        # rule read as pytest-only. The whole file is held to it, and so is
-        # verifier.md's `tools:` line: a per-runner grant there is the same
-        # naming in another place.
-        runner_names = re.compile(r"pytest|go test|npm test|unittest|cargo",
-                                  re.IGNORECASE)
-        check(f"{test_runner_ref} names no particular test runner",
-              runner_names.search(read_text(test_runner_ref)) is None)
-        verifier_tools = agent_tools_line(f"{PLUGIN}/agents/verifier.md") or ""
-        check(f"{PLUGIN}/agents/verifier.md's tools: line names no particular test runner",
-              runner_names.search(verifier_tools) is None)
+            # AC10: NOT RUN is the same rule whatever the runner, so the agent's
+            # own words may not name one -- naming pytest is what once made the
+            # rule read as pytest-only. The whole file is held to it, and so is
+            # verifier.md's `tools:` line: a per-runner grant there is the same
+            # naming in another place.
+            runner_names = re.compile(r"pytest|go test|npm test|unittest|cargo",
+                                      re.IGNORECASE)
+            check(f"{test_runner_ref} names no particular test runner",
+                  runner_names.search(read_text(test_runner_ref)) is None)
+            verifier_tools = agent_tools_line(f"{PLUGIN}/agents/verifier.md") or ""
+            check(f"{PLUGIN}/agents/verifier.md's tools: line names no particular test runner",
+                  runner_names.search(verifier_tools) is None)
 
-    # AC11: every place that used to find the test command on its own now
-    # asks the one resolver, and refactor's old `ls Makefile ...` guess is gone.
-    for rel in ("agents/test-runner.md", "agents/verifier.md",
-                "skills/track/references/stage-build.md", "skills/goal/SKILL.md",
-                "skills/refactor/SKILL.md",
-                "skills/refactor/references/procedure-scan.md",
-                "skills/refactor/references/selection.md"):
-        path = f"{PLUGIN}/{rel}"
-        check(f"{path} runs resolve_test_command.py",
-              os.path.isfile(path) and "resolve_test_command.py" in read_text(path))
-    selection_ref = f"{PLUGIN}/skills/refactor/references/selection.md"
-    check(f"{selection_ref} no longer guesses with `ls Makefile`",
-          os.path.isfile(selection_ref) and "ls Makefile" not in read_text(selection_ref))
+        # AC11: every place that used to find the test command on its own now
+        # asks the one resolver, and refactor's old `ls Makefile ...` guess is gone.
+        for rel in ("agents/test-runner.md", "agents/verifier.md",
+                    "skills/track/references/stage-build.md", "skills/goal/SKILL.md",
+                    "skills/refactor/SKILL.md",
+                    "skills/refactor/references/procedure-scan.md",
+                    "skills/refactor/references/selection.md"):
+            path = f"{PLUGIN}/{rel}"
+            check(f"{path} runs resolve_test_command.py",
+                  os.path.isfile(path) and "resolve_test_command.py" in read_text(path))
+        selection_ref = f"{PLUGIN}/skills/refactor/references/selection.md"
+        check(f"{selection_ref} no longer guesses with `ls Makefile`",
+              os.path.isfile(selection_ref) and "ls Makefile" not in read_text(selection_ref))
 
-    # AC12: several declared commands all run, and one red fails the lot. This
-    # is the sentence the agents are pointed at, so it has to stay in it.
-    test_command_ref = f"{PLUGIN}/skills/track/references/test-command.md"
-    check(f"{test_command_ref} says any failure fails all",
-          os.path.isfile(test_command_ref)
-          and "any failure fails all" in read_text(test_command_ref).lower())
+        # AC12: several declared commands all run, and one red fails the lot. This
+        # is the sentence the agents are pointed at, so it has to stay in it.
+        test_command_ref = f"{PLUGIN}/skills/track/references/test-command.md"
+        check(f"{test_command_ref} says any failure fails all",
+              os.path.isfile(test_command_ref)
+              and "any failure fails all" in read_text(test_command_ref).lower())
 
-    # #276: the two scoped agents' tool grants and the three-habit sentences are
-    # restated nowhere else, so nothing else would notice one drifting. An
-    # exact tools set (not just "no runner named", AC10 above) catches a tool
-    # added later; the phrases are folded because they wrap across source lines.
-    for name, wanted in (("test-runner", {"Bash", "Read"}),
-                         ("verifier", {"Read", "Grep", "Glob", "Agent", "Bash", "Write", "Edit"})):
-        agent_ref = f"{PLUGIN}/agents/{name}.md"
-        check(f"{agent_ref}'s tools: line is exactly {', '.join(sorted(wanted))}",
-              os.path.isfile(agent_ref)
-              and {t.strip() for t in (agent_tools_line(agent_ref) or "").split(",")} == wanted)
-    habit_phrases = (
-        (f"{PLUGIN}/agents/test-runner.md",
-         ("do not append a redirection", "do not `cd`", "do not chain commands",
-          "Do not explore with `find` or `ls`")),
-        (f"{PLUGIN}/agents/verifier.md",
-         ("do not append a redirection", "do not prefix `cd <dir> &&`", "do not chain commands",
-          "Do not explore with `find` or `ls`")),
-        (test_command_ref,
-         ("appending a redirection such as `2>&1`", "`cd`-ing first",
-          "exploring with `find` or `ls`")))
-    for path, phrases in habit_phrases:
-        folded = " ".join(read_text(path).split()) if os.path.isfile(path) else ""
-        for phrase in phrases:
-            check(f"{path} keeps its habit sentence ({phrase})", phrase in folded)
+        # #276: the two scoped agents' tool grants and the three-habit sentences are
+        # restated nowhere else, so nothing else would notice one drifting. An
+        # exact tools set (not just "no runner named", AC10 above) catches a tool
+        # added later; the phrases are folded because they wrap across source lines.
+        for name, wanted in (("test-runner", {"Bash", "Read"}),
+                             ("verifier", {"Read", "Grep", "Glob", "Agent", "Bash", "Write", "Edit"})):
+            agent_ref = f"{PLUGIN}/agents/{name}.md"
+            check(f"{agent_ref}'s tools: line is exactly {', '.join(sorted(wanted))}",
+                  os.path.isfile(agent_ref)
+                  and {t.strip() for t in (agent_tools_line(agent_ref) or "").split(",")} == wanted)
+        habit_phrases = (
+            (f"{PLUGIN}/agents/test-runner.md",
+             ("do not append a redirection", "do not `cd`", "do not chain commands",
+              "Do not explore with `find` or `ls`")),
+            (f"{PLUGIN}/agents/verifier.md",
+             ("do not append a redirection", "do not prefix `cd <dir> &&`", "do not chain commands",
+              "Do not explore with `find` or `ls`")),
+            (test_command_ref,
+             ("appending a redirection such as `2>&1`", "`cd`-ing first",
+              "exploring with `find` or `ls`")))
+        for path, phrases in habit_phrases:
+            folded = " ".join(read_text(path).split()) if os.path.isfile(path) else ""
+            for phrase in phrases:
+                check(f"{path} keeps its habit sentence ({phrase})", phrase in folded)
 
-    # #275: the resolver has four non-zero exits and the goal skill restated
-    # only 3 and 4, so a main session hitting exit 5 had no instruction. Folded
-    # because the sentence is wrapped across source lines.
-    goal_ref = f"{PLUGIN}/skills/goal/SKILL.md"
-    check(f"{goal_ref} sends resolver exits 3, 4 and 5 to test-command.md",
-          os.path.isfile(goal_ref)
-          and "on exit 3, 4 or 5" in " ".join(read_text(goal_ref).split()))
+        # #275: the resolver has four non-zero exits and the goal skill restated
+        # only 3 and 4, so a main session hitting exit 5 had no instruction. Folded
+        # because the sentence is wrapped across source lines.
+        goal_ref = f"{PLUGIN}/skills/goal/SKILL.md"
+        check(f"{goal_ref} sends resolver exits 3, 4 and 5 to test-command.md",
+              os.path.isfile(goal_ref)
+              and "on exit 3, 4 or 5" in " ".join(read_text(goal_ref).split()))
 
-    # AC15: the platform ignores `hooks:` in a plugin agent's frontmatter, so
-    # one that carries it is a boundary on paper only. The scoped agents are
-    # held by the one global hook, which tells them apart by `agent_type`.
-    for agent_path in sorted(glob.glob(f"{PLUGIN}/agents/*.md")):
-        check(f"{agent_path} has no `hooks:` frontmatter (the platform ignores it)",
-              "hooks" not in (frontmatter_keys(agent_path) or set()))
+        # AC15: the platform ignores `hooks:` in a plugin agent's frontmatter, so
+        # one that carries it is a boundary on paper only. The scoped agents are
+        # held by the one global hook, which tells them apart by `agent_type`.
+        for agent_path in sorted(glob.glob(f"{PLUGIN}/agents/*.md")):
+            check(f"{agent_path} has no `hooks:` frontmatter (the platform ignores it)",
+                  "hooks" not in (frontmatter_keys(agent_path) or set()))
 
-    # The original mis-assignment picked a stage's agent by tier alone --
-    # design pointed at architect (Read-only), ship at explorer (no git) --
-    # and both named agents that could not do the stage's job. Assert the
-    # agent exists, is tiered, and is actually granted what the stage needs,
-    # so a future re-assignment by tier alone fails here instead of at
-    # someone's runtime.
-    for row in stages:
-        agent_name = row["agent"]
-        agent_path = f"{PLUGIN}/agents/{agent_name}.md"
-        check(f"stage {row['id']}'s agent ({agent_name}) exists", os.path.isfile(agent_path))
+        # The original mis-assignment picked a stage's agent by tier alone --
+        # design pointed at architect (Read-only), ship at explorer (no git) --
+        # and both named agents that could not do the stage's job. Assert the
+        # agent exists, is tiered, and is actually granted what the stage needs,
+        # so a future re-assignment by tier alone fails here instead of at
+        # someone's runtime.
+        assigned = set(json.load(open(f"{PLUGIN}/models.json", encoding="utf-8"))["assignments"])
+        for row in stages:
+            agent_name = row["agent"]
+            agent_path = f"{PLUGIN}/agents/{agent_name}.md"
+            check(f"stage {row['id']}'s agent ({agent_name}) exists", os.path.isfile(agent_path))
 
-        rel_agent = f"agents/{agent_name}.md"
-        check(f"stage {row['id']}'s agent ({agent_name}) has a models.json assignment",
-              rel_agent in assigned)
+            rel_agent = f"agents/{agent_name}.md"
+            check(f"stage {row['id']}'s agent ({agent_name}) has a models.json assignment",
+                  rel_agent in assigned)
 
-        needs = STAGE_TOOL_NEEDS.get(row["id"])
-        if needs is None or not os.path.isfile(agent_path):
-            continue
-        tools_line = agent_tools_line(agent_path)
-        for label, predicate in needs:
-            check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
-                  tools_line is not None and predicate(tools_line))
+            needs = STAGE_TOOL_NEEDS.get(row["id"])
+            if needs is None or not os.path.isfile(agent_path):
+                continue
+            tools_line = agent_tools_line(agent_path)
+            for label, predicate in needs:
+                check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
+                      tools_line is not None and predicate(tools_line))
 
-    CONTEXT_PEAK = f"{PLUGIN}/scripts/context_peak.py"
-    check(f"{CONTEXT_PEAK} ships", os.path.isfile(CONTEXT_PEAK))
-    if os.path.isfile(CONTEXT_PEAK):
-        peak_text = read_text(CONTEXT_PEAK)
-        # AC6-d forbids a second *transcript* parser, not a second file read:
-        # context_peak legitimately reads the track's ledger.jsonl, and it does
-        # that through ledger.records() rather than by hand. So this does not
-        # ban json.loads or open() -- an earlier draft did, and that made
-        # session_ids() impossible to write at all. It bans the two field names
-        # only a transcript has.
-        #
-        # This is a blunt instrument: the same strings appearing in a comment or
-        # docstring will trip it. When that happens the fix is to reword the
-        # comment, not to delete the check.
-        reuses_parser = ("usage_collector.usage_records(" in peak_text
-                          and "usage_collector.read_window(" in peak_text)
-        no_second_parser = ('"requestId"' not in peak_text
-                             and '"message"' not in peak_text)
-        check(f"{CONTEXT_PEAK} reuses usage_collector's transcript parser "
-              "instead of writing a second one", reuses_parser and no_second_parser)
+        CONTEXT_PEAK = f"{PLUGIN}/scripts/context_peak.py"
+        check(f"{CONTEXT_PEAK} ships", os.path.isfile(CONTEXT_PEAK))
+        if os.path.isfile(CONTEXT_PEAK):
+            peak_text = read_text(CONTEXT_PEAK)
+            # AC6-d forbids a second *transcript* parser, not a second file read:
+            # context_peak legitimately reads the track's ledger.jsonl, and it does
+            # that through ledger.records() rather than by hand. So this does not
+            # ban json.loads or open() -- an earlier draft did, and that made
+            # session_ids() impossible to write at all. It bans the two field names
+            # only a transcript has.
+            #
+            # This is a blunt instrument: the same strings appearing in a comment or
+            # docstring will trip it. When that happens the fix is to reword the
+            # comment, not to delete the check.
+            reuses_parser = ("usage_collector.usage_records(" in peak_text
+                              and "usage_collector.read_window(" in peak_text)
+            no_second_parser = ('"requestId"' not in peak_text
+                                 and '"message"' not in peak_text)
+            check(f"{CONTEXT_PEAK} reuses usage_collector's transcript parser "
+                  "instead of writing a second one", reuses_parser and no_second_parser)
 
-# The platform filters `AskUserQuestion` out of every subagent whatever
-# `tools:` says, so a stage reference naming it is naming a tool its own
-# runner does not have. references/pending-questions.md is the way round it:
-# the stage hands the decision up, the main session asks. Assert the pointer
-# travels with the mention -- a file that keeps the instruction and loses the
-# protocol sends the runner back to answering the question itself, and it
-# does that silently, in an approved design document or a force-push.
-# The note cell has one declared owner: the main session (SKILL.md).
-# Every reference used to tell its own runner to write that cell, and four
-# of the six agents have no Write -- the instruction and the capability
-# disagreed, and nothing failed when they did. Three mentions survive, all
-# in stage-build.md: one in prose about .gitignore, two in Step 5.5, which
-# owns the in-flight `unit N of M` and is deliberately untouched. A file
-# absent from this dict is expected to mention it zero times -- the check
-# reads STATE_MD_MENTIONS.get(basename, 0), so silence here means 0, not
-# "unchecked".
-# Counted as occurrences of the string, not as lines containing it.
-# A count rather than "zero everywhere else" so that adding a fourth write
-# to Step 5.5 is also a decision someone has to make out loud.
-STATE_MD_MENTIONS = {"stage-build.md": 3}
 
-# One number, six files. Six copies of a ceiling drift the moment one is
-# edited, so validate.py holds the value and each file has to agree with
-# it. The date beside it is the sign-off, in the shape ledger.py established
-# for MAX_NOTE -- a number nobody can name the owner of is a number the
-# next reader changes without asking.
-REPORT_MAX = 4000
+@section("track-references")
+def _track_references():
+    # The platform filters `AskUserQuestion` out of every subagent whatever
+    # `tools:` says, so a stage reference naming it is naming a tool its own
+    # runner does not have. references/pending-questions.md is the way round it:
+    # the stage hands the decision up, the main session asks. Assert the pointer
+    # travels with the mention -- a file that keeps the instruction and loses the
+    # protocol sends the runner back to answering the question itself, and it
+    # does that silently, in an approved design document or a force-push.
+    # The note cell has one declared owner: the main session (SKILL.md).
+    # Every reference used to tell its own runner to write that cell, and four
+    # of the six agents have no Write -- the instruction and the capability
+    # disagreed, and nothing failed when they did. Three mentions survive, all
+    # in stage-build.md: one in prose about .gitignore, two in Step 5.5, which
+    # owns the in-flight `unit N of M` and is deliberately untouched. A file
+    # absent from this dict is expected to mention it zero times -- the check
+    # reads STATE_MD_MENTIONS.get(basename, 0), so silence here means 0, not
+    # "unchecked".
+    # Counted as occurrences of the string, not as lines containing it.
+    # A count rather than "zero everywhere else" so that adding a fourth write
+    # to Step 5.5 is also a decision someone has to make out loud.
+    STATE_MD_MENTIONS = {"stage-build.md": 3}
 
-# A gap D6 closed by granting the tool is pinned by STAGE_TOOL_NEEDS above:
-# take Write back off verifier.md and the check goes red, naming the stage
-# and the tool. A gap it closed by rewording the reference has nothing
-# holding it closed -- paste "Dispatch `explorer`" back into
-# stage-intake.md and every check still passes, with the reference once
-# more asking for a tool its runner does not have. That is the defect this
-# block exists to catch, so the four retired imperatives are named here,
-# per file.
-#
-# Each row carries the stage and the tool the imperative would again
-# demand, not just the phrase, because the FAIL message must name both.
-#
-# Keyed by file on purpose: stage-design.md keeps its own
-# "dispatch `explorer`" and must not be caught by this, because
-# designer.md does have `Agent` and has never claimed to be read-only.
-#
-# Blunt in one direction, and say so: this catches the sentence coming
-# back, not the instruction coming back. A synonym reintroducing the same
-# mismatch trips nothing here -- what narrows it is that the rewrite puts
-# the reason in the reference's own prose, so an editor reads it before
-# rewording the sentence.
-#
-# The #73 row is the same shape arriving from the other direction: the lint
-# belongs wherever options are laid out, and intake is the one stage whose
-# runner can neither write the draft nor run a script (architect.md:7). Its
-# prose says so and points at where the probe does run, so this catches the
-# command being pasted in anyway -- matched as the command, not the filename,
-# because that prose names the file deliberately.
-RETIRED_IMPERATIVES = {
-    "stage-intake.md": [("Dispatch `explorer`", "intake", "Agent"),
-                        ("scripts/options_lint.py", "intake",
-                         "Write and a python interpreter")],
-    "stage-discover.md": [("Dispatch `explorer`", "discover", "Agent"),
-                          ("Write it to the session", "discover", "Write")],
-    "stage-ship.md": [("entry if one exists", "ship", "Write")],
-}
+    # One number, six files. Six copies of a ceiling drift the moment one is
+    # edited, so validate.py holds the value and each file has to agree with
+    # it. The date beside it is the sign-off, in the shape ledger.py established
+    # for MAX_NOTE -- a number nobody can name the owner of is a number the
+    # next reader changes without asking.
+    REPORT_MAX = 4000
 
-PENDING_Q = f"{PLUGIN}/skills/track/references/pending-questions.md"
-check(f"pending-questions reference ships ({PENDING_Q})", os.path.isfile(PENDING_Q))
-check(f"{PLUGIN}/skills/track/SKILL.md points the main session at "
-      "pending-questions.md",
-      "pending-questions.md" in read_text(f"{PLUGIN}/skills/track/SKILL.md"))
-
-# #74: every stop for a person was written as prose -- "wait for a go",
-# "confirm with the person", "only the user's approval changes it" -- and
-# none of them said how to ask. Asked as prose, the person has to type a word
-# back, and the only word the prompt is shaped to receive is yes: nobody
-# disagrees by typing `approved`. approval-gates.md holds the menu; these are
-# the files that carry a stop and so must carry the pointer with it. Same
-# failure the pending-questions block above guards, one step earlier: a file
-# that keeps the instruction and loses the pointer goes back to prose, and it
-# does that silently, at a sign-off or a force-push.
-#
-# A dict rather than a bare list so the FAIL line says which stop lost it,
-# and so adding a seventh file is an edit someone makes on purpose.
-APPROVAL_GATES = f"{PLUGIN}/skills/track/references/approval-gates.md"
-GATE_POINTERS = {
-    "skills/track/SKILL.md": "the two human gates themselves",
-    "skills/track/references/stage-design.md": "the design sign-off, and the cost-sizing go",
-    "skills/track/references/stage-ship.md": "the irreversible operations, squash included",
-    "skills/track/references/stage-intake.md": "the approval before anything is designed",
-    "skills/track/references/stage-build.md": "Step 0.5's answers",
-    "skills/track/references/pending-questions.md": "a gate handed up by a subagent",
-    "skills/track/references/ticket-mirror.md": "the claim menu and the close at done",
-}
-check(f"approval-gates reference ships ({APPROVAL_GATES})",
-      os.path.isfile(APPROVAL_GATES))
-for rel, stop in GATE_POINTERS.items():
-    check(f"{rel} points at approval-gates.md ({stop})",
-          "approval-gates.md" in read_text(f"{PLUGIN}/{rel}"))
-
-# The one thing the reference must not lose: a menu is only a menu because
-# the free-text entry is added for you. Written as an option, it eats one of
-# the four slots and stops being the exception it is for.
-if os.path.isfile(APPROVAL_GATES):
-    gates_text = read_text(APPROVAL_GATES)
-    check("approval-gates.md names AskUserQuestion as the tool",
-          "AskUserQuestion" in gates_text)
-    check("approval-gates.md says the free-text entry is never an option you "
-          "write", "never an option you write" in gates_text)
-    # It is read by the main session directly, for the same reason
-    # pending-questions.md and ticket-mirror.md are -- and that reason is the
-    # whole subject here, so losing it makes the file self-contradicting.
-    check("approval-gates.md says a subagent cannot voice its own gate",
-          "cannot voice its own gate" in gates_text)
-    # The one instruction here that is about code behaviour rather than
-    # wording, and the one whose cost is a track that cannot proceed:
-    # `ledger.py append --artifact` sha256s the document as it stands, so
-    # writing `approved <date>` after the row is recorded fingerprints a
-    # draft and then invalidates it. tests/test_preflight_build_gate.py owns
-    # the behaviour; this only holds the sentence that keeps the order.
-    check("approval-gates.md keeps the Approve ordering (Status written "
-          "before the ledger row)",
-          "**first**, then append the ledger row" in gates_text)
-    # A recommendation on a gate is the model grading its own work, which
-    # reverses epistemics.md's standing instruction -- so the carve-out has
-    # to stay visible as a carve-out, not drift into an unexplained deviation.
-    check("approval-gates.md names its `(recommended)` carve-out from "
-          "epistemics.md", "exception to `epistemics.md`" in gates_text)
-for ref in sorted(glob.glob(f"{PLUGIN}/skills/track/references/stage-*.md")):
-    ref_text = read_text(ref)
-
-    # AC1: the note cell has one declared owner (the main session,
-    # SKILL.md). Every reference used to tell its own runner to write that
-    # cell, and four of the six agents have no Write -- the instruction and
-    # the capability disagreed, and nothing failed when they did. Three
-    # mentions survive, all in stage-build.md (Step 5.5, which owns the
-    # in-flight `unit N of M` and is deliberately untouched). A file absent
-    # from this dict is expected to mention it zero times.
-    mentions = ref_text.count("state.md")
-    expected_mentions = STATE_MD_MENTIONS.get(os.path.basename(ref), 0)
-    check(f"{os.path.basename(ref)} mentions state.md {expected_mentions} "
-          f"time(s) (found {mentions})", mentions == expected_mentions)
-
-    # AC3: exactly one `## Report` section (matched as a whole line, so
-    # stage-verify.md's pre-existing `## Step 3 -- Report` heading is not
-    # miscounted), and that section names the REPORT_MAX ceiling (word-
-    # bounded, so 4000 does not also match inside 40000) and a sign-off
-    # date.
-    report_headings = list(re.finditer(r"^## Report$", ref_text, re.MULTILINE))
-    check(f"{os.path.basename(ref)} has exactly one `## Report` section "
-          f"({len(report_headings)})", len(report_headings) == 1)
-    if report_headings:
-        section = ref_text[report_headings[0].start():]
-        has_ceiling = re.search(r"\b%d\b" % REPORT_MAX, section) is not None
-        has_date = re.search(r"\d{4}-\d{2}-\d{2}", section) is not None
-        check(f"{os.path.basename(ref)}'s `## Report` section names the "
-              f"{REPORT_MAX}-character ceiling and a sign-off date",
-              has_ceiling and has_date)
-
-    # AC4-c: a gap D6 closed by granting the tool is pinned by
-    # STAGE_TOOL_NEEDS above: take Write back off verifier.md and that check
-    # goes red, naming the stage and the tool. A gap it closed by rewording
-    # the reference has nothing holding it closed -- paste "Dispatch
-    # `explorer`" back into stage-intake.md and every other check still
-    # passes, with the reference once more asking for a tool its runner
-    # does not have. That is the defect this block exists to catch.
+    # A gap D6 closed by granting the tool is pinned by STAGE_TOOL_NEEDS above:
+    # take Write back off verifier.md and the check goes red, naming the stage
+    # and the tool. A gap it closed by rewording the reference has nothing
+    # holding it closed -- paste "Dispatch `explorer`" back into
+    # stage-intake.md and every check still passes, with the reference once
+    # more asking for a tool its runner does not have. That is the defect this
+    # block exists to catch, so the four retired imperatives are named here,
+    # per file.
+    #
+    # Each row carries the stage and the tool the imperative would again
+    # demand, not just the phrase, because the FAIL message must name both.
     #
     # Keyed by file on purpose: stage-design.md keeps its own
     # "dispatch `explorer`" and must not be caught by this, because
     # designer.md does have `Agent` and has never claimed to be read-only.
-    back = ["%s would again need %s: %r" % (stage, tool, phrase)
-            for phrase, stage, tool
-            in RETIRED_IMPERATIVES.get(os.path.basename(ref), [])
-            if phrase in ref_text]
-    check("%s does not re-add an imperative D6 retired (%s)"
-          % (os.path.basename(ref), "; ".join(back) or "none back"), not back)
+    #
+    # Blunt in one direction, and say so: this catches the sentence coming
+    # back, not the instruction coming back. A synonym reintroducing the same
+    # mismatch trips nothing here -- what narrows it is that the rewrite puts
+    # the reason in the reference's own prose, so an editor reads it before
+    # rewording the sentence.
+    #
+    # The #73 row is the same shape arriving from the other direction: the lint
+    # belongs wherever options are laid out, and intake is the one stage whose
+    # runner can neither write the draft nor run a script (architect.md:7). Its
+    # prose says so and points at where the probe does run, so this catches the
+    # command being pasted in anyway -- matched as the command, not the filename,
+    # because that prose names the file deliberately.
+    RETIRED_IMPERATIVES = {
+        "stage-intake.md": [("Dispatch `explorer`", "intake", "Agent"),
+                            ("scripts/options_lint.py", "intake",
+                             "Write and a python interpreter")],
+        "stage-discover.md": [("Dispatch `explorer`", "discover", "Agent"),
+                              ("Write it to the session", "discover", "Write")],
+        "stage-ship.md": [("entry if one exists", "ship", "Write")],
+    }
 
-    if "AskUserQuestion" not in ref_text:
-        continue
-    check(f"{os.path.basename(ref)} names AskUserQuestion and points at "
-          "pending-questions.md", "pending-questions.md" in ref_text)
+    PENDING_Q = f"{PLUGIN}/skills/track/references/pending-questions.md"
+    check(f"pending-questions reference ships ({PENDING_Q})", os.path.isfile(PENDING_Q))
+    check(f"{PLUGIN}/skills/track/SKILL.md points the main session at "
+          "pending-questions.md",
+          "pending-questions.md" in read_text(f"{PLUGIN}/skills/track/SKILL.md"))
 
-# UC4: stage-verify.md's Step 2 makes every surviving Blocker/Major trace to
-# a requirement, and Fixing/Report carry that same discipline through to the
-# parked proposals it produces. Convention this block follows (#65, #66,
-# see the flattened()/TRACK_SKILL_MAX region below): this is a claim about
-# what the model writes, not what code does, so the guard pins the whole
-# sentence rather than testing behaviour.
-VERIFY_REF = f"{PLUGIN}/skills/track/references/stage-verify.md"
-if os.path.isfile(VERIFY_REF):
-    verify_text = read_text(VERIFY_REF)
+    # #74: every stop for a person was written as prose -- "wait for a go",
+    # "confirm with the person", "only the user's approval changes it" -- and
+    # none of them said how to ask. Asked as prose, the person has to type a word
+    # back, and the only word the prompt is shaped to receive is yes: nobody
+    # disagrees by typing `approved`. approval-gates.md holds the menu; these are
+    # the files that carry a stop and so must carry the pointer with it. Same
+    # failure the pending-questions block above guards, one step earlier: a file
+    # that keeps the instruction and loses the pointer goes back to prose, and it
+    # does that silently, at a sign-off or a force-push.
+    #
+    # A dict rather than a bare list so the FAIL line says which stop lost it,
+    # and so adding a seventh file is an edit someone makes on purpose.
+    APPROVAL_GATES = f"{PLUGIN}/skills/track/references/approval-gates.md"
+    GATE_POINTERS = {
+        "skills/track/SKILL.md": "the two human gates themselves",
+        "skills/track/references/stage-design.md": "the design sign-off, and the cost-sizing go",
+        "skills/track/references/stage-ship.md": "the irreversible operations, squash included",
+        "skills/track/references/stage-intake.md": "the approval before anything is designed",
+        "skills/track/references/stage-build.md": "Step 0.5's answers",
+        "skills/track/references/pending-questions.md": "a gate handed up by a subagent",
+        "skills/track/references/ticket-mirror.md": "the claim menu and the close at done",
+    }
+    check(f"approval-gates reference ships ({APPROVAL_GATES})",
+          os.path.isfile(APPROVAL_GATES))
+    for rel, stop in GATE_POINTERS.items():
+        check(f"{rel} points at approval-gates.md ({stop})",
+              "approval-gates.md" in read_text(f"{PLUGIN}/{rel}"))
 
-    def verify_section(heading):
-        """One section's own words, whitespace folded.
+    # The one thing the reference must not lose: a menu is only a menu because
+    # the free-text entry is added for you. Written as an option, it eats one of
+    # the four slots and stops being the exception it is for.
+    if os.path.isfile(APPROVAL_GATES):
+        gates_text = read_text(APPROVAL_GATES)
+        check("approval-gates.md names AskUserQuestion as the tool",
+              "AskUserQuestion" in gates_text)
+        check("approval-gates.md says the free-text entry is never an option you "
+              "write", "never an option you write" in gates_text)
+        # It is read by the main session directly, for the same reason
+        # pending-questions.md and ticket-mirror.md are -- and that reason is the
+        # whole subject here, so losing it makes the file self-contradicting.
+        check("approval-gates.md says a subagent cannot voice its own gate",
+              "cannot voice its own gate" in gates_text)
+        # The one instruction here that is about code behaviour rather than
+        # wording, and the one whose cost is a track that cannot proceed:
+        # `ledger.py append --artifact` sha256s the document as it stands, so
+        # writing `approved <date>` after the row is recorded fingerprints a
+        # draft and then invalidates it. tests/test_preflight_build_gate.py owns
+        # the behaviour; this only holds the sentence that keeps the order.
+        check("approval-gates.md keeps the Approve ordering (Status written "
+              "before the ledger row)",
+              "**first**, then append the ledger row" in gates_text)
+        # A recommendation on a gate is the model grading its own work, which
+        # reverses epistemics.md's standing instruction -- so the carve-out has
+        # to stay visible as a carve-out, not drift into an unexplained deviation.
+        check("approval-gates.md names its `(recommended)` carve-out from "
+              "epistemics.md", "exception to `epistemics.md`" in gates_text)
+    for ref in sorted(glob.glob(f"{PLUGIN}/skills/track/references/stage-*.md")):
+        ref_text = read_text(ref)
+
+        # AC1: the note cell has one declared owner (the main session,
+        # SKILL.md). Every reference used to tell its own runner to write that
+        # cell, and four of the six agents have no Write -- the instruction and
+        # the capability disagreed, and nothing failed when they did. Three
+        # mentions survive, all in stage-build.md (Step 5.5, which owns the
+        # in-flight `unit N of M` and is deliberately untouched). A file absent
+        # from this dict is expected to mention it zero times.
+        mentions = ref_text.count("state.md")
+        expected_mentions = STATE_MD_MENTIONS.get(os.path.basename(ref), 0)
+        check(f"{os.path.basename(ref)} mentions state.md {expected_mentions} "
+              f"time(s) (found {mentions})", mentions == expected_mentions)
+
+        # AC3: exactly one `## Report` section (matched as a whole line, so
+        # stage-verify.md's pre-existing `## Step 3 -- Report` heading is not
+        # miscounted), and that section names the REPORT_MAX ceiling (word-
+        # bounded, so 4000 does not also match inside 40000) and a sign-off
+        # date.
+        report_headings = list(re.finditer(r"^## Report$", ref_text, re.MULTILINE))
+        check(f"{os.path.basename(ref)} has exactly one `## Report` section "
+              f"({len(report_headings)})", len(report_headings) == 1)
+        if report_headings:
+            section = ref_text[report_headings[0].start():]
+            has_ceiling = re.search(r"\b%d\b" % REPORT_MAX, section) is not None
+            has_date = re.search(r"\d{4}-\d{2}-\d{2}", section) is not None
+            check(f"{os.path.basename(ref)}'s `## Report` section names the "
+                  f"{REPORT_MAX}-character ceiling and a sign-off date",
+                  has_ceiling and has_date)
+
+        # AC4-c: a gap D6 closed by granting the tool is pinned by
+        # STAGE_TOOL_NEEDS above: take Write back off verifier.md and that check
+        # goes red, naming the stage and the tool. A gap it closed by rewording
+        # the reference has nothing holding it closed -- paste "Dispatch
+        # `explorer`" back into stage-intake.md and every other check still
+        # passes, with the reference once more asking for a tool its runner
+        # does not have. That is the defect this block exists to catch.
+        #
+        # Keyed by file on purpose: stage-design.md keeps its own
+        # "dispatch `explorer`" and must not be caught by this, because
+        # designer.md does have `Agent` and has never claimed to be read-only.
+        back = ["%s would again need %s: %r" % (stage, tool, phrase)
+                for phrase, stage, tool
+                in RETIRED_IMPERATIVES.get(os.path.basename(ref), [])
+                if phrase in ref_text]
+        check("%s does not re-add an imperative D6 retired (%s)"
+              % (os.path.basename(ref), "; ".join(back) or "none back"), not back)
+
+        if "AskUserQuestion" not in ref_text:
+            continue
+        check(f"{os.path.basename(ref)} names AskUserQuestion and points at "
+              "pending-questions.md", "pending-questions.md" in ref_text)
+
+    # UC4: stage-verify.md's Step 2 makes every surviving Blocker/Major trace to
+    # a requirement, and Fixing/Report carry that same discipline through to the
+    # parked proposals it produces. Convention this block follows (#65, #66,
+    # see the flattened()/TRACK_SKILL_MAX region below): this is a claim about
+    # what the model writes, not what code does, so the guard pins the whole
+    # sentence rather than testing behaviour.
+    VERIFY_REF = f"{PLUGIN}/skills/track/references/stage-verify.md"
+    if os.path.isfile(VERIFY_REF):
+        verify_text = read_text(VERIFY_REF)
+
+        def verify_section(heading):
+            """One section's own words, whitespace folded.
 
         Sliced to the section rather than searched across the whole file:
         the label below claims *this section* still carries the sentence, so
@@ -2610,415 +2661,451 @@ if os.path.isfile(VERIFY_REF):
         an unanchored match there would slice from that decoy to EOF and
         still contain the pinned clause even after the real heading was
         renamed or deleted."""
-        match = re.search(r"^" + re.escape(heading), verify_text, re.MULTILINE)
-        if not match:
-            return ""
-        start = match.start()
-        end = verify_text.find("\n## ", start + 1)
-        return " ".join(verify_text[start:end if end > 0 else None].split())
+            match = re.search(r"^" + re.escape(heading), verify_text, re.MULTILINE)
+            if not match:
+                return ""
+            start = match.start()
+            end = verify_text.find("\n## ", start + 1)
+            return " ".join(verify_text[start:end if end > 0 else None].split())
 
-    # stage-verify.md has two headings a naive search could conflate: the
-    # em-dash "## Step 3 -- Report" and the plain "## Report" this section
-    # pins. Passing the exact string "## Report" is what keeps
-    # verify_section() from matching the Step 3 heading instead -- do not
-    # "simplify" this argument to "## Step 3" or a bare "Report".
-    check("stage-verify.md's Step 2 still requires every finding to name a "
-          "requirement",
-          "A finding that can name none of those is not a defect this "
-          "stage may fix" in verify_section("## Step 2"))
-    check("stage-verify.md's Fixing section still refuses untraceable "
-          "findings",
-          "Fix nothing Step 2 could not trace to a requirement"
-          in verify_section("## Fixing"))
-    check("stage-verify.md's Report section still asks for parked "
-          "proposals",
-          "parked as a proposal" in verify_section("## Report"))
+        # stage-verify.md has two headings a naive search could conflate: the
+        # em-dash "## Step 3 -- Report" and the plain "## Report" this section
+        # pins. Passing the exact string "## Report" is what keeps
+        # verify_section() from matching the Step 3 heading instead -- do not
+        # "simplify" this argument to "## Step 3" or a bare "Report".
+        check("stage-verify.md's Step 2 still requires every finding to name a "
+              "requirement",
+              "A finding that can name none of those is not a defect this "
+              "stage may fix" in verify_section("## Step 2"))
+        check("stage-verify.md's Fixing section still refuses untraceable "
+              "findings",
+              "Fix nothing Step 2 could not trace to a requirement"
+              in verify_section("## Fixing"))
+        check("stage-verify.md's Report section still asks for parked "
+              "proposals",
+              "parked as a proposal" in verify_section("## Report"))
 
-# track/SKILL.md routes rather than implements, so it is read start to finish
-# every time someone reaches for it -- same reasoning as goal.md above. The
-# ceiling was 120 and the file sat exactly on it, which is a ceiling that has
-# stopped measuring anything: the next line to be added, whatever it is, fails
-# regardless of whether it earns its place. Raised to 122 when ticket
-# mirroring needed one line to point the main session at its reference
-# (2026-08-31), deliberately by two rather than one so the number is a budget
-# again and not a tripwire. Raising it further is a decision, not a formality:
-# every line here is read by every session that reaches for /cai:track.
-#
-# 122 -> 128 for #74, and the file had gone back to sitting exactly on it.
-# "Human gates" named the two stops and said nothing about how to voice them,
-# so both were being asked as prose the person had to type `approved` into.
-# Five of the six lines point the main session at approval-gates.md, the way
-# line 87 already points it at ticket-mirror.md; the sixth is headroom, on the
-# same reasoning as the 120 -> 122 move above.
-#
-# 128 -> 130 for the ticket-shaped argument, and the file had gone back to
-# sitting exactly on the ceiling again. `/cai:track <issue url>` is the
-# natural thing to type when a ticket is what you have, and it produced a
-# directory named after a URL -- which on Windows cannot exist at all. One
-# line says such an argument is a ticket rather than a name and sends the
-# reader to ticket-mirror.md; the second is headroom, on the same reasoning as
-# both moves above. The procedure deliberately did not come here: it is twenty
-# lines, and this file routes rather than implements.
-#
-# 130 -> 131 on 2026-09-26 (#193): one line routes a new track on `main`/
-# `master` through `track_start.py` before intake's preflight can ever FAIL
-# `not_main_branch`. Moved together with the pinned body-line count in
-# tests/test_track_skill_ticket_pointer.py, as that test's own docstring
-# requires, keeping the same two-line gap below the ceiling rather than
-# spending it -- #203 is expected to spend it next, raising this ceiling
-# again rather than landing on it.
-#
-# 131 -> 132 on 2026-09-26 (#203): one line ends `/cai:track done` with the
-# post-merge routine (switch to the base branch, `git pull`, `/cai:git-sweep`)
-# instead of leaving it to be typed by hand. Moved together with the pinned
-# body-line count in tests/test_track_skill_ticket_pointer.py, keeping the
-# same two-line gap.
-#
-# 132 -> 138 on 2026-09-30 (#253): `/cai:track cancel --reason "<why>"` ends
-# a track that will not finish, which `done` refuses while a row is empty or
-# `in-progress`. Six lines: one in the usage block, and a section of its own,
-# because it deliberately skips every step of `done` but the move. Moved
-# together with the pinned body-line count, keeping the two-line gap.
-#
-# 138 -> 139 on 2026-10-03: one line for the resume path -- a `pending:` section
-# in `track_state.py status` is asked from `pending-questions.md`'s saved round,
-# and `pending.py clear` follows a stage's passed/failed/skipped. Moved together
-# with the pinned body-line count (136 -> 137), keeping the two-line gap.
-#
-# 139 -> 144 on 2026-10-05 (#296): the only production call site for stage timing.
-# Step 2 runs `timing.py begin` and puts the run marker in the dispatch prompt, step
-# 3 runs `timing.py end` once the report is back (three and two lines). The procedure
-# stays in the script; these are the two commands the main session must run itself.
-# Moved together with the pinned body-line count (137 -> 142), keeping the gap.
-TRACK_SKILL_MAX = 144
-TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
-if os.path.isfile(TRACK_SKILL):
-    track_text = read_text(TRACK_SKILL)
-    track_body_start = track_text.find("\n---", 3) + 4 if track_text.startswith("---") else 0
-    track_lines = len(track_text[track_body_start:].splitlines())
-    check(f"{TRACK_SKILL} is within its {TRACK_SKILL_MAX}-line ceiling ({track_lines})",
-          track_lines <= TRACK_SKILL_MAX)
 
-    def flattened(text):
-        """One-line form of a Markdown paragraph: newlines and runs of spaces
+@section("track-skill")
+def _track_skill():
+    # track/SKILL.md routes rather than implements, so it is read start to finish
+    # every time someone reaches for it -- same reasoning as goal.md above. The
+    # ceiling was 120 and the file sat exactly on it, which is a ceiling that has
+    # stopped measuring anything: the next line to be added, whatever it is, fails
+    # regardless of whether it earns its place. Raised to 122 when ticket
+    # mirroring needed one line to point the main session at its reference
+    # (2026-08-31), deliberately by two rather than one so the number is a budget
+    # again and not a tripwire. Raising it further is a decision, not a formality:
+    # every line here is read by every session that reaches for /cai:track.
+    #
+    # 122 -> 128 for #74, and the file had gone back to sitting exactly on it.
+    # "Human gates" named the two stops and said nothing about how to voice them,
+    # so both were being asked as prose the person had to type `approved` into.
+    # Five of the six lines point the main session at approval-gates.md, the way
+    # line 87 already points it at ticket-mirror.md; the sixth is headroom, on the
+    # same reasoning as the 120 -> 122 move above.
+    #
+    # 128 -> 130 for the ticket-shaped argument, and the file had gone back to
+    # sitting exactly on the ceiling again. `/cai:track <issue url>` is the
+    # natural thing to type when a ticket is what you have, and it produced a
+    # directory named after a URL -- which on Windows cannot exist at all. One
+    # line says such an argument is a ticket rather than a name and sends the
+    # reader to ticket-mirror.md; the second is headroom, on the same reasoning as
+    # both moves above. The procedure deliberately did not come here: it is twenty
+    # lines, and this file routes rather than implements.
+    #
+    # 130 -> 131 on 2026-09-26 (#193): one line routes a new track on `main`/
+    # `master` through `track_start.py` before intake's preflight can ever FAIL
+    # `not_main_branch`. Moved together with the pinned body-line count in
+    # tests/test_track_skill_ticket_pointer.py, as that test's own docstring
+    # requires, keeping the same two-line gap below the ceiling rather than
+    # spending it -- #203 is expected to spend it next, raising this ceiling
+    # again rather than landing on it.
+    #
+    # 131 -> 132 on 2026-09-26 (#203): one line ends `/cai:track done` with the
+    # post-merge routine (switch to the base branch, `git pull`, `/cai:git-sweep`)
+    # instead of leaving it to be typed by hand. Moved together with the pinned
+    # body-line count in tests/test_track_skill_ticket_pointer.py, keeping the
+    # same two-line gap.
+    #
+    # 132 -> 138 on 2026-09-30 (#253): `/cai:track cancel --reason "<why>"` ends
+    # a track that will not finish, which `done` refuses while a row is empty or
+    # `in-progress`. Six lines: one in the usage block, and a section of its own,
+    # because it deliberately skips every step of `done` but the move. Moved
+    # together with the pinned body-line count, keeping the two-line gap.
+    #
+    # 138 -> 139 on 2026-10-03: one line for the resume path -- a `pending:` section
+    # in `track_state.py status` is asked from `pending-questions.md`'s saved round,
+    # and `pending.py clear` follows a stage's passed/failed/skipped. Moved together
+    # with the pinned body-line count (136 -> 137), keeping the two-line gap.
+    #
+    # 139 -> 144 on 2026-10-05 (#296): the only production call site for stage timing.
+    # Step 2 runs `timing.py begin` and puts the run marker in the dispatch prompt, step
+    # 3 runs `timing.py end` once the report is back (three and two lines). The procedure
+    # stays in the script; these are the two commands the main session must run itself.
+    # Moved together with the pinned body-line count (137 -> 142), keeping the gap.
+    TRACK_SKILL_MAX = 144
+    TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
+    if os.path.isfile(TRACK_SKILL):
+        track_text = read_text(TRACK_SKILL)
+        track_body_start = track_text.find("\n---", 3) + 4 if track_text.startswith("---") else 0
+        track_lines = len(track_text[track_body_start:].splitlines())
+        check(f"{TRACK_SKILL} is within its {TRACK_SKILL_MAX}-line ceiling ({track_lines})",
+              track_lines <= TRACK_SKILL_MAX)
+
+        def flattened(text):
+            """One-line form of a Markdown paragraph: newlines and runs of spaces
         folded to a single space. Pinning the flattened form is what lets a
         legitimate rewrap through -- and SKILL.md's 122-line equality forces
         rewraps -- while a reversed claim still fails, because a reversal
         always changes a word (#65)."""
-        return " ".join(text.split())
+            return " ".join(text.split())
 
-    # Convention this block follows (#65, #66): a claim about *code behaviour*
-    # gets a behaviour test first, and the prose guard here only proves the
-    # sentence describing it is still present (the exit-2 paragraph below is
-    # this kind -- tests/test_track_state_status_vocabulary.py's
-    # test_an_illegal_status_exits_2_and_prints_no_next_line owns the
-    # behaviour). A claim about *what the model writes* has no code to test --
-    # only review can hold it -- so the guard pins the whole sentence instead
-    # (the passing-path bullet below is this kind). Treat any edit to this
-    # block's prose as a behaviour change under review, not a formatting fix.
+        # Convention this block follows (#65, #66): a claim about *code behaviour*
+        # gets a behaviour test first, and the prose guard here only proves the
+        # sentence describing it is still present (the exit-2 paragraph below is
+        # this kind -- tests/test_track_state_status_vocabulary.py's
+        # test_an_illegal_status_exits_2_and_prints_no_next_line owns the
+        # behaviour). A claim about *what the model writes* has no code to test --
+        # only review can hold it -- so the guard pins the whole sentence instead
+        # (the passing-path bullet below is this kind). Treat any edit to this
+        # block's prose as a behaviour change under review, not a formatting fix.
 
-    # SKILL.md:8 and :33 already say `done` -- the reserved feature name and the
-    # archive directory -- so "the file contains `done`" passes today and guards
-    # nothing. Anchor on the passing-path bullet instead: keep only that bullet.
-    PASSED_MARKER = "**It passed**"
-    passed_bullet = (track_text.split(PASSED_MARKER, 1)[1].split("\n\n", 1)[0]
-                     if PASSED_MARKER in track_text else "")
-    # PASSED_CLAUSE must equal flattened(passed_bullet) on the U4-final tree.
-    # That is NOT the whole of SKILL.md:80-82: validate.py splits on
-    # PASSED_MARKER and keeps only what follows it, so the leading
-    # `   - **It passed**` is not part of the value; it starts at "-> `passed`".
-    # Derive it mechanically once U4 has landed -- print flattened(passed_bullet)
-    # and paste exactly what it printed. A value retyped from the line numbers
-    # makes this check FAIL on a correct tree.
-    PASSED_CLAUSE = ("→ `passed` **first**, and only once `ledger.py` "
-                      "exits 0, overwrite that stage's `state.md` row: "
-                      "`status` = `done`, plus artifact and note "
-                      "— never append a row; the row count must equal "
-                      "`stages.json`'s.")
-    check(f"{TRACK_SKILL}'s passing-path bullet is pinned word for word -- "
-          "this claim is about what the model writes into state.md, no test "
-          "can hold it and only review can; update this pinned string only "
-          "after re-confirming the claim itself",
-          flattened(passed_bullet) == PASSED_CLAUSE)
+        # SKILL.md:8 and :33 already say `done` -- the reserved feature name and the
+        # archive directory -- so "the file contains `done`" passes today and guards
+        # nothing. Anchor on the passing-path bullet instead: keep only that bullet.
+        PASSED_MARKER = "**It passed**"
+        passed_bullet = (track_text.split(PASSED_MARKER, 1)[1].split("\n\n", 1)[0]
+                         if PASSED_MARKER in track_text else "")
+        # PASSED_CLAUSE must equal flattened(passed_bullet) on the U4-final tree.
+        # That is NOT the whole of SKILL.md:80-82: validate.py splits on
+        # PASSED_MARKER and keeps only what follows it, so the leading
+        # `   - **It passed**` is not part of the value; it starts at "-> `passed`".
+        # Derive it mechanically once U4 has landed -- print flattened(passed_bullet)
+        # and paste exactly what it printed. A value retyped from the line numbers
+        # makes this check FAIL on a correct tree.
+        PASSED_CLAUSE = ("→ `passed` **first**, and only once `ledger.py` "
+                          "exits 0, overwrite that stage's `state.md` row: "
+                          "`status` = `done`, plus artifact and note "
+                          "— never append a row; the row count must equal "
+                          "`stages.json`'s.")
+        check(f"{TRACK_SKILL}'s passing-path bullet is pinned word for word -- "
+              "this claim is about what the model writes into state.md, no test "
+              "can hold it and only review can; update this pinned string only "
+              "after re-confirming the claim itself",
+              flattened(passed_bullet) == PASSED_CLAUSE)
 
-    # The usage block is the only place the ledger's own vocabulary is spelled
-    # out for whoever runs the command, and it disagreed with ledger.py for as
-    # long as `skipped` had existed -- while :112 told you to pass it (#58).
-    # Derive the expectation from OUTCOMES instead of restating it: a value
-    # added there later fails here until this line teaches it too.
-    # Split the alternation into tokens rather than asking whether each value
-    # appears somewhere in the line: `skip` would be "found" inside `skipped`,
-    # so a substring test would report a line as complete that never listed
-    # the new value at all -- the exact drift this check exists to catch.
-    outcome_line = next((ln for ln in track_text.splitlines()
-                         if ln.strip().startswith("--outcome ")), "")
-    outcome_parts = outcome_line.split()
-    listed = outcome_parts[1].split("|") if len(outcome_parts) > 1 else []
-    missing = [o for o in ledger.OUTCOMES if o not in listed]
-    check(f"{TRACK_SKILL}'s --outcome line lists every ledger outcome "
-          f"(missing: {', '.join(missing) or 'none'})", not missing)
+        # The usage block is the only place the ledger's own vocabulary is spelled
+        # out for whoever runs the command, and it disagreed with ledger.py for as
+        # long as `skipped` had existed -- while :112 told you to pass it (#58).
+        # Derive the expectation from OUTCOMES instead of restating it: a value
+        # added there later fails here until this line teaches it too.
+        # Split the alternation into tokens rather than asking whether each value
+        # appears somewhere in the line: `skip` would be "found" inside `skipped`,
+        # so a substring test would report a line as complete that never listed
+        # the new value at all -- the exact drift this check exists to catch.
+        outcome_line = next((ln for ln in track_text.splitlines()
+                             if ln.strip().startswith("--outcome ")), "")
+        outcome_parts = outcome_line.split()
+        listed = outcome_parts[1].split("|") if len(outcome_parts) > 1 else []
+        missing = [o for o in ledger.OUTCOMES if o not in listed]
+        check(f"{TRACK_SKILL}'s --outcome line lists every ledger outcome "
+              f"(missing: {', '.join(missing) or 'none'})", not missing)
 
-    # The table's shape lived only in this file's fixtures and in tests/, so
-    # the session told to create state.md was never told what it looks like
-    # (#57). Both halves are load-bearing: preflight.data_rows() drops the
-    # header and the rule by matching them, so a table missing either parses
-    # one row short and track_state calls the track corrupt.
-    # Anchored on the creating paragraph, not the whole file: the shape is
-    # only useful where the session is told to build the table, and a header
-    # quoted anywhere else would satisfy a file-wide search while that
-    # instruction had gone back to saying nothing.
-    CREATE_MARKER = "Create `.claude/track/<feature>/state.md`"
-    create_para = (track_text.split(CREATE_MARKER, 1)[1].split("\n\n", 1)[0]
-                   if CREATE_MARKER in track_text else "")
-    for shape in ("| stage | status | artifact | note |", "|---|---|---|---|",
-                  "one row naming each `stages.json` stage, rest empty"):
-        check(f"{TRACK_SKILL} shows state.md's table shape ({shape})",
-              shape in create_para)
+        # The table's shape lived only in this file's fixtures and in tests/, so
+        # the session told to create state.md was never told what it looks like
+        # (#57). Both halves are load-bearing: preflight.data_rows() drops the
+        # header and the rule by matching them, so a table missing either parses
+        # one row short and track_state calls the track corrupt.
+        # Anchored on the creating paragraph, not the whole file: the shape is
+        # only useful where the session is told to build the table, and a header
+        # quoted anywhere else would satisfy a file-wide search while that
+        # instruction had gone back to saying nothing.
+        CREATE_MARKER = "Create `.claude/track/<feature>/state.md`"
+        create_para = (track_text.split(CREATE_MARKER, 1)[1].split("\n\n", 1)[0]
+                       if CREATE_MARKER in track_text else "")
+        for shape in ("| stage | status | artifact | note |", "|---|---|---|---|",
+                      "one row naming each `stages.json` stage, rest empty"):
+            check(f"{TRACK_SKILL} shows state.md's table shape ({shape})",
+                  shape in create_para)
 
-    # Every exit-2 path in track_state.status() returns before a `next:` is
-    # printed, so the resume step has nothing to jump to (#56); that silence
-    # reads as "no work left" -- the misreading #46 was about. The needle is
-    # the whole phrase, not just `next:`: a paragraph that merely mentions
-    # the field while no longer warning about it is what this must not pass.
-    # It still cannot tell a warning from its own negation, which is the
-    # standing limit of every anchored prose check here, the bullet above
-    # included.
-    EXIT_MARKER = "Exit 2 from either"
-    exit_para = (track_text.split(EXIT_MARKER, 1)[1].split("\n\n", 1)[0]
-                 if EXIT_MARKER in track_text else "")
-    # EXIT_CLAUSE must equal flattened(exit_para) on the U4-final tree. Same
-    # trap: validate.py splits on EXIT_MARKER, so the value does not contain
-    # "Exit 2 from either"; it starts at " means stop and report". Derive it
-    # by printing flattened(exit_para); never retype it by eye.
-    EXIT_CLAUSE = ("means stop and report exactly what was printed, "
-                   "guessing nothing: no active track, or a `state.md` "
-                   "that is missing, disagrees with `stages.json`, or "
-                   "holds an unknown `status`. None of these print a "
-                   "`next:`.")
-    check(f"{TRACK_SKILL}'s exit-2 paragraph is pinned word for word -- "
-          "update this pinned string only after re-confirming the claim "
-          "against track_state.py's exit-2 paths and "
-          "tests/test_track_state_status_vocabulary.py's "
-          "test_an_illegal_status_exits_2_and_prints_no_next_line",
-          flattened(exit_para) == EXIT_CLAUSE)
-
-# track_state.py resolves .claude/track/current -> state.md from files alone,
-# with no model call -- UC1's acceptance test ("a fresh session resumes from
-# files alone") is this loop. Every fixture lives under one temp_repo() (git
-# is irrelevant to the script, but the helper is the repo's existing way to
-# get a throwaway directory that gets cleaned up below).
-TRACK_STATE = f"{PLUGIN}/scripts/track_state.py"
-
-# ledger.py's docstring names two symbols it deliberately copies from
-# track_state.py rather than importing, and names them instead of citing
-# lines because the lines had drifted twice (plugins/cai/scripts/ledger.py:20-25).
-# A rename leaves that paragraph pointing at nothing.
-# Anchored to the start of a line rather than a bare substring: the text
-# `def stage_ids` also occurs in any comment that mentions it, so a rename
-# that left one comment behind would keep a substring test green.
-track_state_text = read_text(TRACK_STATE)
-for symbol in ("def stage_ids", "class ArgParser"):
-    check(f"track_state.py still defines {symbol}, which "
-          f"{PLUGIN}/scripts/ledger.py's docstring names as copied from it",
-          re.search(rf"^{symbol}\b", track_state_text, re.M) is not None)
-
-TRACK_FIXTURE_ROOT = temp_repo("track-state-fixture")
-
-# Same six rows as the state.md example in the track spec: one stage done
-# with an artifact, one done with a note, one skipped with a reason, one
-# in-progress, two not started -- so "next" lands on the in-progress row
-# rather than skating past it.
-FULL_ROWS = [
-    ("intake", "done", "docs/design/2026-08-27-billing-export-intake.md", ""),
-    ("discover", "done", "—", "three unknowns closed"),
-    ("design", "skipped", "—", "reusing the existing spec"),
-    ("build", "in-progress", "—", "unit 3 of 5"),
-    ("verify", "", "", ""),
-    ("ship", "", "", ""),
-]
+        # Every exit-2 path in track_state.status() returns before a `next:` is
+        # printed, so the resume step has nothing to jump to (#56); that silence
+        # reads as "no work left" -- the misreading #46 was about. The needle is
+        # the whole phrase, not just `next:`: a paragraph that merely mentions
+        # the field while no longer warning about it is what this must not pass.
+        # It still cannot tell a warning from its own negation, which is the
+        # standing limit of every anchored prose check here, the bullet above
+        # included.
+        EXIT_MARKER = "Exit 2 from either"
+        exit_para = (track_text.split(EXIT_MARKER, 1)[1].split("\n\n", 1)[0]
+                     if EXIT_MARKER in track_text else "")
+        # EXIT_CLAUSE must equal flattened(exit_para) on the U4-final tree. Same
+        # trap: validate.py splits on EXIT_MARKER, so the value does not contain
+        # "Exit 2 from either"; it starts at " means stop and report". Derive it
+        # by printing flattened(exit_para); never retype it by eye.
+        EXIT_CLAUSE = ("means stop and report exactly what was printed, "
+                       "guessing nothing: no active track, or a `state.md` "
+                       "that is missing, disagrees with `stages.json`, or "
+                       "holds an unknown `status`. None of these print a "
+                       "`next:`.")
+        check(f"{TRACK_SKILL}'s exit-2 paragraph is pinned word for word -- "
+              "update this pinned string only after re-confirming the claim "
+              "against track_state.py's exit-2 paths and "
+              "tests/test_track_state_status_vocabulary.py's "
+              "test_an_illegal_status_exits_2_and_prints_no_next_line",
+              flattened(exit_para) == EXIT_CLAUSE)
 
 
-def write_track_state(track_dir, rows):
-    lines = ["# fixture", "", "branch: feat/fixture", "started: 2026-08-27", "",
-             "| stage | status | artifact | note |", "|---|---|---|---|"]
-    lines += ["| " + " | ".join(row) + " |" for row in rows]
-    os.makedirs(track_dir, exist_ok=True)
-    with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines) + "\n")
+@section("track-state")
+def _track_state():
+    # track_state.py resolves .claude/track/current -> state.md from files alone,
+    # with no model call -- UC1's acceptance test ("a fresh session resumes from
+    # files alone") is this loop. Every fixture lives under one temp_repo() (git
+    # is irrelevant to the script, but the helper is the repo's existing way to
+    # get a throwaway directory that gets cleaned up below).
+    TRACK_STATE = f"{PLUGIN}/scripts/track_state.py"
+
+    # ledger.py's docstring names two symbols it deliberately copies from
+    # track_state.py rather than importing, and names them instead of citing
+    # lines because the lines had drifted twice (plugins/cai/scripts/ledger.py:20-25).
+    # A rename leaves that paragraph pointing at nothing.
+    # Anchored to the start of a line rather than a bare substring: the text
+    # `def stage_ids` also occurs in any comment that mentions it, so a rename
+    # that left one comment behind would keep a substring test green.
+    track_state_text = read_text(TRACK_STATE)
+    for symbol in ("def stage_ids", "class ArgParser"):
+        check(f"track_state.py still defines {symbol}, which "
+              f"{PLUGIN}/scripts/ledger.py's docstring names as copied from it",
+              re.search(rf"^{symbol}\b", track_state_text, re.M) is not None)
+
+    TRACK_FIXTURE_ROOT = temp_repo("track-state-fixture")
+
+    # Same six rows as the state.md example in the track spec: one stage done
+    # with an artifact, one done with a note, one skipped with a reason, one
+    # in-progress, two not started -- so "next" lands on the in-progress row
+    # rather than skating past it.
+    FULL_ROWS = [
+        ("intake", "done", "docs/design/2026-08-27-billing-export-intake.md", ""),
+        ("discover", "done", "—", "three unknowns closed"),
+        ("design", "skipped", "—", "reusing the existing spec"),
+        ("build", "in-progress", "—", "unit 3 of 5"),
+        ("verify", "", "", ""),
+        ("ship", "", "", ""),
+    ]
+
+    def write_track_state(track_dir, rows):
+        lines = ["# fixture", "", "branch: feat/fixture", "started: 2026-08-27", "",
+                 "| stage | status | artifact | note |", "|---|---|---|---|"]
+        lines += ["| " + " | ".join(row) + " |" for row in rows]
+        os.makedirs(track_dir, exist_ok=True)
+        with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+
+    def make_track_root(name):
+        root = os.path.join(TRACK_FIXTURE_ROOT, name)
+        os.makedirs(root, exist_ok=True)
+        return root
+
+    def write_current(root, feature):
+        with open(os.path.join(root, "current"), "w", encoding="utf-8") as fh:
+            fh.write(feature)
+
+    def valid_track_root():
+        root = make_track_root("valid")
+        write_track_state(os.path.join(root, "billing-export"), FULL_ROWS)
+        write_current(root, "billing-export")
+        return root
+
+    def missing_dir_track_root():
+        root = make_track_root("missing-dir")
+        write_current(root, "ghost-feature")  # names a dir that is never created
+        return root
+
+    def row_mismatch_track_root():
+        root = make_track_root("row-mismatch")
+        write_track_state(os.path.join(root, "short-track"), FULL_ROWS[:5])  # missing "ship"
+        write_current(root, "short-track")
+        return root
+
+    def no_current_track_root():
+        return make_track_root("no-current")  # `current` is never written
+
+    TRACK_STATE_CASES = [
+        # (label, root-builder, expected exit, substring the output must name)
+        ("valid track resolves the next stage", valid_track_root, 0, "next: build"),
+        ("current names a missing directory", missing_dir_track_root, 2, "ghost-feature"),
+        ("state.md row count disagrees with stages.json", row_mismatch_track_root, 2, "5 stage row"),
+        ("no current at all", no_current_track_root, 2, "no active track"),
+    ]
+
+    for label, build_root, expected, needle in TRACK_STATE_CASES:
+        done = subprocess.run(
+            [sys.executable, TRACK_STATE, "status", "--track-root", build_root()],
+            capture_output=True, text=True)
+        check(f"track_state status [{label}] -> {expected}", done.returncode == expected)
+        check(f"track_state status [{label}] names it", needle in done.stdout + done.stderr)
 
 
-def make_track_root(name):
-    root = os.path.join(TRACK_FIXTURE_ROOT, name)
-    os.makedirs(root, exist_ok=True)
-    return root
+@section("plan-review")
+def _plan_review():
+    # plan-review restates both skeletons so the skill stays self-contained when it
+    # is handed a document the commands did not write. Restating is fine; restating
+    # with nothing checking it is how a skill starts telling people to write a shape
+    # the probe rejects.
+    PLAN_REVIEW = f"{PLUGIN}/skills/plan-review/SKILL.md"
+    check(f"plan-review ships ({PLAN_REVIEW})", os.path.isfile(PLAN_REVIEW))
+    if os.path.isfile(PLAN_REVIEW):
+        blocks = re.findall(r"```md\n(.*?)```", read_text(PLAN_REVIEW), re.S)
+        listed = [[re.split(r"\s{2,}", line[3:].strip(), maxsplit=1)[0]
+                   for line in b.splitlines() if line.startswith("## ")]
+                  for b in blocks]
+        for kind, want in (("diagnosis", design_probe.DIAGNOSIS_HEADINGS),
+                           ("stance", design_probe.STANCE_HEADINGS),
+                           ("decisions", design_probe.DECISIONS_HEADINGS),
+                           ("hld", design_probe.HLD_HEADINGS),
+                           ("detail", design_probe.DETAIL_HEADINGS)):
+            check(f"plan-review's {kind} skeleton matches the probe", want in listed)
 
 
-def write_current(root, feature):
-    with open(os.path.join(root, "current"), "w", encoding="utf-8") as fh:
-        fh.write(feature)
+@section("hook-self-tests")
+def _hook_self_tests():
+    # The PostToolUse hook re-runs this script, so exercising it re-enters this
+    # block. validate_hook.py sets the flag on the run it spawns, which stops the
+    # chain one level down and keeps a real edit paying for one validate, not five.
+    def run_hook(payload_text, argv=None):
+        return subprocess.run(
+            argv or [sys.executable, "scripts/validate_hook.py"], input=payload_text,
+            capture_output=True, text=True,
+        )
+
+    def hook_payload(path):
+        return json.dumps({"tool_name": "Edit", "tool_input": {"file_path": os.path.abspath(path)}})
+
+    if os.environ.get("CAI_VALIDATE_NESTED") != "1":
+        # Bail-out paths. A hook that is slow or noisy on unrelated files is a hook
+        # someone turns off, so these must return before spawning anything.
+        for text, label in [
+            (hook_payload("README.md"), "file outside the plugin tree"),
+            (json.dumps({"tool_input": {}}), "no file_path"),
+            ("not json at all", "malformed payload"),
+        ]:
+            check(f"validate_hook [{label}] -> 0", run_hook(text).returncode == 0)
+
+        # The reason the hook exists. Both verdicts have to be exercised, or the
+        # only tested behaviour is the part that does nothing.
+        check("validate_hook [watched edit, repo valid] -> 0",
+              run_hook(hook_payload(f"{PLUGIN}/rules/coding.md")).returncode == 0)
+
+        # The broken skill goes into a copy, never into the tree being checked:
+        # anything reading this tree meanwhile -- a second validate.py, a test
+        # copying the repo, a pytest-xdist worker -- would see it and fail (#221).
+        # validate_hook.py finds its tree from its own location, so running the
+        # copy's hook checks the copy.
+        hook_scratch = tempfile.mkdtemp(prefix="cai-validate-hook-")
+        try:
+            broken_tree = os.path.join(hook_scratch, "repo")
+            # .coverage*: under `pytest --cov`, other workers' child processes
+            # write and delete these in the repo root while this copies it.
+            shutil.copytree(".", broken_tree, ignore=shutil.ignore_patterns(
+                ".git", "__pycache__", ".pytest_cache", ".coverage*"))
+            probe = os.path.join(broken_tree, PLUGIN, "skills", "_validate_hook_probe")
+            os.makedirs(probe, exist_ok=True)
+            with open(os.path.join(probe, "SKILL.md"), "w", encoding="utf-8") as fh:
+                fh.write("no frontmatter, so validate.py fails\n")
+            broke = run_hook(hook_payload(os.path.join(probe, "SKILL.md")),
+                             [sys.executable, os.path.join(broken_tree, "scripts", "validate_hook.py")])
+            check("validate_hook [watched edit, repo broken] -> 2", broke.returncode == 2)
+            check("validate_hook names the failing check", "FAIL" in broke.stderr)
+        finally:
+            shutil.rmtree(hook_scratch, ignore_errors=True)
+
+        # .claude/settings.json invokes the dispatcher, not the script. Same reason
+        # the guard's dispatcher is exercised above: a broken interpreter lookup or
+        # a swallowed exit code should fail here, not silently do nothing forever.
+        hook_dispatch = (["cmd", "/c", r"scripts\run-validate-hook.cmd"] if os.name == "nt"
+                         else ["sh", "scripts/run-validate-hook.cmd"])
+        check("validate_hook dispatcher [file outside the plugin tree] -> 0",
+              run_hook(hook_payload("README.md"), hook_dispatch).returncode == 0)
+    else:
+        # A green run must always say what it did not check. Otherwise a stray
+        # CAI_VALIDATE_NESTED in the environment reports success for a run that
+        # skipped six checks.
+        print("SKIP hook self-tests (CAI_VALIDATE_NESTED=1)")
 
 
-def valid_track_root():
-    root = make_track_root("valid")
-    write_track_state(os.path.join(root, "billing-export"), FULL_ROWS)
-    write_current(root, "billing-export")
-    return root
+@section("evals")
+def _evals():
+    # plugins/cai/evals/ is CLAUDE.md's third category: "shipped but not theirs"
+    # -- it reaches every installed copy (the marketplace ships everything under
+    # plugins/cai/) but no shipped component ever invokes it, since `claude
+    # plugin eval` refuses an eval directory outside the plugin root. That is
+    # also why it gets its own self-contained, independently-globbing section
+    # here rather than folding into the component-frontmatter loop above: that
+    # loop checks components Claude Code itself reads at runtime, and evals is
+    # not one of those.
+    ALLOWED_GRADER_TYPES = {"regex", "tool_used", "file_exists", "tool_order"}
 
+    # A missing `type:` key must FAIL the same way a wrong one does: `claude
+    # plugin eval init --bare` defaults a new grader's type to `llm`, which is
+    # not in the allowed set, so leaving the key out is not a safe default.
+    for path in sorted(glob.glob(f"{PLUGIN}/evals/*/graders/*.md")):
+        grader_type = frontmatter_value(path, "type")
+        check(f"{path} frontmatter has an allowed type (found: {grader_type!r})",
+              grader_type in ALLOWED_GRADER_TYPES)
 
-def missing_dir_track_root():
-    root = make_track_root("missing-dir")
-    write_current(root, "ghost-feature")  # names a dir that is never created
-    return root
+    # A leaked token or a hardcoded home-directory path under evals/ ships to
+    # every user who installs the plugin -- these three checks model the BOM
+    # aggregate above (:636-650): accumulate offenders, one check() line per
+    # pattern, then name each offending path.
+    evals_files = [p for p in glob.glob(f"{PLUGIN}/evals/**", recursive=True)
+                   if os.path.isfile(p)]
 
-
-def row_mismatch_track_root():
-    root = make_track_root("row-mismatch")
-    write_track_state(os.path.join(root, "short-track"), FULL_ROWS[:5])  # missing "ship"
-    write_current(root, "short-track")
-    return root
-
-
-def no_current_track_root():
-    return make_track_root("no-current")  # `current` is never written
-
-
-TRACK_STATE_CASES = [
-    # (label, root-builder, expected exit, substring the output must name)
-    ("valid track resolves the next stage", valid_track_root, 0, "next: build"),
-    ("current names a missing directory", missing_dir_track_root, 2, "ghost-feature"),
-    ("state.md row count disagrees with stages.json", row_mismatch_track_root, 2, "5 stage row"),
-    ("no current at all", no_current_track_root, 2, "no active track"),
-]
-
-for label, build_root, expected, needle in TRACK_STATE_CASES:
-    done = subprocess.run(
-        [sys.executable, TRACK_STATE, "status", "--track-root", build_root()],
-        capture_output=True, text=True)
-    check(f"track_state status [{label}] -> {expected}", done.returncode == expected)
-    check(f"track_state status [{label}] names it", needle in done.stdout + done.stderr)
-
-# plan-review restates both skeletons so the skill stays self-contained when it
-# is handed a document the commands did not write. Restating is fine; restating
-# with nothing checking it is how a skill starts telling people to write a shape
-# the probe rejects.
-PLAN_REVIEW = f"{PLUGIN}/skills/plan-review/SKILL.md"
-check(f"plan-review ships ({PLAN_REVIEW})", os.path.isfile(PLAN_REVIEW))
-if os.path.isfile(PLAN_REVIEW):
-    blocks = re.findall(r"```md\n(.*?)```", read_text(PLAN_REVIEW), re.S)
-    listed = [[re.split(r"\s{2,}", line[3:].strip(), maxsplit=1)[0]
-               for line in b.splitlines() if line.startswith("## ")]
-              for b in blocks]
-    for kind, want in (("diagnosis", design_probe.DIAGNOSIS_HEADINGS),
-                       ("stance", design_probe.STANCE_HEADINGS),
-                       ("decisions", design_probe.DECISIONS_HEADINGS),
-                       ("hld", design_probe.HLD_HEADINGS),
-                       ("detail", design_probe.DETAIL_HEADINGS)):
-        check(f"plan-review's {kind} skeleton matches the probe", want in listed)
-
-
-# The PostToolUse hook re-runs this script, so exercising it re-enters this
-# block. validate_hook.py sets the flag on the run it spawns, which stops the
-# chain one level down and keeps a real edit paying for one validate, not five.
-def run_hook(payload_text, argv=None):
-    return subprocess.run(
-        argv or [sys.executable, "scripts/validate_hook.py"], input=payload_text,
-        capture_output=True, text=True,
+    SECRET_PATTERNS = (
+        ("sk-ant-", ("sk-ant-",)),
+        ("ghp_", ("ghp_",)),
+        ("home-directory path", ("C:\\Users\\", "/home/", "/Users/")),
     )
+    for label, needles in SECRET_PATTERNS:
+        hits = []
+        for path in sorted(evals_files):
+            text = read_text(path)
+            if any(needle in text for needle in needles):
+                hits.append(path)
+        check(f"no evals file contains a {label} ({len(hits)} found)", not hits)
+        for path in hits[:5]:
+            print(f"     {label}:", path)
 
 
-def hook_payload(path):
-    return json.dumps({"tool_name": "Edit", "tool_input": {"file_path": os.path.abspath(path)}})
+def main(argv):
+    unknown = [name for name in argv if name not in SECTIONS]
+    if unknown:
+        print(f"unknown section(s): {', '.join(unknown)}; "
+              f"known: {', '.join(SECTIONS)}", file=sys.stderr)
+        return 2
+
+    # Every scratch directory this run makes lands under one root, removed at
+    # exit (#234). The fixed list of eight paths this replaces missed every
+    # fixture added after it was written, and as top-level code at the very end
+    # it never ran when a check raised first -- 206k directories piled up in
+    # one %TEMP% in six days of hook runs. As the default `dir` of every
+    # mkdtemp, the root cannot be forgotten by the next fixture; atexit also
+    # runs on an uncaught exception.
+    sweep_stale_roots(tempfile.gettempdir(), time.time())
+    run_root = tempfile.mkdtemp(prefix="cai-validate-")
+    tempfile.tempdir = run_root
+    atexit.register(rmtree, run_root)
+
+    ran = [name for name in SECTIONS if not argv or name in argv]
+    for name in ran:
+        SECTIONS[name]()
+    if argv:
+        # Same reason as the hook self-tests' SKIP line: a green partial run
+        # must not read as a full one.
+        print(f"SKIP {len(SECTIONS) - len(ran)} other section(s); "
+              f"ran only {', '.join(ran)}")
+    return FAIL
 
 
-if os.environ.get("CAI_VALIDATE_NESTED") != "1":
-    # Bail-out paths. A hook that is slow or noisy on unrelated files is a hook
-    # someone turns off, so these must return before spawning anything.
-    for text, label in [
-        (hook_payload("README.md"), "file outside the plugin tree"),
-        (json.dumps({"tool_input": {}}), "no file_path"),
-        ("not json at all", "malformed payload"),
-    ]:
-        check(f"validate_hook [{label}] -> 0", run_hook(text).returncode == 0)
-
-    # The reason the hook exists. Both verdicts have to be exercised, or the
-    # only tested behaviour is the part that does nothing.
-    check("validate_hook [watched edit, repo valid] -> 0",
-          run_hook(hook_payload(f"{PLUGIN}/rules/coding.md")).returncode == 0)
-
-    # The broken skill goes into a copy, never into the tree being checked:
-    # anything reading this tree meanwhile -- a second validate.py, a test
-    # copying the repo, a pytest-xdist worker -- would see it and fail (#221).
-    # validate_hook.py finds its tree from its own location, so running the
-    # copy's hook checks the copy.
-    hook_scratch = tempfile.mkdtemp(prefix="cai-validate-hook-")
-    try:
-        broken_tree = os.path.join(hook_scratch, "repo")
-        # .coverage*: under `pytest --cov`, other workers' child processes
-        # write and delete these in the repo root while this copies it.
-        shutil.copytree(".", broken_tree, ignore=shutil.ignore_patterns(
-            ".git", "__pycache__", ".pytest_cache", ".coverage*"))
-        probe = os.path.join(broken_tree, PLUGIN, "skills", "_validate_hook_probe")
-        os.makedirs(probe, exist_ok=True)
-        with open(os.path.join(probe, "SKILL.md"), "w", encoding="utf-8") as fh:
-            fh.write("no frontmatter, so validate.py fails\n")
-        broke = run_hook(hook_payload(os.path.join(probe, "SKILL.md")),
-                         [sys.executable, os.path.join(broken_tree, "scripts", "validate_hook.py")])
-        check("validate_hook [watched edit, repo broken] -> 2", broke.returncode == 2)
-        check("validate_hook names the failing check", "FAIL" in broke.stderr)
-    finally:
-        shutil.rmtree(hook_scratch, ignore_errors=True)
-
-    # .claude/settings.json invokes the dispatcher, not the script. Same reason
-    # the guard's dispatcher is exercised above: a broken interpreter lookup or
-    # a swallowed exit code should fail here, not silently do nothing forever.
-    hook_dispatch = (["cmd", "/c", r"scripts\run-validate-hook.cmd"] if os.name == "nt"
-                     else ["sh", "scripts/run-validate-hook.cmd"])
-    check("validate_hook dispatcher [file outside the plugin tree] -> 0",
-          run_hook(hook_payload("README.md"), hook_dispatch).returncode == 0)
-else:
-    # A green run must always say what it did not check. Otherwise a stray
-    # CAI_VALIDATE_NESTED in the environment reports success for a run that
-    # skipped six checks.
-    print("SKIP hook self-tests (CAI_VALIDATE_NESTED=1)")
-
-# plugins/cai/evals/ is CLAUDE.md's third category: "shipped but not theirs"
-# -- it reaches every installed copy (the marketplace ships everything under
-# plugins/cai/) but no shipped component ever invokes it, since `claude
-# plugin eval` refuses an eval directory outside the plugin root. That is
-# also why it gets its own self-contained, independently-globbing section
-# here rather than folding into the component-frontmatter loop above: that
-# loop checks components Claude Code itself reads at runtime, and evals is
-# not one of those.
-ALLOWED_GRADER_TYPES = {"regex", "tool_used", "file_exists", "tool_order"}
-
-# A missing `type:` key must FAIL the same way a wrong one does: `claude
-# plugin eval init --bare` defaults a new grader's type to `llm`, which is
-# not in the allowed set, so leaving the key out is not a safe default.
-for path in sorted(glob.glob(f"{PLUGIN}/evals/*/graders/*.md")):
-    grader_type = frontmatter_value(path, "type")
-    check(f"{path} frontmatter has an allowed type (found: {grader_type!r})",
-          grader_type in ALLOWED_GRADER_TYPES)
-
-# A leaked token or a hardcoded home-directory path under evals/ ships to
-# every user who installs the plugin -- these three checks model the BOM
-# aggregate above (:636-650): accumulate offenders, one check() line per
-# pattern, then name each offending path.
-evals_files = [p for p in glob.glob(f"{PLUGIN}/evals/**", recursive=True)
-               if os.path.isfile(p)]
-
-SECRET_PATTERNS = (
-    ("sk-ant-", ("sk-ant-",)),
-    ("ghp_", ("ghp_",)),
-    ("home-directory path", ("C:\\Users\\", "/home/", "/Users/")),
-)
-for label, needles in SECRET_PATTERNS:
-    hits = []
-    for path in sorted(evals_files):
-        text = read_text(path)
-        if any(needle in text for needle in needles):
-            hits.append(path)
-    check(f"no evals file contains a {label} ({len(hits)} found)", not hits)
-    for path in hits[:5]:
-        print(f"     {label}:", path)
-
-sys.exit(FAIL)
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
