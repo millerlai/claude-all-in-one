@@ -31,6 +31,16 @@ def test_pr_refs_reads_squash_and_feature_merges_in_order():
     assert notes.pr_refs(subjects) == [297, 286, 287]
 
 
+def test_pr_refs_skips_a_squash_merged_release_pr():
+    # The tag sits on the release branch, so a release PR squashed into main
+    # falls inside served_ref..head even though it is the previous release.
+    subjects = [
+        "fix(track): drop the five-active-track cap (#310)",
+        "chore(release): v1.45.1 (#301)",
+    ]
+    assert notes.pr_refs(subjects) == [310]
+
+
 # ------------------------------------------------------ is_maintainer_only
 
 @pytest.mark.parametrize("paths,expected", [

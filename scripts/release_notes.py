@@ -44,7 +44,7 @@ def pr_refs(subjects: list) -> list:
             number = int(merge.group(1))
         else:
             squash = _SQUASH_REF.search(subject)
-            if not squash:
+            if not squash or subject.startswith("chore(release): v"):
                 continue
             number = int(squash.group(1))
         if number not in found:
