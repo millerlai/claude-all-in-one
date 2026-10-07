@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.47.0 — 2026-10-07
+
+This release lets `/cai:track`'s verify stage check acceptance criteria against a running copy of your program, not just a diff and the test suite, and lets `ship`'s draft start the moment verify passes instead of waiting for you to type `ship`.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.46.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.46.0 to 1.47.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its existing `state.md` and ledger records; neither format changed. Its next `verify` stage reads a `## Verification levels` table if the intake has one, or verifies exactly as before if it doesn't; once `verify` passes, `ship`'s draft starts on its own instead of waiting to be asked. (#317, #318)
+
+### Verify
+
+- An intake can end with a `## Verification levels` table marking each acceptance criterion `test`, `local-run`, `deployed`, or `manual`; verify prints this plan before running its review lenses and does not dispatch an AC marked Not covered. (#317)
+- For a `local-run` AC, verify can start your program, wait until it's ready, and run HTTP or end-to-end checks against it, keeping each check's output as evidence. (#317)
+- The verify report lists every acceptance criterion as verified-by-test, verified-at-runtime, confirm-before-merge, or not-covered with a reason, instead of only reporting lens findings and test results. (#317)
+- An intake without a `## Verification levels` table verifies exactly as it did before this release. (#317)
+
+### Ship
+
+- Once `/cai:track`'s verify stage is recorded passed and its fixes are committed, `ship`'s draft starts on its own; Gate 2's push menu still requires your go-ahead before anything irreversible runs. (#318)
+
+### Codex
+
+- `cai-codex` is regenerated with the updated verify and ship behaviour; its README documents the new local-run verification as unverified. (#317)
+
 ## v1.46.0 — 2026-10-06
 
 This release stops `/cai:track` from littering `.claude/track/<feature>/` with throwaway option drafts, drops the five-active-track limit, cuts unnecessary macOS permission prompts during Codex verification, and adds per-stage subagent time to `/cai:viewer` for Claude Code tracks.

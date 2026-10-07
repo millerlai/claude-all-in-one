@@ -12,7 +12,7 @@
         "source": "git-subdir",
         "url": "https://github.com/millerlai/claude-all-in-one.git",
         "path": "plugins/cai",
-        "ref": "v1.46.0"
+        "ref": "v1.47.0"
       },
       "category": "development"
     }
