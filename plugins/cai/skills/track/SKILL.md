@@ -109,7 +109,8 @@ for the options each one carries and where the answer lands.
 Every other stage, including ones marked `auto_invoke: false` in
 `stages.json`, still runs preflight and dispatch above; `auto_invoke` only
 says whether this skill may start the stage on its own or must wait to be
-asked — it is not a third human gate.
+asked — it is not a third human gate. Yet `ship` starts unasked once `verify`
+passes: `approval-gates.md`'s Gate 2 says why and how (#316).
 
 ## `/cai:track status`
 

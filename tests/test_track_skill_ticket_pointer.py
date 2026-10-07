@@ -165,8 +165,12 @@ def test_skill_md_body_is_136_lines():
 
     142 -> 139 on 2026-10-05 (#309): the five-track cap is gone, and with it
     the three lines telling the session to count tracks and refuse a sixth.
-    TRACK_SKILL_MAX moved 144 -> 141 in the same change, keeping the gap."""
-    assert _skill_body_lines() == 139
+    TRACK_SKILL_MAX moved 144 -> 141 in the same change, keeping the gap.
+
+    139 -> 140 on 2026-10-07 (#316): one line says `ship` starts unasked once
+    `verify` passes and points at approval-gates.md's Gate 2, which holds the
+    rule. TRACK_SKILL_MAX moved 141 -> 142 in the same change, keeping the gap."""
+    assert _skill_body_lines() == 140
 
 
 # --- '## Human gates' still says what it has always said --------------------

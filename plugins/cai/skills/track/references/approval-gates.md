@@ -139,6 +139,32 @@ read one from, so say there is nothing to read.
 | Run them | Checked once more first, then they run, in the order quoted — see below. |
 | Stop — hand me the commands | Nothing runs. Report them for the person to run themselves. |
 
+**Inside a track, nobody types `ship` (#316).** `ship`'s first dispatch only
+drafts, and typing `ship` right after `verify` passed was a step taken almost
+every time. So once `verify` is recorded `passed` and "Verify's changes,
+inside a track" below has run, start `ship` without waiting to be asked:
+preflight, the draft dispatch, then this menu. Nothing irreversible runs
+before the menu's "Run them", and `stages.json` keeps `ship` at
+`auto_invoke: false`, so `/cai:ship` still never starts on a matching
+sentence. If that preflight exits 2, report every line it printed and append
+nothing to the ledger: nobody has asked for `ship` yet, and a `blocked` row
+would spend one of its retries. `ship` then waits to be asked. A fix round
+already runs `ship` straight after `verify`, by its own rules under
+`### A fix round`.
+
+Inside a track this menu can arrive unasked, then, and the free-text entry
+carries every other answer:
+
+- **A change to either text** → make it, run `ship_draft_check.py` on the
+  changed draft again, and put the menu again with the new text in full.
+- **Not yet** → nothing runs and nothing is recorded: `state.md`'s ship row
+  and the ledger stay as they are. Run
+  `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py clear --track-dir .claude/track/<feature> --stage ship`,
+  so the next `/cai:track` drafts again from the branch as it then stands
+  instead of re-asking with drafts of an older commit.
+- **Anything else** — a question, a doubt — gets an answer, then the same
+  menu again.
+
 The merge itself raises its own permission prompt when "Run them" runs it — `gh pr merge` is a human action, so the bash guard asks before it runs, on top of this gate.
 
 Inside a track, "Run them" quotes and runs only the backup branch and the squash, the push and the `gh pr create` or `gh pr edit`. The merge is not in this menu: it comes later, at the merge under "After the PR opens" below, confirmed by the guard's permission prompt alone. Standing alone is unchanged.
