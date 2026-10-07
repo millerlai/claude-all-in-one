@@ -38,14 +38,8 @@ def _load(path):
     return data
 
 
-def record(project_dir, commands):
-    """Write `commands` as test.commands under `project_dir`; returns the path."""
-    cleaned = [c.strip() for c in commands]
-    if not cleaned or any(not c or "\r" in c or "\n" in c for c in cleaned):
-        raise ValueError("commands must be non-empty single-line strings")
-    path = os.path.join(project_dir, resolver.CONFIG_REL)
-    data = _load(path)
-    data.setdefault("test", {})["commands"] = cleaned
+def write_config(path, data):
+    """Write `data` as JSON to `path`, creating its directory; all or nothing."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     # Same directory so os.replace is one rename and a reader never sees half a file.
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
@@ -60,6 +54,17 @@ def record(project_dir, commands):
         except OSError:
             pass
         raise
+
+
+def record(project_dir, commands):
+    """Write `commands` as test.commands under `project_dir`; returns the path."""
+    cleaned = [c.strip() for c in commands]
+    if not cleaned or any(not c or "\r" in c or "\n" in c for c in cleaned):
+        raise ValueError("commands must be non-empty single-line strings")
+    path = os.path.join(project_dir, resolver.CONFIG_REL)
+    data = _load(path)
+    data.setdefault("test", {})["commands"] = cleaned
+    write_config(path, data)
     return path
 
 

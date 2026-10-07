@@ -371,7 +371,11 @@ this list, which is why the list comes first, in the same message.
 The list, in order: every Blocker and Major (including any the person chose
 not to fix), every `unchecked` line, why the round stopped if it did, and a
 warning when `sha` and `pr-head` differ, since the merge would take the head,
-not the commit that was checked. If any of these exists, add one line,
+not the commit that was checked. After those, every line `python
+<cai-root>/scripts/verify_plan.py merge-list --track-dir <dir>`
+prints, verbatim — the `deployed` and `manual` checks only a person can do; it
+prints nothing when the intake has none. Those lines add no `Suggest Stop`
+themselves. If any of the items before them exists, add one line,
 `Suggest Stop: <reason>`; when the list is clear, add nothing. A re-look that
 still found no check runs is not one of these. Stop here means the prompt was
 answered No.

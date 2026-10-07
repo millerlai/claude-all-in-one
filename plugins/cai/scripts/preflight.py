@@ -1045,6 +1045,15 @@ def docs_not_in_git(track_dir, project_dir):
         doc = resolve(artifact, project_dir, track_dir)
         if doc is None:
             continue
+        # verify's evidence manifest sits under the track directory: track
+        # state, not a document the person should be told to `git add`.
+        try:
+            if os.path.commonpath([os.path.normcase(os.path.abspath(doc)),
+                                   os.path.normcase(os.path.abspath(track_dir))]
+                                  ) == os.path.normcase(os.path.abspath(track_dir)):
+                continue
+        except ValueError:
+            pass  # different drives on Windows -- cannot be inside it
         done = git(project_dir, "ls-files", "--error-unmatch", "--", doc)
         if done is None:
             return True, "docs_not_in_git (not checked: git did not answer)"

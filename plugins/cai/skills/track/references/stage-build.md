@@ -227,6 +227,15 @@ For each unit, in schedule order:
    carries the fix starts from the test its diagnosis's `## Failing test`
    names — that is the first failing test, before any other; run it, and
    keep the red output, because Step 6.1 needs it.
+
+   Before the first production code of a unit whose brief carries an AC that
+   `## Verification levels` gives the `local-run` level, take its baseline: run
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir <dir> --stage build --unit <N> --ac <ids>`
+   as one Bash call with `timeout` 600000 and keep the output; Step 6.1 needs
+   it. The runner ends itself at 540 s, below that call timeout. If the Bash
+   call reports that it timed out or was moved to the background, do not wait
+   for it and read no partial output: that AC has no
+   baseline. Exit 4 with no start declaration is the same: no baseline.
 4. **Verify.** Dispatch `test-runner` with the unit's `Verify with`
    command. Read the real output.
    - Green means no failures **and** no NOT RUN file — a named test file
@@ -396,6 +405,18 @@ Units all green is not done:
    intake has no ids, assign AC1, AC2, ... in its original order in the
    table, quote each criterion verbatim, and leave the signed intake
    unchanged. The conformance lens checks these same criteria.
+
+   An AC at the `local-run` level also gets a row in this baseline table, from
+   the runs Step 3 kept; Green after is the same runner command run again once
+   the unit is green:
+
+   | AC | Red before | Green after | Satisfied at |
+   |---|---|---|---|
+   | AC2 | `AC2 FAIL evidence/build/unit-1/<UTC>/AC2.txt` | `AC2 PASS evidence/build/unit-1/<UTC>/AC2.txt` | `src/server.py:41` |
+
+   A check that was already green before the unit started says
+   `already green before` in Red before. With no start declaration there was no
+   baseline run, and Red before says `no baseline: no start declaration`.
 2. **Write the merged terms into `<top>/CONTEXT.md`**, before verify. Skip
    entirely — no file created, nothing said about it in the report — when no
    glossary term ended up merged (the third menu was never asked, was

@@ -497,6 +497,43 @@ would cost on pay-per-token pricing, not what a subscription billed — and
 anything from before central tracking was first turned on shows as "no data",
 not as zero.
 
+## Verifying acceptance criteria at runtime
+
+An intake can end with a `## Verification levels` table, one row per AC, with
+the levels `test`, `local-run`, `deployed` and `manual`:
+
+```
+## Verification levels
+
+| AC | level | check |
+|---|---|---|
+| AC1 | test | |
+| AC2 | local-run | GET /health 200 |
+| AC3 | manual | open /login and sign in |
+```
+
+When `verify` runs it first prints the **verify plan**
+(`verify_plan.py plan --track-dir <dir>`): for each AC, where it goes, or why
+it is already Not covered. Only a `local-run` AC with a declared start is
+run: put `run.start` (an argument array), `run.ready` (a loopback URL) and
+optionally `run.e2e` in `.claude/cai.json`, using `{port}` where the program
+takes its port. If you have not declared one and `package.json` has a `dev` or
+`start` script, `verify` asks whether to record it (and the ready URL); the
+main session writes your answer, never the verifier.
+
+The runner starts the program, waits up to 120 seconds for the ready URL,
+runs each check (120 seconds each, 540 in all), saves every output with its
+SHA-256, stops everything it started and writes `run.json`. The verify report
+then lists each AC as `verified-by-test`, `verified-at-runtime`,
+`confirm-before-merge` or `not-covered` with a reason, and the evidence
+manifest path goes on the ledger. `deployed` and `manual` ACs are copied
+verbatim into the merge checklist at `ship`. cai deploys nothing and brings no
+browser: whatever it did not check is listed as Not covered.
+
+If a runner call ever stops with the Bash tool saying it was moved to the
+background, stop that task: the program may still be running until the
+runner's own time limit.
+
 ## Mirroring a track into a GitHub issue
 
 Off unless the project says otherwise. To turn it on, add

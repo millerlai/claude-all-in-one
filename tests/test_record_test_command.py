@@ -23,6 +23,29 @@ def load(tmp_path):
     return json.loads(cfg(tmp_path).read_text(encoding="utf-8"))
 
 
+def test_write_config_is_atomic_and_leaves_no_temp_file(tmp_path):
+    target = tmp_path / "sub" / "cai.json"
+    target.parent.mkdir()
+    target.write_text("old", encoding="utf-8")
+    rec.write_config(str(target), {"k": "值", "n": [1]})
+    assert json.loads(target.read_text(encoding="utf-8")) == {"k": "值", "n": [1]}
+    assert target.read_bytes().endswith(b"\n") and b"\r" not in target.read_bytes()
+    assert os.listdir(str(target.parent)) == ["cai.json"]
+
+
+def test_write_config_failure_keeps_the_old_file_and_cleans_up(tmp_path, monkeypatch):
+    target = tmp_path / "cai.json"
+    target.write_text("old", encoding="utf-8")
+
+    def boom(src, dst):
+        raise OSError("rename refused")
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(OSError):
+        rec.write_config(str(target), {"k": 1})
+    assert target.read_text(encoding="utf-8") == "old"
+    assert os.listdir(str(tmp_path)) == ["cai.json"]
+
+
 def test_creates_the_file_and_the_directory(tmp_path):
     path = rec.record(str(tmp_path), ["make test", "npm test"])
     assert os.path.samefile(path, cfg(tmp_path))

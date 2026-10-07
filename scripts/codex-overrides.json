@@ -516,7 +516,7 @@
       "target": "agents/verifier.md",
       "anchor": [
         "A PreToolUse hook holds your Bash to the resolver, the commands it resolved,",
-        "`provenance.py`, and these git shapes: `git symbolic-ref --short",
+        "`provenance.py`, `verify_plan.py`, `local_run.py`, and these git shapes: `git symbolic-ref --short",
         "refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and",
         "`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain",
         "arguments. Anything else is blocked, which rules out three habits: do not",
@@ -529,7 +529,7 @@
         "Codex does not enforce the source agent's PreToolUse hook. Treat the",
         "boundary as an instruction. Besides reading and searching files, run",
         "only the resolver, the commands it",
-        "resolved, `provenance.py`, and these git shapes: `git symbolic-ref --short",
+        "resolved, `provenance.py`, `verify_plan.py`, `local_run.py`, and these git shapes: `git symbolic-ref --short",
         "refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and",
         "`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain",
         "arguments. Do not append a redirection such as `2>&1` (the shell tool",

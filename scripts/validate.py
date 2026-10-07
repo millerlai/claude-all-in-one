@@ -1118,6 +1118,11 @@ def _guard():
         ("Bash", "git diff --output out.txt", 2, WORK, "cai:verifier"),
         ("Bash", "git log --oneline -1", 0, WORK, "cai:verifier"),
         ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", 0, WORK, "cai:verifier"),
+        # AC8 (c): verify_plan.py and local_run.py for the verifier only.
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan", 0, WORK, "cai:verifier"),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify", 0, WORK, "cai:verifier"),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify", 2, WORK, "cai:test-runner"),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/record_start_command.py --ready http://127.0.0.1:1/ -- x", 2, WORK, "cai:verifier"),
         ("Bash", "git push origin x", 2, WORK, "cai:verifier"),
         ("Bash", "git status", 2, WORK, "cai:designer"),
         ("Bash", "mmdc -i a.mmd -o a.svg", 0, WORK, "cai:designer"),
@@ -2658,6 +2663,130 @@ def _track_references():
         check("stage-verify.md's Report section still asks for parked "
               "proposals",
               "parked as a proposal" in verify_section("## Report"))
+
+    # AC1: stage-intake.md is the only place that tells the intake's author the
+    # shape of the `## Verification levels` table, and verify_plan.py levels
+    # rejects any other shape. A claim about what the model writes, so the whole
+    # paragraph is pinned, whitespace folded so a rewrap passes and a changed
+    # word does not (same convention as the track-skill block below).
+    INTAKE_REF = f"{PLUGIN}/skills/track/references/stage-intake.md"
+    LEVELS_MARKER = "End the intake with a `## Verification levels` section"
+    LEVELS_CLAUSE = (
+        "End the intake with a `## Verification levels` section: the heading "
+        "verbatim, then a table with the header `| AC | level | check |` verbatim "
+        "and exactly one row per acceptance criterion. `level` is one of `test`, "
+        "`local-run`, `deployed`, `manual`. `check` for `local-run` is either an "
+        "HTTP check, `<METHOD> <path> <status>` with an optional quoted string the "
+        "response body must contain, or `e2e <name>`; for `deployed` and `manual` "
+        "it is the steps a person follows. Write a literal `|` inside a cell as "
+        "`\\|`.")
+    if os.path.isfile(INTAKE_REF):
+        intake_text = read_text(INTAKE_REF)
+        levels_para = (LEVELS_MARKER + intake_text.split(LEVELS_MARKER, 1)[1].split("\n\n", 1)[0]
+                       if LEVELS_MARKER in intake_text else "")
+        check("stage-intake.md's Verification levels paragraph is pinned word for "
+              "word -- verify_plan.py levels rejects any other table shape; update "
+              "this pinned string only together with that parser",
+              " ".join(levels_para.split()) == LEVELS_CLAUSE)
+
+    # AC5/AC6/AC7/AC13/AC14/AC15: the sentences that make the model use
+    # verify_plan.py and local_run.py. Like the blocks above these are claims
+    # about what the model does, so each is pinned in its own section, whitespace
+    # folded (a rewrap passes, a changed word does not). A missing section yields
+    # "" and fails, the same as verify_section() above.
+    def folded_section(path, heading):
+        if not os.path.isfile(path):
+            return ""
+        text = read_text(path)
+        match = re.search(r"^" + re.escape(heading), text, re.MULTILINE)
+        if not match:
+            return ""
+        level = len(heading) - len(heading.lstrip("#"))
+        end = re.search(r"\n#{1,%d} " % level, text[match.end():])
+        stop = match.end() + end.start() if end else len(text)
+        return " ".join(text[match.start():stop].split())
+
+    REFS = f"{PLUGIN}/skills/track/references"
+    verify_ref = f"{REFS}/stage-verify.md"
+    build_ref = f"{REFS}/stage-build.md"
+    gates_ref = f"{REFS}/approval-gates.md"
+    verify_opening = " ".join(read_text(verify_ref).split("\n## ", 1)[0].split()) \
+        if os.path.isfile(verify_ref) else ""
+    PINS = [
+        ("AC13", "stage-verify.md's Step 0.75 runs the verify plan before the lenses",
+         folded_section(verify_ref, "## Step 0.75"),
+         ["Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir <dir>` "
+          "before the lenses are dispatched",
+          "An AC the plan marks `Not covered` is not dispatched"]),
+        ("AC15", "stage-verify.md's Step 0.75 hands up two questions when the plan prints "
+                 "start candidates",
+         folded_section(verify_ref, "## Step 0.75"),
+         ["hand up two questions under `## Pending questions`",
+          "record one of the candidates, or keep it Not covered", "the ready URL"]),
+        ("AC15", "stage-verify.md's re-dispatch rule has the record-the-candidate branch",
+         verify_opening,
+         ["when the answer is to record the start candidate, rerun Step 0.75, the runtime "
+          "check, the synthesis and `check`, take the findings from the previous round's "
+          "report, and run no lens again"]),
+        ("AC15", "stage-verify.md's Step 0.75 has the recording option carry the whole "
+                 "record_start_command.py command, since the main session never reads this file",
+         folded_section(verify_ref, "## Step 0.75"),
+         ["carries the command it is to run, written out whole",
+          "record_start_command.py --ready"]),
+        ("AC15", "pending-questions.md has the main session run the command the chosen "
+                 "option carries before it re-dispatches",
+         folded_section(f"{REFS}/pending-questions.md", "# pending-questions"),
+         ["Before that dispatch, when the option the person chose carries a command "
+          "written for the main session to run",
+          "run exactly that command, the person's answers filled in"]),
+        ("AC14", "stage-verify.md's runtime check reruns the runner after the last fix",
+         folded_section(verify_ref, "## Runtime check"),
+         ["If anything was fixed, the `local-run` evidence must come from a runner run "
+          "after the last fix",
+          "python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir <dir> --stage verify"]),
+        ("AC14", "stage-verify.md's runtime check runs `check` and states its rules",
+         folded_section(verify_ref, "## Runtime check"),
+         ["python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py check --track-dir <dir> "
+          "--synthesis",
+          "an AC with an unfixed Blocker or Major finding is never verified",
+          "an AC the plan marked Not covered is never verified",
+          "a `test` AC with no matching test is Not covered"]),
+        ("AC5", "stage-verify.md's Step 3 lists every AC with exactly one of four outcomes",
+         folded_section(verify_ref, "## Step 3"),
+         ["list every AC of the intake, one line each, with exactly one of four outcomes",
+          "copied from the table `check` printed"]),
+        ("AC6", "approval-gates.md's The merge lists verify_plan.py merge-list verbatim",
+         folded_section(gates_ref, "### The merge"),
+         ["every line `python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py merge-list "
+          "--track-dir <dir>` prints, verbatim",
+          "add no `Suggest Stop` themselves"]),
+        ("AC7", "stage-build.md's Step 3 takes the local-run baseline before the code",
+         folded_section(build_ref, "## Step 3"),
+         ["python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir <dir> --stage build "
+          "--unit <N> --ac <ids>"]),
+        ("AC7", "stage-build.md's Step 6 has the baseline table and both markers",
+         folded_section(build_ref, "## Step 6"),
+         ["| AC | Red before | Green after | Satisfied at |",
+          "`already green before`", "`no baseline: no start declaration`"]),
+    ]
+    for ac, label, section, phrases in PINS:
+        missing = [p for p in phrases if p not in section]
+        check("%s: %s%s" % (ac, label, " -- missing: %s" % "; ".join(missing) if missing else ""),
+              not missing)
+
+    # AC11: README.md and MANUAL.md each name the four levels, the declaration's
+    # file, that verify prints the plan first, and that cai neither deploys nor
+    # brings a browser (what it cannot check is listed as Not covered).
+    for doc in ("README.md", "MANUAL.md"):
+        doc_text = " ".join(read_text(doc).split()) if os.path.isfile(doc) else ""
+        missing = [p for p in ("`test`", "`local-run`", "`deployed`", "`manual`",
+                               ".claude/cai.json", "verify plan",
+                               "deploys nothing", "no browser", "Not covered")
+                   if p not in doc_text]
+        check("AC11: %s states the levels, the declaration file, the plan-first rule and "
+              "the no-deploy/no-browser boundary%s"
+              % (doc, " -- missing: %s" % "; ".join(missing) if missing else ""),
+              not missing)
 
 
 @section("track-skill")

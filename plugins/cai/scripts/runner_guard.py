@@ -105,7 +105,9 @@ def allowed(command, cwd, agent_type):
                    for p in VERIFIER_PREFIXES)
             or any(_extends(squeezed, verb) and not _writes_a_file(squeezed)
                    for verb in VERIFIER_VERBS)
-            or _runs_script(command, cwd, "provenance.py"))
+            or _runs_script(command, cwd, "provenance.py")
+            or _runs_script(command, cwd, "verify_plan.py")
+            or _runs_script(command, cwd, "local_run.py"))
 
 
 def check_dispatch(payload):
@@ -144,7 +146,7 @@ def check(payload):
     if agent in VERIFIER_AGENTS:
         message += (" The verifier may also run git symbolic-ref --short "
                     "refs/remotes/origin/HEAD, git rev-parse --show-toplevel, git "
-                    "merge-base HEAD <rev>, git diff, git log, git show, and "
-                    "provenance.py.")
+                    "merge-base HEAD <rev>, git diff, git log, git show, "
+                    "provenance.py, verify_plan.py, and local_run.py.")
     print(message, file=sys.stderr)
     return 2
