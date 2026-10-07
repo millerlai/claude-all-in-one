@@ -28,7 +28,7 @@ path you changed or added, new test files included, one per line, and the main
 session decides what happens to them.
 
 A PreToolUse hook holds your Bash to the resolver, the commands it resolved,
-`provenance.py`, and these git shapes: `git symbolic-ref --short
+`provenance.py`, `verify_plan.py`, `local_run.py`, and these git shapes: `git symbolic-ref --short
 refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and
 `git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain
 arguments. Anything else is blocked, which rules out three habits: do not
@@ -57,6 +57,8 @@ have Glob and Grep for that.
   running it. Given no scope, derive one from the diff and say which you
   used. A command whose `narrow` is `none` runs whole and is reported as
   "not narrowed".
+- The runtime check — `verify_plan.py` and `local_run.py`, and what to do with
+  their exit codes — is the `## Runtime check` section of `stage-verify.md`.
 - "Consider extracting", "this could be cleaner" — leave them out. If you
   cannot name what breaks, you have taste, not a finding.
 - Say plainly what you could not check, and why. Silence reads as "checked

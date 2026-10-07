@@ -12,9 +12,11 @@ means: stop there, and end the report with the `## Pending questions` section
 person and re-dispatches this stage with the answer. Standing alone you are
 the main session — ask directly. Re-dispatched with an answer: when the
 round's report came from Step 0.5's stop, no lens has run and there are no
-findings to take, so start again at Step 0; otherwise take the findings from
-the round's report, apply the answer under Fixing, and do not run Steps 0.5
-to 2 again.
+findings to take, so start again at Step 0; when the answer is to record the
+start candidate, rerun Step 0.75, the runtime check, the synthesis and
+`check`, take the findings from the previous round's report, and run no lens
+again; otherwise take the findings from the round's report, apply the answer
+under Fixing, and do not run Steps 0.5 to 2 again.
 
 One reviewer reading a diff finds what that reviewer is tuned to find. The
 misses are not random: a reader hunting off-by-one errors is not, in the
@@ -57,6 +59,38 @@ person re-confirms it, updates the ledger themselves and re-runs verify, or
 stops. Never edit the ledger's citations or
 a restated file to turn the red green -- a drift needs a person to re-confirm
 the claim first, not a string edit that proves nothing.
+
+## Step 0.75 — Verify plan
+
+Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir <dir>`
+before the lenses are dispatched (`<dir>` is the track directory; standing
+alone, with no track, leave `--track-dir` off). It reads files and starts
+nothing. Keep its table: it says where each AC of the intake goes. An AC the
+plan marks `Not covered` is not dispatched — no lens is asked about it — and
+Step 3 lists it with the plan's reason.
+
+- Exit 5: the intake's `## Verification levels` table is invalid, so there is
+  no per-AC list to build. Name the problems it printed, start no runner, and
+  make the verdict at least `Revise`.
+- A legacy intake, no intake, no start declaration, or no `local-run` AC: the
+  plan's `runtime: skipped (<reason>)` line says which, and Step 3 names that
+  reason as the one that kept the runtime check from running.
+- The plan prints `start candidates:` (there is a `local-run` AC, no start
+  declaration, and the resolver found something in the project's files): hand
+  up two questions under `## Pending questions`, never choosing a candidate
+  yourself. The first: record one of the candidates, or keep it Not covered.
+  The second, which blocks the recording: the ready URL. Its options are only
+  ports or URLs you read in a project file, each with its `file:line`, plus
+  one more, `{port}` — the start command with the port argument that tool
+  accepts, appended — and free text is always there. When the first answer is
+  to keep it Not covered, the second question is not asked. The main session
+  writes the answer into `.claude/cai.json` with `record_start_command.py` and
+  re-dispatches this stage; the opening paragraph says what runs then. The main
+  session never reads this file, so the first question's recording option
+  carries the command it is to run, written out whole:
+  `python ${CLAUDE_PLUGIN_ROOT}/scripts/record_start_command.py --ready <the
+  second answer> -- <the candidate's start words>`.
+  Standing alone, ask the same two directly, one at a time.
 
 ## Step 1 — Dispatch the lenses
 
@@ -143,9 +177,16 @@ worth another subagent run.
    does more than was asked is a decision someone made silently, and
    deleting it yourself is a second one. Surface it, don't take it: under a
    track each one goes into `## Pending questions`, one question per element.
-4. **Not covered.** What the lenses could not check, and why — including
-   "no written requirement" or "no written conventions" when either was
-   missing from conformance's inputs.
+4. **Not covered.** Under a track whose intake has a `## Verification levels`
+   table, list every AC of the intake, one line each, with exactly one of four
+   outcomes — `verified-by-test`, `verified-at-runtime`,
+   `confirm-before-merge`, or `not-covered` with its reason — copied from the
+   table `check` printed (the Runtime check section), `manifest:` line first;
+   a `verified-by-test` line keeps the tests, command and counts it printed.
+   With no such table, name which of Step 0.75's cases it was. Then what the
+   lenses could not check, and why — including "no written requirement" or
+   "no written conventions" when either was missing from conformance's
+   inputs.
 
 ## Fixing
 
@@ -168,6 +209,52 @@ A change made from an answer is tested like any other fix, but it is not
 re-reviewed by the four lenses: the report's left-open items say that changes
 made from an answer were not reviewed by the four lenses.
 
+## Runtime check
+
+After Fixing, or after Step 2 when nothing was fixed, and unless Step 0.75's
+plan printed `runtime: skipped`, run
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir <dir> --stage verify`
+as one Bash call with `timeout` 600000. It starts the program the project
+declared, runs each `local-run` check, saves each one's output under
+`<dir>/evidence/verify/`, and stops everything it started. If anything was
+fixed, the `local-run` evidence must come from a runner run after the last fix;
+a run from before a fix proves nothing about what the fix changed.
+
+The runner ends itself at 540 s, below the 600000 ms call timeout. If the Bash
+call reports that it timed out or was moved to the background, do not wait for
+it: report those ACs as not verified at runtime; do not read partial output.
+Exit codes: 0 every check passed; 3 a check failed,
+timed out or was not run; 4 nothing runnable, or the fixed port is taken; 5
+invalid arguments or intake; 6 a process was left running — name the pids it
+printed in the report as a Blocker, since something is still running on the
+person's machine. A check that did not pass becomes `not-covered` through
+`check` below, with its reason; never describe it as skipped.
+
+Then write the synthesis with the Write tool to
+`<dir>/evidence/verify/synthesis.json`, and run
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py check --track-dir <dir> --synthesis <dir>/evidence/verify/synthesis.json --run <the runner's evidence dir>`.
+The evidence dir is the directory of the `run record:` line the runner
+printed; leave `--run` off when it printed none. The synthesis is one JSON
+object:
+
+```json
+{"format": 1,
+ "test_commands": [{"command": "python -m pytest", "passed": 12, "failed": 0}],
+ "acs": {"AC1": {"tests": ["tests/test_x.py::test_y"],
+                 "findings": [{"severity": "Major", "fixed": true}]}}}
+```
+
+`tests` are the tests you matched to that AC; `findings` are the reconciled
+findings that bear on it, each with whether Fixing fixed it. `check` writes
+`manifest.json` and prints its path and one line per AC, then checks what it
+wrote. Its exit 3 means a rule broke, and stderr names it: an AC with an
+unfixed Blocker or Major finding is never verified; an AC the plan marked Not
+covered is never verified; a `test` AC with no matching test is Not covered;
+an evidence file changed or missing; an AC missing from the manifest or not in
+the intake. Correct the synthesis, not the manifest, and run it again. Exit 4:
+no manifest for a legacy or standalone verify. Exit 5: the intake or the
+synthesis is invalid.
+
 ## When not to use this
 
 - The artifact is a plan, spec, or design doc, not a diff — that is
@@ -187,9 +274,14 @@ made from an answer were not reviewed by the four lenses.
 This is what you hand back to the main session -- not the report this
 file's own steps describe. Put these fields in a `## Report` section. The
 main session, not you, is the only writer of the track's state table and
-of the ledger's `--note`; you write no track file at all.
+of the ledger's `--note`; you write no track file at all, with one exception:
+`evidence/verify/synthesis.json`, which the Runtime check section has you write
+(the runner and `check` write the evidence files they print themselves).
 
 - the verdict
+- the path of the last round's `manifest.json`, the `manifest:` line `check`
+  printed, or `none` and why when `check` exited 4 or 5; the main session
+  passes it as the verify ledger row's `--artifact`
 - what was fixed
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered

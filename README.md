@@ -186,7 +186,7 @@ stage or by one of the tools above.
 
 | | |
 |---|---|
-| **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes (`--force`, `-f`, a `+refspec`, or `--force-with-lease`), `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, any push — force or not — whose destination resolves to `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. In Bash it also blocks a backtick that Bash would run as a command, in double quotes or an unquoted heredoc, where it silently rewrites a commit message, and a `$(…)` that a stray apostrophe left outside the single quotes it was written in, and it reads the parts of a heredoc that Bash executes, so a force push inside one, or behind a quoted `<<EOF` that only looks like one, is still caught. It also blocks `git checkout -- <paths>` and `git restore` **when the working tree is dirty**, which is the shape of a verification step eating the fix it was meant to check; on a clean tree those discard nothing and go straight through. On Claude Code, `test-runner`, `verifier` and `designer` are held to commands of their own on top of all that: the resolver and the test commands it resolved (the verifier also a few read-only git shapes — `git diff`, `git log` and `git show` without `--output` — and `provenance.py`), and for the designer its probes, its renderer, `date +%F` and `git rev-parse --show-toplevel`; anything else is blocked. The same hook also sees Agent calls, and the verifier may dispatch only its lenses, `cai:reviewer` and `cai:security-reviewer`. These limits steer the agents; they are not a sandbox: the verifier can still edit `.claude/cai.json`, a `Makefile` or a `conftest.py`, and the resolved test command then runs what it wrote. The guard needs a working Python. The first call tries `py -3` then `python` on Windows (`python3` then `python` elsewhere) on empty input and records the first one that runs the guard, in `cai/` under your Claude config directory; later calls start only that one. With none working, those three agents can run no Bash at all, the verifier can dispatch no agent, and every other caller gets a reduced check that blocks only `--force`/`-f`/`+refspec` pushes, `reset --hard`, `git clean -f`, `--no-verify` and `rm -rf`: commits and pushes to `main`/`master` go through then. If the recorded interpreter fails on a real call, that one call is blocked for every caller, and the record is dropped unless it still runs the guard on empty input. `gh pr merge`, and a `gh api` call to the same merge endpoint, are neither blocked nor let through silently: merging is a person's call, so Claude Code gets a permission prompt instead; Codex parses but does not act on that "ask" decision, so there the guard denies it and hands back the exact command for the person to run themselves. Hands the command back with the fix rather than just a refusal. |
+| **Bash safety guard** | A `PreToolUse` hook on the Bash *and* PowerShell tools. Blocks force pushes (`--force`, `-f`, a `+refspec`, or `--force-with-lease`), `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf` and its `Remove-Item -Recurse -Force` equivalent, commits made straight onto `main`/`master`, any push — force or not — whose destination resolves to `main`/`master`, and PowerShell here-string syntax inside a Bash command — the one that leaves stray `@` characters in your commit messages. In Bash it also blocks a backtick that Bash would run as a command, in double quotes or an unquoted heredoc, where it silently rewrites a commit message, and a `$(…)` that a stray apostrophe left outside the single quotes it was written in, and it reads the parts of a heredoc that Bash executes, so a force push inside one, or behind a quoted `<<EOF` that only looks like one, is still caught. It also blocks `git checkout -- <paths>` and `git restore` **when the working tree is dirty**, which is the shape of a verification step eating the fix it was meant to check; on a clean tree those discard nothing and go straight through. On Claude Code, `test-runner`, `verifier` and `designer` are held to commands of their own on top of all that: the resolver and the test commands it resolved (the verifier also a few read-only git shapes — `git diff`, `git log` and `git show` without `--output` — `provenance.py`, `verify_plan.py` and `local_run.py`), and for the designer its probes, its renderer, `date +%F` and `git rev-parse --show-toplevel`; anything else is blocked. The same hook also sees Agent calls, and the verifier may dispatch only its lenses, `cai:reviewer` and `cai:security-reviewer`. These limits steer the agents; they are not a sandbox: the verifier can still edit `.claude/cai.json`, a `Makefile` or a `conftest.py`, and the resolved test command then runs what it wrote. The guard needs a working Python. The first call tries `py -3` then `python` on Windows (`python3` then `python` elsewhere) on empty input and records the first one that runs the guard, in `cai/` under your Claude config directory; later calls start only that one. With none working, those three agents can run no Bash at all, the verifier can dispatch no agent, and every other caller gets a reduced check that blocks only `--force`/`-f`/`+refspec` pushes, `reset --hard`, `git clean -f`, `--no-verify` and `rm -rf`: commits and pushes to `main`/`master` go through then. If the recorded interpreter fails on a real call, that one call is blocked for every caller, and the record is dropped unless it still runs the guard on empty input. `gh pr merge`, and a `gh api` call to the same merge endpoint, are neither blocked nor let through silently: merging is a person's call, so Claude Code gets a permission prompt instead; Codex parses but does not act on that "ask" decision, so there the guard denies it and hands back the exact command for the person to run themselves. Hands the command back with the fix rather than just a refusal. |
 | **Stage timing hooks** | Five hooks (`PreToolUse`, `PostToolBatch`, `PostToolUse` on Agent, `SubagentStart`, `SubagentStop`) that record when the subagents of a `/cai:track` stage are thinking, so `/cai:viewer` can show a lower bound on a stage's time (Claude Code only; shown as "at least m:ss", never a total). They run only while a run is open (`/cai:track` writes a `timing-open.*` marker under the project's `.claude/track/` at the start of a stage and removes it when the stage reports back; a marker left by a crashed session can be deleted by hand); with no marker the launcher exits before it starts Python, and with one every tool call starts one short Python process. They reuse the interpreter the Bash safety guard recorded, and do nothing if that record is missing. They store identifiers and timestamps only (agent and tool-call ids, the run id, the session id, the project and track directory paths), never prompts, tool input or tool output, and they always exit 0 and write nothing to stdout, so they cannot change what a tool call does. Spooled observations expire after 7 days. |
 | **Shared rules** | Eight instruction files covering how Claude should communicate, verify claims, write code, run its workflow, choose models, use memory, write docs, and lay out options. Installed to user scope by `/cai:setup`. |
 | **Attempt ledger** | Every stage attempt a track makes — `passed`, `failed`, `blocked`, `skipped`, or `unavailable` when the provider refused to serve it — is appended to `.claude/track/<feature>/ledger.jsonl` with its gate (`auto` or `human`), the SHA-256 of the artifact it named, and the tokens the session spent since the last record. A copy carrying the project and track name goes to `~/.claude/cai/usage.jsonl`, which is what `/cai:usage` reads across projects. Five failed or blocked attempts since a stage last passed or was skipped cap it, and the refusal prints the three ways out; `unavailable` never counts. |
@@ -221,6 +221,70 @@ you which, and the answer is written to `test.commands` for next time (other
 keys in the file, such as `ticket`, are kept). When it finds none, the stage
 says so rather than guessing, and a `.claude/cai.json` that cannot be read as
 JSON is reported as it is, with no fallback to detection.
+
+### Verifying acceptance criteria at runtime
+
+Each acceptance criterion (AC) in an intake gets a **level**, written in a
+table at the end of `intake.md` under the exact heading
+`## Verification levels`, with the exact header `| AC | level | check |`:
+
+| level | proved by |
+|---|---|
+| `test` | the project's own tests, mapped to the AC by the verifier |
+| `local-run` | the runner starts your program on this machine, runs one check against it, and keeps the output |
+| `deployed` | a person, against the deployed site, listed in the merge checklist |
+| `manual` | a person, listed in the merge checklist |
+
+An intake with no such table is `legacy`: `verify` behaves as it always has.
+For `local-run`, the `check` cell is an HTTP check — `GET /health 200`, or
+`GET /api/items 200 "items"` to require a body string — or `e2e <name>`, naming
+a command you declared. Before it dispatches the review lenses, `verify` prints
+the verify plan (`verify_plan.py plan`): for every AC, where it goes, and it marks an AC Not covered up front, with a reason code, when it cannot
+run. At the end `verify` reports every AC as exactly one of `verified-by-test`,
+`verified-at-runtime`, `confirm-before-merge` or `not-covered` (with a reason),
+and `verify_plan.py check` verifies the evidence manifest it hangs on the
+ledger: file fingerprints (SHA-256), the AC set, and that nothing runtime-failed
+is reported as verified.
+
+Nothing starts unless you declare how, in `.claude/cai.json` (other keys are
+kept):
+
+```json
+{ "run": {
+    "start": ["npm", "run", "dev", "--", "--port", "{port}"],
+    "ready": "http://127.0.0.1:{port}/",
+    "e2e": { "smoke": ["npm", "run", "e2e", "--", "--port", "{port}"] } } }
+```
+
+`start` is an argument array run without a shell. `ready` is a loopback URL
+polled until it answers with a status below 500. `{port}` is replaced by a free
+port the runner picks; without it the runner needs the fixed port to be free
+and refuses with `port-in-use` otherwise. An `e2e` command must target the
+program the runner started (use `{port}`), not start its own server. With no
+declaration but a `package.json` `scripts.dev` or `scripts.start`, `verify`
+offers it as a candidate and asks you; it never runs a guessed command.
+
+The runner (`local_run.py`) gives itself 540 seconds in total, so it stays
+under a 600000 ms Bash timeout, keeps at most 1 MiB per evidence file (first
+and last 512 KiB), stops every process it started, and exits 6 and prints the
+pids if any is left. Evidence lands under
+`.claude/track/<feature>/evidence/` (not in git). It uses only the standard
+library; it drives no browser and deploys nothing.
+
+Limits, stated plainly:
+
+- **Windows** is the platform where the cleanup was observed: the runner puts
+  itself in a kill-on-close job, so the whole process tree goes even when the
+  runner itself is killed.
+- **Linux and macOS** run the same way, but an uncatchable kill (`SIGKILL`) of
+  the runner itself leaves the process tree behind there; ordinary interrupts
+  (`SIGTERM`, `SIGINT`, `SIGHUP`) are caught and clean up. The Claude Code
+  Bash-tool behavior (below) was not observed on Linux at all.
+- On Windows with Claude Code 2.1.291, a Bash command that passed its timeout
+  was moved to the background, not killed. The runner's own 540-second cap is
+  what ends it; if a call is backgrounded, stop that task. Lowering
+  `BASH_MAX_TIMEOUT_MS` makes the runner give itself less time when it can see
+  the variable, and may get it cut off when it cannot.
 
 ### Ticket mirroring — opt-in, per project
 

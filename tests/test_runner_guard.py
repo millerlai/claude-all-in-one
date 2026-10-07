@@ -239,9 +239,23 @@ def test_runner_gets_no_git_shapes(empty):
     ("python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", True),
     ("python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py --check x", True),
     ("python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py x; rm y", False),
+    # AC8 (c): the two scripts the verifier gains, and nothing next to them.
+    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir t", True),
+    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify", True),
+    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan; rm y", False),
+    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --stage verify > out.txt", False),
+    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/record_start_command.py --ready http://127.0.0.1:1/ -- x", False),
 ])
 def test_verifier_extra_allowances(empty, command, expected):
     assert runner_guard.allowed(command, empty, VERIFIER) is expected
+
+
+@pytest.mark.parametrize("command", [
+    "python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir t",
+    "python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify",
+])
+def test_test_runner_cannot_run_the_verifier_scripts(empty, command):
+    assert runner_guard.allowed(command, empty, RUNNER) is False
 
 
 def test_verifier_still_gets_the_resolver_and_resolved_commands(cargo):

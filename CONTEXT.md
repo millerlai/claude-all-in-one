@@ -53,7 +53,7 @@ or specs, and only concepts specific to this project.
 **原文（raw text）**: Agent Viewer 列上平台或使用者寫的文字（`waitingFor`、提問、摘要、工具輸入、路徑），頁面照原樣顯示，不翻譯也不查表。
 **解析器（resolver）**: 只讀的程式，輸入專案目錄，輸出這個專案的測試指令，或「多個／未知／宣告格式錯」。
 **宣告（declaration）**: `.claude/cai.json` 裡 `test.commands` 這個非空字串清單。
-**候選（candidate）**: 沒有宣告時，解析器從根目錄某個檔案推出的一條指令。
+**候選（candidate）**: 沒有宣告時，解析器從根目錄某個檔案推出的一條指令；啟動候選即使只有一個也不採用（`decisions.md` Ruled out 第 3 列）。
 **入口（entry）**: 把測試包成一個名字的根目錄檔案：make 的檔案（GNUmakefile、makefile、Makefile，取第一個存在的）、justfile 或 .justfile（不分大小寫，同時有好幾個就不讀）、Task 的檔案（Taskfile.yml、taskfile.yml、Taskfile.yaml、taskfile.yaml、Taskfile.dist.yml、taskfile.dist.yml、Taskfile.dist.yaml、taskfile.dist.yaml，取第一個存在的）、package.json、tox.ini、noxfile.py。
 **彙總入口（aggregate entry）**: 入口推出、無法再帶路徑縮小的指令，如 `make test`。
 **縮小方式（narrow）**: 一條指令能不能帶範圍：`paths`、`packages`、`none`。
@@ -83,3 +83,19 @@ or specs, and only concepts specific to this project.
 **暫存觀測（spool）**: 綁定前先記下的子代理掛鉤時刻與工具呼叫識別，每個子代理一個檔，放在外掛資料目錄；不含工具輸入、輸出或提示文字。
 **綁定檔（binding file）**: 每個 `agentId` 一個檔，記下它綁到哪個執行、屬於哪個父子代理，或明確未綁定；與暫存觀測同在外掛資料目錄。
 **模型段（model segment）**: 一個子代理從開始或一批工具全部結束，到它下一次呼叫工具或結束為止的區間；期間只有模型在產生回應（含平台對同一請求的自動重試）。
+**層級（level）**: 一條 AC 由什麼證明：`test`、`local-run`、`deployed`、`manual` 四值之一。
+**層級表（Verification levels table）**: intake 末尾標題為 `## Verification levels`、三欄 `AC`／`level`／`check` 的 Markdown 表，每條 AC 一列。
+**檢查格（check cell）**: 層級表 `check` 欄的內容：`local-run` 寫一個 HTTP 檢查或 `e2e <名稱>`，`deployed`／`manual` 寫給人的步驟，`test` 可留空或寫註記。
+**`legacy`**: intake 沒有層級表時 `levels` 回報的狀態；不算錯，verify 照現狀運作。
+**驗證計畫（verify plan）**: `verify_plan.py plan` 印出的表：每條 AC 一列，寫出去向或預先標 Not covered 的原因。
+**去向（route）**: 驗證計畫裡一條 AC 的分派：`test`、`local-run`、`merge`、`not-covered`。
+**啟動宣告（start declaration）**: 使用者專案 `.claude/cai.json` 裡 `run` 物件：啟動指令、就緒網址、具名 e2e 指令。
+**`{port}` 佔位符**: 啟動宣告裡可寫的字面字串；執行器挑一個空閒埠，把每處 `{port}` 換成那個數字。
+**執行器（`local_run.py`）**: 依計畫啟動宣告的程式、等就緒、跑每條 `local-run` 檢查、存證據檔、收掉程序樹、寫執行紀錄的腳本。
+**證據檔（evidence file）**: 一條 `local-run` 檢查的完整輸出，存在 track 目錄；超過 1 MiB 時保留頭尾各 512 KiB。
+**執行紀錄（run record）**: 執行器每次執行寫的 `run.json`：每條檢查的結果、原因、證據檔路徑與 sha256、收樹結果。
+**彙整檔（synthesis）**: verifier 用 Write 寫的 JSON，只含判斷：每條 AC 對到哪些測試、掛哪些發現，以及測試指令的計數。
+**證據清單（evidence manifest）**: `verify_plan.py check` 組出的 JSON，每條 AC 一列，含層級、結果、原因、證據與指紋；ledger 的 verify 列掛它。
+**結果（outcome）**: 證據清單裡一條 AC 的最終狀態：`verified-by-test`、`verified-at-runtime`、`confirm-before-merge`、`not-covered`。
+**原因代碼（reason code）**: `not-covered` 與執行器 `NOT-RUN` 附的短字串，如 `no-start-declaration`。
+**紅燈基準（red baseline）**: build 每個單元改程式前，執行器對該單元 `local-run` AC 跑出的輸出。

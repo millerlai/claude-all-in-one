@@ -253,6 +253,50 @@ def test_docs_not_in_git_lists_untracked_or_ignored_artifacts(tmp_path):
     assert "kept-decisions.md" not in label
 
 
+def test_docs_not_in_git_skips_artifacts_inside_the_track_dir(tmp_path):
+    """verify's evidence manifest lives under the track directory and is the
+    verify row's `--artifact`; it is track state, not a document to `git add`."""
+    repo = make_repo(tmp_path)
+    track = make_track(repo / ".claude" / "track", "feat")
+    manifest = os.path.join(track, "evidence", "verify", "20261006T000000Z", "manifest.json")
+    os.makedirs(os.path.dirname(manifest))
+    with open(manifest, "w", encoding="utf-8") as fh:
+        fh.write("{}\n")
+    stray_doc = repo / "stray-decisions.md"
+    stray_doc.write_text("# u\n", encoding="utf-8")
+    ledger.append(track, "verify", "passed", artifact=manifest)
+    ledger.append(track, "design", "passed", artifact=str(stray_doc))
+
+    ok, label = preflight.ship(track, str(repo))[5]
+    assert ok is True
+    assert "stray-decisions.md" in label
+    assert "manifest.json" not in label
+
+
+def test_docs_not_in_git_still_asks_git_when_the_paths_are_on_different_drives(
+        tmp_path, monkeypatch):
+    """os.path.commonpath raises ValueError for two Windows drives. That means
+    the artifact cannot be inside the track directory, so it falls through to
+    the git lookup rather than escaping the probe (always-PASS, never a crash).
+    Raised by hand so the branch runs on every platform."""
+    repo = make_repo(tmp_path)
+    track = make_track(tmp_path)
+    stray_doc = repo / "stray-decisions.md"
+    stray_doc.write_text("# u\n", encoding="utf-8")
+    ledger.append(track, "design", "passed", artifact=str(stray_doc))
+
+    def different_drives(paths):
+        raise ValueError("Paths don't have the same drive")
+
+    with monkeypatch.context() as patched:
+        patched.setattr(os.path, "commonpath", different_drives)
+        ok, label = preflight.docs_not_in_git(track, str(repo))
+
+    assert ok is True
+    assert label.startswith("docs_not_in_git (")
+    assert "stray-decisions.md" in label
+
+
 def test_new_probes_pass_not_checked_outside_a_git_repo(tmp_path):
     track = make_track(tmp_path)
     non_repo = tmp_path / "not-a-repo"

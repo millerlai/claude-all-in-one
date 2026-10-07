@@ -97,7 +97,12 @@ instead.
    a stage handed back one line re-derives every citation it had already
    established, on whatever tier that stage runs on. Once the round was saved
    the report and every question and answer are in `pending.md`, so a
-   resumed session quotes them from there.
+   resumed session quotes them from there. Before that dispatch, when the
+   option the person chose carries a command written for the main session to
+   run (`verify` hands one up to record a start command in `.claude/cai.json`
+   with `record_start_command.py`), run exactly that command, the person's
+   answers filled in: the stage cannot run it, and without it the same
+   question is handed up again.
 3. **Three rounds at most.** A fourth means the stage cannot be specified by
    asking: record `failed`, `--note` naming what stayed open.
 

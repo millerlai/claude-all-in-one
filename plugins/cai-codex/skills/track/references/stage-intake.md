@@ -118,6 +118,21 @@ The next stage — `discover` when the solution space is still unclear, or
 `design` when it is not — only starts once the user has said yes to this
 one. Typing the request is not agreement to whatever was inferred from it.
 
+End the intake with a `## Verification levels` section: the heading verbatim,
+then a table with the header `| AC | level | check |` verbatim and exactly one
+row per acceptance criterion. `level` is one of `test`, `local-run`,
+`deployed`, `manual`. `check` for `local-run` is either an HTTP check,
+`<METHOD> <path> <status>` with an optional quoted string the response body
+must contain, or `e2e <name>`; for `deployed` and `manual` it is the steps a
+person follows. Write a literal `|` inside a cell as `\|`.
+
+| AC | level | check |
+|---|---|---|
+| AC1 | test | tests/test_levels.py |
+| AC2 | local-run | GET /health 200 "ok" |
+| AC3 | deployed | open the preview URL and confirm the banner shows |
+| AC4 | manual | read the README section and confirm it names all four levels |
+
 That yes is a menu, not a word to type: the approaches from Step 4 become the
 options, `references/approval-gates.md` holds the shape, and the person who
 puts it is the main session (this stage's runner has no interactive tool).
