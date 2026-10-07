@@ -2722,7 +2722,12 @@ def _track_skill():
     # 144 -> 141 on 2026-10-05 (#309): the five-track cap is gone, and with it the
     # three lines that told the session to count tracks and refuse a sixth. Moved
     # together with the pinned body-line count (142 -> 139), keeping the gap.
-    TRACK_SKILL_MAX = 141
+    #
+    # 141 -> 142 on 2026-10-07 (#316): one line says `ship` starts unasked once
+    # `verify` passes and points at approval-gates.md's Gate 2, where the rule
+    # itself went. Moved together with the pinned body-line count (139 -> 140),
+    # keeping the gap.
+    TRACK_SKILL_MAX = 142
     TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
     if os.path.isfile(TRACK_SKILL):
         track_text = read_text(TRACK_SKILL)

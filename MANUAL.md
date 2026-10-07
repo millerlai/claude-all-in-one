@@ -199,8 +199,12 @@ The six stages, in order:
    secrets in what is kept, guard bypass. Then fixes Blockers and Majors only,
    with a failing test first.
 6. **`ship`** — squashes the branch into one conventional commit and writes a
-   release note. Inside a track it then stops on the pull request instead of
-   merging: it waits for the head commit's checks (a push that shows no check
+   release note. Inside a track it starts on its own once `verify` passes, so
+   you never type `ship`: what you see first is its menu, the squash message
+   and PR description already drafted, and nothing irreversible runs until you
+   pick "Run them" — answer "not yet" in its free text to leave the track
+   waiting at `ship` (#316). After "Run them" it stops on the pull request
+   instead of merging: it waits for the head commit's checks (a push that shows no check
    at all gets one more look 30 seconds later), lists the unresolved review
    threads and check annotations with a severity and a reason each, and lets
    you have the Blockers and Majors fixed (at most 2 rounds, each through
