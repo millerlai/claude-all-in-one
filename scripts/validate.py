@@ -725,6 +725,30 @@ def _templates():
             print("     also in rules/:", line[:90])
 
 
+@section("glossary")
+def _glossary():
+    GLOSSARY = ".claude/cai-context.md"
+
+    # An earlier cai wrote its glossary at the top level; a copy of it coming
+    # back means a stale build wrote the old path (#326).
+    check("no top-level CONTEXT.md (the glossary is .claude/cai-context.md)",
+          not os.path.exists("CONTEXT.md"))
+    check(f"{GLOSSARY} exists", os.path.isfile(GLOSSARY))
+    if not os.path.isfile(GLOSSARY):
+        return
+
+    checked = subprocess.run(
+        [sys.executable, f"{PLUGIN}/scripts/glossary_check.py", GLOSSARY],
+        capture_output=True, text=True, encoding="utf-8")
+    # Same reason as the provenance section: a crash prints no FAIL line.
+    check("glossary_check.py subprocess did not crash", checked.returncode in (0, 2))
+    flagged = [line for line in checked.stdout.splitlines() if line.startswith("FAIL ")]
+    check(f"{GLOSSARY} passes glossary_check.py ({len(flagged)} flagged)",
+          checked.returncode == 0 and not flagged)
+    for line in flagged:
+        check(f"glossary: {line[5:]}", False)
+
+
 @section("refactor")
 def _refactor():
     REFACTORING = f"{PLUGIN}/skills/refactor"

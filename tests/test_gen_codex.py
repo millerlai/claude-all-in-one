@@ -336,6 +336,14 @@ def test_deny_hits_finds_the_u2_anywhere_tokens():
     ]
 
 
+def test_deny_hits_finds_a_leftover_multiselect_token():
+    # Codex's question tool takes one tick; a menu that still says multiSelect
+    # without an override would ship to Codex unconverted (#326).
+    hits = gen_codex.deny_hits({"a.md": "one multiSelect question\n"})
+
+    assert hits == [("a.md", 1, "multiSelect")]
+
+
 def test_deny_hits_scopes_claude_md_to_rules_and_agents():
     files = {
         "rules/workflow.md": "see that project's CLAUDE.md\n",
