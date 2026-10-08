@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.48.0 — 2026-10-08
+
+This release fixes the Agent Viewer to show each track's total measured time and stops it from inferring a finished track onto a brand-new session, adds a glossary entry check that moves cai's glossary file into `.claude/`, and settles the test command before build so a missing or ambiguous one never blocks entry into the stage.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.47.1.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.47.1 to 1.48.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps working as before: the next time you enter `build`, you're asked to confirm or skip the test command before the stage dispatches, instead of only being told about it afterward. (#325)
+- If your project has a top-level `CONTEXT.md` from an earlier cai, it's left alone but no longer read; move any entries you want into the new `.claude/cai-context.md` yourself. (#328)
+
+### Viewer
+
+- `/cai:viewer` shows each track's six-stage measured total time and name in the left identity column, in `hh:mm:ss`, without wrapping after 24 hours; a partial measurement shows a lower bound. (#331)
+- A brand-new session no longer shows a finished track left over from an earlier session in the same project; it shows `AGENT` until that session actually runs one. (#330)
+
+### Build
+
+- Entering `build` no longer blocks on the test command: if one is found you confirm it, if several are found you're offered candidates or can skip, and if none is found you can type one, check again, or skip. (#325)
+- Skipping the test command carries through build and verify without asking again: build marks affected units `done (unverified)` and verify runs with no test command, doing everything else as normal. (#325)
+
+### Glossary
+
+- cai's glossary file moves from `CONTEXT.md` at the top of your project to `.claude/cai-context.md`. (#328)
+- Writing a glossary entry now checks it first and rejects a decision id, a track-document path, a number with a unit, an overlong definition, or a reused term name, showing the reason; menus for picking terms offer at most four at a time. (#328)
+
 ## v1.47.1 — 2026-10-08
 
 This release fixes a bug where a stage run more than once (for example build → verify → build) showed only its last run's time in `/cai:viewer`, and makes timing settles much faster so they're less likely to be cancelled by the hook timeout.

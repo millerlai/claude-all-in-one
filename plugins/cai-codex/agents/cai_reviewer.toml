@@ -1,4 +1,4 @@
-# cai-codex-version: 1.47.1
+# cai-codex-version: 1.48.0
 name = "cai_reviewer"
 description = "One named lens over one diff, as the `verify` stage dispatches several at a time — read-only, findings only."
 model = "gpt-6.1-sol"
