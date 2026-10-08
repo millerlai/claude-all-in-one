@@ -53,7 +53,11 @@ explore with `find` or `ls`.
   `<cai-root>/skills/track/references/test-command.md` says: run
   `<cai> resolve_test_command`, run every
   command it returns, and report each one; any failure fails all. Never pick
-  a command yourself when it gives you none.
+  a command yourself when it gives you none. A brief carrying a
+  `Test command: skipped` line is the exception: a person declined the test
+  command before build, so run neither the resolver nor any test command,
+  do every other step, and write `not run: test command skipped` where a
+  command's result would go.
 - Scope each command that can be narrowed and bound it: the directories,
   modules, or node ids the diff lands in, plus the runner's own timeout
   option. An unbounded whole-suite run is the one that hangs, and a run

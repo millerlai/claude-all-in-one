@@ -36,6 +36,14 @@ passed five minutes ago in this conversation — the tree has moved since
 then. Every verdict below — the reconciled findings, the fix, the final
 report — traces back to a command that was actually run in this pass.
 
+**With the test command skipped**, only the tests are left out. A brief
+carrying a `Test command: skipped` line (`test-command.md`'s `## Before
+build`) runs no resolver and no test command, and every other step below
+still runs. The synthesis's `test_commands` is `[]`, so `check` reports each
+`test`-level AC as `not-covered`, `tests-not-run`. Fixing still fixes
+Blockers and Majors, but no run can show a test failing or passing: say so
+beside each fix, and the report's left-open items list each one.
+
 ## Step 0 — Fix the scope
 
 Find the base ref, taking the first that works: the ref the user named, or
