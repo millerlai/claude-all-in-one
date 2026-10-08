@@ -145,6 +145,37 @@ def test_current_names_a_missing_track_returns_none(tmp_path):
     assert result is None
 
 
+def _finished_statuses():
+    statuses = {sid: ("done", "—", "") for sid in STAGE_IDS}
+    statuses["discover"] = ("skipped", "—", "small change")
+    return statuses
+
+
+def test_finished_track_is_not_inferred_for_a_new_session(tmp_path):
+    # #329: every stage done or skipped but `/cai:track done` never run, so
+    # `current` still names it -- a session that started afterwards is not on it.
+    project_root, track_root = _setup_project(tmp_path)
+    _write_track(track_root, "feat-a", _finished_statuses(),
+                 ledger_records=[_ledger_record("ship", "sess-old")])
+    (track_root / "current").write_text("feat-a\n", encoding="utf-8")
+
+    assert viewer.find_track(str(project_root), "sess-new") is None
+    assert viewer.find_track(str(project_root), None) is None
+
+
+def test_finished_track_is_still_shown_to_the_session_that_ran_it(tmp_path):
+    project_root, track_root = _setup_project(tmp_path)
+    _write_track(track_root, "feat-a", _finished_statuses(),
+                 ledger_records=[_ledger_record("ship", "sess-old")])
+    (track_root / "current").write_text("feat-a\n", encoding="utf-8")
+
+    result = viewer.find_track(str(project_root), "sess-old")
+
+    assert result["name"] == "feat-a"
+    assert result["certainty"] == "confirmed"
+    assert result["current"] is None
+
+
 # ============================================================ gateWaiting ===
 
 def test_gate_waiting_ship_when_current_is_ship(tmp_path):
@@ -176,10 +207,11 @@ def test_gate_waiting_none_when_neither_condition_holds(tmp_path):
 def test_gate_waiting_none_when_every_stage_done(tmp_path):
     project_root, track_root = _setup_project(tmp_path)
     statuses = {sid: ("done", "—", "") for sid in STAGE_IDS}
-    _write_track(track_root, "feat-a", statuses)
-    (track_root / "current").write_text("feat-a\n", encoding="utf-8")
+    # Matched by session id: a finished track is never inferred (#329).
+    _write_track(track_root, "feat-a", statuses,
+                 ledger_records=[_ledger_record("ship", "sess-123")])
 
-    result = viewer.find_track(str(project_root), None)
+    result = viewer.find_track(str(project_root), "sess-123")
 
     assert result["current"] is None
     assert result["gateWaiting"] is None
