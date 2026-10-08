@@ -617,6 +617,7 @@ const STRINGS_EN = {
   "timing.noData": "No data",
   "timing.incomplete": "Incomplete data",
   "timing.lowerBound": "At least {time} · Incomplete data",
+  "timing.trackTotal": "Total Time: {time} of the track - {name}",
   "timing.source-unverified": "Source unverified",
   "timing.binding-ambiguous": "Ambiguous ownership",
   "timing.binding-missing": "Missing ownership",
@@ -703,6 +704,7 @@ const STRINGS_ZH_HANT = {
   "timing.noData": "無資料",
   "timing.incomplete": "資料不完整",
   "timing.lowerBound": "至少 {time} · 資料不完整",
+  "timing.trackTotal": "總時間：{time}，追蹤：{name}",
   "timing.source-unverified": "來源未驗證",
   "timing.binding-ambiguous": "歸屬不明確",
   "timing.binding-missing": "缺少歸屬",
@@ -863,12 +865,48 @@ function stageTimingLabel(stage){
   const time = Math.floor(seconds / 60) + ':' + pad(seconds % 60);
   return status === 'incomplete' ? tr('timing.lowerBound', {time: time}) : time;
 }
+function trackClockFmt(ms){
+  const seconds = Math.floor(ms / 1000);
+  return pad(Math.floor(seconds / 3600)) + ':' + pad(Math.floor(seconds % 3600 / 60)) + ':' + pad(seconds % 60);
+}
+function trackTimingLabel(track){
+  let total = 0, measured = false, complete = true, incomplete = false, overflow = false;
+  for (const id of STAGES) {
+    const matches = track.stages.filter(stage => stage.id === id);
+    if (!matches.length) { complete = false; continue; }
+    // Ambiguous repeated stages contribute nothing, regardless of their order.
+    if (matches.length > 1) { complete = false; incomplete = true; continue; }
+    const stage = matches[0], status = stage.timing_status, ms = stage.elapsed_ms;
+    if ((status == null || status === 'no-data') && ms == null) {
+      complete = false;
+      continue;
+    }
+    if ((status !== 'complete' && status !== 'incomplete') || !Number.isSafeInteger(ms) || ms < 0) {
+      complete = false;
+      incomplete = true;
+      continue;
+    }
+    measured = true;
+    if (status === 'incomplete') { complete = false; incomplete = true; }
+    // Never format a rounded, unsafe sum as an exact duration or lower bound.
+    if (ms > Number.MAX_SAFE_INTEGER - total) overflow = true;
+    else total += ms;
+  }
+  let time;
+  if (overflow) time = tr('timing.incomplete');
+  else if (measured) {
+    time = trackClockFmt(total);
+    if (!complete) time = tr('timing.lowerBound', {time: time});
+  } else time = tr(incomplete ? 'timing.incomplete' : 'timing.noData');
+  // Replace the name last so its literal placeholders are never substituted.
+  return tr('timing.trackTotal', {time: time, name: track.name});
+}
 function stageTimingReasons(stage){
   const reasons = Array.isArray(stage.timing_reasons) ? stage.timing_reasons : [];
   return reasons.map(reason => {
     const key = 'timing.' + reason;
     return Object.prototype.hasOwnProperty.call(STRINGS[langPref], key)
-      && !['timing.noData', 'timing.incomplete', 'timing.lowerBound'].includes(key)
+      && !['timing.noData', 'timing.incomplete', 'timing.lowerBound', 'timing.trackTotal'].includes(key)
       ? tr(key) : tr('note.reason-unknown');
   }).join(tr('list.separator'));
 }
@@ -954,6 +992,7 @@ function rowHTML(row){
   const certaintyTag = row.certainty === 'confirmed' ? tr('certainty.confirmed') : tr('certainty.inferred');
   const sinceNote = row.aliveCertainty === 'inferred' ? '<div class="meta">' + esc(tr('note.alive-inferred')) + '</div>' : '';
   const branchHTML = row.branch ? `<div class="meta">⎇ ${esc(row.branch)}</div>` : '';
+  const trackTimingHTML = row.track ? '<div class="meta">' + esc(trackTimingLabel(row.track)) + '</div>' : '';
   const ackBtn = isAlert ? '<button class="ack" data-act="ack">' + esc(tr('ack.button')) + '</button>' : '';
   // "History" expands row.recent's up-to-8 entries (D2 rule 2) -- unlike the
   // mockup's timeline interpolation (a sibling placed after the closing
@@ -977,6 +1016,7 @@ function rowHTML(row){
       ${branchHTML}
       <div class="meta">${esc(row.cwd || '')}</div>
       <div class="meta">SID ${esc(row.sessionId || '')} · ${esc(row.model || '')}</div>
+      ${trackTimingHTML}
       ${sinceNote}
     </div>
     <div class="activity">${activityHTML(row)}</div>

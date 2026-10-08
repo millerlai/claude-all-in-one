@@ -96,6 +96,8 @@ SAFE_INTERPOLATIONS = frozenset({
     # that was wrong; it must go through esc() like every other row field.
     "m.cls", "alertCls", "ackedCls", "mode", "row.platform",
     "platLabel", "kindHTML", "branchHTML", "sinceNote", "ackBtn",
+    # trackTimingHTML wraps the fully esc()-escaped total label in fixed markup.
+    "trackTimingHTML",
     "activityHTML(row)",
     # summary(): hotCls is '' or 'hot', doneCls/workCls '' or 'lit';
     # pad(...) numeric.
@@ -120,6 +122,141 @@ def _all_interpolations(js_text):
     # string concatenation first, then interpolated as a single bare name),
     # so a non-nested-brace regex is sufficient here.
     return re.findall(r"\$\{([^{}]*)\}", js_text)
+
+
+def _track_page_eval(expression, language="en"):
+    # Execute the shipped helpers and card renderer, without browser side effects.
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is required to execute the embedded display functions")
+    script = _script_body(viewer.PAGE_HTML)
+    snippets = []
+    for name in ("STRINGS_EN", "STRINGS_ZH_HANT", "META"):
+        snippets.append(re.search(r"const " + name + r" = \{.*?\n\};", script, re.S).group())
+    for name in ("STRINGS", "STAGES", "GATED", "esc", "pad"):
+        snippets.append(re.search(r"const " + name + r" = .*", script).group())
+    snippets += ["let langPref = " + json.dumps(language) + ";",
+                 "const acks = new Set(); const expanded = new Set();"]
+    for name in ("tr", "trackClockFmt", "trackTimingLabel", "stateLabel", "clock",
+                 "stageTimingLabel", "stageTimingReasons", "stepperHTML", "nowHTML",
+                 "activityHTML", "rowHTML"):
+        match = re.search(r"function " + name + r"\([^\n]*\)\{.*?\n\}", script, re.S)
+        assert match, name
+        snippets.append(match.group())
+    snippets.append("console.log(JSON.stringify(" + expression + "));")
+    result = subprocess.run([node, "-e", "\n".join(snippets)], capture_output=True,
+                            encoding="utf-8", check=True)
+    return json.loads(result.stdout)
+
+
+def _complete_track(values, name="example"):
+    return {"name": name, "stages": [
+        {"id": stage, "timing_status": "complete", "elapsed_ms": ms}
+        for stage, ms in zip(("intake", "discover", "design", "build", "verify", "ship"), values)
+    ]}
+
+
+def test_track_total_sums_canonical_stages_before_rounding():
+    track = _complete_track([600000, 660000, 720000, 780000, 840000, 1620000])
+    track["stages"].reverse()
+    track["stages"].append({"id": "extra", "timing_status": "complete", "elapsed_ms": 9000000})
+    before = json.dumps(track)
+    assert _track_page_eval("trackTimingLabel(" + before + ")") == \
+        "Total Time: 01:27:00 of the track - example"
+    assert _track_page_eval("(() => {const t = " + before +
+                            "; trackTimingLabel(t); return t;})()") == track
+    tracks = [_complete_track([0] * 6), _complete_track([600, 0, 0, 0, 0, 0]),
+              _complete_track([600, 600, 0, 0, 0, 0])]
+    labels = _track_page_eval(json.dumps(tracks) + ".map(trackTimingLabel)")
+    assert labels == ["Total Time: " + time + " of the track - example"
+                      for time in ("00:00:00", "00:00:00", "00:00:01")]
+
+
+def test_track_clock_boundaries_and_safe_integer_limit():
+    values = [0, 59000, 3600000, 5220000, 90000000, 360000000, 9007199254740991]
+    assert _track_page_eval(json.dumps(values) + ".map(trackClockFmt)") == [
+        "00:00:00", "00:00:59", "01:00:00", "01:27:00", "25:00:00", "100:00:00",
+        "2501999792:59:00"]
+    track = _complete_track([9007199254740991, 0, 0, 0, 0, 0])
+    assert "2501999792:59:00" in _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")")
+    track["stages"][1]["elapsed_ms"] = 1
+    assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == \
+        "Total Time: Incomplete data of the track - example"
+
+
+@pytest.mark.parametrize("language,outer,lower,no_data,incomplete", [
+    ("en", "Total Time: {} of the track - example", "At least {} · Incomplete data", "No data", "Incomplete data"),
+    ("zh-Hant", "總時間：{}，追蹤：example", "至少 {} · 資料不完整", "無資料", "資料不完整"),
+])
+def test_track_total_reliability_and_languages(language, outer, lower, no_data, incomplete):
+    stages = _complete_track([0] * 6)["stages"]
+    cases = [[], [{"id": "intake"}],
+             [{"id": "intake", "timing_status": "no-data", "elapsed_ms": None}],
+             [{"id": "intake", "timing_status": "incomplete"}], stages,
+             stages[:1], [{"id": "intake", "timing_status": "incomplete", "elapsed_ms": 70000}],
+             [{"id": "intake", "timing_status": "complete", "elapsed_ms": 70000},
+              {"id": "build", "timing_status": "incomplete"}]]
+    tracks = [{"name": "example", "stages": case} for case in cases]
+    assert _track_page_eval(json.dumps(tracks) + ".map(trackTimingLabel)", language) == [
+        outer.format(value) for value in (no_data, no_data, no_data, incomplete,
+                                         "00:00:00", lower.format("00:00:00"),
+                                         lower.format("00:01:10"), lower.format("00:01:10"))]
+
+
+@pytest.mark.parametrize("bad_stage", [
+    {"elapsed_ms": -1}, {"elapsed_ms": 0.5}, {"elapsed_ms": "1000"},
+    {"elapsed_ms": True}, {"elapsed_ms": None}, {"elapsed_ms": 9007199254740992},
+    {"timing_status": "unknown", "elapsed_ms": 1000},
+    {"timing_status": "no-data", "elapsed_ms": 0}, {"timing_status": "unknown"},
+    {"timing_status": None, "elapsed_ms": 1000},
+])
+def test_track_total_rejects_invalid_measurements(bad_stage):
+    invalid = {"id": "intake", "timing_status": "complete", **bad_stage}
+    track = {"name": "example", "stages": [invalid]}
+    assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == \
+        "Total Time: Incomplete data of the track - example"
+    track["stages"].append({"id": "build", "timing_status": "complete", "elapsed_ms": 2000})
+    assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == \
+        "Total Time: At least 00:00:02 · Incomplete data of the track - example"
+
+
+def test_track_total_nonfinite_values_and_duplicate_stage_order():
+    assert _track_page_eval("[NaN, Infinity, -Infinity].map(ms => trackTimingLabel("
+                            "{name:'example',stages:[{id:'intake',timing_status:'complete',elapsed_ms:ms}]}))") == [
+        "Total Time: Incomplete data of the track - example"] * 3
+    track = _complete_track([1000, 2000, 0, 0, 0, 0])
+    track["stages"].append({"id": "intake", "timing_status": "complete", "elapsed_ms": 5000})
+    expected = "Total Time: At least 00:00:02 · Incomplete data of the track - example"
+    assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == expected
+    track["stages"].reverse()
+    assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == expected
+    track["stages"] = [stage for stage in track["stages"] if stage["id"] == "intake"]
+    assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == \
+        "Total Time: Incomplete data of the track - example"
+    assert _track_page_eval("stageTimingReasons({timing_reasons:['trackTotal']})") == "Reason unknown"
+
+
+@pytest.mark.parametrize("language,prefix", [("en", "Total Time:"), ("zh-Hant", "總時間：")])
+def test_track_total_in_actual_card_identity_and_safe_name(language, prefix):
+    name = '<img src=x onerror="bad()"> & \' {time} {name}'
+    track = _complete_track([600000, 660000, 720000, 780000, 840000, 1620000], name)
+    rows = [{"key": key, "state": "unknown", "project": "p", "platform": "codex",
+             "since": 0, "sessionId": key, "aliveCertainty": "inferred", "track": t}
+            for key, t in (("first", track), ("second", track), ("none", None))]
+    cards = _track_page_eval(json.dumps(rows) + ".map(rowHTML)", language)
+    labels = []
+    for card in cards[:2]:
+        ident = card.split('<div class="ident">', 1)[1].split('<div class="activity">', 1)[0]
+        label = re.search(r'<div class="meta">(' + prefix + r'.*?)</div>', ident).group(1)
+        labels.append(label)
+        assert "01:27:00" in label
+        assert '&lt;img src=x onerror=&quot;bad()&quot;&gt; &amp; &#39; {time} {name}' in label
+        assert ident.index("SID ") < ident.index(prefix) < ident.index("Alive: inferred" if language == "en" else "存活：推斷")
+        assert '<img' not in card
+        assert 'class="stage-timing"' in card
+    assert labels[0] == labels[1]
+    assert prefix not in cards[2]
+    assert "trackTimingHTML" not in cards[2]
 
 
 def test_every_interpolation_is_escaped_or_allowlisted():
@@ -273,7 +410,7 @@ def test_string_tables_have_the_same_keys():
     en = json.loads(en_match.group(1))
     zh = json.loads(zh_match.group(1))
     assert set(en.keys()) == set(zh.keys())
-    assert len(en) == 84
+    assert len(en) == 85
 
 
 def test_no_cjk_outside_the_zh_hant_table():
