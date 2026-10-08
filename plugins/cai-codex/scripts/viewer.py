@@ -2499,6 +2499,13 @@ def find_track(cwd, session_id):
     track_dir = os.path.join(track_root, name)
     stages = _build_stages(track_dir)
     current = _current_stage(stages)
+    if certainty == "inferred" and current is None:
+        # Every stage done or skipped but `$track done` not yet run, so
+        # `current` still names it: nothing is left for a session to be doing
+        # on it, and guessing it would pin a finished track on every new
+        # session in the project (#329). The session that ran it still
+        # matches by session id above.
+        return None
     gate_waiting = _gate_waiting(stages, current)
 
     return {"name": name, "certainty": certainty, "stages": stages,
