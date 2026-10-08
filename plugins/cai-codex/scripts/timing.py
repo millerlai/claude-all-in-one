@@ -34,7 +34,7 @@ def _string(value):
     return isinstance(value, str) and bool(value.strip())
 
 
-def _validate(event):
+def _validate(event, stages=None):
     if not isinstance(event, dict):
         raise ValueError("journal-malformed")
     if type(event.get("format")) is not int or event["format"] != 1:
@@ -46,7 +46,9 @@ def _validate(event):
         raise ValueError("journal-malformed")
     if not all(_string(event[key]) for key in COMMON - {"format"}):
         raise ValueError("journal-malformed")
-    if event["stage"] not in ledger.stage_ids() or event["platform"] not in ("claude", "codex"):
+    if stages is None:
+        stages = ledger.stage_ids()
+    if event["stage"] not in stages or event["platform"] not in ("claude", "codex"):
         raise ValueError("journal-malformed")
     for key in FIELDS[kind] - {"at_ms", "parent_actor_id", "actor_ids", "coverage_scope"}:
         if not _string(event[key]):
@@ -73,25 +75,39 @@ def _same_run(left, right):
     return all(left[key] == right[key] for key in ("run_id", "stage", "platform"))
 
 
-def _bindings(events, event):
-    return [row for row in events if row["kind"] == "actor_bind" and _same_run(row, event)
-            and row["actor_id"] == event["actor_id"] and row["source_id"] == event["source_id"]]
+def _binding_key(event, actor_id):
+    return (event["run_id"], event["stage"], event["platform"], actor_id, event["source_id"])
+
+
+def _binding_index(events):
+    """How many actor_bind rows each (run, actor, source) has. Built once per
+    parse: scanning every event for each work event made a parse O(events^2),
+    and a long track's settle neared the hook timeout (#322)."""
+    counts = {}
+    for row in events:
+        if row["kind"] == "actor_bind":
+            key = _binding_key(row, row["actor_id"])
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _check_indexed(index, event):
+    if event["kind"] in ("work_begin", "work_end"):
+        actor_ids = [event["actor_id"]]
+    elif event["kind"] == "source_coverage":
+        actor_ids = event["actor_ids"]
+    else:
+        return
+    for actor_id in actor_ids:
+        count = index.get(_binding_key(event, actor_id), 0)
+        if not count:
+            raise ValueError("binding-missing")
+        if count != 1:
+            raise ValueError("binding-ambiguous")
 
 
 def _check_binding(events, event):
-    if event["kind"] in ("work_begin", "work_end"):
-        candidates = _bindings(events, event)
-        if not candidates:
-            raise ValueError("binding-missing")
-        if len(candidates) != 1:
-            raise ValueError("binding-ambiguous")
-    if event["kind"] == "source_coverage":
-        for actor_id in event["actor_ids"]:
-            candidates = _bindings(events, dict(event, actor_id=actor_id))
-            if not candidates:
-                raise ValueError("binding-missing")
-            if len(candidates) != 1:
-                raise ValueError("binding-ambiguous")
+    _check_indexed(_binding_index(events), event)
 
 
 def _read_bytes(path):
@@ -123,6 +139,7 @@ def _events_from_bytes(raw):
     seen = {}
     conflicts = set()
     problems = set()
+    stages = ledger.stage_ids()  # once per parse, not once per event (#322)
     # LF is the writer's only separator; Unicode separators may occur in JSON strings.
     for line in raw.split(b"\n"):
         if not line.strip():
@@ -141,7 +158,7 @@ def _events_from_bytes(raw):
                 problems.add("event-conflict")
             seen[event_id] = event
         try:
-            _validate(event)
+            _validate(event, stages)
         except ValueError as exc:
             problems.add(str(exc))
             continue
@@ -152,10 +169,11 @@ def _events_from_bytes(raw):
         else:
             records[event_id] = event
     events = [row for event_id, row in records.items() if event_id not in conflicts]
+    index = _binding_index(events)
     valid = []
     for event in events:
         try:
-            _check_binding(events, event)
+            _check_indexed(index, event)
         except ValueError as exc:
             problems.add(str(exc))
             continue

@@ -251,6 +251,79 @@ def test_binding_and_run_close_are_one_atomic_transition(tmp_path, monkeypatch):
     assert kinds.index("actor_bind") < kinds.index("run_end")
 
 
+def work_rows(count, actor="actor"):
+    return [event(kind, "%s-%s-%d" % (actor, kind, index), actor_id=actor, source_id="source:v1",
+                  activity_id="%s-%d" % (actor, index), at_ms=index)
+            for index in range(count) for kind in ("work_begin", "work_end")]
+
+
+def write_journal(tmp_path, rows):
+    (tmp_path / "timing.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows),
+                                           encoding="utf-8")
+
+
+def test_one_parse_does_not_rescan_the_journal_per_event(tmp_path, monkeypatch):
+    # #322: each work event's binding was looked up by scanning every event, so
+    # one parse was O(events^2) and a long track's settle neared the hook timeout.
+    monkeypatch.setattr(timing_sources, "source_admitted", lambda *args: True)
+    bind = event("actor_bind", "bind", actor_id="actor", session_id="session",
+                 source_id="source:v1", source_run_id="dispatch-1", parent_actor_id=None)
+    write_journal(tmp_path, [event("run_begin", "begin"), bind] + work_rows(30))
+    scans = []
+    real = timing._check_binding
+    monkeypatch.setattr(timing, "_check_binding", lambda events, row: scans.append(1) or real(events, row))
+    events, problems = timing.read_events(str(tmp_path))
+    assert not problems and len(events) == 62
+    assert scans == []
+
+
+def test_one_parse_reads_the_stage_list_once(tmp_path, monkeypatch):
+    # #322: the stage list was opened and read again for every event.
+    monkeypatch.setattr(timing_sources, "source_admitted", lambda *args: True)
+    bind = event("actor_bind", "bind", actor_id="actor", session_id="session",
+                 source_id="source:v1", source_run_id="dispatch-1", parent_actor_id=None)
+    write_journal(tmp_path, [event("run_begin", "begin"), bind] + work_rows(10))
+    reads = []
+    real = timing.ledger.stage_ids
+    monkeypatch.setattr(timing.ledger, "stage_ids", lambda: reads.append(1) or real())
+    events, problems = timing.read_events(str(tmp_path))
+    assert not problems and len(events) == 22
+    assert len(reads) == 1
+
+
+@pytest.mark.parametrize("binds,coverage_actors,problem", [
+    (["actor"], None, None),
+    ([], None, "binding-missing"),
+    (["actor", "actor"], None, "binding-ambiguous"),
+    (["actor"], ["actor", "stranger"], "binding-missing"),
+    (["actor", "other", "other"], ["actor", "other"], "binding-ambiguous"),
+])
+def test_a_parse_keeps_the_binding_rules(tmp_path, monkeypatch, binds, coverage_actors, problem):
+    # Guard for #322's rewrite of the parse: the same events are kept and the
+    # same problem codes come back as with the per-event scan.
+    monkeypatch.setattr(timing_sources, "source_admitted", lambda *args: True)
+    rows = [event("run_begin", "begin")]
+    rows += [event("actor_bind", "bind-%d" % index, actor_id=actor, session_id="session-%d" % index,
+                   source_id="source:v1", source_run_id="dispatch-%d" % index, parent_actor_id=None)
+             for index, actor in enumerate(binds)]
+    rows += work_rows(2)
+    if coverage_actors:
+        rows.append(event("source_coverage", "coverage", source_id="source:v1", capture_id="capture",
+                          start_token="start", end_token="end", actor_ids=coverage_actors,
+                          coverage_scope=["model"]))
+    write_journal(tmp_path, rows)
+    events, problems = timing.read_events(str(tmp_path))
+    kinds = [row["kind"] for row in events]
+    if problem is None:
+        assert problems == [] and kinds.count("work_begin") == 2
+    else:
+        assert problem in problems
+        if coverage_actors:
+            assert "source_coverage" not in kinds
+        else:
+            assert "work_begin" not in kinds and "work_end" not in kinds
+
+
 def test_eight_processes_append_fifty_records_without_loss(tmp_path):
     path = track(tmp_path)
     script = """import sys
