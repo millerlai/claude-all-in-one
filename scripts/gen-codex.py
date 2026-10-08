@@ -135,6 +135,7 @@ DENY_LIST = [
     'python "$HOME/.codex/cai/launcher.py"',  # U7: the old hard-coded interpreter form the rewrite above must no longer produce
     "askUserQuestionTimeout",  # AC6/#158: Claude's `/config` setting name for question auto-continue; untested on Codex
     "away from your keyboard",  # AC6/#158: Claude's own timeout-result wording; the override states only that a no-answer result is a timeout
+    "multiSelect",            # I7/D7 (#326): Codex's question tool takes one tick, so every multiSelect menu needs an override
 ]
 # U8: viewer.py's own source legitimately names Claude Code's tool/parameter
 # for its row classifier and Codex-thread classifier; exempting the whole

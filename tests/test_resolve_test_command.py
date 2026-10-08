@@ -463,7 +463,7 @@ def test_only_the_first_read_limit_bytes_of_a_file_are_judged(tmp_path):
     assert result["status"] == "unknown"
 
 
-@pytest.mark.parametrize("doc", ["README.md", "README.zh-TW.md", "CONTEXT.md"])
+@pytest.mark.parametrize("doc", ["README.md", "README.zh-TW.md"])
 def test_docs_name_every_entry_file_the_resolver_reads(doc):
     # Three prose places restate TASKFILES, MAKEFILES and JUSTFILES; read the
     # code's own values so a name added to the code fails here until the docs follow.

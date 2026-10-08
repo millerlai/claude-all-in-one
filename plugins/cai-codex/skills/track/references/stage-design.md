@@ -19,11 +19,11 @@ asked about, or on a capability nobody checked was actually available.
 
 ## Pick a mode, and say which
 
-If `<top>/CONTEXT.md` exists — `<top>` being the path your brief names or, if
-it names none, what `git rev-parse --show-toplevel` prints — read it first
-and use its terms. If it does not exist, or neither gives you `<top>`, say
-nothing about it and do not suggest creating one. Read only that one file,
-not a `CONTEXT.md` in any subdirectory, and never write it.
+If `<top>/.claude/cai-context.md` exists — `<top>` being the path your brief
+names or, if it names none, what `git rev-parse --show-toplevel` prints —
+read it first and use its terms. If it does not exist, or neither gives you
+`<top>`, say nothing about it and do not suggest creating one. Read only
+that one file, and never write it.
 
 - **Diagnosis** — something is broken. Names the root cause and the fix, one
   page. Entry condition below; it is not "someone called it a bug".

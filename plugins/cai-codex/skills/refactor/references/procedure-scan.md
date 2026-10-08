@@ -15,11 +15,10 @@ Identify the language and build system. Get the test command by running
 `<cai-root>/skills/track/references/test-command.md`; when it exits
 non-zero, say so in the report instead of guessing one. Determine whether the
 target is a single class, a file, a module, or the whole project.
-If `<top>/CONTEXT.md` exists — `<top>` being what `git rev-parse
+If `<top>/.claude/cai-context.md` exists — `<top>` being what `git rev-parse
 --show-toplevel` prints — read it first and use its terms. If it does not
 exist, or that command fails, say nothing about it and do not suggest
-creating one. Read only that one file, not a `CONTEXT.md` in any
-subdirectory, and never write it.
+creating one. Read only that one file, and never write it.
 
 **2. Get the churn signal** (git repos only — it decides priority):
 

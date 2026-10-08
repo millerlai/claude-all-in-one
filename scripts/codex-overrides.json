@@ -667,6 +667,19 @@
     {
       "target": "skills/track/references/stage-build.md",
       "anchor": [
+        "  so no menu has fewer than two. Each menu is one multiSelect question with",
+        "  nothing marked `(recommended)`; an option is labelled with the term and"
+      ],
+      "replacement": [
+        "  so no menu has fewer than two. Each menu is a numbered text list the",
+        "  person answers by typing the numbers of the terms to merge, or `none`,",
+        "  with nothing marked `(recommended)`; an entry is labelled with the term and"
+      ],
+      "why": "I7/D7 (#326): the Codex question tool cannot take several ticks, so each glossary menu becomes a numbered text list, as the triage menu's does."
+    },
+    {
+      "target": "skills/track/references/stage-build.md",
+      "anchor": [
         "| Any architecture decision the document didn't make | **the user** | `AskUserQuestion`, never resolved here |"
       ],
       "replacement": [

@@ -74,6 +74,12 @@ instead.
    plus a one-line summary per option is the failure this step exists to
    prevent. This is the main session's step for the same reason the asking
    is: four of the six stage agents can run neither a script nor a `Write`.
+
+   Step 0.5's glossary menus skip the six fields and the lint: each is a
+   list of terms to tick, not two or more ways forward, so
+   `option-explainer.md` does not reach it, and none of its options is
+   marked `(recommended)`. Send the stage's own question text in full, the
+   rejected terms and their reasons included.
 1. **Ask one decision per turn.** `AskUserQuestion`, biggest blast radius
    first, the rest queued. A turn carrying two questions carries none — the
    second gets answered against a guess about the first.

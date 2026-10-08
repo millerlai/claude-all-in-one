@@ -76,8 +76,8 @@ lines, and Step 1's state table (the lane question needs its `Alongside`
 column); it then ends with all the questions below in one `## Pending
 questions` report and nothing else done: no unit starts, no commit is made.
 That is one round of `references/pending-questions.md`'s three, and the
-main session re-dispatches you with the answers. Up to three decisions, so
-up to three menus on as many turns —
+main session re-dispatches you with the answers. Up to three decisions, one
+menu per turn, and the glossary decision can take several menus —
 `references/approval-gates.md` holds the shape, and none is a sentence the
 person types a word back into:
 
@@ -97,24 +97,52 @@ person types a word back into:
   line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
   four small units it is not worth it. Recommend, let the user decide,
   default to sequential.
-- **Which glossary terms join `CONTEXT.md`.** Only when the document is a
-  Detail design and its `## Glossary` has at least one data row that is not
-  the template's placeholder. Group the terms into **propose to merge**
-  (project-specific concepts) and **leave out** (implementation nouns — file
-  names, functions, fields), one line each with a reason; a term already in
-  `CONTEXT.md` under the same name shows the existing definition alongside
-  the new one. Two options, the whole group at once — "merge as proposed
-  (recommended)" or "merge none" — free text moves individual terms between
-  groups or drops one. An empty "propose to merge" group means skip the
-  question. Fold this into the same `## Pending questions` report as the
-  other two.
+- **Which glossary terms join `.claude/cai-context.md`.** Only when the
+  document is a Detail design and its `## Glossary` has at least one data
+  row that is not the template's placeholder. A project term is a concept
+  specific to this project that someone who has read no track would need
+  explained: something the project deals in, or a step, stage or role of
+  its work. Build leaves out file names, functions, fields, status
+  strings, agent names and everyday words. For each term, in this order:
+  take decision ids and track-document paths out of its definition;
+  rewrite a definition that reads like a rule or a number into one or two
+  sentences saying what the thing is; then write every term as a
+  `**Term**: definition` line to one file in the system temp directory and
+  run `<cai> glossary_check <that file>`.
+  A term it flags is rejected, and a rejected term is never an option; the
+  check ran only when its last line is `-- glossary: N entries checked, M flagged`
+  with N above 0, and any other outcome, whatever the exit code, offers no
+  term at all, and the report says so.
+  Every term that passed is an option, in the Glossary's order, four at
+  most to a menu, the terms split into as few menus as hold them with
+  sizes differing by at most one,
+  so no menu has fewer than two. Each menu is a numbered text list the
+  person answers by typing the numbers of the terms to merge, or `none`,
+  with nothing marked `(recommended)`; an entry is labelled with the term and
+  described by its definition, the heading it would go under, and, for a
+  term `.claude/cai-context.md` already has under the same name, the
+  definition it replaces. The heading is `## Domain` for something the
+  project deals in, `## Process` for a step, stage or role, another heading
+  that file already has, or a new one named right there. The first menu's
+  question says which options build proposes and which it leaves out under
+  the rules above, and lists every rejected term with the check's reason —
+  not as an option: the person brings one in only by giving it a new
+  definition in free text. Free text takes `**Term**: definition` lines
+  only — a rejected term, a new term, or a replacement — and Step 6.2
+  checks them again; anything else in it writes nothing and is quoted in
+  the report. With one term passed, the menu is "Merge <term>" or
+  "Merge none"; with none passed there is no menu, and the rejected list
+  goes in the report. Say in the four opening lines how many glossary
+  menus there will be, and fold them all into the same
+  `## Pending questions` report as the other two.
 
 A Step 0.5 menu that closes on its own leaves that answer unmade, not
 defaulted: `references/approval-gates.md`'s new section names the fallback
-each of the three takes — commit per unit is treated as no, so the parallel
-lane stays off and falls back to sequential, and the glossary question falls
-back to merge none. The run states which of the three timed out, by name,
-and build proceeds on whichever fallback applies.
+each takes — commit per unit is treated as no, so the parallel lane stays
+off and falls back to sequential, and a glossary menu falls back to merge
+none for its own terms, while a glossary menu already answered stands. The
+run states which menus timed out, by name, and build proceeds on whichever
+fallback applies.
 
 ## Step 1 — Turn the schedule into a state table
 
@@ -147,8 +175,9 @@ document there too — the next run may be a tracked one. Say in the notes
 which design document the table belongs to.
 
 Step 0.5's glossary answer belongs here too: once decided, record the terms
-that ended up merged, the definition each will write, and any definition
-each replaces — a resumed session needs this at Step 6 without re-asking.
+that ended up merged, the definition and heading each will write, any
+definition each replaces, and every term the check rejected with its
+reason — a resumed session needs this at Step 6 without re-asking.
 Record the other two answers the same way (commit yes or no, and whether a
 lane was approved). A re-dispatch after any later stop reads all three from
 the notes and never asks Step 0.5 again. A `Test command: skipped` line is
@@ -448,22 +477,53 @@ Units all green is not done:
    red before the fix, green after it, a test's observed result — reads
    `not run: test command skipped`. The `file:line` columns are filled in as
    usual.
-2. **Write the merged terms into `<top>/CONTEXT.md`**, before verify. Skip
-   entirely — no file created, nothing said about it in the report — when no
-   glossary term ended up merged (the third menu was never asked, was
-   answered "merge none", or free text moved every term out). Otherwise:
-   `<top>` is what `git rev-parse --show-toplevel` prints; find `CONTEXT.md`
-   there, and if it does not exist, create it verbatim from
-   `<cai-root>/templates/CONTEXT.md.tpl` first. Append each new
-   term as one line, `**Term**: definition`, after whatever the file already
-   has. A line already starting with that term name (case-insensitive) is
-   replaced in place with the new definition instead of appended; any
-   hand-written `_Avoid_` line or subheading is left untouched, and no
-   `Where it lives` column is written. Replacing by name rather than
-   appending a duplicate makes this idempotent — an interrupted rerun lands
-   the same file. Commit this write on its own, the same way Step 3's commit
-   does, when Step 0.5 answered commit-per-unit yes; otherwise leave it in
-   the working tree.
+2. **Write the merged terms into `<top>/.claude/cai-context.md`**, before
+   verify. Skip entirely — no file created, nothing said about it in the
+   report — when no glossary term ended up merged (no glossary menu was
+   asked, none had a term ticked or given in free text, every one timed
+   out, or the check kept every term out). Otherwise:
+   `<top>` is what `git rev-parse --show-toplevel` prints. Write each
+   merged term as the `**Term**: definition` line it will become — a
+   definition given in free text replaces the menu's — to one file in the
+   system temp directory, and run
+   `<cai> glossary_check <that file>`
+   again. A term it flags is not written, and the report names it with
+   the reason the check printed; no further menu is asked. The same
+   test of whether the check ran applies: the check ran only when its
+   last line is `-- glossary: N entries checked, M flagged` with N above 0,
+   and on any other outcome, whatever the exit code, write nothing and say
+   in the report that the check did not run. If
+   `.claude/cai-context.md` does not exist, create it verbatim from
+   `<cai-root>/templates/cai-context.md.tpl` first. Write each
+   line exactly as it was checked: a line whose bold name is the same term
+   (case-insensitive), under any heading, is replaced in place; otherwise
+   the line goes after the last entry under the heading its menu named,
+   or directly under that heading when it has none, and a heading the menu
+   named that the file lacks is added at the end of the file first. A term
+   given only in free text goes under the heading its menu proposed for
+   it, or, when it was never an option, under `## Domain` for something
+   the project deals in and `## Process` for a step, stage or role; when
+   the file lacks that `## Domain` or `## Process` heading, the term is
+   not written and the heading is not re-created, because no menu named it,
+   and the report names the term and the missing heading and asks the
+   person to add the heading back by hand and run again.
+   Hand-written `_Avoid_` lines, other headings and comments are left
+   untouched, and no `Where it lives` column is written. Replacing by name
+   rather than appending a duplicate makes this idempotent — an
+   interrupted rerun lands the same file.
+   If `<top>/CONTEXT.md` exists and its first four lines are the
+   template's first four, an earlier cai wrote it. Leave it untouched, and
+   say in the report that cai no longer reads it, so the person can move
+   the entries they want to keep into `.claude/cai-context.md`, or delete
+   it.
+   Then run `git check-ignore -q .claude/cai-context.md` from `<top>`.
+   Exit 0 means the project's `.gitignore` ignores it: add and commit
+   nothing — never `git add -f`, never an edit to `.gitignore` — and say
+   in the report that it was written but will not reach the PR. Exit 1:
+   when Step 0.5 answered commit-per-unit yes, commit this write on its
+   own by its path, the same way Step 3's commit does; otherwise leave it
+   in the working tree. Any other exit: commit nothing, and quote git's
+   first line in the report.
 3. **Review.** Under a track, skip this step: the branch is reviewed by the
    verify stage, which runs next over this same diff, and a second pass of the
    four lenses would only repeat it. Standing alone there is no verify stage after this
@@ -474,11 +534,15 @@ Units all green is not done:
    Blocker/Major per that stage's rules; leave Minor documented; its
    requirement decisions go to the user.
 4. **Report.** What each unit built and where it landed, the traceability
-   table, every deviation, every `CONTEXT.md` definition replaced with the
-   old text quoted, the review verdict (under a track: reviewed by the verify
-   stage), and what could not be verified automatically as numbered manual
-   steps. Each deviation that changed an interface goes in as an item of its
-   own among those, so the main session's `Left open:` carries it to Gate 2.
+   table, every deviation, every glossary definition replaced with the old
+   text quoted, every glossary term the check kept out with its reason,
+   every free-text term left unwritten for a missing heading,
+   the sentences Step 6.2 calls for about an earlier cai's file and an
+   ignored file, the review verdict (under a track: reviewed by the verify
+   stage), and what could not be verified automatically as numbered
+   manual steps. Each deviation that changed an interface goes in as an
+   item of its own among those, so the main session's `Left open:`
+   carries it to Gate 2.
 
 ## Report
 
@@ -491,7 +555,8 @@ of the ledger's `--note`; you write no track file at all.
 - which units ran in parallel
 - every deviation
 - anything skipped, the test command included when it was
-- every `CONTEXT.md` definition replaced, old text quoted
+- every glossary definition replaced, old text quoted, and every glossary
+  term the check kept out, with its reason
 - what is left open -- every step Step 6.4 names as a manual step, and every
   deviation that changed an interface, one item each; with the test command
   skipped, one more item saying no unit ran a test

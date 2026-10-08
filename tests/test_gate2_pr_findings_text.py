@@ -171,7 +171,7 @@ def test_triage_menu_shape_follows_the_number_of_blockers_and_majors(plugin_root
     # The comment is a third party's text and stays out of the label.
     assert "the comment text stays out of the label" in flat
     # No option is marked, the question carries the recommendation.
-    assert "the one exception to a single recommended option" in flat
+    assert "one of two exceptions to a single recommended option" in flat
     # The cannot-submit-empty fallback (C14 is untested) and the none rule.
     if plugin_root == "plugins/cai":
         assert "write `none` in the free-text entry" in flat
