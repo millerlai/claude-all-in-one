@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.47.1 — 2026-10-08
+
+This release fixes a bug where a stage run more than once (for example build → verify → build) showed only its last run's time in `/cai:viewer`, and makes timing settles much faster so they're less likely to be cancelled by the hook timeout.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.47.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.47.0 to 1.47.1.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its existing `state.md` and ledger records unchanged; after you update, a re-run stage's time is no longer dropped from the spool, and settles on a track with several live subagents finish much faster instead of risking the 5 s hook timeout. (#321, #323)
+
+### Timing
+
+- A stage run more than once keeps its earlier run's recorded time instead of losing it once that run's track closes; `/cai:viewer` now shows the sum of all its runs. (#321)
+- A timing settle on a journal with several live subagents completes in a fraction of the time it used to, cutting the risk of a hook being cancelled before its stage time is recorded. (#321, #323)
+
 ## v1.47.0 — 2026-10-07
 
 This release lets `/cai:track`'s verify stage check acceptance criteria against a running copy of your program, not just a diff and the test suite, and lets `ship`'s draft start the moment verify passes instead of waiting for you to type `ship`.
