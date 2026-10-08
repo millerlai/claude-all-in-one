@@ -231,13 +231,12 @@ def _settle_one(data_dir, path):
         runs = timing._run_events(track_dir, record["run_id"])[1]
         if len(runs) == 1:
             _write_gap(track_dir, record["run_id"], runs[0]["stage"], runs[0]["platform"], agent, "run-closed")
-    if reasons & {"journal-unreadable", "binding-missing", "binding-ambiguous"}:
-        return reasons, False
+    retry = reasons & {"journal-unreadable", "binding-missing", "binding-ambiguous"}
     # A closed run accepts no new work, so this spool can add nothing more. Kept,
     # a spool whose stop or batch hook was cancelled is re-settled by every later
     # hook until it expires; enough of them push each settle past the hook
     # timeout, and later runs of a stage lose their bindings and segments (#320).
-    return reasons, _finished(rows) or _run_closed(track_dir, record["run_id"])
+    return reasons, not retry and (_finished(rows) or _run_closed(track_dir, record["run_id"]))
 
 
 def _run_closed(track_dir, run_id):
