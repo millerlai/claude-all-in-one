@@ -45,6 +45,12 @@ design document, the fallback is noted.
    there, and the bash guard reads the branch from the session's working
    directory, so every commit below is blocked on a protected branch,
    worktrees included. Branch first.
+3. **The test command is settled, or skipped — never a stop.**
+   `test-command.md`'s `## Before build` runs before this stage does. Under a
+   track the main session ran it before dispatching you: your brief carries a
+   `Test command: skipped` line, or carries none and Step 1's resolver run
+   finds the command. Standing alone you are the main session: run that
+   section now.
 
 If the document came from `stage-design.md`'s Detail mode, run its probe
 before reading anything:
@@ -118,8 +124,10 @@ with three added columns:
 exists. The test command comes from the resolver, never from a guess: run
 `python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py` and follow
 `${CLAUDE_PLUGIN_ROOT}/skills/track/references/test-command.md` for every exit
-code. A command whose `narrow` is `paths` or `packages` gets this unit's own
-paths appended; one whose `narrow` is `none` goes in whole and the row says
+code — unless Step 0 left a `Test command: skipped` line. Then run no resolver,
+since a person declined whatever it would find, and every row's `Verify with`
+reads `skipped: no test command`. A command whose `narrow` is `paths` or
+`packages` gets this unit's own paths appended; one whose `narrow` is `none` goes in whole and the row says
 "not narrowed". Deciding which paths gate this unit is judgement; finding the
 command is not. A command that takes ten minutes or hangs gets skipped under
 time pressure, and then the checkpoints are decoration.
@@ -138,7 +146,10 @@ that ended up merged, the definition each will write, and any definition
 each replaces — a resumed session needs this at Step 6 without re-asking.
 Record the other two answers the same way (commit yes or no, and whether a
 lane was approved). A re-dispatch after any later stop reads all three from
-the notes and never asks Step 0.5 again.
+the notes and never asks Step 0.5 again. A `Test command: skipped` line is
+copied into the notes verbatim, on a line of its own: the main session reads
+it there before any later dispatch of this build or of verify, and asks no
+more.
 
 Under a track the notes go in `.claude/track/<feature>/`, beside the
 `state.md` a cold session resumes from. Check `.gitignore` covers
@@ -248,6 +259,12 @@ For each unit, in schedule order:
      `## Pending questions`. No unbounded fix loop.
 5. **Commit**, write the id into the table beside `done`, and re-read the
    table before starting the next unit.
+
+**With the test command skipped, no unit runs a test.** Item 3's red step
+and item 4 have no command to run, and neither does Step 4's run of both
+verify commands. Everything else in this stage still runs. Tests a brief
+names are still written, but no test harness is added for them. Each unit is
+committed as usual with `done (unverified)` in its Status.
 
 **Never leave the tree uncompilable between units.** A unit that needs a
 broken intermediate state is cut in the wrong place — re-cut it and log the
@@ -417,6 +434,11 @@ Units all green is not done:
    A check that was already green before the unit started says
    `already green before` in Red before. With no start declaration there was no
    baseline run, and Red before says `no baseline: no start declaration`.
+
+   With the test command skipped, every cell above that needs a test run —
+   red before the fix, green after it, a test's observed result — reads
+   `not run: test command skipped`. The `file:line` columns are filled in as
+   usual.
 2. **Write the merged terms into `<top>/CONTEXT.md`**, before verify. Skip
    entirely — no file created, nothing said about it in the report — when no
    glossary term ended up merged (the third menu was never asked, was
@@ -459,10 +481,11 @@ of the ledger's `--note`; you write no track file at all.
 - what was built
 - which units ran in parallel
 - every deviation
-- anything skipped
+- anything skipped, the test command included when it was
 - every `CONTEXT.md` definition replaced, old text quoted
 - what is left open -- every step Step 6.4 names as a manual step, and every
-  deviation that changed an interface, one item each
+  deviation that changed an interface, one item each; with the test command
+  skipped, one more item saying no unit ran a test
 
 The in-flight `unit <N> of <total>` row is still written by Step 5.5
 above, not here -- this section is what you hand back once the whole

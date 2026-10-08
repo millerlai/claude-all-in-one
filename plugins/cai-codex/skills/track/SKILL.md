@@ -90,6 +90,7 @@ For the stage about to run:
    A non-zero exit stops the step: report it and leave `state.md` untouched.
 
 When `.claude/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `$track skip`.
+Before `build`'s dispatch in step 2, you — the main session, not a subagent — settle the test command as `<cai-root>/skills/track/references/test-command.md`'s `## Before build` says. A missing one never stops the stage, and that section also says what `verify`'s dispatch carries after a skip.
 A report ending in `## Pending questions` is not an outcome: before step 3, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/pending-questions.md`, because no subagent can ask the person directly here either.
 A `pending:` section in `track_state.py status` means an earlier round of questions was never finished: ask its first `open` question as `references/pending-questions.md` says, then re-dispatch with its saved report, instead of running the stage again. After step 3 records `passed`, `failed` or `skipped`, run `<cai> pending clear --track-dir .claude/track/<feature> --stage <stage>`.
 ## Human gates

@@ -60,6 +60,52 @@ for the verifier, which has Write and Edit: the guard treats the declaration
 as trusted input, as it does the `Makefile` or `conftest.py` a resolved
 command runs.
 
+## Before build: settled once, never a block
+
+`build` never waits on a test command. Before it starts — under a track ahead
+of its first dispatch, standing alone before its Step 0 — you, the main
+session, run the resolver and settle the command with the person in one menu
+(`references/approval-gates.md`), or settle that there is none. This menu
+replaces the exit table above for this one moment only; everything that runs
+the resolver later still follows that table.
+
+Ask nothing when `.claude/track/<feature>/implementation-notes.md` already has
+a line starting `Test command: skipped`: an earlier start of this build took
+that answer, and you carry the line on as the last paragraph says.
+
+| Exit | The menu |
+|---|---|
+| 0, `source` `declared` | None: the person already chose it. |
+| 0, `source` `detected` | "Use `<command>` (recommended)" and "Skip: build without a test command". A different command goes in the free-text entry. |
+| 3 | "Run all of them (recommended)", each candidate on its own when there are at most two, and "Skip: build without a test command". With more than two the menu is "Run all of them (recommended)", "I will name which ones" and the Skip option, the full candidate list in the text above it. |
+| 4 | "Skip: build without a test command (recommended)" and "Check again: I have just added one", the resolver's `notes` in the text above, which also says the command can be typed into the free-text entry. |
+| 5 | "Check again: I have fixed it (recommended)" and "Skip: build without a test command", `problem` in the text above. |
+
+What each answer does:
+
+- **A command** — picked, named or typed: record it with
+  `record_test_command.py` as exit 3's main-session bullet above says, run the
+  resolver again, and expect exit 0 with `source` `declared`. Nothing asks
+  again after that, in this stage or a later one. When the recorder refuses
+  (it changes nothing when `.claude/cai.json` cannot be read), say what it
+  printed and start this section again, so the menu, Skip included, comes back.
+- **Check again** — start this section again from the resolver.
+- **Skip** — write nothing to `.claude/cai.json`, so the next track asks
+  again. The line `Test command: skipped by the person before build` goes in
+  build's dispatch prompt.
+
+A menu here that closes on its own counts as Skip: nothing is written, no
+detected command is used, and the line reads `Test command: skipped (the menu
+timed out)`. Say so in one line.
+
+A skip holds for the rest of the track. Every later dispatch of `build` or
+`verify` carries the same line, taken from `implementation-notes.md` once
+build has copied it there. Holding that line, neither stage runs the resolver
+or any test command, and neither asks about one. Each still does every other
+step of its own, and reports `not run: test command skipped` wherever a test
+run's result would go. Standing alone there is no dispatch: the same holds
+for the run you are in.
+
 ## Running the commands
 
 Follow `rules/workflow.md`'s Codex sandbox permissions section for cache,

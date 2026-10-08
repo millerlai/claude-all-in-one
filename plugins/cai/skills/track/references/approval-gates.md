@@ -451,6 +451,11 @@ is only the shape — a menu, never a sentence to type a word back into:
   `CONTEXT.md`. Up to three decisions, asked one per turn, all handed up
   from build's first pass in one round, before any unit starts. The lane is
   asked only when the `Alongside` column names a pair of units.
+- `test-command.md`'s `## Before build` — which test command build uses, or
+  Skip, asked by the main session before build's first dispatch and never
+  handed up. An ordinary choice, so it carries a `(recommended)`. A command
+  already declared in `.claude/cai.json`, or a skip already in the track's
+  notes, means no menu. Not counted against `pending-questions.md`'s rounds.
 - Gate 2's triage menu, inside a track once the pull request is open
   (`### The triage menu` above) — whether to fix the Blockers and Majors the
   pull request carries. An ordinary choice, so it carries a `(recommended)`:
@@ -475,8 +480,9 @@ here is the shape and the free-text slot, not a vocabulary.
 
 Stops are counted on one run: ticket mirroring on, a design with no gaps, all
 three Step 0.5 questions asked, one fix round, then a merge. The table counts
-the stops from Step 0.5 to the merge, seven at most; Gate 1, intake and the
-ticket-name menu also wait in that run and are not counted here. The quotation
+the stops from Step 0.5 to the merge, seven at most; Gate 1, intake, the
+ticket-name menu and the test-command menu before build also wait in that
+run and are not counted here. The quotation
 beside each file name can be found word for word in that file.
 
 | # | Stop | Defined in | Asked when |
@@ -513,6 +519,7 @@ in this file does about one:
 | Step 0.5 commit per unit | Treated as no, so the parallel lane stays off. |
 | Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
 | Step 0.5 glossary | No project term joins `CONTEXT.md`; the file is left untouched. |
+| The test command before build (`test-command.md`) | Treated as Skip: nothing is written to `.claude/cai.json`, no detected command is used, and build starts with `Test command: skipped (the menu timed out)`. |
 | The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |
 | The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.claude/track/current` is not written. Left unanswered. |
 | Closing the ticket at `/cai:track done` (`ticket-mirror.md`) | `transition` does not run. Left unanswered: asked again when the person next writes in this session; a new session never asks it, since the track is already under `done/` and `current` is cleared. |

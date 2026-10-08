@@ -2856,7 +2856,12 @@ def _track_skill():
     # `verify` passes and points at approval-gates.md's Gate 2, where the rule
     # itself went. Moved together with the pinned body-line count (139 -> 140),
     # keeping the gap.
-    TRACK_SKILL_MAX = 142
+    #
+    # 142 -> 143 on 2026-10-08: one line has the main session settle the test
+    # command before `build`'s dispatch, pointing at test-command.md's
+    # `## Before build`, where the menu and the skip's reach live. Moved together
+    # with the pinned body-line count (140 -> 141), keeping the gap.
+    TRACK_SKILL_MAX = 143
     TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
     if os.path.isfile(TRACK_SKILL):
         track_text = read_text(TRACK_SKILL)
