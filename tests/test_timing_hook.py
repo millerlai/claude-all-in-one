@@ -193,6 +193,55 @@ def test_background_agent_finishing_after_end_is_rejected_with_a_gap(env):
     assert len(work(events, "agentA")) <= 1  # the segment confirmed before end may stay; nothing new opens
 
 
+def test_closed_run_drops_a_spool_whose_stop_never_arrived(env):
+    # #320: a cancelled SubagentStop hook leaves the spool unfinished forever. Every
+    # later hook re-settled it until it expired, which pushed settles past the 5 s
+    # hook timeout, so later runs of a stage lost their bindings and segments.
+    path = env.track()
+    env.agent_done("agentA", prompt=marker("run-1"))
+    env.start("agentA")
+    env.pre("agentA", "t1")
+    env.batch("agentA", "t1")
+    timing.end_run(path, "run-1")
+    timing_hook.settle(env.data, env.now + 1)
+    assert env.spool("obs") == []
+    assert len(work(journal(path), "agentA")) == 1  # the segment confirmed before end stays
+
+
+def test_closed_run_drops_a_spool_with_a_tool_left_open(env):
+    # #320: same, when the cancelled hook was the PostToolBatch that closes a tool.
+    path = env.track()
+    env.agent_done("agentA", prompt=marker("run-1"))
+    env.start("agentA")
+    env.pre("agentA", "t1")
+    env.batch("agentA", "t1")
+    env.pre("agentA", "t2")
+    env.stop("agentA")
+    assert len(env.spool("obs")) == 1  # open run: a late batch may still arrive
+    timing.end_run(path, "run-1")
+    timing_hook.settle(env.data, env.now + 1)
+    assert env.spool("obs") == []
+
+
+def test_cli_end_lets_the_next_settle_drop_an_unfinished_spool(env, capsys):
+    # #320 through the CLI the track skill runs: begin leaves the open marker that
+    # keeps a live spool, end removes it, and the next settle drops the spool.
+    path = os.path.join(env.project, ".claude", "track", "feature")
+    assert timing.main(["begin", "--track-dir", path, "--stage", "build", "--platform", "claude"]) == 0
+    line = capsys.readouterr().out.strip()
+    run_id = line.split(": ", 1)[1]
+    env.agent_done("agentA", prompt=line)
+    env.start("agentA")
+    env.pre("agentA", "t1")
+    env.batch("agentA", "t1")
+    timing_hook.settle(env.data, env.now + 1)
+    assert len(env.spool("obs")) == 1
+    assert timing.main(["end", "--track-dir", path, "--run", run_id]) == 0
+    timing_hook.settle(env.data, env.now + 2)
+    assert env.spool("obs") == []
+    assert len(work(journal(path), "agentA")) == 1
+
+
 def test_unknown_run_marker_is_unbound(env):
     env.track()
     env.agent_done("agentA", prompt=marker("no-such-run"))
