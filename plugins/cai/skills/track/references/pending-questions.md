@@ -40,11 +40,15 @@ and got nothing back", which is a different and much worse claim.
 
 **Save the round before asking anything.** Until they are answered the
 questions exist only in this conversation, and a session that ends first
-takes them along. Write the stage's whole report to a file in the system
-temp directory — never inside the repo — and run
+takes them along. Feed the stage's whole report on stdin to
 `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py start --track-dir
-.claude/track/<feature> --stage <stage> --round <1-3> --report-file <that
-file>`. The command takes each question from the report's
+.claude/track/<feature> --stage <stage> --round <1-3> --report-file -`,
+behind a quoted heredoc delimiter the report does not contain
+(`<<'CAI_PENDING_EOF'`), so no file is written and none is left to delete
+(#345). Only a shell with no heredoc, such as PowerShell, takes a file:
+write the report to a file in the system
+temp directory — never inside the repo — and
+pass its path instead of `-`. The command takes each question from the report's
 `## Pending questions` section, verbatim, and writes
 `<track-dir>/pending.md` with the report beside them; it is the only thing
 that writes that file, so do not edit it by hand. Exit 2 means it refused
@@ -60,13 +64,16 @@ instead.
    labels hold a few words each, so the reasoning goes in the message above
    it, in `option-explainer.md`'s six-field shape — the stage handed up
    evidence, and a menu that drops it asks the person to choose blind. Also
-   write that message to a file — when the round is about a decisions
-   document's `## Tier 1` entry, that file is `<track-dir>/options-<id>.md`,
-   `<id>` being the entry's own id (e.g. `options-D1.md`), since that is the
-   path `preflight.py build`'s `options_drafts` check looks for. Every other
+   lint that message. When the round is about a decisions document's
+   `## Tier 1` entry, write it to `<track-dir>/options-<id>.md`, `<id>` being
+   the entry's own id (e.g. `options-D1.md`), since that is the path
+   `preflight.py build`'s `options_drafts` check looks for, and run
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <that file>`. Nothing
+   reads any other draft back (#311), so it needs no file: feed it on stdin
+   to `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py -` behind a quoted
+   heredoc delimiter, as for the report (#345). Under PowerShell the
    draft goes in the system temp directory, never inside the repo:
-   nothing reads any other draft back (#311). Then run
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the draft>`; exit 0
+   pass that path instead. Exit 0
    or fix what it names (#73). That file is where the lint (and, for a Tier 1
    entry, `preflight.py`) reads it, not where the person reads it: once the
    lint exits 0, send
@@ -89,10 +96,12 @@ instead.
    says no round of this file's list runs against it, and whatever else is
    queued behind it waits, in the same order, until it is answered.
 
-   Save each answer before asking the next question: write it to a file in
-   the system temp directory and run
+   Save each answer before asking the next question: feed it on stdin,
+   behind a quoted heredoc delimiter as for the report, to
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py answer --track-dir
-   .claude/track/<feature> --question <n> --answer-file <that file>`, which
+   .claude/track/<feature> --question <n> --answer-file -` (#345). Under
+   PowerShell, write it to a file in
+   the system temp directory and pass that path instead. The command
    records it verbatim and marks that question `answered`. A menu that closes
    on its own gets no such call — nothing was answered — so its question
    stays `open`.

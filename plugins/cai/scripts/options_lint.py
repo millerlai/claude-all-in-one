@@ -22,7 +22,7 @@ The title is any line, not a `##` heading: the example the issue calls correct
 writes `選項 A — ...` as plain text, and a check that failed it would be
 arguing with the thing it was asked to enforce.
 
-Usage:  options_lint.py <draft>
+Usage:  options_lint.py <draft>     (`-` reads the draft from stdin, #345)
 Exit:   0 every probe passed, 2 at least one failed.
 """
 import argparse
@@ -187,13 +187,17 @@ def main():
     sys.stderr.reconfigure(encoding="utf-8")
 
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("draft", help="the option list, as Markdown")
+    ap.add_argument("draft", help="the option list, as Markdown; - reads it from stdin")
     args = ap.parse_args()
 
     try:
-        with open(args.draft, encoding="utf-8") as fh:
-            text = fh.read()
-    except OSError as exc:
+        if args.draft == "-":
+            # Piped in, no scratch draft is left behind to delete (#345).
+            text = sys.stdin.buffer.read().decode("utf-8")
+        else:
+            with open(args.draft, encoding="utf-8") as fh:
+                text = fh.read()
+    except (OSError, UnicodeDecodeError) as exc:
         print("FAIL draft not readable:", exc)
         return 2
 

@@ -311,3 +311,37 @@ def test_a_failed_replace_exits_non_zero_and_leaves_nothing(track, tmp_path, mon
 
 def test_usage_error_exits_1():
     assert _run("start").returncode == 1
+
+
+def _run_stdin(text, *args):
+    return subprocess.run([sys.executable, SCRIPT, *args], input=text.encode("utf-8"),
+                          capture_output=True)
+
+
+def test_report_and_answer_read_from_stdin_match_the_file_path_form(tmp_path):
+    # #345: `-` lets a POSIX shell pipe the text in, so there is no scratch
+    # file to write, nor one Codex would stop to approve deleting.
+    by_file, by_stdin = tmp_path / "file" / "track", tmp_path / "stdin" / "track"
+    for t in (by_file, by_stdin):
+        t.mkdir(parents=True)
+    report = REPORT.replace("\n", "\r\n")  # line endings and a BOM are normalised the same way
+    answer = "﻿選 B，因為「它」不改 API。\r\n"
+    assert _run("start", "--track-dir", str(by_file), "--stage", "build", "--round", "1",
+                "--report-file", _write(tmp_path, "r.md", report)).returncode == 0
+    assert _run("answer", "--track-dir", str(by_file), "--question", "1",
+                "--answer-file", _write(tmp_path, "a.txt", answer)).returncode == 0
+    start = _run_stdin(report, "start", "--track-dir", str(by_stdin), "--stage", "build",
+                       "--round", "1", "--report-file", "-")
+    assert start.returncode == 0, start.stderr
+    reply = _run_stdin(answer, "answer", "--track-dir", str(by_stdin), "--question", "1",
+                       "--answer-file", "-")
+    assert reply.returncode == 0, reply.stderr
+    assert (by_stdin / "pending.md").read_bytes() == (by_file / "pending.md").read_bytes()
+    assert _only_pending(by_stdin) == ["pending.md"]
+
+
+def test_empty_stdin_is_refused_like_an_empty_file(track):
+    result = _run_stdin("", "start", "--track-dir", str(track), "--stage", "build",
+                        "--round", "1", "--report-file", "-")
+    assert result.returncode == 2
+    assert not (track / "pending.md").exists()

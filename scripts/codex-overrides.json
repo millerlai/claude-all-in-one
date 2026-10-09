@@ -311,10 +311,10 @@
         "EOF"
       ],
       "replacement": [
-        "# Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the message (title, a blank line, the body) to <scratch-dir>/cai-commit-msg.txt with your file-writing tool, not the shell; remove it after the command succeeds.",
+        "# Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the message (title, a blank line, the body) to <scratch-dir>/cai-commit-msg.txt with your file-writing tool, not the shell, overwriting any earlier copy; leave it there afterwards.",
         "git commit -F '<full path of cai-commit-msg.txt>'"
       ],
-      "why": "D1=A/D13=P: PowerShell 5.1 has no <<'EOF' heredoc syntax; a file works in both shells. #304: choose a checked writable scratch location instead of forcing a system-temp write."
+      "why": "D1=A/D13=P: PowerShell 5.1 has no <<'EOF' heredoc syntax; a file works in both shells. #304: choose a checked writable scratch location instead of forcing a system-temp write. #345: scratch files are left in place, not deleted -- Codex stops to approve each `rm -f` of one, even inside its writable roots, so cleanup asked the person once per answer, draft, report and message."
     },
     {
       "target": "skills/track/references/stage-ship.md",
@@ -328,13 +328,13 @@
         "```"
       ],
       "replacement": [
-        "Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the release note to <scratch-dir>/cai-pr-body.md with your file-writing tool, not the shell, then pass the file and remove it after the command succeeds:",
+        "Choose <scratch-dir> as rules/workflow.md's Codex sandbox permissions section says. Write the release note to <scratch-dir>/cai-pr-body.md with your file-writing tool, not the shell, overwriting any earlier copy, then pass the file and leave it there afterwards:",
         "",
         "```bash",
         "gh pr create --title '<title>' --body-file '<full path of cai-pr-body.md>'   # keep the title free of apostrophes: bash and PowerShell escape one differently",
         "```"
       ],
-      "why": "D13=P: same heredoc problem as the commit above, on the PR body. gh pr create has no title-from-file flag, so the title stays an argument, and decisions Tier 3 keeps it apostrophe-free rather than trying to make one shell's quoting match the other's."
+      "why": "D13=P: same heredoc problem as the commit above, on the PR body. gh pr create has no title-from-file flag, so the title stays an argument, and decisions Tier 3 keeps it apostrophe-free rather than trying to make one shell's quoting match the other's. #345: scratch files are left in place, not deleted -- Codex stops to approve each `rm -f` of one, even inside its writable roots, so cleanup asked the person once per answer, draft, report and message."
     },
     {
       "target": "skills/track/references/stage-ship.md",
@@ -1135,8 +1135,11 @@
         "  (check with `git check-ignore`); otherwise use a temporary location already",
         "  allowed by the active sandbox. Do not edit ignore files just to make one.",
         "  Use it for test logs, diagrams, downloads, and message/report/answer files.",
-        "  Remove disposable files after successful consumption; retain failed-run",
-        "  evidence. If no suitable location is allowed, request permission for the",
+        "  Leave disposable files in place once consumed: deleting one is a separate",
+        "  command Codex may stop to approve, once per file, even inside a writable",
+        "  root. A temporary location is cleaned by the system and an ignored path",
+        "  stays out of `git status`; a later write to the same path overwrites it.",
+        "  If no suitable location is allowed, request permission for the",
         "  exact required location. Do not assume `/private/tmp` is allowed or denied",
         "  on macOS: the actual writable roots decide.",
         "- Moving an output does not grant network access, localhost socket binding,",
@@ -1148,7 +1151,7 @@
         "",
         "## Development workflow"
       ],
-      "why": "#304: routine checks and scratch outputs should avoid unnecessary external cache, network, and filesystem access without changing the project's verification contract or weakening Codex permissions."
+      "why": "#304: routine checks and scratch outputs should avoid unnecessary external cache, network, and filesystem access without changing the project's verification contract or weakening Codex permissions. #345: scratch files are left in place, not deleted -- Codex stops to approve each `rm -f` of one, even inside its writable roots, so cleanup asked the person once per answer, draft, report and message."
     },
     {
       "target": "skills/track/references/test-command.md",
@@ -1168,32 +1171,32 @@
     {
       "target": "skills/git/SKILL.md",
       "anchor": ["Any message file goes in the system temp directory, never inside the repository, and is deleted once the command has run — left in the work tree it is an untracked file the next `git status` reports."],
-      "replacement": ["Any message file goes in `<scratch-dir>` chosen by `rules/workflow.md`'s Codex sandbox permissions section, and is deleted after the command succeeds; confirm that workspace-local output paths are ignored before writing."],
-      "why": "#304: a message file need not force an external-directory write; checked ignored output paths preserve the clean-tree requirement."
+      "replacement": ["Any message file goes in `<scratch-dir>` chosen by `rules/workflow.md`'s Codex sandbox permissions section and is left there afterwards, as that section says; confirm that workspace-local output paths are ignored before writing."],
+      "why": "#304: a message file need not force an external-directory write; checked ignored output paths preserve the clean-tree requirement. #345: scratch files are left in place, not deleted -- Codex stops to approve each `rm -f` of one, even inside its writable roots, so cleanup asked the person once per answer, draft, report and message."
     },
     {
       "target": "skills/track/references/pending-questions.md",
       "anchor": [
-        "takes them along. Write the stage's whole report to a file in the system",
-        "temp directory — never inside the repo — and run"
+        "write the report to a file in the system",
+        "temp directory — never inside the repo — and"
       ],
       "replacement": [
-        "takes them along. Write the stage's whole report to a file in `<scratch-dir>`",
-        "chosen by `rules/workflow.md`'s Codex sandbox permissions section, and run"
+        "write the report to a file in `<scratch-dir>`",
+        "chosen by `rules/workflow.md`'s Codex sandbox permissions section, and"
       ],
-      "why": "#304: saving a pending round should use a checked writable scratch location instead of requiring an external temp write."
+      "why": "#304: saving a pending round should use a checked writable scratch location instead of requiring an external temp write. #345: the stdin form writes no file at all; this now covers only the PowerShell fallback."
     },
     {
       "target": "skills/track/references/pending-questions.md",
       "anchor": [
-        "   Save each answer before asking the next question: write it to a file in",
-        "   the system temp directory and run"
+        "   PowerShell, write it to a file in",
+        "   the system temp directory and pass that path instead. The command"
       ],
       "replacement": [
-        "   Save each answer before asking the next question: write it to a file in",
-        "   the same checked `<scratch-dir>` and run"
+        "   PowerShell, write it to a file in",
+        "   the same checked `<scratch-dir>` and pass that path instead. The command"
       ],
-      "why": "#304: answer files follow the same writable scratch policy as the report."
+      "why": "#304: answer files follow the same writable scratch policy as the report. #345: the stdin form writes no file at all; this now covers only the PowerShell fallback."
     },
     {
       "target": "skills/track/references/pending-questions.md",
@@ -1203,7 +1206,7 @@
       "replacement": [
         "   draft goes in `<scratch-dir>`, never inside the repo:"
       ],
-      "why": "#311: options drafts nothing reads back follow the same writable scratch policy as the report."
+      "why": "#311: options drafts nothing reads back follow the same writable scratch policy as the report. #345: the stdin form writes no file at all; this now covers only the PowerShell fallback."
     }
   ]
 }
