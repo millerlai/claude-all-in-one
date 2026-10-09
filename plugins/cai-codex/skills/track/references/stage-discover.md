@@ -39,6 +39,15 @@ cannot stand in for this.
 
 ## The moves
 
+Facts from outside this repo — a domain's practice for move B, how other
+products solve it for move D, a vendor's documentation for any move — you look
+up yourself with `WebSearch`/`WebFetch` (`architect.md:7`), recording the URL
+and the sentence relied on. Never hand one on to a later stage — you hold the
+tools now. #335 found `intake` handing a lookup on to this stage, which runs on
+the same agent with the same tools (`stages.json`), and nobody did it.
+If one fails — the tool is refused or the page will not load — name the query
+or URL among the Report's deviations, so the person can see it was not done.
+
 ### A. Blindspot pass — unfamiliar code
 
 Map the area yourself first, with `Read`/`Grep`/`Glob` — this stage's agent is

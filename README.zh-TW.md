@@ -46,7 +46,7 @@ flowchart TB
     S5 -.-> VE
     S6 -.-> SH
 
-    AR(["architect · think<br/>Read Grep Glob"])
+    AR(["architect · think<br/>Read Grep Glob<br/>+ WebSearch, WebFetch"])
     DE(["designer · think<br/>+ Write"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
     VE(["verifier · build<br/>測試 + git 讀取 + Agent"])
