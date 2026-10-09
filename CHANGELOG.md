@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.49.0 — 2026-10-09
+
+This release adds per-stage timing on Codex so the Agent Viewer shows subagent model time for `$track` runs there too, and fixes a track bug where `intake` and `discover` deferred web lookups to a stage that could never reach the internet either.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.48.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.48.0 to 1.49.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected by this update; nothing about its saved state or ledger changes. (#337, #336)
+- On Codex, rerun `$setup` and trust the new timing hooks in `/hooks` so a `$track` stage can record and show its time. (#337)
+
+### Codex
+
+- A `$track` run on Codex now records each stage's subagent model time, the same as Claude Code, and the Agent Viewer shows it. (#337)
+- `$setup` lists a new timing mapping row, marked `unverified` until a real session is seen writing a timing record, and the trust step now names the timing hooks. (#337)
+
+### Track
+
+- `intake` and `discover` now look up facts from outside the repo themselves, with web search and web fetch tools, instead of deferring the lookup to a later stage that could not reach the internet either. (#336)
+- A lookup that fails during `intake` or `discover` is named in the stage's Report as a deviation, so you can see it was not done. (#336)
+- On Codex, `intake` and `discover` have no equivalent web tools, so a lookup is reported as a deviation there instead. (#336)
+
 ## v1.48.0 — 2026-10-08
 
 This release fixes the Agent Viewer to show each track's total measured time and stops it from inferring a finished track onto a brand-new session, adds a glossary entry check that moves cai's glossary file into `.claude/`, and settles the test command before build so a missing or ambiguous one never blocks entry into the stage.
