@@ -583,3 +583,19 @@ def test_every_permission_wait_rings_the_ask_chime():
     ])
     result = subprocess.run([node, "-e", harness], capture_output=True, encoding="utf-8", check=True)
     assert json.loads(result.stdout) == ["ask", "ask", "ask"]
+
+
+def test_every_looping_animation_steps_instead_of_tweening():
+    # #350: a looping animation that tweens makes Chrome repaint every frame
+    # for as long as the page is open (~30% of a core in a headless probe);
+    # stepped, the value changes a few times per cycle and the frames in
+    # between are skipped (~2 CPU-seconds per 20 s against ~1 with none).
+    html = viewer.PAGE_HTML
+    looping = [part.strip() for decl in re.findall(r"animation:([^;}]*)", html)
+               for part in re.split(r",(?![^()]*\))", decl) if "infinite" in part]
+    assert len(looping) == 9
+    for part in looping:
+        assert "steps(" in part, part
+    spins = [part for part in looping if part.startswith("spin ")]
+    # Two steps of a full turn are the same frame; eight keep it visibly turning.
+    assert spins and all("steps(8)" in part for part in spins)
