@@ -313,18 +313,20 @@ def test_late_batch_is_merged_without_a_false_gap(env):
     assert env.spool("obs") == []
 
 
-def test_missing_pre_is_event_missing_and_earlier_segments_stay(env):
+def test_missing_pre_is_event_missing_and_later_segments_still_count(env):
     path = env.track()
     env.agent_done("agentA", prompt=marker("run-1"))
     env.start("agentA")
     env.pre("agentA", "t1")
     env.batch("agentA", "t1")
     env.pre("agentA", "t2")
-    env.batch("agentA", "t2", "t3")  # t3 never had a PreToolUse
+    env.batch("agentA", "t2", "t3")  # t3 never had a PreToolUse, as a call failing validation (#347)
     env.stop("agentA")
     events = journal(path)
     assert gaps(events) == [("agentA", "event-missing")]
-    assert len(work(events, "agentA")) == 1
+    # start..t1 and the last batch..stop; the t1-batch..t2 segment of that response is dropped
+    assert len(work(events, "agentA")) == 2
+    assert env.spool("obs") == []
 
 
 def test_settling_again_changes_nothing(env):

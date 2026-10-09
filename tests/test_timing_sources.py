@@ -126,16 +126,68 @@ def test_unconfirmed_segment_is_not_written_until_the_batch():
     assert events == []  # nothing proves the tool was seen to the end yet
 
 
-def test_missing_pre_is_event_missing_and_stops_the_actor():
+def test_missing_pre_drops_that_response_and_keeps_counting():
+    # #347: Claude Code lists a call that failed input validation (an Edit whose
+    # old_string is not in the file) in PostToolBatch without firing PreToolUse.
     events = run([obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "batch", 20, tool_use_ids=["t1", "t2"]),
-                  obs(3, "start", 25), obs(4, "stop", 90)])
+                  obs(3, "pre", 30, "t3"), obs(4, "batch", 40, tool_use_ids=["t3"]), obs(5, "stop", 90)])
     assert gaps(events) == ["event-missing"]
-    assert segments(events) == []  # the pending 0..10 was never confirmed
-    # earlier confirmed segments survive
+    assert segments(events) == [(20, 30), (40, 90)]  # 0..10 was that response's segment
+    # earlier confirmed segments survive too
     events = run([obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "batch", 20, tool_use_ids=["t1"]),
                   obs(3, "pre", 30, "t2"), obs(4, "batch", 40, tool_use_ids=["t2", "t9"]), obs(5, "stop", 80)])
     assert gaps(events) == ["event-missing"]
-    assert segments(events) == [(0, 10)]
+    assert segments(events) == [(0, 10), (40, 80)]
+    # a start while the reopened segment is open still stops the actor
+    events = run([obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "batch", 20, tool_use_ids=["t1", "t2"]),
+                  obs(3, "start", 25), obs(4, "stop", 90)])
+    assert gaps(events) == ["event-missing", "event-missing"] and segments(events) == []
+
+
+def test_missing_pre_never_counts_the_tool_it_may_hide():
+    # The same batch shape arises when a tool did run but its pre observation was
+    # lost, so neither shape may turn tool time into model time (#347).
+    # t1 ran 10..100 with its pre lost; t2's pre came after it.
+    events = run([obs(0, "start", 0), obs(1, "pre", 100, "t2"), obs(2, "batch", 110, tool_use_ids=["t1", "t2"]),
+                  obs(3, "stop", 120)])
+    assert segments(events) == [(110, 120)]
+    # The whole batch unseen: the open segment would span t9's run.
+    events = run([obs(0, "start", 0), obs(1, "batch", 20, tool_use_ids=["t9"]), obs(2, "pre", 30, "t1"),
+                  obs(3, "batch", 40, tool_use_ids=["t1"]), obs(4, "stop", 50)])
+    assert gaps(events) == ["event-missing"]
+    assert segments(events) == [(20, 30), (40, 50)]
+    # A late batch after the stop does not certify the pending 0..10 either.
+    events = run([obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "stop", 30),
+                  obs(3, "batch", 35, tool_use_ids=["t1", "t9"]), obs(4, "start", 100), obs(5, "stop", 130)])
+    assert gaps(events) == ["event-missing"]
+    assert segments(events) == [(100, 130)]
+
+
+def test_each_missing_pre_batch_writes_its_own_stable_gap():
+    rows = [obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "batch", 20, tool_use_ids=["t1", "x1"]),
+            obs(3, "pre", 30, "t2"), obs(4, "batch", 40, tool_use_ids=["t2"]),
+            obs(5, "pre", 50, "t3"), obs(6, "batch", 60, tool_use_ids=["t3", "x2"]), obs(7, "stop", 70)]
+    events = run(rows)
+    assert gaps(events) == ["event-missing", "event-missing"]
+    assert len({e["event_id"] for e in events if e["kind"] == "gap"}) == 2
+    assert segments(events) == [(20, 30), (60, 70)]
+    assert run(rows) == events
+
+
+def test_missing_pre_batch_still_writes_later_work_to_the_journal(tmp_path):
+    track = tmp_path / ".claude" / "track" / "feature"
+    timing.begin_run(str(track), "build", "run", "claude")
+    timing.bind_actor(str(track), "run", "agent-a", "sess", "claude-hooks-1", "agent-a")
+    payload = {"observations": [obs(0, "start", 0), obs(1, "pre", 10, "t1"),
+                                obs(2, "batch", 20, tool_use_ids=["t1", "t2"]), obs(3, "pre", 30, "t3"),
+                                obs(4, "batch", 40, tool_use_ids=["t3"]), obs(5, "stop", 90)]}
+    for _ in range(2):  # a settle re-sends everything; nothing may be written twice
+        assert timing.collect_event(str(tmp_path), "claude", "sess", "agent-a", "agent-a",
+                                    payload) == ["event-missing"]
+    events, problems = timing.read_events(str(track))
+    assert not problems
+    assert sorted(e["at_ms"] for e in events if e["kind"] == "work_begin") == [20, 40]
+    assert [e["kind"] for e in events].count("gap") == 1
 
 
 def test_batch_with_tools_still_outstanding_is_missing():
@@ -281,6 +333,10 @@ def test_codex_post_without_its_pre_is_missing():
     events = codex_run([obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "post", 20, "t9"),
                         obs(3, "stop", 30)])
     assert "event-missing" in gaps(events)
+    # Still stops with nothing else outstanding: #347 changed Claude only.
+    events = codex_run([obs(0, "start", 0), obs(1, "post", 20, "t9"), obs(2, "pre", 30, "t1"),
+                        obs(3, "post", 40, "t1"), obs(4, "stop", 50)])
+    assert gaps(events) == ["event-missing"] and segments(events) == []
 
 
 def test_codex_events_pass_the_journal_validation(tmp_path):
