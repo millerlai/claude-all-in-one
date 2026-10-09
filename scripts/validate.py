@@ -918,6 +918,17 @@ def _agents_and_hooks():
     AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
     check(f"agents/ holds exactly 10 files ({len(AGENTS)})", len(AGENTS) == 10)
 
+    # Claude Code runs a hook command through /bin/sh as a path, so on macOS and
+    # Linux a target without the exec bit fails with "Permission denied" (#355).
+    # Read the mode from git's index, not the disk: that is what an install
+    # checks out, and Windows' filesystem has no exec bit to read.
+    def check_executable(target):
+        listed = subprocess.run(["git", "ls-files", "-s", "--", target],
+                                capture_output=True, text=True).stdout.split()
+        if listed:
+            check(f"hook target is executable in git ({target} is {listed[0]})",
+                  listed[0] == "100755")
+
     hooks = json.load(open(f"{PLUGIN}/hooks/hooks.json"))
     print("PASS hooks.json is valid JSON")
 
@@ -927,6 +938,7 @@ def _agents_and_hooks():
                 for ref in re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}([^\"]*)", hook.get("command", "")):
                     target = f"{PLUGIN}{ref.strip()}"
                     check(f"hook target exists ({target})", os.path.isfile(target))
+                    check_executable(target)
 
     # .claude/settings.json points at a repo-local hook the same way hooks.json
     # points at a shipped one. A rename should fail here, not at someone's runtime.
@@ -938,6 +950,7 @@ def _agents_and_hooks():
                     for ref in re.findall(r"\$\{CLAUDE_PROJECT_DIR\}([^\"]*)", hook.get("command", "")):
                         target = ref.strip().lstrip("/")
                         check(f"project hook target exists ({target})", os.path.isfile(target))
+                        check_executable(target)
 
 
 @section("setup")
