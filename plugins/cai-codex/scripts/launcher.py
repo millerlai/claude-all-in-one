@@ -8,7 +8,8 @@ maintains -- no `${CLAUDE_PLUGIN_ROOT}`-style substitution exists on Codex.
     python launcher.py <script-name> [args...]   # run <cai-root>/scripts/<script-name>.py
     python launcher.py --root                     # print the resolved cai root
     python launcher.py guard                       # adapt a Codex hook payload and run bash_guard.py
-    python launcher.py timing                      # hand a Codex hook payload to timing_hook.py (#333)
+    python launcher.py timing                      # hand a Codex hook payload to timing_hook.py (#333);
+                                                   # `timing begin|end ...` runs timing.py like any script
 
 Design: docs/design/2026-09-18-codex-support-detail.md, "### launcher.py".
 Standard library only: this runs on a machine that only has whatever
@@ -250,7 +251,9 @@ def main(argv=None) -> int:
         return 2
 
     root = resolve_cai_root()
-    if argv[0] == "timing":
+    # Only a bare `timing` is the hook (hooks.json's form); `timing begin|end ...`
+    # from the track skill is timing.py itself, which the hook path swallowed (#333).
+    if argv == ["timing"]:
         return run_timing(root)
     if root is None:
         print("cai-codex is not installed", file=sys.stderr)
