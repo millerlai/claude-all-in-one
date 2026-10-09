@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.49.2 — 2026-10-09
+
+This release fixes Codex stage timing, which recorded nothing after a recent change, and makes the Agent Viewer ring the same chime for inferred permission waits as for confirmed ones.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.49.1.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.49.1 to 1.49.2.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected; nothing about its saved state or ledger changes. (#344)
+- Run `$setup` again so the installer copies the fixed launcher to `~/.codex/cai/launcher.py`; this is required for Codex stage timing to work again. (#344)
+
+### Codex
+
+- Codex tracks record stage timing again: `timing begin`/`timing end` now run through to `timing.py` instead of being swallowed by the launcher's hook path. (#344)
+
+### Viewer
+
+- An inferred permission wait now rings the same two-note `ask` chime as a question or a confirmed permission wait, instead of a quieter, easy-to-miss tone. (#343)
+- The "Also chime for inferred permission waits" checkbox still controls whether an inferred wait rings at all. (#343)
+
 ## v1.49.1 — 2026-10-09
 
 This release reworks `$setup` so it asks about response language before models, keeps both choices to short menus without recommending a language, and saves the chosen language so a later `--apply` run cannot overwrite it.
