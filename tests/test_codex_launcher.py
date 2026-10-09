@@ -376,3 +376,60 @@ def test_guard_end_to_end_blocks_a_force_push_hidden_in_encoded_command(tmp_path
     result = run(["guard"], stdin_text=payload,
                  env={**_env_without_codex_home(), "CODEX_HOME": str(tmp_path)})
     assert result.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# timing (#333): hand a Codex hook payload to timing_hook.py --codex
+# ---------------------------------------------------------------------------
+
+def _cache_with_timing(codex_home):
+    """A cached version holding the real shared scripts and stages.json the
+    timing hook reads."""
+    root = make_version_dir(codex_home / "plugins" / "cache", "0.1.0")
+    source = REPO_ROOT / "plugins" / "cai"
+    shutil.rmtree(root / "scripts")
+    shutil.copytree(source / "scripts", root / "scripts",
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    (root / "skills" / "track").mkdir(parents=True)
+    shutil.copy(source / "skills" / "track" / "stages.json", root / "skills" / "track" / "stages.json")
+    return root
+
+
+def test_timing_end_to_end_records_a_subagent_into_the_track(tmp_path):
+    home = tmp_path / "codex-home"
+    _cache_with_timing(home)
+    stamp_agents(home, "9.9.9")  # a version mismatch must not stop a hook
+    project = tmp_path / "project"
+    track = project / ".claude" / "track" / "feature"
+    sys.path.insert(0, str(REPO_ROOT / "plugins" / "cai" / "scripts"))
+    try:
+        import timing
+        timing.begin_run(str(track), "build", "run-1", "codex")
+    finally:
+        sys.path.pop(0)
+    env = {**_env_without_codex_home(), "CODEX_HOME": str(home)}
+    payloads = [
+        {"hook_event_name": "PostToolUse", "tool_name": "spawn_agent", "tool_use_id": "s1",
+         "tool_input": {"message": "cai-timing-run: run-1"}, "tool_response": json.dumps({"agent_id": "child"})},
+        {"hook_event_name": "SubagentStart", "agent_id": "child"},
+        {"hook_event_name": "PreToolUse", "agent_id": "child", "tool_name": "Bash", "tool_use_id": "t1"},
+        {"hook_event_name": "PostToolUse", "agent_id": "child", "tool_name": "Bash", "tool_use_id": "t1"},
+        {"hook_event_name": "SubagentStop", "agent_id": "child"},
+    ]
+    for payload in payloads:
+        payload = dict(payload, session_id="s", cwd=str(project))
+        result = run(["timing"], stdin_text=json.dumps(payload), env=env)
+        assert (result.returncode, result.stdout, result.stderr) == (0, "", "")
+    journal = [json.loads(line) for line in (track / "timing.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert sorted(e["kind"] for e in journal).count("work_begin") == 2
+    assert (home / "cai" / "timing-data" / "timing-spool").is_dir()
+
+
+@pytest.mark.parametrize("stdin_text", ["not json", "", json.dumps({"hook_event_name": "SubagentStart"})])
+def test_timing_with_no_cache_or_bad_input_exits_0_silently(tmp_path, stdin_text):
+    env = {**_env_without_codex_home(), "CODEX_HOME": str(tmp_path)}
+    result = run(["timing"], stdin_text=stdin_text, env=env)
+    assert (result.returncode, result.stdout) == (0, "")
+    _cache_with_timing(tmp_path)
+    result = run(["timing"], stdin_text=stdin_text, env=env)
+    assert (result.returncode, result.stdout) == (0, "")

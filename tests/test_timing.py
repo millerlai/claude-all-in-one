@@ -368,7 +368,15 @@ def test_begin_prints_one_marker_line_and_opens_a_marker_file(tmp_path, capsys):
     assert [p.name for p in (tmp_path / ".claude" / "track").iterdir() if p.is_dir()] == ["feature"]
 
 
-@pytest.mark.parametrize("stage,platform", [("nonsense", "claude"), ("build", "codex"), ("build", "other")])
+def test_begin_on_codex_opens_a_codex_run(tmp_path, capsys):
+    # #333: Codex now has a timing source, so its track skill opens runs too.
+    code, out = begin(tmp_path, capsys, platform="codex")
+    assert code == 0 and out.out.startswith("cai-timing-run: ")
+    events, problems = timing.read_events(str(project_track(tmp_path)))
+    assert not problems and [(e["kind"], e["platform"]) for e in events] == [("run_begin", "codex")]
+
+
+@pytest.mark.parametrize("stage,platform", [("nonsense", "claude"), ("nonsense", "codex"), ("build", "other")])
 def test_begin_failure_prints_no_marker_and_exits_2(tmp_path, capsys, stage, platform):
     code, out = begin(tmp_path, capsys, stage=stage, platform=platform)
     assert code == 2 and out.out == ""

@@ -123,21 +123,12 @@
         "   and give it `<top>`, what `git rev-parse --show-toplevel` prints. For `build`",
         "   and `verify`, that reference file has you dispatch its helpers directly",
         "   yourself instead of handing over the whole procedure — follow what it says",
-        "   there before dispatching the stage's own agent, if any."
+        "   there before dispatching the stage's own agent, if any.",
+        "   Before handing the work over, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py begin",
+        "   --track-dir .claude/track/<feature> --stage <stage> --platform codex` and put the line",
+        "   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first."
       ],
-      "why": "D9: names the exception build/verify need so this step doesn't hand the whole procedure to a subagent that would then have to spawn its own helpers. #296: the same anchor also drops the timing begin sentence -- stage timing has no Codex source (a Codex hook cannot tie a spawned subagent to its dispatch), so a run opened there would never get a source."
-    },
-    {
-      "target": "skills/track/SKILL.md",
-      "anchor": [
-        "3. **Record.** Once the report is back — a `## Pending questions` one too — first run `python",
-        "   ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py end --track-dir .claude/track/<feature> --run <run_id>`",
-        "   (the value from step 2's line; a failure changes nothing). Then every attempt goes in the ledger, not only the ones that"
-      ],
-      "replacement": [
-        "3. **Record.** Every attempt goes in the ledger, not only the ones that"
-      ],
-      "why": "#296: pairs with the step 2 override above -- no timing run is opened on Codex, so none is closed."
+      "why": "D9: names the exception build/verify need so this step doesn't hand the whole procedure to a subagent that would then have to spawn its own helpers. #333: the timing begin sentence comes back with --platform codex (#296 dropped it while no Codex hook could tie a spawned subagent to its dispatch; codex-cli 0.161.0's spawn_agent PostToolUse does, tests/fixtures/timing/codex-hooks/). Every helper prompt carries the marker because D9 has the session dispatch build/verify helpers itself, so no one stage agent's chain covers them."
     },
     {
       "target": "agents/designer.md",

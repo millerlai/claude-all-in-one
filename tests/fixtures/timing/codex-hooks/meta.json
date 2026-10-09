@@ -1,0 +1,17 @@
+{
+  "codex_cli_version": "0.161.0",
+  "recorded": "2026-10-09",
+  "features": {
+    "hooks": true,
+    "multi_agent": true
+  },
+  "run": {
+    "command": "codex exec",
+    "seconds": 14.7
+  },
+  "records": 13,
+  "agents": {
+    "child": "01a11e95-26af-7c82-8ffa-e5066a306cbd"
+  },
+  "note": "content-free: field names, identifiers, the run marker and relative millisecond clocks only; prompts, tool input values and tool output are dropped"
+}

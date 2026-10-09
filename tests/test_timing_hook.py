@@ -515,3 +515,160 @@ def test_replaying_the_recorded_real_session_gives_the_same_segments_both_orders
                                               (base + at["PostToolBatch"], base + at["SubagentStop"])]
         assert gaps(journal(path)) == []
     assert env.spool("obs") == []
+
+
+# #333: Codex. Its hooks bind a subagent through the main session's
+# PostToolUse(spawn_agent), whose tool_input.message carries the marker and whose
+# tool_response is a JSON string naming the new agent_id; tools close one by one
+# with PostToolUse instead of a PostToolBatch.
+class CodexEnv(Env):
+    def track(self, name="feature", run_id="run-1", stage="build", platform="codex"):
+        path = os.path.join(self.project, ".claude", "track", name)
+        timing.begin_run(path, stage, run_id, platform)
+        return path
+
+    def send(self, payload, advance=10, session=None):
+        self.now += advance
+        payload = dict(payload, session_id=session or self.session)
+        timing_hook.observe(payload, self.data, self.project, self.now, platform="codex")
+
+    def post(self, agent, tool):
+        self.send({"hook_event_name": "PostToolUse", "agent_id": agent, "tool_name": "Bash",
+                   "tool_use_id": tool, "tool_response": "ok"})
+
+    def spawn(self, agent_id, message="do it", parent=None, tool=None):
+        # Codex's spawn_agent result is that tool's own PostToolUse: same tool_use_id as its pre.
+        payload = {"hook_event_name": "PostToolUse", "tool_name": "spawn_agent", "tool_use_id": tool or "spawn-" + agent_id,
+                   "tool_input": {"agent_type": "cai_implementer", "message": message},
+                   "tool_response": json.dumps({"agent_id": agent_id, "nickname": "N"})}
+        if parent:
+            payload["agent_id"] = parent
+        self.send(payload)
+
+
+@pytest.fixture
+def codex(tmp_path):
+    return CodexEnv(tmp_path)
+
+
+def run_codex_agent(env, agent, tool="t1"):
+    env.start(agent)
+    env.pre(agent, tool)
+    env.post(agent, tool)
+    env.stop(agent)
+
+
+def test_codex_spawn_binds_and_post_closes_each_tool(codex):
+    path = codex.track()
+    codex.spawn("child", message=marker("run-1") + "\nbuild it")
+    run_codex_agent(codex, "child")
+    events = journal(path)
+    assert work(events, "child") == [(codex.now - 30, codex.now - 20), (codex.now - 10, codex.now)]
+    assert gaps(events) == [] and codex.spool("obs") == []
+    bind = [e for e in events if e["kind"] == "actor_bind"][0]
+    assert (bind["platform"], bind["source_id"], bind["session_id"]) == ("codex", "codex-hooks-1", "main-session")
+
+
+def test_codex_result_after_the_agent_stopped_still_binds(codex):
+    path = codex.track()
+    run_codex_agent(codex, "child")
+    assert work(journal(path)) == [] and len(codex.spool("obs")) == 1
+    codex.spawn("child", message=marker("run-1"))
+    assert len(work(journal(path), "child")) == 2 and codex.spool("obs") == []
+
+
+def test_codex_nested_spawn_binds_through_the_parent(codex):
+    path = codex.track()
+    codex.spawn("parent", message=marker("run-1"))
+    codex.start("parent")
+    codex.pre("parent", "spawn")
+    codex.spawn("grandchild", parent="parent", tool="spawn")
+    run_codex_agent(codex, "grandchild", "g1")
+    codex.stop("parent")
+    events = journal(path)
+    binds = {e["actor_id"]: e["parent_actor_id"] for e in events if e["kind"] == "actor_bind"}
+    assert binds == {"parent": None, "grandchild": "parent"}
+    assert len(work(events, "grandchild")) == 2 and gaps(events) == []
+
+
+def test_codex_hook_never_binds_a_claude_run(codex):
+    path = codex.track(platform="claude")
+    codex.spawn("child", message=marker("run-1"))
+    run_codex_agent(codex, "child")
+    assert [e for e in journal(path) if e["kind"] != "run_begin"] == []
+
+
+def test_replaying_the_recorded_real_codex_session_gives_its_segments(codex):
+    fixture = os.path.join(os.path.dirname(__file__), "fixtures", "timing", "codex-hooks")
+    with open(os.path.join(fixture, "session.jsonl"), encoding="ascii") as fh:
+        records = [json.loads(line) for line in fh]
+    child = json.load(open(os.path.join(fixture, "meta.json"), encoding="ascii"))["agents"]["child"]
+    run_id = next(r["marker"] for r in records if r["tool_name"] == "spawn_agent").split(": ", 1)[1]
+    path = codex.track(run_id=run_id)
+    base = 7_000_000
+    for rec in records:
+        payload = {"hook_event_name": rec["event"], "session_id": rec["session_id"]}
+        for key in ("agent_id", "tool_name", "tool_use_id"):
+            if rec[key] is not None:
+                payload[key] = rec[key]
+        if rec["tool_name"] == "spawn_agent":
+            payload["tool_input"] = {"message": rec["marker"]}
+            if rec["tool_response_agent_id"]:
+                payload["tool_response"] = json.dumps({"agent_id": rec["tool_response_agent_id"]})
+        timing_hook.observe(payload, codex.data, codex.project, base + rec["at_ms"], platform="codex")
+    at = {r["event"]: r["at_ms"] for r in records if r["agent_id"] == child}
+    assert work(journal(path), child) == [(base + at["SubagentStart"], base + at["PreToolUse"]),
+                                          (base + at["PostToolUse"], base + at["SubagentStop"])]
+    assert gaps(journal(path)) == [] and codex.spool("obs") == []
+
+
+def test_codex_main_finds_the_project_from_cwd_and_stays_silent(codex, tmp_path):
+    path = codex.track()
+    nested = os.path.join(codex.project, "src", "pkg")
+    os.makedirs(nested)
+    env = dict(os.environ, CAI_TIMING_DATA=codex.data)
+    for key in ("CLAUDE_PLUGIN_DATA", "CLAUDE_PROJECT_DIR"):
+        env.pop(key, None)
+    payloads = [
+        {"hook_event_name": "PostToolUse", "tool_name": "spawn_agent", "session_id": "s",
+         "tool_input": {"message": marker("run-1")}, "tool_response": json.dumps({"agent_id": "child"})},
+        {"hook_event_name": "SubagentStart", "agent_id": "child", "session_id": "s"},
+        {"hook_event_name": "PreToolUse", "agent_id": "child", "session_id": "s", "tool_use_id": "t1"},
+        {"hook_event_name": "PostToolUse", "agent_id": "child", "session_id": "s", "tool_use_id": "t1"},
+        {"hook_event_name": "SubagentStop", "agent_id": "child", "session_id": "s"},
+    ]
+    for payload in payloads:
+        result = subprocess.run([sys.executable, os.path.join(SCRIPTS, "timing_hook.py"), "--codex"],
+                                input=json.dumps(dict(payload, cwd=nested)).encode("utf-8"),
+                                capture_output=True, env=env)
+        assert (result.returncode, result.stdout, result.stderr) == (0, b"", b"")
+    assert len(work(journal(path), "child")) == 2
+
+
+@pytest.mark.parametrize("cwd", [None, "relative/dir", "/nonexistent/nowhere"])
+def test_codex_main_without_a_project_or_data_dir_is_a_silent_no_op(codex, cwd):
+    payload = {"hook_event_name": "SubagentStart", "agent_id": "child", "session_id": "s"}
+    if cwd:
+        payload["cwd"] = cwd
+    for env in (dict(os.environ, CAI_TIMING_DATA=codex.data), {k: v for k, v in os.environ.items() if k != "CAI_TIMING_DATA"}):
+        result = subprocess.run([sys.executable, os.path.join(SCRIPTS, "timing_hook.py"), "--codex"],
+                                input=json.dumps(payload).encode("utf-8"), capture_output=True, env=env)
+        assert (result.returncode, result.stdout, result.stderr) == (0, b"", b"")
+    assert codex.spool("obs") == []
+
+
+def test_codex_track_skill_opens_and_closes_a_codex_run(codex, capsys):
+    # #333: the generated Codex track skill is the production caller on Codex.
+    skill_path = os.path.join(SCRIPTS, "..", "..", "cai-codex", "skills", "track", "SKILL.md")
+    flat = " ".join(open(skill_path, encoding="utf-8").read().split())
+    begin = flat.split("<cai> timing begin ", 1)[1].split("`", 1)[0]
+    assert re.findall(r"--[a-z-]+ \S+", begin)[-1] == "--platform codex"
+    end = flat.split("<cai> timing end ", 1)[1].split("`", 1)[0]
+    assert re.findall(r"--[a-z-]+", end) == ["--track-dir", "--run"]
+    assert "every dispatch prompt of this stage" in flat
+    path = os.path.join(codex.project, ".claude", "track", "feature")
+    assert timing.main(["begin", "--track-dir", path, "--stage", "build", "--platform", "codex"]) == 0
+    line = capsys.readouterr().out.strip()
+    codex.spawn("helper", message="review this\n" + line)
+    run_codex_agent(codex, "helper")
+    assert len(work(journal(path), "helper")) == 2
