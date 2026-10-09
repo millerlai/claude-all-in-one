@@ -2143,15 +2143,24 @@ def _track_stages():
         # agent is read-only: architect.md, plan-review/SKILL.md,
         # stage-design.md. RETIRED_IMPERATIVES below is what keeps the
         # rewrite from quietly coming back.
+        #
+        # The web tools are granted, though: reading a page writes nothing.
+        # Without them intake handed a web lookup on to discover, which runs
+        # on this same agent, and nobody did it (#335). Both references now
+        # say the lookup happens in the stage that needs it.
         "intake": [
             ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
             ("a search tool",
              lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
+            ("WebSearch", lambda tools: re.search(r"\bWebSearch\b", tools) is not None),
+            ("WebFetch", lambda tools: re.search(r"\bWebFetch\b", tools) is not None),
         ],
         "discover": [
             ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
             ("a search tool",
              lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
+            ("WebSearch", lambda tools: re.search(r"\bWebSearch\b", tools) is not None),
+            ("WebFetch", lambda tools: re.search(r"\bWebFetch\b", tools) is not None),
         ],
         "design": [
             ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),

@@ -18,6 +18,15 @@ no `Agent` (`architect.md:7`), and keeping it that way is the trade this makes. 
 question asked without having looked first spends the person's time on something
 you could have found yourself.
 
+Facts from outside this repo — how other products handle the same request, what
+a vendor's documentation promises — are part of the same look: search and fetch
+them yourself with `WebSearch`/`WebFetch` (`architect.md:7`), recording the URL
+and the sentence relied on. Never defer one to `discover`: inside a track it
+runs on this same agent with the same tools (`stages.json`), so a lookup handed
+on there is a lookup nobody does (#335). If one fails — the tool is refused or
+the page will not load — name the query or URL among the Report's deviations,
+so the person can see it was not done.
+
 If `<top>/.claude/cai-context.md` exists — `<top>` being the path your brief
 names or, if it names none, what `git rev-parse --show-toplevel` prints —
 read it first and use its terms. If it does not exist, or neither gives you
