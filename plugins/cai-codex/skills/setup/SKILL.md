@@ -1,19 +1,56 @@
 ---
 name: setup
-description: Finish installing cai-codex - run the installer, set your response language, and trust the cai hooks. Run once after adding the plugin, and again after each update.
+description: Finish installing cai-codex - choose your response language, run the installer, and trust the cai hooks. Run once after adding the plugin, and again after each update.
 ---
 
 Install cai-codex for this user and finish the setup the installer cannot do
 itself. Work through the steps in order and stop with a clear report if any
 step fails.
 
-## Step 1 — Resolve `<cai-root>`
+## Menu policy — short, waiting menus
+
+For all language and model menus in this skill, show a short question and
+the labelled choices only, plus any installer warning required below.
+This overrides the option-presentation requirements in
+`rules/epistemics.md` and `rules/option-explainer.md` for these setup menus.
+Do not add comparison dimensions, tables, six-field explanations, analogies,
+or a closing recommendation. Do not run `options_lint.py` for these menus.
+Do not mark any language as recommended or preselect one; the first language
+listed is not a recommendation. Model menus retain the default and ordering
+specified by the installer's `ask:` and `offer` lines below.
+
+Use only `request_user_input` for all ordinary menus in this skill, and only
+if it is in your tool list and the current mode permits it.
+Do not use `request_user_input_async`. Wait for the tool's answer before
+acting on that decision. Otherwise list labelled text options, then
+end the turn and wait for the person's answer. A result with
+no answer or cancellation is never consent; do not apply an unanswered choice.
+System-required operation approvals follow the system's approval mechanism.
+
+## Step 1 — Choose the response language
+
+Before running the installer or asking any model question, ask which language
+the user wants responses in. Use these choices, without extra explanations:
+
+```text
+A. English
+B. Traditional Chinese (繁體中文)
+C. Japanese
+D. Other
+```
+
+For Other, accept a language name as free text; if none was supplied, ask for
+it and wait. Accept the displayed label, its corresponding number, or a
+language name. Use the chosen language for the remaining setup conversation.
+Remember the choice for Step 4; do not write any files yet.
+
+## Step 2 — Resolve `<cai-root>`
 
 This file lives at `<cai-root>/skills/setup/SKILL.md`. Resolve `<cai-root>`
 as two directories up from the absolute path you read this file from — the
 launcher this would otherwise use does not exist yet on a first install.
 
-## Step 2 — Run the installer
+## Step 3 — Run the installer
 
 The installer writes into `~/.codex`, outside the workspace, so ask the user
 up front to approve running it outside the sandbox before running anything —
@@ -80,16 +117,18 @@ Follow the `ask:` line exactly:
   after `keep-or-type`: keep (first option, the default) or type a model
   name. Every one of these questions must carry this warning: "setup
   cannot check a typed name against your account".
-- `ask: nothing` — ask no question at all. (Step 5's report says the saved
+- `ask: nothing` — ask no question at all. (Step 6's report says the saved
   choice was reused, and why.)
 
-Menus for these questions follow the same waiting-menu policy as Step 3 below.
+Menus for these questions follow the short, waiting menu policy above. The
+mapping and warning lines required above still precede the model question;
+do not expand its choices into a comparison.
 
 ### Apply the answers
 
 If no role was answered with a slug this run — every answer was "keep", or
-nothing was asked at all — stop here: write no answers file, and run the
-installer no further.
+nothing was asked at all — write no answers file, run the installer no
+further, and continue to Step 4.
 
 Otherwise, write the answers file with the file-edit tool at the exact
 path from the `answers file:` line:
@@ -132,23 +171,13 @@ this apply run's own `role <role>: ...` lines: a role is saved this run
 only if its tag reads `saved; cai default <default>`, not plain `cai
 default`.
 
-## Step 3 — Set the response language
+## Step 4 — Save the response language
 
-Use only `request_user_input` for all ordinary menus in this skill, and only
-if it is in your tool list and the current mode permits it.
-Do not use `request_user_input_async`. Wait for the tool's answer before
-acting on that decision. Otherwise list numbered text options, then
-end the turn and wait for the person's answer. A result with
-no answer or cancellation is never consent; do not apply an unanswered choice.
-System-required operation approvals follow the system's approval mechanism.
+Use the language chosen in Step 1; do not ask again. Save it only after all
+installer runs, including any `--apply` run, because each run rewrites the
+cai rules block with its shipped English default.
 
-Ask the user which language they want responses in. Offer
-English, Traditional Chinese (繁體中文), and Japanese
-(日本語), plus an explicit "other" choice for anything not listed — do not
-assume the tool adds a free-text choice on its own. For the text fallback,
-accept whatever number or free text the user answers with.
-
-Then edit the language line inside the `<!-- cai-codex:begin -->` /
+Edit the language line inside the `<!-- cai-codex:begin -->` /
 `<!-- cai-codex:end -->` block the installer just wrote into
 `$CODEX_HOME/AGENTS.md`. The line currently reads:
 
@@ -164,7 +193,7 @@ Substitute the language name and nothing else:
 
 If the user picks English, leave the line as-is.
 
-## Step 4 — Trust the hooks
+## Step 5 — Trust the hooks
 
 The installer wrote cai's hook entries into `$CODEX_HOME/hooks.json`: the
 guard on PreToolUse, and the stage timing hook on SubagentStart, PreToolUse,
@@ -172,7 +201,7 @@ PostToolUse and SubagentStop. A hook Codex has not been told to trust does
 not fire. Tell the user to run `/hooks`, review the cai entries, and trust
 them. Until they do, the guard and stage timing are installed but inactive.
 
-## Step 5 — Report
+## Step 6 — Report
 
 Report concisely:
 

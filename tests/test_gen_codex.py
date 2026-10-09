@@ -537,6 +537,38 @@ def test_hand_written_setup_uses_the_same_waiting_menu_policy():
     assert "no answer or cancellation is never consent" in setup
 
 
+def test_setup_asks_language_before_installing_or_asking_models():
+    setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
+    steps = re.findall(r"^## Step \d+ — (.+)$", setup, re.M)
+    assert steps == [
+        "Choose the response language", "Resolve `<cai-root>`",
+        "Run the installer", "Save the response language",
+        "Trust the hooks", "Report",
+    ]
+    language = setup.split("## Step 1", 1)[1].split("## Step 2", 1)[0]
+    assert "A. English\nB. Traditional Chinese (繁體中文)\nC. Japanese\nD. Other" in language
+    assert "Use the chosen language for the remaining setup conversation" in language
+
+
+def test_setup_keeps_language_and_model_menus_short():
+    setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
+    policy = setup.split("## Step 1", 1)[0]
+    assert "all language and model menus in this skill" in policy
+    assert "overrides the option-presentation requirements" in policy
+    assert "`rules/epistemics.md` and `rules/option-explainer.md`" in policy
+    assert "Do not add comparison dimensions, tables, six-field explanations" in policy
+    assert "Do not run `options_lint.py`" in policy
+    assert "Do not mark any language as recommended" in policy
+
+
+def test_setup_saves_language_after_all_installer_runs_without_reasking():
+    setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
+    save = setup.split("## Step 4 — Save the response language", 1)[1].split("## Step 5", 1)[0]
+    assert "Use the language chosen in Step 1; do not ask again" in save
+    assert "including any `--apply` run" in save
+    assert "continue to Step 4" in setup
+
+
 def test_generated_timeout_policy_never_uses_cursor_selection(tmp_path):
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
