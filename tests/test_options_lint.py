@@ -125,3 +125,21 @@ def test_dimensions_written_as_a_numbered_list_are_not_dimensions():
     result = verdicts(draft(dimensions=numbered))
     assert result["dimensions_declared"] is False
     assert result["six_fields"] is False
+
+
+def test_dash_reads_the_draft_from_stdin_like_a_file(tmp_path):
+    # #345: a POSIX shell pipes the draft in, so no scratch file is left to delete.
+    import subprocess
+    import sys
+    script = options_lint.__file__
+    text = draft()
+    path = tmp_path / "draft.md"
+    path.write_text(text, encoding="utf-8")
+    by_file = subprocess.run([sys.executable, script, str(path)], capture_output=True)
+    by_stdin = subprocess.run([sys.executable, script, "-"], input=text.encode("utf-8"),
+                              capture_output=True)
+    assert by_stdin.returncode == by_file.returncode == 0
+    assert by_stdin.stdout == by_file.stdout
+    bad = subprocess.run([sys.executable, script, "-"], input=draft(pick="").encode("utf-8"),
+                         capture_output=True)
+    assert bad.returncode == 2

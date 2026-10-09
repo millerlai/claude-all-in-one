@@ -50,22 +50,24 @@ def test_step0_names_path_plus_summaries_as_the_failure(plugin_root):
     assert "A file path plus a one-line summary per option" in step0
 
 
-@pytest.mark.parametrize("plugin_root,scratch", [
-    ("plugins/cai", "the system temp directory"),
-    ("plugins/cai-codex", "`<scratch-dir>`"),
+@pytest.mark.parametrize("plugin_root,scratch,lint", [
+    ("plugins/cai", "the system temp directory", "scripts/options_lint.py -"),
+    ("plugins/cai-codex", "`<scratch-dir>`", "<cai> options_lint -"),
 ])
-def test_step0_keeps_only_tier1_drafts_in_the_track_dir(plugin_root, scratch):
+def test_step0_keeps_only_tier1_drafts_in_the_track_dir(plugin_root, scratch, lint):
     # #311: every question round used to leave an options-*.md in the track
     # dir, though only a Tier 1 entry's draft is ever read back (by
-    # preflight.py's options_drafts). The rest belong with the other
-    # throwaway files of a round.
+    # preflight.py's options_drafts). #345: the rest need no file at all --
+    # they go to the lint on stdin -- and only PowerShell, which has no
+    # heredoc, still writes one, outside the repo.
     path = _reference(plugin_root, "pending-questions.md")
     text = _flat(path)
     start = text.index("0. **Lay the options out before asking")
     end = text.index("1. **Ask one decision per turn.**")
     step0 = text[start:end]
-    assert "Every other draft goes in %s, never inside the repo" % scratch in step0
-    assert "nothing reads any other draft back (#311)" in step0
+    assert "Nothing reads any other draft back (#311), so it needs no file" in step0
+    assert lint in step0
+    assert "draft goes in %s, never inside the repo" % scratch in step0
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])

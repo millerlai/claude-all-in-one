@@ -18,8 +18,11 @@
   (check with `git check-ignore`); otherwise use a temporary location already
   allowed by the active sandbox. Do not edit ignore files just to make one.
   Use it for test logs, diagrams, downloads, and message/report/answer files.
-  Remove disposable files after successful consumption; retain failed-run
-  evidence. If no suitable location is allowed, request permission for the
+  Leave disposable files in place once consumed: deleting one is a separate
+  command Codex may stop to approve, once per file, even inside a writable
+  root. A temporary location is cleaned by the system and an ignored path
+  stays out of `git status`; a later write to the same path overwrites it.
+  If no suitable location is allowed, request permission for the
   exact required location. Do not assume `/private/tmp` is allowed or denied
   on macOS: the actual writable roots decide.
 - Moving an output does not grant network access, localhost socket binding,

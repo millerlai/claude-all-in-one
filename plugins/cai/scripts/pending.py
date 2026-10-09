@@ -10,8 +10,8 @@ not part of state.md or the ledger: nothing gates on it, and a write that
 fails only falls back to the old behaviour (the round dies with the session).
 
 Reading is forgiving and writing is strict, as in ledger.py: a command given
-input it cannot use refuses and writes nothing. Text goes in by file path
-only, never as an argument.
+input it cannot use refuses and writes nothing. Text goes in by file path,
+or on stdin when the path is `-` (#345), never as an argument.
 
 pending.md is a public contract. It starts `# pending questions`, then
 `format: N`; a reader that does not know N must say so and read no further.
@@ -63,11 +63,16 @@ def stage_ids():
 
 
 def read_input(path):
-    """A text file's content with LF line endings and no trailing newline.
-    utf-8-sig because a PowerShell-written file starts with a BOM."""
+    """A text file's content, or stdin's when path is `-`, with LF line
+    endings and no trailing newline. utf-8-sig because a PowerShell-written
+    file starts with a BOM."""
     try:
-        with open(path, "rb") as fh:
-            text = fh.read().decode("utf-8-sig")
+        if path == "-":
+            # Piped in, there is no scratch file to delete afterwards (#345).
+            text = sys.stdin.buffer.read().decode("utf-8-sig")
+        else:
+            with open(path, "rb") as fh:
+                text = fh.read().decode("utf-8-sig")
     except (OSError, UnicodeDecodeError) as exc:
         raise PendingError("cannot read %s: %s" % (path, exc))
     return text.replace("\r\n", "\n").rstrip("\n")

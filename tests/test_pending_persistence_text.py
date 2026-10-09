@@ -114,3 +114,16 @@ def test_skill_md_resume_path_routes_a_pending_section_to_the_reference(plugin_r
     assert "first `open` question" in sentence
     assert "instead of running the stage again" in sentence
     assert _command(sentence, "clear")
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_report_and_answers_go_in_on_stdin_with_a_powershell_fallback(plugin_root):
+    # #345: one scratch file per report, answer and draft meant one deletion
+    # each, and Codex stopped to approve every one. Piped in, there is none.
+    path = os.path.join(os.path.dirname(__file__), "..", plugin_root,
+                        "skills", "track", "references", "pending-questions.md")
+    with open(path, encoding="utf-8") as fh:
+        flat = " ".join(fh.read().split())
+    assert "--report-file -`" in flat and "--answer-file -`" in flat
+    assert "<<'CAI_PENDING_EOF'" in flat
+    assert flat.count("PowerShell") >= 3

@@ -1033,3 +1033,20 @@ def test_build_exits_2_when_the_source_has_no_product_manifest(tmp_path):
     rc = gen_codex.build(source, out, check=False)
 
     assert rc == 2
+
+
+def test_generated_scratch_files_are_left_in_place_not_deleted(tmp_path):
+    # #345: Codex stops to approve an `rm -f` of a scratch file even inside its
+    # writable roots, so "remove it after" asked the person once per answer,
+    # options draft, report, commit message and PR body.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    workflow = (out / "rules/workflow.md").read_text(encoding="utf-8")
+    assert "Leave disposable files in place" in workflow
+    for rel in ("rules/workflow.md", "skills/git/SKILL.md", "skills/track/references/stage-ship.md",
+                "skills/track/references/pending-questions.md"):
+        flat = " ".join((out / rel).read_text(encoding="utf-8").split()).lower()
+        for phrase in ("remove disposable files", "is deleted after the command",
+                       "remove it after the command", "and remove it after"):
+            assert phrase not in flat, (rel, phrase)
