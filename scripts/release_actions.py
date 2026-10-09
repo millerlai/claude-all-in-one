@@ -43,10 +43,11 @@ def candidate(version: str, head: str, repo: Path, allow_merged: bool = False) -
     branch = f"release/v{version}"
     remote = release._git(repo, "rev-parse", "--verify", "--quiet", f"origin/{branch}")
     if remote.returncode and allow_merged:
-        # GitHub can delete the branch after merge. Its immutable tag and
-        # matching MERGED PR retain everything needed to finish the CI check.
-        if pr_info(repo, version, head)["state"] != "MERGED":
-            raise ValueError("missing release branch is only allowed after merge")
+        # A merge rerun may find the branch deleted; the immutable tag on the
+        # approved head still names everything the merge needs.
+        tagged = release._git(repo, "rev-parse", "-q", "--verify", f"v{version}^{{commit}}")
+        if tagged.returncode or tagged.stdout.strip() != head:
+            raise ValueError("missing release branch is only allowed once its tag is pushed")
     elif remote.returncode or remote.stdout.strip() != head:
         raise ValueError("release branch no longer matches the approved head")
     parents = git(repo, "rev-list", "--parents", "-n", "1", head).split()
@@ -90,7 +91,7 @@ def candidate(version: str, head: str, repo: Path, allow_merged: bool = False) -
 
 
 def wait_ci(repo: Path, head: str, branch: str, event: str, *, seconds: int = 2400):
-    # A PR or merge push can reach Actions after its API call returns. Poll for
+    # A push can reach Actions after the push itself returns. Poll for
     # this exact commit, never accept the previous green run on the branch.
     deadline = time.monotonic() + seconds
     while True:
@@ -105,16 +106,6 @@ def wait_ci(repo: Path, head: str, branch: str, event: str, *, seconds: int = 24
         if time.monotonic() >= deadline:
             raise RuntimeError(f"timed out waiting for validate CI for {head}")
         time.sleep(10)
-
-
-def pr_info(repo: Path, version: str, head: str) -> dict:
-    info = json.loads(gh(repo, "pr", "view", f"release/v{version}", "--json",
-                         "number,state,isDraft,headRefOid,baseRefName,mergeCommit"))
-    if info["headRefOid"] != head or info["baseRefName"] != "main":
-        raise ValueError("release PR does not match the approved head/base")
-    if git(repo, "rev-parse", f"v{version}^{{commit}}") != head:
-        raise ValueError("release tag does not match the approved head")
-    return info
 
 
 def notes(version: "str | None", repo: Path, *, pr=release_notes.gh_pr,
@@ -204,14 +195,10 @@ def execute(command: str, version: str, head: str, repo: Path) -> int:
         if f"v{version}" in release._remote_tags(repo):
             return release.verify(version, repo=repo)
         return release.cut(version, repo=repo)
-    info = pr_info(repo, version, head)
+    # D3=B (2026-10-09): no release PR. gate already ran validate.py and
+    # pytest on Linux for this exact head, before the tag was pushed.
     if command == "publish":
-        if info["state"] != "OPEN":
-            raise ValueError("release PR must be OPEN before publishing")
-        wait_ci(repo, head, branch, "pull_request")
-        gh(repo, "pr", "checks", str(info["number"]), "--watch", "--interval", "10")
-        pr_info(repo, version, head)
-        result = release.publish(version, repo=repo)
+        result = release.create_release(version, repo=repo)
         if result:
             return result
     published = json.loads(gh(repo, "release", "view", f"v{version}", "--json", "isDraft,publishedAt"))
@@ -219,17 +206,13 @@ def execute(command: str, version: str, head: str, repo: Path) -> int:
         raise ValueError("GitHub Release must be published before merging")
     if command == "publish":
         return 0
-    if info["state"] == "OPEN":
-        gh(repo, "pr", "checks", str(info["number"]), "--watch", "--interval", "10")
-        if info.get("isDraft"):
-            gh(repo, "pr", "ready", str(info["number"]))
-        gh(repo, "pr", "merge", str(info["number"]), "--merge", "--match-head-commit", head)
-        info = pr_info(repo, version, head)
-    if info["state"] != "MERGED":
-        raise ValueError("release PR was not merged")
+    if git(repo, "rev-parse", f"v{version}^{{commit}}") != head:
+        raise ValueError("release tag does not match the approved head")
+    if release.fast_forward_main(version, repo=repo):
+        raise RuntimeError("main was not fast-forwarded to the release tag")
     git(repo, "fetch", "origin", "main")
     git(repo, "merge-base", "--is-ancestor", f"v{version}", "origin/main")
-    wait_ci(repo, info["mergeCommit"]["oid"], "main", "push")
+    wait_ci(repo, head, "main", "push")
     return 0
 
 

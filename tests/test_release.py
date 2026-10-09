@@ -912,51 +912,123 @@ def test_verify_returns_2_when_a_non_built_in_marketplace_is_listed(monkeypatch,
     assert ["claude", "plugin", "marketplace", "add"] not in [argv[:4] for argv in calls]
 
 
-def test_verify_opens_the_release_pr_as_a_draft(monkeypatch, tmp_path):
-    # A draft PR has no merge button on the web page, so nobody can squash it
-    # there; only the merge step's `gh pr ready` + `--merge` lands it.
+def test_verify_neither_pushes_a_branch_nor_opens_a_pr(monkeypatch, tmp_path):
+    # D3=B (2026-10-09): publish fast-forwards main to the tag, so verify
+    # leaves the release branch local and opens no release PR.
     version = "1.99.0"
-    calls = []
+    calls, gits = [], []
     fake_git = _fake_git_for_verify(version)
 
-    def git_with_changelog(repo, *args, timeout=5):
-        if args == ("show", "HEAD:CHANGELOG.md"):
-            return subprocess.CompletedProcess(args, 0, f"## v{version} — 2026-10-06\n\nNotes.\n", "")
+    def recording_git(repo, *args, timeout=5):
+        gits.append(args)
         return fake_git(repo, *args, timeout=timeout)
 
     def fake_run(argv, cwd=None, env=None, timeout=None):
         calls.append(argv)
-        if argv[1:3] == ["pr", "view"]:
-            return subprocess.CompletedProcess(argv, 1, "", "no pull requests found")
         return subprocess.CompletedProcess(argv, 0, "", "")
 
-    monkeypatch.setattr(release, "_git", git_with_changelog)
+    monkeypatch.setattr(release, "_git", recording_git)
     monkeypatch.setattr(release, "_tool_path", lambda name: name)
     monkeypatch.setattr(release, "PLATFORM_CHECKS", ())
     monkeypatch.setattr(release, "run", fake_run)
 
     assert release.verify(version, repo=tmp_path, temp_root=tmp_path / "cai-check") == 0
-    creates = [argv for argv in calls if argv[1:3] == ["pr", "create"]]
-    assert len(creates) == 1 and "--draft" in creates[0]
+    assert not [args for args in gits if args[:1] == ("push",)]
+    assert not [argv for argv in calls if argv[1:2] == ["pr"]]
 
 
-def test_publish_prints_ready_before_the_merge_command(monkeypatch, tmp_path, capsys):
-    version = "1.99.0"
-    head = "a" * 40
+def _tagged_release(repo_pair, *, advance_main=False):
+    """A pushed annotated tag on a one-commit release branch off main."""
+    origin, work = repo_pair
+    _run_git(["switch", "-c", f"release/v{NEXT_VERSION}"], cwd=work)
+    (work / "CHANGELOG.md").write_text(
+        f"# Changelog\n\n## v{NEXT_VERSION} — 2026-10-09\n\nNotes.\n", encoding="utf-8")
+    _run_git(["add", "-A"], cwd=work)
+    _run_git(["commit", "-m", f"chore(release): v{NEXT_VERSION}"], cwd=work)
+    _run_git(["tag", "-a", f"v{NEXT_VERSION}", "-m", "release"], cwd=work)
+    _run_git(["push", "origin", f"refs/tags/v{NEXT_VERSION}"], cwd=work)
+    head = _run_git(["rev-parse", "HEAD"], cwd=work).stdout.strip()
+    if advance_main:
+        _run_git(["switch", "main"], cwd=work)
+        (work / "later.txt").write_text("landed meanwhile", encoding="utf-8")
+        _run_git(["add", "-A"], cwd=work)
+        _run_git(["commit", "-m", "feat: landed meanwhile"], cwd=work)
+        _run_git(["push", "origin", "main"], cwd=work)
+        _run_git(["switch", f"release/v{NEXT_VERSION}"], cwd=work)
+    return origin, work, head
+
+
+def _fake_gh_release(monkeypatch, calls, *, exists=False):
+    real_run = release.run
 
     def fake_run(argv, cwd=None, env=None, timeout=None):
-        if argv[1:3] == ["pr", "view"]:
-            out = json.dumps({"number": 7, "state": "OPEN", "headRefOid": head, "url": "u"})
-            return subprocess.CompletedProcess(argv, 0, out, "")
+        if argv[0] != "gh":  # _git goes through run too; only gh is faked
+            return real_run(argv, cwd=cwd, env=env, timeout=timeout)
+        calls.append(argv)
+        if argv[1:3] == ["release", "view"]:
+            return subprocess.CompletedProcess(argv, 0 if exists else 1, "", "")
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     monkeypatch.setattr(release, "_tool_path", lambda name: name)
     monkeypatch.setattr(release, "run", fake_run)
 
-    assert release.publish(version, repo=tmp_path) == 0
-    out = capsys.readouterr().out
-    ready = out.index("gh pr ready 7")
-    assert ready < out.index(f"gh pr merge 7 --merge --match-head-commit {head}")
+
+def _origin_main(origin):
+    return _run_git(["rev-parse", "main"], cwd=origin).stdout.strip()
+
+
+def test_publish_creates_the_release_then_fast_forwards_main(monkeypatch, repo_pair):
+    origin, work, head = _tagged_release(repo_pair)
+    calls = []
+    _fake_gh_release(monkeypatch, calls)
+
+    assert release.publish(NEXT_VERSION, repo=work) == 0
+
+    assert _origin_main(origin) == head
+    assert [argv[1:3] for argv in calls if argv[1:3] == ["release", "create"]] == [["release", "create"]]
+    assert not [argv for argv in calls if argv[1:2] == ["pr"]]
+
+
+def test_publish_refuses_before_creating_the_release_when_main_advanced(monkeypatch, repo_pair, capsys):
+    origin, work, head = _tagged_release(repo_pair, advance_main=True)
+    before = _origin_main(origin)
+    calls = []
+    _fake_gh_release(monkeypatch, calls)
+
+    assert release.publish(NEXT_VERSION, repo=work) == 1
+
+    assert _origin_main(origin) == before
+    assert not [argv for argv in calls if argv[1:3] == ["release", "create"]]
+    assert "main advanced" in capsys.readouterr().out
+
+
+def test_publish_rerun_after_main_reached_the_tag_changes_nothing(monkeypatch, repo_pair):
+    origin, work, head = _tagged_release(repo_pair)
+    calls = []
+    _fake_gh_release(monkeypatch, calls)
+    assert release.publish(NEXT_VERSION, repo=work) == 0
+    calls.clear()
+    _fake_gh_release(monkeypatch, calls, exists=True)
+
+    assert release.publish(NEXT_VERSION, repo=work) == 0
+
+    assert _origin_main(origin) == head
+    assert not [argv for argv in calls if argv[1:3] == ["release", "create"]]
+
+
+def test_fast_forward_main_never_forces(monkeypatch, repo_pair):
+    origin, work, head = _tagged_release(repo_pair)
+    pushes = []
+    real_git = release._git
+
+    def recording_git(repo, *args, **kwargs):
+        if args[:1] == ("push",):
+            pushes.append(args)
+        return real_git(repo, *args, **kwargs)
+
+    monkeypatch.setattr(release, "_git", recording_git)
+    assert release.fast_forward_main(NEXT_VERSION, repo=work) == 0
+    assert pushes == [("push", "origin", f"{head}:refs/heads/main")]
 
 
 def test_cut_rerun_after_failed_push_does_not_duplicate_the_commit(monkeypatch, repo_pair):
@@ -984,3 +1056,50 @@ def test_cut_rerun_after_failed_push_does_not_duplicate_the_commit(monkeypatch, 
 
     log_after_second = _run_git(["log", "--oneline"], cwd=work).stdout
     assert log_after_first == log_after_second  # no duplicate commit was made
+
+
+def test_fast_forward_main_and_publish_refuse_a_missing_tag(repo_pair, capsys):
+    origin, work = repo_pair
+    assert release.fast_forward_main(NEXT_VERSION, repo=work) == 2
+    assert release.publish(NEXT_VERSION, repo=work) == 2
+    assert release.publish("not-a-version", repo=work) == 2
+    assert "does not exist" in capsys.readouterr().out
+
+
+def test_fast_forward_main_reports_a_refused_push(monkeypatch, repo_pair, capsys):
+    origin, work, head = _tagged_release(repo_pair)
+    real_git = release._git
+
+    def refusing_push(repo, *args, **kwargs):
+        if args[:1] == ("push",):
+            return subprocess.CompletedProcess(args, 1, "", "rejected")
+        return real_git(repo, *args, **kwargs)
+
+    monkeypatch.setattr(release, "_git", refusing_push)
+    assert release.fast_forward_main(NEXT_VERSION, repo=work) == 1
+    assert _origin_main(origin) != head
+    assert "FAIL git push origin" in capsys.readouterr().out
+
+
+def test_fast_forward_main_refuses_when_main_advanced(repo_pair, capsys):
+    origin, work, head = _tagged_release(repo_pair, advance_main=True)
+    before = _origin_main(origin)
+    assert release.fast_forward_main(NEXT_VERSION, repo=work) == 1
+    assert _origin_main(origin) == before
+    assert "main advanced" in capsys.readouterr().out
+
+
+def test_publish_stops_before_main_when_the_release_cannot_be_created(monkeypatch, repo_pair):
+    origin, work, head = _tagged_release(repo_pair)
+    before = _origin_main(origin)
+    real_run = release.run
+
+    def failing_create(argv, cwd=None, env=None, timeout=None):
+        if argv[0] != "gh":
+            return real_run(argv, cwd=cwd, env=env, timeout=timeout)
+        return subprocess.CompletedProcess(argv, 1, "", "boom")
+
+    monkeypatch.setattr(release, "_tool_path", lambda name: name)
+    monkeypatch.setattr(release, "run", failing_create)
+    assert release.publish(NEXT_VERSION, repo=work) == 1
+    assert _origin_main(origin) == before

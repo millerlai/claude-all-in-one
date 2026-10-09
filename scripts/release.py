@@ -843,42 +843,9 @@ def verify(version: str, repo: Path = ROOT, temp_root: Path = None) -> int:
 
     shutil.rmtree(temp_root)
 
-    remote_branch = _git(repo, "rev-parse", "--verify", "--quiet", f"origin/{branch_name}")
-    if remote_branch.returncode != 0:
-        push_done = _git(repo, "push", "-u", "origin", branch_name, timeout=None)
-        if push_done.returncode != 0:
-            print(f"FAIL git push -u origin {branch_name}")
-            return 1
-        print(f"PASS pushed {branch_name}")
-
-    gh_path = _tool_path("gh")
-    pr_view = run([gh_path, "pr", "view", branch_name, "--json", "number,url,state"],
-                  cwd=repo, timeout=None)
-    if pr_view.returncode != 0:
-        changelog_text = _read_at_ref(repo, "HEAD", "CHANGELOG.md")
-        body = extract_section(changelog_text, version) or ""
-        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as f:
-            f.write(body)
-            body_path = f.name
-        # A draft has no merge button on the web page, where this repo's
-        # squash habit would drop the tag out of main's history.
-        try:
-            pr_create = run([gh_path, "pr", "create", "--draft", "--base", "main",
-                             "--head", branch_name, "--title", f"chore(release): {tag_name}",
-                             "--body-file", body_path],
-                            cwd=repo, timeout=None)
-        finally:
-            os.unlink(body_path)
-        if pr_create.returncode != 0:
-            print("FAIL gh pr create")
-            _print_command_failure(pr_create)
-            return 1
-        print(pr_create.stdout.strip())
-    else:
-        info = json.loads(pr_view.stdout)
-        print(info.get("url", ""))
-
-    print(f"once CI is green, run `python scripts/release.py publish {version}`")
+    # D3=B (2026-10-09): no release branch push or PR; publish fast-forwards
+    # main to this tag once the GitHub Release exists.
+    print(f"run `python scripts/release.py publish {version}` to publish and serve it")
     return 0
 
 
@@ -886,59 +853,105 @@ def verify(version: str, repo: Path = ROOT, temp_root: Path = None) -> int:
 # publish
 # ---------------------------------------------------------------------------
 
+def _main_state(repo: Path, sha: str) -> str:
+    """Where origin/main stands against a release commit: "served" (main is
+    on it), "ready" (main is its parent, so a plain push fast-forwards), or
+    "advanced" (anything else; this number can no longer be served)."""
+    if _git(repo, "fetch", "origin", "main", timeout=None).returncode != 0:
+        raise ValueError("git fetch origin main failed")
+    main = _git(repo, "rev-parse", "origin/main").stdout.strip()
+    if main == sha:
+        return "served"
+    parent = _git(repo, "rev-parse", f"{sha}^").stdout.strip()
+    return "ready" if main == parent else "advanced"
+
+
+def _tag_commit(repo: Path, tag_name: str) -> "str | None":
+    done = _git(repo, "rev-parse", "-q", "--verify", f"{tag_name}^{{commit}}")
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def _advanced_message(tag_name: str) -> str:
+    return (f"FAIL main advanced since {tag_name} was cut; it is tagged but cannot be served "
+            "-- prepare the next number")
+
+
+def fast_forward_main(version: str, repo: Path = ROOT) -> int:
+    """Serve a verified tag: move main to its commit with a plain push.
+
+    D3=B (2026-10-09) replaced the release PR with this. A push without
+    --force is refused unless it fast-forwards, so main only ever gains the
+    one release commit the tag names, and the tag stays in main's history."""
+    tag_name = f"v{version}"
+    sha = _tag_commit(repo, tag_name)
+    if sha is None:
+        print(f"FAIL local tag {tag_name} does not exist")
+        return 2
+    state = _main_state(repo, sha)
+    if state == "served":
+        print(f"PASS main is already at {tag_name}")
+        return 0
+    if state == "advanced":
+        print(_advanced_message(tag_name))
+        return 1
+    if _git(repo, "push", "origin", f"{sha}:refs/heads/main", timeout=None).returncode != 0:
+        print(f"FAIL git push origin {sha}:refs/heads/main")
+        return 1
+    print(f"PASS main fast-forwarded to {tag_name}")
+    return 0
+
+
+@_reports_tool_missing
+def create_release(version: str, repo: Path = ROOT) -> int:
+    """The GitHub Release for a pushed tag, created once."""
+    tag_name = f"v{version}"
+    gh_path = _tool_path("gh")
+    release_view = run([gh_path, "release", "view", tag_name], cwd=repo, timeout=None)
+    if release_view.returncode == 0:
+        print(f"PASS GitHub release {tag_name} exists")
+        return 0
+    changelog_text = _read_at_ref(repo, tag_name, "CHANGELOG.md")
+    notes = extract_section(changelog_text, version) or ""
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as f:
+        f.write(notes)
+        notes_path = f.name
+    try:
+        release_create = run([gh_path, "release", "create", tag_name, "--verify-tag",
+                              "--title", tag_name, "--notes-file", notes_path],
+                             cwd=repo, timeout=None)
+    finally:
+        os.unlink(notes_path)
+    if release_create.returncode != 0:
+        print("FAIL gh release create")
+        _print_command_failure(release_create)
+        return 1
+    print(f"PASS created GitHub release {tag_name}")
+    return 0
+
+
 @_reports_tool_missing
 def publish(version: str, repo: Path = ROOT) -> int:
     if not VERSION_RE.match(version):
         print(f"FAIL version: not a version: {version!r}")
         return 2
     tag_name = f"v{version}"
-    branch_name = f"release/{tag_name}"
-
-    gh_path = _tool_path("gh")
-    pr_view = run([gh_path, "pr", "view", branch_name, "--json", "number,state,headRefOid,url"],
-                  cwd=repo, timeout=None)
-    if pr_view.returncode != 0:
-        print(f"FAIL no PR found for {branch_name}")
+    sha = _tag_commit(repo, tag_name)
+    if sha is None:
+        print(f"FAIL local tag {tag_name} does not exist")
         return 2
-    info = json.loads(pr_view.stdout)
-    if info.get("state") != "OPEN":
-        print(f"FAIL PR for {branch_name} is not OPEN")
-        return 2
-
-    checks = run([gh_path, "pr", "checks", str(info["number"])], cwd=repo, timeout=None)
-    if checks.returncode == 8:
-        print("CI is still running, rerun later")
+    # Checked before the Release exists, so a burned number gets no release page.
+    if _main_state(repo, sha) == "advanced":
+        print(_advanced_message(tag_name))
         return 1
-    if checks.returncode != 0:
-        print(f"FAIL CI failed for {branch_name}")
-        _print_command_failure(checks)
-        return 1
-    print("PASS CI is green")
-
-    release_view = run([gh_path, "release", "view", tag_name], cwd=repo, timeout=None)
-    if release_view.returncode != 0:
-        changelog_text = _read_at_ref(repo, tag_name, "CHANGELOG.md")
-        notes = extract_section(changelog_text, version) or ""
-        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".md", encoding="utf-8") as f:
-            f.write(notes)
-            notes_path = f.name
-        try:
-            release_create = run([gh_path, "release", "create", tag_name, "--verify-tag",
-                                  "--title", tag_name, "--notes-file", notes_path],
-                                 cwd=repo, timeout=None)
-        finally:
-            os.unlink(notes_path)
-        if release_create.returncode != 0:
-            print("FAIL gh release create")
-            _print_command_failure(release_create)
-            return 1
-        print(f"PASS created GitHub release {tag_name}")
-
-    head_sha = info["headRefOid"]
-    print(f"gh pr ready {info['number']}")
-    print(f"gh pr merge {info['number']} --merge --match-head-commit {head_sha}")
-    print("do not use --squash")
-    return 0
+    # The Release comes before main moves: a user switched to the tag must
+    # already be able to read its notes (detail design row 12).
+    result = create_release(version, repo=repo)
+    if result:
+        return result
+    result = fast_forward_main(version, repo=repo)
+    if result == 0:
+        print("main's validate CI runs on that push; check it with `gh run list --branch main`")
+    return result
 
 
 # ---------------------------------------------------------------------------
