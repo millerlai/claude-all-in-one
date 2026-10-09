@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.49.4 — 2026-10-09
+
+This release fixes a bug that undercounted build-stage time, makes the Agent Viewer show coverage-only stage times as lower bounds instead of flagging them incomplete, cuts the viewer's CPU use by stepping its animations, and keeps Codex's test-command approvals stable so you aren't re-asked for every pytest run.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.49.3.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.49.3 to 1.49.4.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected; its saved state and ledger keep the same fields, but any build stage with a subagent tool error now keeps counting instead of stopping early, and a stage measured only from coverage now shows its time as a plain lower bound. (#349, #351)
+
+### Track
+
+- A build stage no longer drops all time after an implementer subagent's failed Edit call; counting continues through the rest of the subagent instead of stopping at that point. (#349)
+
+### Viewer
+
+- A stage or track total measured only from coverage now reads "At least m:ss" without "Incomplete data", since that case is a lower bound, not missing data; a stage with another reason for being incomplete still shows "Incomplete data" as before. (#351)
+- The tab's looping animations (the logo, LIVE dots, row lamps and glows, waiting gates, and progress spinners) now step instead of smoothly tweening, cutting measured CPU use roughly in half in testing. (#353)
+
+### Codex
+
+- An approval for a command needing a known resource (a localhost socket or network) is reused on later runs with the same fixed leading words, instead of asking again each time test paths or variables change. (#354)
+
 ## v1.49.3 — 2026-10-09
 
 This release stops a `$track` question round from pausing for approval on Codex for macOS by piping report, draft and answer text straight into the scripts instead of writing it to scratch files.
