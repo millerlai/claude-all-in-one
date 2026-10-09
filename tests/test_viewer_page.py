@@ -529,3 +529,28 @@ def test_zh_hant_summary_labels_are_the_three_categories():
     assert zh["summary.waiting"] == "等待處理"
     assert zh["summary.done"] == "完成"
     assert zh["state.working"] == "執行中"
+
+
+def test_every_permission_wait_rings_the_ask_chime():
+    # A permission wait needs the person as much as a question does, so an
+    # inferred one (every Codex permission) rings the same audible chime; its
+    # checkbox still decides whether it rings at all.
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is required to execute the embedded display functions")
+    script = _script_body(viewer.PAGE_HTML)
+    ring = re.search(r"function ringForRows\([^\n]*\)\{.*?\n\}", script, re.S).group()
+    states = re.search(r"const HUMAN_STATES = .*", script).group()
+    harness = "\n".join([
+        states, ring,
+        "let soundOn = true, firstFetch = true; const acks = new Set(), lastSeenEntryId = new Map();",
+        "const doneChimeEl = {checked: false}; const inferredChimeEl = {checked: true};",
+        "const rung = []; function chime(kind){ rung.push(kind); }",
+        "const rows = id => [{key: 'p', state: 'permission', certainty: 'inferred', entryId: id},",
+        "                    {key: 'c', state: 'permission', certainty: 'confirmed', entryId: id}];",
+        "ringForRows(rows('a')); ringForRows(rows('b'));",
+        "inferredChimeEl.checked = false; ringForRows(rows('c'));",
+        "console.log(JSON.stringify(rung));",
+    ])
+    result = subprocess.run([node, "-e", harness], capture_output=True, encoding="utf-8", check=True)
+    assert json.loads(result.stdout) == ["ask", "ask", "ask"]
