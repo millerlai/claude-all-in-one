@@ -1050,3 +1050,20 @@ def test_generated_scratch_files_are_left_in_place_not_deleted(tmp_path):
         for phrase in ("remove disposable files", "is deleted after the command",
                        "remove it after the command", "and remove it after"):
             assert phrase not in flat, (rel, phrase)
+
+
+def test_generated_escalations_keep_a_stable_head_and_a_reusable_prefix(tmp_path):
+    # #352: every test run's command started differently (a fresh --cache-dir
+    # before `run`, `VAR=...` and `source ... &&` in front), so the person's
+    # "don't ask again for commands that start with ..." never matched the next
+    # run; and each run was first retried in the sandbox, failing on the same
+    # localhost socket, before the escalation was asked for again.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+    flat = " ".join((out / "rules/workflow.md").read_text(encoding="utf-8").split())
+    section = flat.split("## Codex sandbox permissions", 1)[1].split("## Development workflow", 1)[0]
+    assert "uv --cache-dir <workspace-local-cache> --offline run" not in section
+    for phrase in ("`with_additional_permissions`", "`prefix_rule`", "`uv run --env-file",
+                   "do not retry it in the sandbox first", "same leading words every run",
+                   "never the test paths", "Never create allow rules"):
+        assert phrase in section, phrase

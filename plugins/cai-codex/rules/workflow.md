@@ -9,7 +9,7 @@
   Use an existing project-local `.venv` only when that is the declared entry
   point or its equivalence has been checked; do not bypass setup performed
   by `make`, `uv`, or another project wrapper. For an approved uv command,
-  prefer `uv --cache-dir <workspace-local-cache> --offline run --no-sync ...`
+  prefer `uv run --cache-dir <workspace-local-cache> --offline --no-sync ...`
   when dependencies are already installed and no sync is required. A new
   cache may be empty: report missing dependencies rather than downloading
   them silently. `--no-cache` still creates a temporary cache.
@@ -30,7 +30,23 @@
   Keep necessary approvals, including setup/model writes under the user's
   Codex home. Explain the required resource rather than blaming the tool name.
   Keep escalated commands simple and scoped. Never create allow rules or
-  change sandbox settings without explicit user authorization.
+  change sandbox settings without explicit user authorization; suggesting a
+  `prefix_rule` in an escalation request, which the person then approves or
+  not, is neither.
+- Once a command has needed escalation for a known resource in this session
+  (localhost sockets, network), do not retry it in the sandbox first on later
+  runs: ask for it directly. When network is all it lacks, ask with
+  `with_additional_permissions` (`network.enabled`) rather than
+  `require_escalated`.
+- Give a command you escalate the same leading words every run, so one
+  approval can cover the next: no `VAR=value` and no `source ... &&` in front
+  (load a `.env` with `uv run --env-file <file>` or the wrapper's own
+  option), the same cache path each time, and what varies between runs --
+  test paths, `-k`, node ids -- last. Suggest a `prefix_rule` of exactly
+  those fixed leading words (`["make", "test"]`, `["uv", "run",
+  "--cache-dir", ".cache/uv", "--offline", "--no-sync", "pytest"]`), never
+  the test paths: approving a prefix that names them stops none of the next
+  run's prompts.
 
 ## Development workflow
 - In a git repo, before touching code: switch to master/main, pull latest, then create
