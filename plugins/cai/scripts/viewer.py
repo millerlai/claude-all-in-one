@@ -615,6 +615,7 @@ const STRINGS_EN = {
   "note.registry-may-be-stale": "Session registry may be stale",
   "note.previous-turn-failed": "Previous turn failed/interrupted",
   "timing.noData": "No data",
+  "timing.codexUnsupported": "Not measured on Codex",
   "timing.incomplete": "Incomplete data",
   "timing.lowerBound": "At least {time} · Incomplete data",
   "timing.trackTotal": "Total Time: {time} of the track - {name}",
@@ -702,6 +703,7 @@ const STRINGS_ZH_HANT = {
   "note.registry-may-be-stale": "登記檔可能過時",
   "note.previous-turn-failed": "上一輪 failed／interrupted",
   "timing.noData": "無資料",
+  "timing.codexUnsupported": "Codex 不支援計時",
   "timing.incomplete": "資料不完整",
   "timing.lowerBound": "至少 {time} · 資料不完整",
   "timing.trackTotal": "總時間：{time}，追蹤：{name}",
@@ -855,9 +857,13 @@ function stateLabel(row){
   return {label:tr('state.unknown'), icon:''};
 }
 
-function stageTimingLabel(stage){
+// #333: Codex has no timing source, so its missing data is a platform limit.
+function noDataKey(platform){
+  return platform === 'codex' ? 'timing.codexUnsupported' : 'timing.noData';
+}
+function stageTimingLabel(stage, platform){
   const status = stage.timing_status;
-  if (status !== 'complete' && status !== 'incomplete') return tr('timing.noData');
+  if (status !== 'complete' && status !== 'incomplete') return tr(noDataKey(platform));
   const ms = stage.elapsed_ms;
   const valid = Number.isSafeInteger(ms) && ms >= 0;
   if (!valid) return tr('timing.incomplete');
@@ -869,7 +875,7 @@ function trackClockFmt(ms){
   const seconds = Math.floor(ms / 1000);
   return pad(Math.floor(seconds / 3600)) + ':' + pad(Math.floor(seconds % 3600 / 60)) + ':' + pad(seconds % 60);
 }
-function trackTimingLabel(track){
+function trackTimingLabel(track, platform){
   let total = 0, measured = false, complete = true, incomplete = false, overflow = false;
   for (const id of STAGES) {
     const matches = track.stages.filter(stage => stage.id === id);
@@ -897,7 +903,7 @@ function trackTimingLabel(track){
   else if (measured) {
     time = trackClockFmt(total);
     if (!complete) time = tr('timing.lowerBound', {time: time});
-  } else time = tr(incomplete ? 'timing.incomplete' : 'timing.noData');
+  } else time = tr(incomplete ? 'timing.incomplete' : noDataKey(platform));
   // Replace the name last so its literal placeholders are never substituted.
   return tr('timing.trackTotal', {time: time, name: track.name});
 }
@@ -906,7 +912,7 @@ function stageTimingReasons(stage){
   return reasons.map(reason => {
     const key = 'timing.' + reason;
     return Object.prototype.hasOwnProperty.call(STRINGS[langPref], key)
-      && !['timing.noData', 'timing.incomplete', 'timing.lowerBound', 'timing.trackTotal'].includes(key)
+      && !['timing.noData', 'timing.codexUnsupported', 'timing.incomplete', 'timing.lowerBound', 'timing.trackTotal'].includes(key)
       ? tr(key) : tr('note.reason-unknown');
   }).join(tr('list.separator'));
 }
@@ -927,7 +933,7 @@ function stepperHTML(row){
     return sepHTML + gateHTML + '<li class="stage st-' + esc(st) + ' ' + curCls +
       '"><span class="dot">' + esc(icon) + '</span>' + esc(s) +
       ' <span class="stage-timing" title="' + esc(stageTimingReasons(stage)) + '">' +
-      esc(stageTimingLabel(stage)) + '</span></li>';
+      esc(stageTimingLabel(stage, row.platform)) + '</span></li>';
   }).join('');
   return `<div><div class="tname">TRACK · <b>${esc(t.name)}</b></div><ol class="stepper">${items}</ol></div>`;
 }
@@ -992,7 +998,7 @@ function rowHTML(row){
   const certaintyTag = row.certainty === 'confirmed' ? tr('certainty.confirmed') : tr('certainty.inferred');
   const sinceNote = row.aliveCertainty === 'inferred' ? '<div class="meta">' + esc(tr('note.alive-inferred')) + '</div>' : '';
   const branchHTML = row.branch ? `<div class="meta">⎇ ${esc(row.branch)}</div>` : '';
-  const trackTimingHTML = row.track ? '<div class="meta">' + esc(trackTimingLabel(row.track)) + '</div>' : '';
+  const trackTimingHTML = row.track ? '<div class="meta">' + esc(trackTimingLabel(row.track, row.platform)) + '</div>' : '';
   const ackBtn = isAlert ? '<button class="ack" data-act="ack">' + esc(tr('ack.button')) + '</button>' : '';
   // "History" expands row.recent's up-to-8 entries (D2 rule 2) -- unlike the
   // mockup's timeline interpolation (a sibling placed after the closing

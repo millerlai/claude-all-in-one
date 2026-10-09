@@ -28,7 +28,7 @@ def test_stage_timing_display_and_safe_reasons():
         snippets.append(re.search(r"const " + name + r" = \{.*?\n\};", script, re.S).group())
     snippets += ["const STRINGS = {'en':STRINGS_EN,'zh-Hant':STRINGS_ZH_HANT};",
                  "let langPref = 'zh-Hant';", "const pad = n => String(n).padStart(2, '0');"]
-    for name in ("tr", "stageTimingLabel", "stageTimingReasons"):
+    for name in ("tr", "noDataKey", "stageTimingLabel", "stageTimingReasons"):
         match = re.search(r"function " + name + r"\([^\n]*\)\{.*?\n\}", script, re.S)
         assert match, name
         snippets.append(match.group())
@@ -57,7 +57,7 @@ def test_stage_timing_display_and_safe_reasons():
     # unit 4: the two gap reasons the hook source writes have their own text, not "reason unknown"
     assert lines[4] == "Events missing, Run already closed"
     assert lines[5] == "事件缺漏、執行已關閉"
-    assert "esc(stageTimingLabel(stage))" in script
+    assert "esc(stageTimingLabel(stage, row.platform))" in script
     assert "esc(stageTimingReasons(stage))" in script
 
 # Every `${...}` in PAGE_HTML's <script> that is NOT wrapped in esc(...) --
@@ -137,7 +137,7 @@ def _track_page_eval(expression, language="en"):
         snippets.append(re.search(r"const " + name + r" = .*", script).group())
     snippets += ["let langPref = " + json.dumps(language) + ";",
                  "const acks = new Set(); const expanded = new Set();"]
-    for name in ("tr", "trackClockFmt", "trackTimingLabel", "stateLabel", "clock",
+    for name in ("tr", "noDataKey", "trackClockFmt", "trackTimingLabel", "stateLabel", "clock",
                  "stageTimingLabel", "stageTimingReasons", "stepperHTML", "nowHTML",
                  "activityHTML", "rowHTML"):
         match = re.search(r"function " + name + r"\([^\n]*\)\{.*?\n\}", script, re.S)
@@ -410,7 +410,7 @@ def test_string_tables_have_the_same_keys():
     en = json.loads(en_match.group(1))
     zh = json.loads(zh_match.group(1))
     assert set(en.keys()) == set(zh.keys())
-    assert len(en) == 85
+    assert len(en) == 86
 
 
 def test_no_cjk_outside_the_zh_hant_table():
@@ -529,3 +529,30 @@ def test_zh_hant_summary_labels_are_the_three_categories():
     assert zh["summary.waiting"] == "等待處理"
     assert zh["summary.done"] == "完成"
     assert zh["state.working"] == "執行中"
+
+
+@pytest.mark.parametrize("language,unsupported,no_data", [
+    ("en", "Not measured on Codex", "No data"),
+    ("zh-Hant", "Codex 不支援計時", "無資料"),
+])
+def test_codex_rows_say_timing_is_unsupported_not_missing(language, unsupported, no_data):
+    # #333: Codex has no timing source, so a Codex stage without data is a
+    # platform limit, not lost data; a measured stage still shows its time.
+    empty = {"id": "intake", "timing_status": "no-data", "elapsed_ms": None, "timing_reasons": []}
+    measured = {"id": "build", "timing_status": "complete", "elapsed_ms": 70000}
+    assert _track_page_eval(json.dumps([empty, {}, measured]) +
+                            ".map(s => stageTimingLabel(s, 'codex'))", language) == \
+        [unsupported, unsupported, "1:10"]
+    assert _track_page_eval("stageTimingLabel(" + json.dumps(empty) + ", 'claude')", language) == no_data
+    track = {"name": "example", "stages": [empty]}
+    assert unsupported in _track_page_eval("trackTimingLabel(" + json.dumps(track) + ", 'codex')", language)
+    assert no_data in _track_page_eval("trackTimingLabel(" + json.dumps(track) + ", 'claude')", language)
+    # A Codex row whose track does hold a measured stage keeps the measured total.
+    track["stages"].append(measured)
+    assert "00:01:10" in _track_page_eval("trackTimingLabel(" + json.dumps(track) + ", 'codex')", language)
+    rows = [{"key": "k", "state": "unknown", "project": "p", "platform": platform, "since": 0,
+             "sessionId": "k", "aliveCertainty": "inferred", "track": {"name": "example", "stages": [empty]}}
+            for platform in ("codex", "claude")]
+    codex_card, claude_card = _track_page_eval(json.dumps(rows) + ".map(rowHTML)", language)
+    assert unsupported in codex_card and no_data not in codex_card
+    assert no_data in claude_card and unsupported not in claude_card
