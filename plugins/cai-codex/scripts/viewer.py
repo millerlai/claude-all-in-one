@@ -617,6 +617,7 @@ const STRINGS_EN = {
   "timing.noData": "No data",
   "timing.incomplete": "Incomplete data",
   "timing.lowerBound": "At least {time} · Incomplete data",
+  "timing.atLeast": "At least {time}",
   "timing.trackTotal": "Total Time: {time} of the track - {name}",
   "timing.source-unverified": "Source unverified",
   "timing.binding-ambiguous": "Ambiguous ownership",
@@ -704,6 +705,7 @@ const STRINGS_ZH_HANT = {
   "timing.noData": "無資料",
   "timing.incomplete": "資料不完整",
   "timing.lowerBound": "至少 {time} · 資料不完整",
+  "timing.atLeast": "至少 {time}",
   "timing.trackTotal": "總時間：{time}，追蹤：{name}",
   "timing.source-unverified": "來源未驗證",
   "timing.binding-ambiguous": "歸屬不明確",
@@ -855,6 +857,12 @@ function stateLabel(row){
   return {label:tr('state.unknown'), icon:''};
 }
 
+// No shipped source writes a coverage proof, so every measured stage carries
+// coverage-missing: alone, it marks a lower bound, not a gap in the data (#348).
+function coverageOnly(stage){
+  const reasons = stage.timing_reasons;
+  return Array.isArray(reasons) && reasons.length > 0 && reasons.every(reason => reason === 'coverage-missing');
+}
 function stageTimingLabel(stage){
   const status = stage.timing_status;
   if (status !== 'complete' && status !== 'incomplete') return tr('timing.noData');
@@ -863,7 +871,8 @@ function stageTimingLabel(stage){
   if (!valid) return tr('timing.incomplete');
   const seconds = Math.floor(ms / 1000);
   const time = Math.floor(seconds / 60) + ':' + pad(seconds % 60);
-  return status === 'incomplete' ? tr('timing.lowerBound', {time: time}) : time;
+  if (status !== 'incomplete') return time;
+  return tr(coverageOnly(stage) ? 'timing.atLeast' : 'timing.lowerBound', {time: time});
 }
 function trackClockFmt(ms){
   const seconds = Math.floor(ms / 1000);
@@ -887,7 +896,7 @@ function trackTimingLabel(track){
       continue;
     }
     measured = true;
-    if (status === 'incomplete') { complete = false; incomplete = true; }
+    if (status === 'incomplete') { complete = false; incomplete = incomplete || !coverageOnly(stage); }
     // Never format a rounded, unsafe sum as an exact duration or lower bound.
     if (ms > Number.MAX_SAFE_INTEGER - total) overflow = true;
     else total += ms;
@@ -896,7 +905,7 @@ function trackTimingLabel(track){
   if (overflow) time = tr('timing.incomplete');
   else if (measured) {
     time = trackClockFmt(total);
-    if (!complete) time = tr('timing.lowerBound', {time: time});
+    if (!complete) time = tr(incomplete ? 'timing.lowerBound' : 'timing.atLeast', {time: time});
   } else time = tr(incomplete ? 'timing.incomplete' : 'timing.noData');
   // Replace the name last so its literal placeholders are never substituted.
   return tr('timing.trackTotal', {time: time, name: track.name});
@@ -906,7 +915,7 @@ function stageTimingReasons(stage){
   return reasons.map(reason => {
     const key = 'timing.' + reason;
     return Object.prototype.hasOwnProperty.call(STRINGS[langPref], key)
-      && !['timing.noData', 'timing.incomplete', 'timing.lowerBound', 'timing.trackTotal'].includes(key)
+      && !['timing.noData', 'timing.incomplete', 'timing.lowerBound', 'timing.atLeast', 'timing.trackTotal'].includes(key)
       ? tr(key) : tr('note.reason-unknown');
   }).join(tr('list.separator'));
 }
