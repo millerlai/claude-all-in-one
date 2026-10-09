@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.49.1 — 2026-10-09
+
+This release reworks `$setup` so it asks about response language before models, keeps both choices to short menus without recommending a language, and saves the chosen language so a later `--apply` run cannot overwrite it.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.49.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.49.0 to 1.49.1.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected by this update; nothing about its saved state or ledger changes. (#340)
+- Re-run `$setup` (or `/cai:setup`) to pick your response language and model preferences through the new, shorter menus. (#340)
+
+### Usage
+
+- `$setup` now asks you to choose your response language before it asks about models. (#340)
+- The language and model menus are now short choices instead of long comparisons, and the language menu no longer recommends one option. (#340)
+- Once you choose a response language during setup, a later `--apply` run no longer overwrites that choice. (#340)
+
 ## v1.49.0 — 2026-10-09
 
 This release adds per-stage timing on Codex so the Agent Viewer shows subagent model time for `$track` runs there too, and fixes a track bug where `intake` and `discover` deferred web lookups to a stage that could never reach the internet either.
