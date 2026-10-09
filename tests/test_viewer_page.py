@@ -28,7 +28,7 @@ def test_stage_timing_display_and_safe_reasons():
         snippets.append(re.search(r"const " + name + r" = \{.*?\n\};", script, re.S).group())
     snippets += ["const STRINGS = {'en':STRINGS_EN,'zh-Hant':STRINGS_ZH_HANT};",
                  "let langPref = 'zh-Hant';", "const pad = n => String(n).padStart(2, '0');"]
-    for name in ("tr", "stageTimingLabel", "stageTimingReasons"):
+    for name in ("tr", "coverageOnly", "stageTimingLabel", "stageTimingReasons"):
         match = re.search(r"function " + name + r"\([^\n]*\)\{.*?\n\}", script, re.S)
         assert match, name
         snippets.append(match.group())
@@ -137,7 +137,7 @@ def _track_page_eval(expression, language="en"):
         snippets.append(re.search(r"const " + name + r" = .*", script).group())
     snippets += ["let langPref = " + json.dumps(language) + ";",
                  "const acks = new Set(); const expanded = new Set();"]
-    for name in ("tr", "trackClockFmt", "trackTimingLabel", "stateLabel", "clock",
+    for name in ("tr", "trackClockFmt", "coverageOnly", "trackTimingLabel", "stateLabel", "clock",
                  "stageTimingLabel", "stageTimingReasons", "stepperHTML", "nowHTML",
                  "activityHTML", "rowHTML"):
         match = re.search(r"function " + name + r"\([^\n]*\)\{.*?\n\}", script, re.S)
@@ -184,11 +184,12 @@ def test_track_clock_boundaries_and_safe_integer_limit():
         "Total Time: Incomplete data of the track - example"
 
 
-@pytest.mark.parametrize("language,outer,lower,no_data,incomplete", [
-    ("en", "Total Time: {} of the track - example", "At least {} · Incomplete data", "No data", "Incomplete data"),
-    ("zh-Hant", "總時間：{}，追蹤：example", "至少 {} · 資料不完整", "無資料", "資料不完整"),
+@pytest.mark.parametrize("language,outer,lower,no_data,incomplete,at_least", [
+    ("en", "Total Time: {} of the track - example", "At least {} · Incomplete data", "No data", "Incomplete data",
+     "At least {}"),
+    ("zh-Hant", "總時間：{}，追蹤：example", "至少 {} · 資料不完整", "無資料", "資料不完整", "至少 {}"),
 ])
-def test_track_total_reliability_and_languages(language, outer, lower, no_data, incomplete):
+def test_track_total_reliability_and_languages(language, outer, lower, no_data, incomplete, at_least):
     stages = _complete_track([0] * 6)["stages"]
     cases = [[], [{"id": "intake"}],
              [{"id": "intake", "timing_status": "no-data", "elapsed_ms": None}],
@@ -197,10 +198,38 @@ def test_track_total_reliability_and_languages(language, outer, lower, no_data, 
              [{"id": "intake", "timing_status": "complete", "elapsed_ms": 70000},
               {"id": "build", "timing_status": "incomplete"}]]
     tracks = [{"name": "example", "stages": case} for case in cases]
+    # Stages not run yet make the sum a lower bound, not incomplete data (#348).
     assert _track_page_eval(json.dumps(tracks) + ".map(trackTimingLabel)", language) == [
         outer.format(value) for value in (no_data, no_data, no_data, incomplete,
-                                         "00:00:00", lower.format("00:00:00"),
+                                         "00:00:00", at_least.format("00:00:00"),
                                          lower.format("00:01:10"), lower.format("00:01:10"))]
+
+
+@pytest.mark.parametrize("language,outer,at_least,lower,reason", [
+    ("en", "Total Time: {} of the track - example", "At least {}", "At least {} · Incomplete data",
+     "Missing source coverage"),
+    ("zh-Hant", "總時間：{}，追蹤：example", "至少 {}", "至少 {} · 資料不完整", "缺少來源涵蓋證據"),
+])
+def test_coverage_only_stage_is_a_lower_bound_not_incomplete_data(language, outer, at_least, lower, reason):
+    # #348: no shipped source writes a coverage proof, so every measured stage
+    # carries coverage-missing; that alone says "lower bound", not "broken data".
+    coverage = {"id": "intake", "elapsed_ms": 70000, "timing_status": "incomplete",
+                "timing_reasons": ["coverage-missing"]}
+    gap = {"id": "build", "elapsed_ms": 5000, "timing_status": "incomplete",
+           "timing_reasons": ["coverage-missing", "event-missing"]}
+    no_reasons = {"id": "build", "elapsed_ms": 5000, "timing_status": "incomplete"}
+    odd = [dict(coverage, timing_reasons=value) for value in ([], "coverage-missing", None)]
+    assert _track_page_eval(json.dumps([coverage, gap, no_reasons] + odd) + ".map(stageTimingLabel)",
+                            language) == [at_least.format("1:10"), lower.format("0:05"),
+                                          lower.format("0:05")] + [lower.format("1:10")] * 3
+    tracks = [{"name": "example", "stages": stages}
+              for stages in ([coverage], [coverage, gap], [coverage, no_reasons])]
+    assert _track_page_eval(json.dumps(tracks) + ".map(trackTimingLabel)", language) == [
+        outer.format(at_least.format("00:01:10")), outer.format(lower.format("00:01:15")),
+        outer.format(lower.format("00:01:15"))]
+    assert _track_page_eval("stageTimingReasons(" + json.dumps(coverage) + ")", language) == reason
+    assert _track_page_eval("stageTimingReasons({timing_reasons:['atLeast']})", language) == \
+        _track_page_eval("tr('note.reason-unknown')", language)
 
 
 @pytest.mark.parametrize("bad_stage", [
@@ -410,7 +439,7 @@ def test_string_tables_have_the_same_keys():
     en = json.loads(en_match.group(1))
     zh = json.loads(zh_match.group(1))
     assert set(en.keys()) == set(zh.keys())
-    assert len(en) == 85
+    assert len(en) == 86
 
 
 def test_no_cjk_outside_the_zh_hant_table():
