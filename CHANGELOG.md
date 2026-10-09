@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.49.3 — 2026-10-09
+
+This release stops a `$track` question round from pausing for approval on Codex for macOS by piping report, draft and answer text straight into the scripts instead of writing it to scratch files.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.49.2.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.49.2 to 1.49.3.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected; its saved state and ledger keep the same fields, and it simply stops needing a scratch file for the current round's text. (#346)
+
+### Track
+
+- On macOS and Linux, a `$track` question round writes no scratch file for the stage report, each answer, or a non-Tier-1 options draft; the text is piped in directly instead. (#346)
+- A Tier 1 options draft is still written to `options-<id>.md` in the track directory, where `preflight.py` reads it. (#346)
+- Only a shell without heredoc support, such as PowerShell, still writes a scratch file for this text, and that file is now left in place rather than deleted afterwards. (#346)
+
+### Codex
+
+- A pending question round no longer stops to ask approval for a `rm -f` on a scratch file, since on macOS and Linux there is no longer a scratch file to remove. (#346)
+
 ## v1.49.2 — 2026-10-09
 
 This release fixes Codex stage timing, which recorded nothing after a recent change, and makes the Agent Viewer ring the same chime for inferred permission waits as for confirmed ones.
