@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.49.5 — 2026-10-09
+
+This release fixes a bug from v1.49.4 that broke every new Claude Code session on macOS and Linux: the SessionStart hook failed with a permission error instead of running. If you're on v1.49.4, update right away.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.49.4.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.49.4 to 1.49.5.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected; nothing changes in its saved state or ledger.
+
+### Hooks
+
+- The SessionStart hook now runs on macOS and Linux instead of failing with `run-models.cmd: Permission denied`, a regression introduced in v1.49.4. (#356)
+
 ## v1.49.4 — 2026-10-09
 
 This release fixes a bug that undercounted build-stage time, makes the Agent Viewer show coverage-only stage times as lower bounds instead of flagging them incomplete, cuts the viewer's CPU use by stepping its animations, and keeps Codex's test-command approvals stable so you aren't re-asked for every pytest run.
