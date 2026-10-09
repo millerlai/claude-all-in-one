@@ -72,9 +72,10 @@ def _batches(rows):
     return out
 
 
-def _segments(rows):
-    """Return (confirmed, missing_at). confirmed: (start, end, start_key, end_key)."""
-    confirmed, pending = [], []
+def _segments(rows, drop_unstarted=False):
+    """Return (confirmed, missing). confirmed: (start, end, start_key, end_key);
+    missing: the at_ms of each point where the observations did not add up."""
+    confirmed, pending, missing = [], [], []
     open_seg = None  # (at_ms, key)
     outstanding = set()
     stopped = False  # stop seen while tools were outstanding: a late batch may still certify them
@@ -82,7 +83,7 @@ def _segments(rows):
         event, at = row["event"], row["at_ms"]
         if event == "start":
             if outstanding or open_seg is not None:
-                return confirmed, at
+                return confirmed, missing + [at]
             open_seg, stopped = (at, "start@%d" % at), False
         elif event == "pre":
             if open_seg is not None:
@@ -91,8 +92,14 @@ def _segments(rows):
             outstanding.add(row["tool_use_id"])
         elif event == "batch":
             ids = set(row["tool_use_ids"])
-            if not ids <= outstanding or outstanding - ids:
-                return confirmed, at
+            if outstanding - ids or (ids - outstanding and not drop_unstarted):
+                return confirmed, missing + [at]
+            if ids - outstanding:
+                # Claude Code lists a call that failed input validation here without ever
+                # firing its PreToolUse, and a lost pre looks the same; that response's
+                # segment may then hide a tool's run, so drop it, not the actor (#347).
+                pending, open_seg = [], None
+                missing.append(at)
             outstanding = set()
             confirmed += pending
             pending = []
@@ -108,7 +115,7 @@ def _segments(rows):
                 pending = []
             else:
                 stopped = True
-    return confirmed, None
+    return confirmed, missing
 
 
 def normalize_event(platform, payload, binding):
@@ -118,7 +125,9 @@ def normalize_event(platform, payload, binding):
     rows = payload.get("observations") if isinstance(payload, dict) else None
     if not isinstance(rows, list) or not all(_valid(r, platform) for r in rows):
         return [_gap(platform, binding, "event-missing", "payload")]
-    confirmed, missing_at = _segments(_batches(rows) if platform == "codex" else rows)
+    # Codex keeps stopping at a post without its pre: no such Codex session is recorded (#347).
+    confirmed, missing = (_segments(_batches(rows)) if platform == "codex"
+                          else _segments(rows, drop_unstarted=True))
     events = []
     for begin, end, start_key, end_key in confirmed:
         if end < begin:
@@ -131,6 +140,6 @@ def normalize_event(platform, payload, binding):
                            "run_id": binding["run_id"], "stage": binding["stage"],
                            "platform": platform, "kind": kind, "actor_id": binding["actor_id"],
                            "source_id": binding["source_id"], "activity_id": activity, "at_ms": at})
-    if missing_at is not None:
-        events.append(_gap(platform, binding, "event-missing", str(missing_at)))
+    for at in missing:
+        events.append(_gap(platform, binding, "event-missing", str(at)))
     return events
