@@ -241,6 +241,12 @@ def test_install_agents_copies_and_removes_stale(tmp_path):
 # Step 3 -- hooks.json
 # ---------------------------------------------------------------------------
 
+def _without_timing(entries):
+    # The stage timing entry shares PreToolUse with the guard (#333); these
+    # tests are about the guard alone.
+    return [e for e in entries if not e["hooks"][0]["command"].endswith(" timing")]
+
+
 def test_install_hooks_creates_file_when_absent(tmp_path):
     home = tmp_path / "codex_home"
     launcher_path = home / ".codex" / "cai" / "launcher.py"
@@ -248,7 +254,7 @@ def test_install_hooks_creates_file_when_absent(tmp_path):
     dest = install_codex.install_hooks(home, launcher_path)
 
     data = json.loads(dest.read_text(encoding="utf-8"))
-    entries = data["hooks"]["PreToolUse"]
+    entries = _without_timing(data["hooks"]["PreToolUse"])
     assert len(entries) == 1
     # Scoped to shell commands only (learn.chatgpt.com/docs/hooks, C9): a
     # wildcard would also fire the guard on edits and MCP calls, where
@@ -280,7 +286,7 @@ def test_install_hooks_preserves_other_entries_and_replaces_ours(tmp_path):
     launcher_path = home / ".codex" / "cai" / "launcher.py"
     dest = install_codex.install_hooks(home, launcher_path)
 
-    entries = json.loads(dest.read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
+    entries = _without_timing(json.loads(dest.read_text(encoding="utf-8"))["hooks"]["PreToolUse"])
     assert other_entry in entries
     # An old, single-`command` entry (pre-commandWindows) upgrades in place
     # rather than leaving a second, stale copy behind.
@@ -376,7 +382,7 @@ def test_cli_first_run_writes_everything_and_reports(tmp_path):
         assert (codex_home / "agents" / p.name).is_file()
 
     hooks = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
-    entries = hooks["hooks"]["PreToolUse"]
+    entries = _without_timing(hooks["hooks"]["PreToolUse"])
     assert len(entries) == 1
     assert entries[0]["matcher"] == "Bash"
 
@@ -408,7 +414,7 @@ def test_cli_twice_gives_one_agents_md_block_agents_copied_other_hooks_preserved
     assert agents_md.count("<!-- cai-codex:end -->") == 1
 
     hooks = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
-    entries = hooks["hooks"]["PreToolUse"]
+    entries = _without_timing(hooks["hooks"]["PreToolUse"])
     assert other_entry in entries
     assert len(entries) == 2  # the unrelated one, plus exactly one of ours
     ours = [e for e in entries if e != other_entry][0]
@@ -2006,3 +2012,52 @@ def test_cli_models_without_cache_offers_every_saved_role_but_setup_does_not(tmp
     installed = run(env)
     assert installed.returncode == 0, installed.stdout + installed.stderr
     assert "ask: nothing" in installed.stdout
+
+
+# ---------------------------------------------------------------------------
+# Step 3 -- stage timing hooks (#333)
+# ---------------------------------------------------------------------------
+
+TIMING_EVENTS = ("SubagentStart", "PreToolUse", "PostToolUse", "SubagentStop")
+
+
+def _timing_entries(entries):
+    return [e for e in entries if e["hooks"][0]["command"].endswith(" timing")]
+
+
+def test_install_hooks_adds_one_unmatched_timing_entry_per_event(tmp_path):
+    home = tmp_path / "codex_home"
+    launcher_path = home / ".codex" / "cai" / "launcher.py"
+    data = json.loads(install_codex.install_hooks(home, launcher_path).read_text(encoding="utf-8"))
+    for event in TIMING_EVENTS:
+        timing = _timing_entries(data["hooks"][event])
+        assert len(timing) == 1
+        # No matcher: the subagent's every tool opens and closes a model segment.
+        assert "matcher" not in timing[0]
+        assert timing[0]["hooks"][0]["command"] == f"'{sys.executable}' '{launcher_path.as_posix()}' timing"
+        assert timing[0]["hooks"][0]["commandWindows"] == (
+            f"& '{sys.executable}' '{launcher_path.as_posix()}' timing; exit $LASTEXITCODE")
+    guard = [e for e in data["hooks"]["PreToolUse"] if e not in _timing_entries(data["hooks"]["PreToolUse"])]
+    assert len(guard) == 1 and guard[0]["matcher"] == "Bash"
+
+
+def test_install_hooks_twice_keeps_one_of_each_and_never_mistakes_timing_for_the_guard(tmp_path):
+    home = tmp_path / "codex_home"
+    other = {"hooks": [{"type": "command", "command": "echo mine"}]}
+    write(home, "hooks.json", json.dumps({"hooks": {"PostToolUse": [other]}}))
+    launcher_path = home / ".codex" / "cai" / "launcher.py"
+    install_codex.install_hooks(home, launcher_path)
+    first = json.loads((home / "hooks.json").read_text(encoding="utf-8"))
+    install_codex.install_hooks(home, launcher_path)
+    second = json.loads((home / "hooks.json").read_text(encoding="utf-8"))
+    assert first == second
+    assert second["hooks"]["PostToolUse"][0] == other
+    pre = second["hooks"]["PreToolUse"]
+    assert len(pre) == 2 and [e.get("matcher") for e in pre] == ["Bash", None]
+    assert pre[0]["hooks"][0]["command"].endswith(" guard")
+
+
+def test_cli_reports_that_timing_needs_trusting_too(tmp_path):
+    result = run(fake_env(tmp_path))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "timing: installed, inactive until you trust it with /hooks" in result.stdout

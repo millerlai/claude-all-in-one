@@ -15,9 +15,11 @@ Writes, in order (design: docs/design/2026-09-18-codex-support-detail.md,
        not `$CODEX_HOME` (D1=C).
     2. `$CODEX_HOME/agents/cai_*.toml` -- copied from `<cai-root>/agents/`;
        a `cai_*.toml` this tree no longer ships is removed.
-    3. `$CODEX_HOME/hooks.json` -- adds or replaces the one PreToolUse entry
-       whose command contains `.codex/cai/launcher.py`; every other entry is
-       left byte for byte alone.
+    3. `$CODEX_HOME/hooks.json` -- adds or replaces the one PreToolUse guard
+       entry whose command contains `.codex/cai/launcher.py`, and one stage
+       timing entry (`launcher.py timing`, #333) on each of SubagentStart,
+       PreToolUse, PostToolUse and SubagentStop; every other entry is left
+       byte for byte alone.
     4. `$CODEX_HOME/AGENTS.md` -- replaces the `<!-- cai-codex:begin -->` /
        `<!-- cai-codex:end -->` region (or appends it) with the cai command
        line (this installer's own recorded interpreter, `sys.executable`,
@@ -226,6 +228,19 @@ def _is_our_hook_entry(entry: dict) -> bool:
     return False
 
 
+# The stage timing hook (#333): every event its subagents' model time is cut
+# from, recorded with codex-cli 0.161.0 in tests/fixtures/timing/codex-hooks/.
+TIMING_EVENTS = ("SubagentStart", "PreToolUse", "PostToolUse", "SubagentStop")
+
+
+def _is_our_timing_entry(entry: dict) -> bool:
+    # Both of ours name the launcher, so only the subcommand after it tells
+    # the timing entry from the guard -- a launcher-path test alone would
+    # replace one with the other.
+    return _is_our_hook_entry(entry) and any(
+        str(h.get("command", "")).rstrip().endswith(" timing") for h in entry.get("hooks", []) or [])
+
+
 def _ps_quote(value) -> str:
     """A PowerShell single-quoted string literal for `value`. A *double*-
     quoted one is not safe here: PowerShell expands a `$(...)`
@@ -281,7 +296,7 @@ def cai_command_line(python: str, launcher_path: str, os_name: str) -> str:
     return _posix_quote(python) + " " + _posix_quote(launcher_path)
 
 
-def _our_hook_entry(python: str, launcher_path: Path) -> dict:
+def _our_hook_entry(python: str, launcher_path: Path, subcommand: str = "guard") -> dict:
     # Absolute paths only, computed now -- no variable expands at hook time.
     # matcher "Bash" scopes the hook to shell commands only, per
     # learn.chatgpt.com/docs/hooks ("Shell commands: Matched as \"Bash\"",
@@ -294,7 +309,7 @@ def _our_hook_entry(python: str, launcher_path: Path) -> dict:
     # `sh` string still expands `$(...)`/backtick command substitution inside
     # it, so a path (or, in principle, sys.executable) containing one would
     # run as a command the moment Codex hands this to a POSIX shell.
-    command = f'{_posix_quote(python)} {_posix_quote(launcher_path.as_posix())} guard'
+    command = f'{_posix_quote(python)} {_posix_quote(launcher_path.as_posix())} {subcommand}'
     # Codex runs a hook's `command` through `powershell.exe -Command` on
     # Windows (observed, codex-cli 0.155.0): a bare `'prog' 'arg' ...` line
     # parses as an expression whose second quoted token is a syntax error, so
@@ -306,11 +321,14 @@ def _our_hook_entry(python: str, launcher_path: Path) -> dict:
     # child's real exit code, since PowerShell otherwise collapses any
     # nonzero child exit to 1 -- which would read as "hook failed", not
     # "hook blocked it", exactly the ambiguity this override exists to avoid.
-    command_windows = (f'& {_ps_quote(python)} {_ps_quote(launcher_path.as_posix())} guard'
+    command_windows = (f'& {_ps_quote(python)} {_ps_quote(launcher_path.as_posix())} {subcommand}'
                         '; exit $LASTEXITCODE')
-    return {"matcher": "Bash",
-            "hooks": [{"type": "command", "command": command,
-                       "commandWindows": command_windows}]}
+    hooks = [{"type": "command", "command": command, "commandWindows": command_windows}]
+    if subcommand == "timing":
+        # No matcher: every tool a subagent runs ends one model segment and
+        # starts the next, whatever the tool.
+        return {"hooks": hooks}
+    return {"matcher": "Bash", "hooks": hooks}
 
 
 def install_hooks(home: Path, launcher_path: Path) -> Path:
@@ -327,11 +345,21 @@ def install_hooks(home: Path, launcher_path: Path) -> Path:
     pre = data.setdefault("hooks", {}).setdefault("PreToolUse", [])
     entry = _our_hook_entry(sys.executable, launcher_path)
     for i, existing in enumerate(pre):
-        if _is_our_hook_entry(existing):
+        if _is_our_hook_entry(existing) and not _is_our_timing_entry(existing):
             pre[i] = entry
             break
     else:
         pre.append(entry)
+
+    timing_entry = _our_hook_entry(sys.executable, launcher_path, "timing")
+    for event in TIMING_EVENTS:
+        entries = data["hooks"].setdefault(event, [])
+        for i, existing in enumerate(entries):
+            if _is_our_timing_entry(existing):
+                entries[i] = timing_entry
+                break
+        else:
+            entries.append(timing_entry)
 
     body = json.dumps(data, indent=2) + "\n"
     _atomic_write_bytes(dest, body.encode("utf-8"))
@@ -996,6 +1024,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"rules: {len(rules_text.encode('utf-8'))} bytes "
           "(Codex's AGENTS.md cap is unverified)")
     print("guard: installed, inactive until you trust it with /hooks")
+    print("timing: installed, inactive until you trust it with /hooks")
 
     for name in saved:
         if name not in agents:

@@ -59,7 +59,12 @@ For the stage about to run:
    and `verify`, that reference file has you dispatch its helpers directly
    yourself instead of handing over the whole procedure — follow what it says
    there before dispatching the stage's own agent, if any.
-3. **Record.** Every attempt goes in the ledger, not only the ones that
+   Before handing the work over, run `<cai> timing begin
+   --track-dir .claude/track/<feature> --stage <stage> --platform codex` and put the line
+   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first.
+3. **Record.** Once the report is back — a `## Pending questions` one too — first run
+   `<cai> timing end --track-dir .claude/track/<feature> --run <run_id>`
+   (the value from step 2's line; a failure changes nothing). Then every attempt goes in the ledger, not only the ones that
    worked — a stage whose failures leave no trace cannot say how many times
    it has been tried, or why it failed last time:
 

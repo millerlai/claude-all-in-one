@@ -8,15 +8,17 @@ maintains -- no `${CLAUDE_PLUGIN_ROOT}`-style substitution exists on Codex.
     python launcher.py <script-name> [args...]   # run <cai-root>/scripts/<script-name>.py
     python launcher.py --root                     # print the resolved cai root
     python launcher.py guard                       # adapt a Codex hook payload and run bash_guard.py
+    python launcher.py timing                      # hand a Codex hook payload to timing_hook.py (#333)
 
 Design: docs/design/2026-09-18-codex-support-detail.md, "### launcher.py".
 Standard library only: this runs on a machine that only has whatever
 interpreter Codex's shell finds, on Windows and POSIX alike.
 
 Exit codes: 3 = the installed agents' version stamp does not match the
-resolved plugin's version (before a <script-name> run only -- not --root or
-guard, which must stay fail-open like bash_guard.py); 4 = no cai-codex cache
-found at all; otherwise the child process's own exit code.
+resolved plugin's version (before a <script-name> run only -- not --root,
+guard or timing, which must stay fail-open like bash_guard.py); 4 = no
+cai-codex cache found at all (except timing, which always exits 0);
+otherwise the child process's own exit code.
 """
 import base64
 import json
@@ -187,6 +189,22 @@ def run_guard(root: Path) -> int:
     return result.returncode
 
 
+def run_timing(root) -> int:
+    """Stage timing never changes a tool call: whatever happens, exit 0 and
+    print nothing -- a PreToolUse hook's stdout is read as a decision. The
+    spool lives under this Codex home, because Codex hands a hook no plugin
+    data directory the way Claude Code does."""
+    if root is None:
+        return 0
+    env = dict(os.environ, CAI_TIMING_DATA=str(_codex_home() / "cai" / "timing-data"))
+    try:
+        subprocess.run([sys.executable, str(root / "scripts" / "timing_hook.py"), "--codex"],
+                       stdin=sys.stdin, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+    except OSError:
+        pass
+    return 0
+
+
 def _git_safe_env(directory) -> dict:
     """Environment for a subprocess's own `git` calls, with `directory`
     declared a safe directory via git's documented environment form
@@ -228,10 +246,12 @@ def run_script(root: Path, name: str, args: list) -> int:
 def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if not argv:
-        print("usage: launcher.py {--root|guard|<script-name>} [args...]", file=sys.stderr)
+        print("usage: launcher.py {--root|guard|timing|<script-name>} [args...]", file=sys.stderr)
         return 2
 
     root = resolve_cai_root()
+    if argv[0] == "timing":
+        return run_timing(root)
     if root is None:
         print("cai-codex is not installed", file=sys.stderr)
         return 4

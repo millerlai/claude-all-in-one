@@ -4,13 +4,17 @@ import hashlib
 import json
 
 SOURCE_ID = "claude-hooks-1"
-_EVENTS = ("start", "pre", "batch", "stop")
+CODEX_SOURCE_ID = "codex-hooks-1"
+SOURCES = {"claude": SOURCE_ID, "codex": CODEX_SOURCE_ID}
+# Codex has no PostToolBatch hook: each tool closes with its own PostToolUse
+# ("post"), recorded in tests/fixtures/timing/codex-hooks/ (#333).
+_EVENTS = {"claude": ("start", "pre", "batch", "stop"), "codex": ("start", "pre", "post", "stop")}
 
 
 def source_admitted(source_id, platform):
-    # Admitted only on the strength of the official hook documentation plus the
-    # recorded real session in tests/fixtures/timing/claude-hooks/ (unit 4a).
-    return (source_id, platform) == (SOURCE_ID, "claude")
+    # Admitted only on the strength of each platform's hook documentation plus
+    # its recorded real session under tests/fixtures/timing/ (unit 4a, #333).
+    return SOURCES.get(platform) == source_id
 
 
 def _id(*parts):
@@ -29,18 +33,42 @@ def _int(value):
     return type(value) is int and value >= 0
 
 
-def _valid(row):
+def _valid(row, platform):
     if not isinstance(row, dict) or not _int(row.get("seq")) or not _int(row.get("at_ms")):
         return False
     event = row.get("event")
-    if event not in _EVENTS:
+    if event not in _EVENTS[platform]:
         return False
-    if event == "pre":
+    if event in ("pre", "post"):
         return isinstance(row.get("tool_use_id"), str) and bool(row["tool_use_id"])
     if event == "batch":
         ids = row.get("tool_use_ids")
         return isinstance(ids, list) and bool(ids) and all(isinstance(i, str) and i for i in ids)
     return True
+
+
+def _batches(rows):
+    """Codex posts as the batches they amount to: the tools started since the last
+    batch close together when the last of them closes. A post for a tool that
+    was never started is passed on as a batch of its own, which _segments
+    rejects as missing."""
+    out, outstanding, closed = [], set(), []
+    for row in sorted(rows, key=lambda r: (r["at_ms"], r["seq"])):
+        if row["event"] != "post":
+            if row["event"] == "pre":
+                outstanding.add(row["tool_use_id"])
+            out.append(row)
+            continue
+        tool = row["tool_use_id"]
+        if tool not in outstanding:
+            out.append({"seq": row["seq"], "event": "batch", "at_ms": row["at_ms"], "tool_use_ids": [tool]})
+            continue
+        outstanding.discard(tool)
+        closed.append(tool)
+        if not outstanding:
+            out.append({"seq": row["seq"], "event": "batch", "at_ms": row["at_ms"], "tool_use_ids": closed})
+            closed = []
+    return out
 
 
 def _segments(rows):
@@ -83,13 +111,13 @@ def _segments(rows):
 
 
 def normalize_event(platform, payload, binding):
-    if platform != "claude" or binding["source_id"] != SOURCE_ID:
+    if not source_admitted(binding["source_id"], platform):
         # An unverified source cannot establish either work or source coverage.
         return [_gap(platform, binding, "source-unverified", "")]
     rows = payload.get("observations") if isinstance(payload, dict) else None
-    if not isinstance(rows, list) or not all(_valid(r) for r in rows):
+    if not isinstance(rows, list) or not all(_valid(r, platform) for r in rows):
         return [_gap(platform, binding, "event-missing", "payload")]
-    confirmed, missing_at = _segments(rows)
+    confirmed, missing_at = _segments(_batches(rows) if platform == "codex" else rows)
     events = []
     for begin, end, start_key, end_key in confirmed:
         if end < begin:

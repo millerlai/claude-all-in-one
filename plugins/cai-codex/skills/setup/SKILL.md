@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Finish installing cai-codex - run the installer, set your response language, and trust the guard hook. Run once after adding the plugin, and again after each update.
+description: Finish installing cai-codex - run the installer, set your response language, and trust the cai hooks. Run once after adding the plugin, and again after each update.
 ---
 
 Install cai-codex for this user and finish the setup the installer cannot do
@@ -164,12 +164,13 @@ Substitute the language name and nothing else:
 
 If the user picks English, leave the line as-is.
 
-## Step 4 — Trust the guard
+## Step 4 — Trust the hooks
 
-The installer wrote a PreToolUse hook entry into `$CODEX_HOME/hooks.json`,
-but a hook Codex has not been told to trust does not fire. Tell the user to
-run `/hooks`, review the cai entry, and trust it. Until they do, the guard is
-installed but inactive.
+The installer wrote cai's hook entries into `$CODEX_HOME/hooks.json`: the
+guard on PreToolUse, and the stage timing hook on SubagentStart, PreToolUse,
+PostToolUse and SubagentStop. A hook Codex has not been told to trust does
+not fire. Tell the user to run `/hooks`, review the cai entries, and trust
+them. Until they do, the guard and stage timing are installed but inactive.
 
 ## Step 5 — Report
 
@@ -178,7 +179,7 @@ Report concisely:
 - The installer's own output, quoted.
 - Which interpreter succeeded.
 - The response language that was set.
-- Whether the user still needs to run `/hooks` to activate the guard.
+- Whether the user still needs to run `/hooks` to activate the guard and stage timing.
 - The `models:` line, quoted verbatim.
 - Every `not offered <role>:` line, quoted verbatim.
 - Which roles were saved this run, per the `--apply` run's own `role

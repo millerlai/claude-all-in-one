@@ -3,6 +3,9 @@
 content-free observations per subagent, binds subagents to a tracked run, and
 settles confirmed model segments into the track's timing journal.
 
+Claude Code runs it with no arguments; Codex runs it as `timing_hook.py --codex`
+through the cai launcher (#333).
+
 It never writes to stdout (a PreToolUse hook's stdout is parsed as a decision)
 and always exits 0, so it can never change what a tool call does."""
 import hashlib
@@ -13,13 +16,16 @@ import sys
 import time
 
 import timing
+import timing_sources
 
-SOURCE_ID = "claude-hooks-1"
 SPOOL = "timing-spool"
 MAX_CHAIN = 8
 EXPIRY_SECONDS = 7 * 24 * 3600
 _MARKER = re.compile(r"(?m)^cai-timing-run: (\S+)[ \t]*\r?$")
-_AGENT_TOOLS = ("Agent", "Task")
+_AGENT_TOOLS = {"claude": ("Agent", "Task"), "codex": ("spawn_agent",)}
+# Codex has no PostToolBatch: each tool closes with its own PostToolUse (#333).
+_OBSERVED = {"claude": ("SubagentStart", "PreToolUse", "PostToolBatch", "SubagentStop"),
+             "codex": ("SubagentStart", "PreToolUse", "PostToolUse", "SubagentStop")}
 
 
 def _h(identity):
@@ -90,15 +96,29 @@ def _observe_row(payload, event, agent):
         if not ids or not all(_text(i) for i in ids):
             return None
         return {"event": "batch", "tool_use_ids": ids}
-    if event == "PreToolUse":
-        return {"event": "pre", "tool_use_id": _text(payload.get("tool_use_id"))} if _text(payload.get("tool_use_id")) else None
+    if event in ("PreToolUse", "PostToolUse"):
+        tool = _text(payload.get("tool_use_id"))
+        return {"event": "pre" if event == "PreToolUse" else "post", "tool_use_id": tool} if tool else None
     return {"event": "start" if event == "SubagentStart" else "stop"}
 
 
-def _bind_row(payload, project_dir):
+def _spawned_agent(payload, platform):
+    """The agent id an Agent/spawn_agent result names, or None."""
+    response = payload.get("tool_response")
+    if platform == "codex" and isinstance(response, str):
+        # Codex hands the spawn_agent result over as JSON text, not an object.
+        try:
+            response = json.loads(response)
+        except ValueError:
+            return None
+    key = "agent_id" if platform == "codex" else "agentId"
+    return _text(response.get(key)) if isinstance(response, dict) else None
+
+
+def _bind_row(payload, project_dir, platform, agent_id):
     """The binding record a main-session Agent result implies, or gaps to write."""
-    agent_id = payload["tool_response"]["agentId"]
-    prompt = (payload.get("tool_input") or {}).get("prompt")
+    tool_input = payload.get("tool_input")
+    prompt = tool_input.get("message" if platform == "codex" else "prompt") if isinstance(tool_input, dict) else None
     run_ids = sorted(set(_MARKER.findall(prompt))) if isinstance(prompt, str) else []
     if len(run_ids) > 1:
         for run_id in run_ids:
@@ -109,6 +129,8 @@ def _bind_row(payload, project_dir):
     found = timing.find_run(project_dir, run_ids[0])
     if found is None:
         return {"agent": agent_id, "unbound": True}
+    if found["platform"] != platform:
+        return {"agent": agent_id, "unbound": True}
     if found["closed"]:
         _gap(project_dir, run_ids[0], agent_id, "run-closed")
         return {"agent": agent_id, "unbound": True}
@@ -116,7 +138,7 @@ def _bind_row(payload, project_dir):
     if session_id is None:
         return {"agent": agent_id, "unbound": True}
     return {"agent": agent_id, "run_id": run_ids[0], "track_dir": found["track_dir"],
-            "project_dir": project_dir, "session_id": session_id}
+            "project_dir": project_dir, "session_id": session_id, "platform": platform}
 
 
 def _gap(project_dir, run_id, actor_id, reason):
@@ -132,31 +154,30 @@ def _write_gap(track_dir, run_id, stage, platform, actor_id, reason):
         "stage": stage, "platform": platform, "kind": "gap", "actor_id": actor_id, "reason": reason})
 
 
-def observe(payload, data_dir, project_dir, now_ms):
+def observe(payload, data_dir, project_dir, now_ms, platform="claude"):
     if not isinstance(payload, dict):
         return
     event = payload.get("hook_event_name")
     agent = _text(payload.get("agent_id"))
-    if event in ("SubagentStart", "PreToolUse", "PostToolBatch", "SubagentStop") and agent:
+    if event in _OBSERVED[platform] and agent:
         row = _observe_row(payload, event, agent)
-        if row is None:
-            return
-        with _Lock(data_dir):
-            path = _file(data_dir, "obs", agent)
-            existing = _read_rows(path) or []
-            _append(path, dict(row, format=1, seq=len(existing), at_ms=now_ms, agent_id=agent))
-            if event in ("PostToolBatch", "SubagentStop"):
-                _settle(data_dir, now_ms)
-    elif event == "PostToolUse" and payload.get("tool_name") in _AGENT_TOOLS:
-        response = payload.get("tool_response")
-        agent_id = _text(response.get("agentId")) if isinstance(response, dict) else None
+        if row is not None:
+            with _Lock(data_dir):
+                path = _file(data_dir, "obs", agent)
+                existing = _read_rows(path) or []
+                _append(path, dict(row, format=1, seq=len(existing), at_ms=now_ms, agent_id=agent))
+                if event in ("PostToolBatch", "PostToolUse", "SubagentStop"):
+                    _settle(data_dir, now_ms)
+    # On Codex a subagent's spawn_agent result is also that tool's post, observed above.
+    if event == "PostToolUse" and payload.get("tool_name") in _AGENT_TOOLS[platform]:
+        agent_id = _spawned_agent(payload, platform)
         if agent_id is None:
             return
         with _Lock(data_dir):
             if agent:
                 record = {"agent": agent_id, "parent": agent}
             else:
-                record = _bind_row(payload, project_dir)
+                record = _bind_row(payload, project_dir, platform, agent_id)
             _append(_file(data_dir, "bind", agent_id), record)
             _settle(data_dir, now_ms)
 
@@ -192,6 +213,8 @@ def _outstanding(rows):
             pending.add(row["tool_use_id"])
         elif row["event"] == "batch":
             pending -= set(row["tool_use_ids"])
+        elif row["event"] == "post":
+            pending.discard(row["tool_use_id"])
     return pending
 
 
@@ -207,7 +230,7 @@ def _finished(rows):
 def _settle_one(data_dir, path):
     rows = _read_rows(path)
     rows = [r for r in rows or [] if isinstance(r.get("agent_id"), str) and isinstance(r.get("at_ms"), int)
-            and isinstance(r.get("seq"), int) and r.get("event") in ("start", "pre", "batch", "stop")]
+            and isinstance(r.get("seq"), int) and r.get("event") in ("start", "pre", "batch", "post", "stop")]
     if not rows:
         return set(), False
     agent = rows[0]["agent_id"]
@@ -218,14 +241,16 @@ def _settle_one(data_dir, path):
         return set(), _finished(rows)
     reasons = set()
     track_dir = record["track_dir"]
+    platform = record.get("platform", "claude")  # bind records spooled before #333 carry none
     try:
-        timing.bind_actor(track_dir, record["run_id"], agent, record["session_id"], SOURCE_ID, agent, parent)
+        timing.bind_actor(track_dir, record["run_id"], agent, record["session_id"],
+                          timing_sources.SOURCES[platform], agent, parent)
     except ValueError as exc:
         reasons.add(str(exc))
     if not reasons:
         observations = [{k: r[k] for k in ("seq", "event", "at_ms", "tool_use_id", "tool_use_ids") if k in r}
                         for r in rows]
-        reasons |= set(timing.collect_event(record["project_dir"], "claude", record["session_id"],
+        reasons |= set(timing.collect_event(record["project_dir"], platform, record["session_id"],
                                             agent, agent, {"observations": observations}))
     if "run-closed" in reasons:
         runs = timing._run_events(track_dir, record["run_id"])[1]
@@ -298,9 +323,34 @@ def settle(data_dir, now_ms):
         return _settle(data_dir, now_ms)
 
 
-def main():
+def _project_from(cwd):
+    """The nearest directory at or above cwd holding .claude/track, or None."""
+    if not isinstance(cwd, str) or not os.path.isabs(cwd):
+        return None
+    current = os.path.normpath(cwd)
+    while True:
+        if os.path.isdir(os.path.join(current, ".claude", "track")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
+def main(argv=None):
     now_ms = time.time_ns() // 1_000_000  # first action: the clock reading is the event time
+    argv = sys.argv[1:] if argv is None else argv
     try:
+        if argv == ["--codex"]:
+            # Codex gives a hook no plugin-data or project directory: the launcher
+            # names the spool directory, and the project is found from the cwd.
+            data_dir = os.environ.get("CAI_TIMING_DATA")
+            if data_dir:
+                payload = json.loads(sys.stdin.buffer.read())
+                project_dir = _project_from(payload.get("cwd")) if isinstance(payload, dict) else None
+                if project_dir:
+                    observe(payload, data_dir, project_dir, now_ms, platform="codex")
+            return 0
         data_dir, project_dir = os.environ.get("CLAUDE_PLUGIN_DATA"), os.environ.get("CLAUDE_PROJECT_DIR")
         if data_dir and project_dir:
             # Bytes, so json detects UTF-8 itself; text-mode stdin uses the locale code page.

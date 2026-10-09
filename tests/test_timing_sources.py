@@ -219,3 +219,80 @@ def test_other_platform_or_source_stays_unverified():
     assert gaps(events) == ["source-unverified"]
     other = dict(BINDING, source_id="source:v1")
     assert gaps(timing_sources.normalize_event("claude", {"observations": []}, other)) == ["source-unverified"]
+
+
+# #333: codex-hooks-1. Codex has no PostToolBatch; each tool closes with its own
+# PostToolUse ("post"), and the tools a subagent ran in parallel count as one
+# batch once the last of them has closed.
+CODEX_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "timing", "codex-hooks")
+CODEX_BINDING = dict(BINDING, source_id="codex-hooks-1")
+
+
+def codex_run(rows, binding=CODEX_BINDING):
+    return timing_sources.normalize_event("codex", {"observations": rows}, binding)
+
+
+def codex_fixture_observations():
+    kinds = {"SubagentStart": "start", "PreToolUse": "pre", "PostToolUse": "post", "SubagentStop": "stop"}
+    with open(os.path.join(CODEX_FIXTURE, "meta.json"), encoding="ascii") as fh:
+        child = json.load(fh)["agents"]["child"]
+    rows = []
+    with open(os.path.join(CODEX_FIXTURE, "session.jsonl"), encoding="ascii") as fh:
+        for line in fh:
+            rec = json.loads(line)
+            if rec["agent_id"] != child or rec["event"] not in kinds:
+                continue
+            row = {"seq": len(rows), "event": kinds[rec["event"]], "at_ms": rec["at_ms"]}
+            if rec["tool_use_id"]:
+                row["tool_use_id"] = rec["tool_use_id"]
+            rows.append(row)
+    return rows
+
+
+def test_codex_hooks_1_is_admitted_only_on_codex():
+    assert timing_sources.source_admitted("codex-hooks-1", "codex") is True
+    assert timing_sources.source_admitted("codex-hooks-1", "claude") is False
+    assert timing_sources.source_admitted("codex-hooks-2", "codex") is False
+
+
+def test_codex_recorded_real_session_gives_model_segments():
+    rows = codex_fixture_observations()
+    at = {row["event"]: row["at_ms"] for row in rows}
+    events = codex_run(rows)
+    assert gaps(events) == []
+    assert segments(events) == [(at["start"], at["pre"]), (at["post"], at["stop"])]
+
+
+def test_codex_parallel_tools_count_as_one_batch_after_the_last_post():
+    events = codex_run([obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "pre", 11, "t2"),
+                        obs(3, "post", 30, "t2"), obs(4, "post", 50, "t1"), obs(5, "stop", 60)])
+    assert gaps(events) == [] and segments(events) == [(0, 10), (50, 60)]
+
+
+def test_codex_post_without_its_pre_is_missing():
+    events = codex_run([obs(0, "start", 0), obs(1, "pre", 10, "t1"), obs(2, "post", 20, "t9"),
+                        obs(3, "stop", 30)])
+    assert "event-missing" in gaps(events)
+
+
+def test_codex_events_pass_the_journal_validation(tmp_path):
+    track = tmp_path / ".claude" / "track" / "feature"
+    timing.begin_run(str(track), "build", "run", "codex")
+    timing.bind_actor(str(track), "run", "agent-a", "sess", "codex-hooks-1", "agent-a")
+    rows = [obs(0, "start", 0), obs(1, "pre", 30, "t1"), obs(2, "post", 40, "t1"), obs(3, "stop", 70)]
+    assert timing.collect_event(str(tmp_path), "codex", "sess", "agent-a", "agent-a",
+                                {"observations": rows}) == []
+    events, problems = timing.read_events(str(track))
+    assert not problems
+    assert sorted(e["at_ms"] for e in events if e["kind"] == "work_begin") == [0, 40]
+
+
+@pytest.mark.parametrize("platform,binding,event", [
+    ("claude", BINDING, "post"),        # Claude closes tools with a batch, never a post
+    ("codex", CODEX_BINDING, "batch"),  # and Codex has no batch hook at all
+])
+def test_each_platform_rejects_the_other_platforms_tool_close(platform, binding, event):
+    extra = {"tool_use_id": "t1"} if event == "post" else {"tool_use_ids": ["t1"]}
+    rows = [obs(0, "start", 0), obs(1, "pre", 10, "t1"), dict(obs(2, event, 20), **extra), obs(3, "stop", 30)]
+    events = timing_sources.normalize_event(platform, {"observations": rows}, binding)
+    assert gaps(events) == ["event-missing"] and segments(events) == []

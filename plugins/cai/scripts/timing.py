@@ -358,10 +358,10 @@ def main(argv=None):
     try:
         if command == "begin":
             opts = _options(rest, ["track-dir", "stage", "platform"])
-            if opts is None or opts["platform"] != "claude":
-                raise ValueError("usage: begin --track-dir D --stage S --platform claude")
+            if opts is None or opts["platform"] not in timing_sources.SOURCES:
+                raise ValueError("usage: begin --track-dir D --stage S --platform claude|codex")
             run_id = str(uuid.uuid4())
-            begin_run(opts["track-dir"], opts["stage"], run_id, "claude")
+            begin_run(opts["track-dir"], opts["stage"], run_id, opts["platform"])
             open(_marker(opts["track-dir"], run_id), "w").close()
             _sweep_markers(opts["track-dir"])
             print("cai-timing-run: " + run_id)
