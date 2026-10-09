@@ -14,7 +14,8 @@ _EVENTS = {"claude": ("start", "pre", "batch", "stop"), "codex": ("start", "pre"
 def source_admitted(source_id, platform):
     # Admitted only on the strength of each platform's hook documentation plus
     # its recorded real session under tests/fixtures/timing/ (unit 4a, #333).
-    return SOURCES.get(platform) == source_id
+    # `in` first: .get() would answer None for an unknown platform, matching a missing source_id.
+    return platform in SOURCES and SOURCES[platform] == source_id
 
 
 def _id(*parts):

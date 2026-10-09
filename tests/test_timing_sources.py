@@ -253,6 +253,14 @@ def test_codex_hooks_1_is_admitted_only_on_codex():
     assert timing_sources.source_admitted("codex-hooks-1", "codex") is True
     assert timing_sources.source_admitted("codex-hooks-1", "claude") is False
     assert timing_sources.source_admitted("codex-hooks-2", "codex") is False
+    # An unknown platform has no source, even when the binding names none (PR #337 review).
+    assert timing_sources.source_admitted(None, "other") is False
+
+
+def test_unknown_platform_with_no_source_is_unverified_not_an_error():
+    binding = dict(BINDING, source_id=None)
+    events = timing_sources.normalize_event("other", {"observations": [obs(0, "start", 0)]}, binding)
+    assert gaps(events) == ["source-unverified"]
 
 
 def test_codex_recorded_real_session_gives_model_segments():
