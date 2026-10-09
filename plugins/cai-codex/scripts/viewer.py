@@ -1113,7 +1113,6 @@ function chime(kind){
   const t0 = actx.currentTime + 0.02;
   let notes, partials, tail;
   if (kind === 'done') { notes = [[880, 0]]; partials = [[1, 0.28], [2.76, 0.06], [5.4, 0.02]]; tail = 1.4; }
-  else if (kind === 'tick') { notes = [[440, 0]]; partials = [[1, 0.12]]; tail = 0.25; }
   else { notes = [[659.25, 0], [523.25, 0.34]]; partials = [[1, 0.28], [2.76, 0.06], [5.4, 0.02]]; tail = 1.4; }
   for (const [f, dt] of notes) {
     for (const [mult, amp] of partials) {
@@ -1162,7 +1161,8 @@ function ringForRows(newRows){
       acks.delete(row.key);
       if (soundOn) {
         if (row.state === 'permission' && row.certainty === 'inferred') {
-          if (inferredChimeEl.checked) chime('tick');
+          // Same chime as a confirmed wait: it needs the person just as much.
+          if (inferredChimeEl.checked) chime('ask');
         } else if (row.state === 'done') {
           if (doneChimeEl.checked) chime('done');
         } else {
