@@ -147,7 +147,6 @@ jobs:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
-          permission-pull-requests: write
       - name: Configure Git authentication and tag identity
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -155,7 +154,7 @@ jobs:
           gh auth setup-git
           git config user.name 'release automation'
           git config user.email 'release@users.noreply.github.com'
-      - name: Push tag, verify both installs, and open release PR
+      - name: Push tag and verify both installs
         timeout-minutes: 15
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -168,11 +167,8 @@ jobs:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
-          permission-pull-requests: read
-          permission-actions: read
-          permission-checks: read
-      - name: Wait for release CI and publish
-        timeout-minutes: 45
+      - name: Publish the GitHub Release
+        timeout-minutes: 10
         env:
           GH_TOKEN: ${{ steps.publish-token.outputs.token }}
         run: python scripts/release_actions.py publish "$RELEASE_VERSION" "$RELEASE_HEAD"
@@ -201,10 +197,15 @@ jobs:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
-          permission-pull-requests: write
           permission-actions: read
           permission-checks: read
-      - name: Merge the approved head and verify main
+      # No release PR (D3=B, 2026-10-09): main is fast-forwarded to the
+      # approved tag with a plain push, which git refuses unless it is one.
+      - name: Configure Git authentication
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh auth setup-git
+      - name: Fast-forward main to the approved head and verify main
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: python scripts/release_actions.py merge "$RELEASE_VERSION" "$RELEASE_HEAD"

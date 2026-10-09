@@ -139,13 +139,18 @@ condition.
    calls `verify` automatically.
 3. `python scripts/release.py verify X.Y.Z` can also be run standalone, to
    retry a check without cutting again.
-4. `python scripts/release.py publish X.Y.Z` publishes the GitHub Release.
+4. `python scripts/release.py publish X.Y.Z` publishes the GitHub Release,
+   then fast-forwards `main` to the tag's commit with a plain push. Rerunning
+   it after `main` reached the tag changes nothing.
 
 There's no fixed schedule — the maintainer cuts a release whenever they
-decide to, typically after a `fix:` lands. The release PR merges with
-`--merge` (a real merge commit), the one exception to this repo's usual
-squash-merge habit: reverting it must never look like reverting the version
-bump alone. A version number that got tagged but failed its checks and was
+decide to, typically after a `fix:` lands. There is no release PR: the
+release commit is already a single commit on top of `main`, so `main` is
+fast-forwarded to it once the tag is verified, and the tag stays in `main`'s
+history. Until then `main` keeps serving the previous tag, because users'
+marketplaces read the `ref` from `main`. If anything lands on `main` between
+`prepare` and `publish`, the fast-forward is refused and that number is
+burned. A version number that got tagged but failed its checks and was
 never served is simply skipped — the next release uses the next number, and
 the CHANGELOG notes what was skipped. A GitHub tag ruleset, set up once by
 the repo owner, protects `v*` tags from being moved or deleted.
@@ -164,10 +169,10 @@ fallback when the workflow or Copilot is unavailable.
 
 One-time repository setup:
 
-- Install a GitHub App on this repository only, with **Contents** and
-  **Pull requests** read/write, and **Actions** and **Checks** read access.
-  The App token lets the release PR and merge push trigger normal CI;
-  do not grant it a bypass for the `v*` tag ruleset.
+- Install a GitHub App on this repository only, with **Contents**
+  read/write, and **Actions** and **Checks** read access. The App token lets
+  the push to `main` trigger normal CI; do not grant it a bypass for the
+  `v*` tag ruleset.
 - Create environments named `release-tag` and `release-merge`. On each,
   configure a required maintainer reviewer, restrict deployment branches to
   `main`, and disable administrator bypass. Leave self-review enabled if
@@ -184,8 +189,9 @@ One-time repository setup:
   `RELEASE_APP_PRIVATE_KEY` to the App's ID and PEM private key. The workflow
   requests only the token permissions needed by each step. Platform
   verification installs plugins without a model run.
-- Keep the `validate` workflow enabled and merge commits permitted. The App
-  must satisfy any branch protection; it does not approve its own PR.
+- Keep the `validate` workflow enabled. The App pushes to `main` directly,
+  so a branch protection on `main` that requires pull requests would refuse
+  the release.
 
 For each release:
 
@@ -204,17 +210,16 @@ For each release:
    push run for its main parent. If main advances before the first tag push,
    start a new run.
 4. Review the notes in the summary and approve `release-tag`. The job validates and tests
-   even an already committed candidate, pushes the immutable tag, verifies
-   actual installs with both platform CLIs, creates the release PR as a
-   draft (so the web page offers no squash button for it), waits
-   for that exact head's CI, and publishes the GitHub Release. CLI versions
+   even an already committed candidate, on Linux, before it pushes the
+   immutable tag; it then verifies actual installs with both platform CLIs
+   and publishes the GitHub Release. `main` has not moved yet. CLI versions
    are pinned to the platform floors in `scripts/release.py`; update the
    workflow's installation steps when those floors change. Copilot CLI is
    pinned in the `notes` job, and its model in `scripts/release_notes.py`.
-5. Approve `release-merge` only after reviewing the PR and published Release.
-   It marks the draft ready, merges with `--merge --match-head-commit`,
-   confirms the tag is an ancestor of main, and waits for the merge
-   commit's own `validate` push run.
+5. Approve `release-merge` only after reviewing the published Release.
+   It fast-forwards `main` to the approved head with a plain push, confirms
+   the tag is an ancestor of main, and waits for that commit's own
+   `validate` push run on `main`.
 
 Notes you would rather write yourself, or a Copilot outage, take the
 fallback: follow `/cut-release` through its CHANGELOG step, keep the
@@ -237,8 +242,8 @@ release branch, so start one only with that branch's version and SHA as
 `head`. If the tag is already on the remote, it reruns `verify` instead of
 trying to tag again; a published Release is reused. The release branch was
 saved before tagging, so recovery does not depend on a previous runner's
-disk. If merge succeeded but its CI wait failed, re-running the **failed
-merge job** checks the existing merge instead of merging twice. A changed
+disk. If the fast-forward succeeded but its CI wait failed, re-running the
+**failed merge job** finds `main` already at the tag and only waits again. A changed
 branch head or conflicting tag is refused. A real installation defect still
 burns the version: fix it on main, explicitly retire the failed release
 branch after review, and prepare the next number, recording the skipped
@@ -267,8 +272,8 @@ None of these is run by a shipped component:
 - `/cut-release` (`.claude/skills/cut-release/`) — the local fallback to the
   `cut-release` workflow: runs the four
   `scripts/release.py` steps in [Releasing](#releasing) above, with the version choice,
-  the CHANGELOG rewrite and the confirmations before the tag push and the
-  `--merge` of the release PR. Codex CLI uses `$cut-release [X.Y.Z]` via
+  the CHANGELOG rewrite and the confirmations before the tag push and before
+  `publish` fast-forwards `main`. Codex CLI uses `$cut-release [X.Y.Z]` via
   `.agents/skills/cut-release/`, which reads the same workflow and adds
   PowerShell execution guidance. Both entries are repository-only maintainer
   tools, not shipped plugin skills.

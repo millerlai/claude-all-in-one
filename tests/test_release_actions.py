@@ -176,115 +176,98 @@ def test_ci_wait_times_out_if_no_run_appears(monkeypatch, tmp_path):
 @pytest.fixture
 def orchestration(monkeypatch, tmp_path):
     head = "a" * 40
-    info = {"number": 123, "state": "OPEN", "headRefOid": head, "baseRefName": "main",
-            "mergeCommit": {"oid": "b" * 40}}
+    published = {"isDraft": False, "publishedAt": "2026-10-03T00:00:00Z"}
     calls = []
     monkeypatch.setattr(actions, "candidate", lambda *args: "c" * 40)
     monkeypatch.setattr(actions, "git", lambda *args: head)
     monkeypatch.setattr(actions, "wait_ci", lambda *args: calls.append(("wait", *args[1:])))
+    monkeypatch.setattr(release, "create_release",
+                        lambda version, repo=None: calls.append(("create_release", version)) or 0)
+    monkeypatch.setattr(release, "fast_forward_main",
+                        lambda version, repo=None: calls.append(("fast_forward_main", version)) or 0)
+
     def fake_gh(repo, *args):
         calls.append(args)
-        if args[:2] == ("pr", "view"):
-            return json.dumps(info)
         if args[:2] == ("release", "view"):
-            return json.dumps({"isDraft": False, "publishedAt": "2026-10-03T00:00:00Z"})
-        if args[:2] == ("pr", "merge"):
-            info["state"] = "MERGED"
+            return json.dumps(published)
         return ""
     monkeypatch.setattr(actions, "gh", fake_gh)
-    return tmp_path, head, info, calls
+    return tmp_path, head, published, calls
 
 
-def test_publish_waits_for_exact_head_ci_before_publish(orchestration, monkeypatch):
-    repo, head, info, calls = orchestration
-    monkeypatch.setattr(release, "publish", lambda *args, **kwargs: calls.append(("publish",)) or 0)
+def test_publish_creates_the_release_and_touches_neither_main_nor_a_pr(orchestration):
+    # D3=B (2026-10-09): no release PR; main moves only in the merge job.
+    repo, head, published, calls = orchestration
     assert actions.execute("publish", NEXT_VERSION, head, repo) == 0
-    assert calls.index(("wait", head, f"release/v{NEXT_VERSION}", "pull_request")) < calls.index(("publish",))
-    assert not any(c[:2] == ("pr", "merge") for c in calls)
+    assert ("create_release", NEXT_VERSION) in calls
+    assert ("fast_forward_main", NEXT_VERSION) not in calls
+    assert not any(c[:1] == ("pr",) for c in calls)
+    assert not any(c[0] == "wait" for c in calls)
 
 
-@pytest.mark.parametrize("field,value", [("headRefOid", "d" * 40), ("baseRefName", "other")])
-def test_publish_refuses_changed_pr_before_publishing(orchestration, monkeypatch, field, value):
-    repo, head, info, calls = orchestration
-    info[field] = value
-    monkeypatch.setattr(release, "publish", lambda *args, **kwargs: pytest.fail("published changed PR"))
-    with pytest.raises(ValueError, match="head/base"):
-        actions.execute("publish", NEXT_VERSION, head, repo)
-
-
-def test_merge_uses_merge_and_full_approved_head_then_checks_merge_ci(orchestration):
-    repo, head, info, calls = orchestration
+def test_merge_fast_forwards_main_then_waits_for_its_ci_on_the_approved_head(orchestration):
+    repo, head, published, calls = orchestration
     assert actions.execute("merge", NEXT_VERSION, head, repo) == 0
-    assert ("pr", "merge", "123", "--merge", "--match-head-commit", head) in calls
-    assert ("wait", "b" * 40, "main", "push") in calls
+    assert calls.index(("fast_forward_main", NEXT_VERSION)) < calls.index(("wait", head, "main", "push"))
+    assert not any(c[:1] == ("pr",) for c in calls)
 
 
-def test_merge_marks_a_draft_release_pr_ready_before_merging(orchestration):
-    repo, head, info, calls = orchestration
-    info["isDraft"] = True
+def test_merge_refuses_draft_release(orchestration):
+    repo, head, published, calls = orchestration
+    published.update(isDraft=True, publishedAt=None)
+    with pytest.raises(ValueError, match="published"):
+        actions.execute("merge", NEXT_VERSION, head, repo)
+    assert ("fast_forward_main", NEXT_VERSION) not in calls
+
+
+def test_merge_stops_when_main_cannot_be_fast_forwarded(orchestration, monkeypatch):
+    repo, head, published, calls = orchestration
+    monkeypatch.setattr(release, "fast_forward_main", lambda version, repo=None: 1)
+    with pytest.raises(RuntimeError, match="fast-forward"):
+        actions.execute("merge", NEXT_VERSION, head, repo)
+    assert not any(c[0] == "wait" for c in calls)
+
+
+def _published_gh(calls):
+    def fake_gh(repo, *args):
+        calls.append(args)
+        if args[:2] == ("release", "view"):
+            return json.dumps({"isDraft": False, "publishedAt": "2026-10-03T00:00:00Z"})
+        pytest.fail(f"unexpected gh call: {args}")
+    return fake_gh
+
+
+def test_merge_moves_the_real_main_to_the_tag_and_a_rerun_changes_nothing(candidate_repo, monkeypatch):
+    repo, head = candidate_repo(tag=True)
+    calls = []
+    monkeypatch.setattr(actions, "gh", _published_gh(calls))
+    monkeypatch.setattr(actions, "wait_ci", lambda *args: calls.append(("wait", *args[1:])))
     assert actions.execute("merge", NEXT_VERSION, head, repo) == 0
-    merge = ("pr", "merge", "123", "--merge", "--match-head-commit", head)
-    assert calls.index(("pr", "ready", "123")) < calls.index(merge)
-
-
-def test_merge_does_not_mark_a_ready_release_pr_ready_again(orchestration):
-    repo, head, info, calls = orchestration
-    info["isDraft"] = False
+    assert actions.git(repo, "rev-parse", "origin/main") == head
+    assert ("wait", head, "main", "push") in calls
+    calls.clear()
     assert actions.execute("merge", NEXT_VERSION, head, repo) == 0
-    assert not any(c[:2] == ("pr", "ready") for c in calls)
-
-
-def test_merge_retry_does_not_merge_twice(orchestration):
-    repo, head, info, calls = orchestration
-    info["state"] = "MERGED"
-    assert actions.execute("merge", NEXT_VERSION, head, repo) == 0
-    assert not any(c[:2] == ("pr", "merge") for c in calls)
-    assert ("wait", "b" * 40, "main", "push") in calls
+    assert actions.git(repo, "rev-parse", "origin/main") == head
+    assert ("wait", head, "main", "push") in calls
 
 
 def test_merge_retry_after_remote_branch_was_deleted(candidate_repo, monkeypatch):
     repo, head = candidate_repo(tag=True)
-    _run_git(["merge", "--no-ff", head, "-m", "merge release"], cwd=repo)
-    merge_head = actions.git(repo, "rev-parse", "HEAD")
-    _run_git(["push", "origin", "main"], cwd=repo)
+    _run_git(["push", "origin", f"{head}:refs/heads/main"], cwd=repo)
     _run_git(["push", "origin", "--delete", f"release/v{NEXT_VERSION}"], cwd=repo)
-    info = {"number": 123, "state": "MERGED", "headRefOid": head, "baseRefName": "main",
-            "mergeCommit": {"oid": merge_head}}
     calls = []
-    def fake_gh(repo, *args):
-        calls.append(args)
-        if args[:2] == ("pr", "view"):
-            return json.dumps(info)
-        if args[:2] == ("release", "view"):
-            return json.dumps({"isDraft": False, "publishedAt": "2026-10-03T00:00:00Z"})
-        pytest.fail(f"unexpected write operation: {args}")
-    monkeypatch.setattr(actions, "gh", fake_gh)
+    monkeypatch.setattr(actions, "gh", _published_gh(calls))
     monkeypatch.setattr(actions, "wait_ci", lambda *args: calls.append(("wait", *args[1:])))
     assert actions.execute("merge", NEXT_VERSION, head, repo) == 0
-    assert ("wait", merge_head, "main", "push") in calls
+    assert ("wait", head, "main", "push") in calls
 
 
-@pytest.mark.parametrize("state", ["OPEN", "CLOSED"])
-def test_missing_remote_branch_is_not_a_merge_retry_without_merged_pr(candidate_repo, monkeypatch, state):
-    repo, head = candidate_repo(tag=True)
+def test_missing_remote_branch_is_not_a_merge_retry_without_the_tag(candidate_repo, monkeypatch):
+    repo, head = candidate_repo(tag=False)
     _run_git(["push", "origin", "--delete", f"release/v{NEXT_VERSION}"], cwd=repo)
-    info = {"number": 123, "state": state, "headRefOid": head, "baseRefName": "main", "mergeCommit": None}
-    monkeypatch.setattr(actions, "gh", lambda *args: json.dumps(info))
-    with pytest.raises(ValueError, match="only allowed after merge"):
+    monkeypatch.setattr(actions, "gh", lambda *args: pytest.fail("reached gh"))
+    with pytest.raises(ValueError, match="only allowed once"):
         actions.execute("merge", NEXT_VERSION, head, repo)
-
-
-def test_merge_refuses_draft_release(orchestration, monkeypatch):
-    repo, head, info, calls = orchestration
-    original = actions.gh
-    def fake_gh(repo, *args):
-        if args[:2] == ("release", "view"):
-            return json.dumps({"isDraft": True, "publishedAt": None})
-        return original(repo, *args)
-    monkeypatch.setattr(actions, "gh", fake_gh)
-    with pytest.raises(ValueError, match="published"):
-        actions.execute("merge", NEXT_VERSION, head, repo)
-    assert not any(c[:2] == ("pr", "merge") for c in calls)
 
 
 # ------------------------------------------------------------------- notes
@@ -441,3 +424,17 @@ def test_main_refuses_arguments_that_do_not_fit_the_command(argv):
     with pytest.raises(SystemExit) as exc:
         actions.main(argv)
     assert exc.value.code == 2
+
+
+def test_publish_returns_the_release_failure(orchestration, monkeypatch):
+    repo, head, published, calls = orchestration
+    monkeypatch.setattr(release, "create_release", lambda version, repo=None: 1)
+    assert actions.execute("publish", NEXT_VERSION, head, repo) == 1
+
+
+def test_merge_refuses_a_tag_that_moved_off_the_approved_head(orchestration, monkeypatch):
+    repo, head, published, calls = orchestration
+    monkeypatch.setattr(actions, "git", lambda *args: "d" * 40)
+    with pytest.raises(ValueError, match="tag does not match"):
+        actions.execute("merge", NEXT_VERSION, head, repo)
+    assert ("fast_forward_main", NEXT_VERSION) not in calls

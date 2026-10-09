@@ -119,7 +119,7 @@ Stance 的 `## Status` 是 `approved 2026-09-26`；decisions 的 Tier 1 D1–D5 
 | 5 | 派送：兩個市集檔都用子目錄來源，`ref`＝`vX.Y.Z`；兩個平台都在探針裡通過 O1–O4（`spike.md:484-489`） | UC1、UC2、I5 | C1、C2 |
 | 6 | 退路：平時沒有 `stable`；某平台失效時維護者建立它；再不行就 UC4 整體退回 | AC5、I9 | D4＝A、RG3＝A |
 | 7 | 第一個統一版號 `1.37.0` | AC4、I4 | D2＝A |
-| 8 | 發版提交走 `release/vX.Y.Z` 分支與 release PR，以合併提交合併（`gh pr merge --merge`），是本 repo 壓縮合併習慣的唯一例外 | UC3、I6 | D3＝A；C21 |
+| 8 | 發版提交走 `release/vX.Y.Z` 分支與 release PR，以合併提交合併（`gh pr merge --merge`），是本 repo 壓縮合併習慣的唯一例外。**2026-10-09 起改為 D3＝B：不開 PR，`publish` 把 main 快轉到標籤的提交（見 decisions D3 的 Revised）** | UC3、I6 | D3＝A→B；C21 |
 | 9 | I3 由 GitHub 標籤規則集（`v*`：Restrict updates、Restrict deletions，無例外名單）加上 `cut` 的遠端標籤檢查共同保證 | R2、I3 | D5＝A |
 | 10 | 發版提交的內容與順序、遠端檢查的做法、`--plugin-dir`、validate 與 gen-codex 的新檢查、CHANGELOG 與發布頁、Codex 下限 | UC3、R1、R3、R4 | D6–D11 |
 | 11 | 本機閘門在發版提交之前：`validate.py` 與 `pytest` 任一失敗就停，什麼都還沒提交 | UC3 | decisions Tier 3 |

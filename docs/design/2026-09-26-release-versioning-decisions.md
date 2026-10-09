@@ -216,6 +216,7 @@ flowchart TD
 - **Found out when:** 第一次發版時。
 - **Undo cost:** 改 `release.py` 的後半段與 README 一段即可；GitHub 設定不必動（C21）。
 - **Decided:** A — release 分支加 PR，以合併提交合併；`release.py` 推標籤前先在本機跑 `validate.py` 與 `pytest`（本人以選單選「A release PR＋merge commit (Recommended)」，2026-09-26）
+- **Revised (2026-10-09):** 改為 B — 不開 release PR；`publish` 先建立發布頁，再以不加 `--force` 的推送把 main 快轉到標籤的提交，main 在這期間前進就拒絕、號碼作廢。本人在對話中選 B，理由：release PR 的 CI 與 `gate`（推標籤前在 Linux 對同一個 head 跑 `validate.py` 與 `pytest`）重複，只多一次等待。保留的條件：main 仍無分支保護（C21，2026-10-09 以 `gh api` 重查：`branches/main/protection` 回 404，規則集只有 `v*` 標籤的 `release-tags`）。代價照原表：本機流程在 main 前進前沒有 Linux CI；main 前進後等 push CI。
 
 ### D4 — `stable` 退路分支是每次發版都更新，還是等平台失效才建立？
 
