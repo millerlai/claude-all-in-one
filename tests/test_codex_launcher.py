@@ -433,3 +433,23 @@ def test_timing_with_no_cache_or_bad_input_exits_0_silently(tmp_path, stdin_text
     _cache_with_timing(tmp_path)
     result = run(["timing"], stdin_text=stdin_text, env=env)
     assert (result.returncode, result.stdout) == (0, "")
+
+
+def test_timing_begin_and_end_through_the_launcher_reach_timing_py(tmp_path):
+    # The generated Codex track skill runs `<cai> timing begin ...`; only a bare
+    # `timing`, the form hooks.json uses, is the hook. Before the fix every
+    # begin was swallowed by the hook path: exit 0, no marker, no run.
+    home = tmp_path / "codex-home"
+    _cache_with_timing(home)
+    project = tmp_path / "project"
+    track = project / ".claude" / "track" / "feature"
+    env = {**_env_without_codex_home(), "CODEX_HOME": str(home)}
+    begin = run(["timing", "begin", "--track-dir", str(track), "--stage", "build", "--platform", "codex"],
+                env=env, cwd=str(project.parent))
+    assert begin.returncode == 0, begin.stderr
+    assert begin.stdout.startswith("cai-timing-run: ")
+    run_id = begin.stdout.split(": ", 1)[1].strip()
+    end = run(["timing", "end", "--track-dir", str(track), "--run", run_id], env=env)
+    assert end.returncode == 0, end.stderr
+    kinds = [json.loads(line)["kind"] for line in (track / "timing.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert kinds == ["run_begin", "run_end"]
