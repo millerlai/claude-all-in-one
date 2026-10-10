@@ -463,10 +463,11 @@ def test_only_the_first_read_limit_bytes_of_a_file_are_judged(tmp_path):
     assert result["status"] == "unknown"
 
 
-@pytest.mark.parametrize("doc", ["README.md", "README.zh-TW.md"])
+@pytest.mark.parametrize("doc", ["REFERENCE.md"])
 def test_docs_name_every_entry_file_the_resolver_reads(doc):
-    # Three prose places restate TASKFILES, MAKEFILES and JUSTFILES; read the
+    # The long-form doc restates TASKFILES, MAKEFILES and JUSTFILES; read the
     # code's own values so a name added to the code fails here until the docs follow.
+    # The two READMEs are front doors and no longer list them.
     with open(os.path.join(REPO, doc), encoding="utf-8") as fh:
         text = " ".join(fh.read().split())
     for name in rtc.TASKFILES + rtc.MAKEFILES + rtc.JUSTFILES:

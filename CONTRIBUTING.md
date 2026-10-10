@@ -3,7 +3,8 @@
 This file is for changing the plugin rather than using it: how to try a change
 before it is released, what to run before pushing, and how a release is cut.
 It never reaches an installed copy. [`README.md`](README.md) is what the
-pieces are, [`MANUAL.md`](MANUAL.md) is how to drive them, and
+pieces are, [`REFERENCE.md`](REFERENCE.md) is the long form of each one,
+[`MANUAL.md`](MANUAL.md) is how to drive them, and
 [`GUIDE.md`](GUIDE.md) is where a new piece of guidance belongs.
 [`CLAUDE.md`](CLAUDE.md) holds what Claude itself needs to know when it works
 in this checkout.

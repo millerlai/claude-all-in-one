@@ -1,6 +1,7 @@
 # Driving cai
 
-[`README.md`](README.md) says what the pieces are and how to install them.
+[`README.md`](README.md) says what the pieces are and how to install them;
+[`REFERENCE.md`](REFERENCE.md) is the long form of each one.
 [`GUIDE.md`](GUIDE.md) says which component a new piece of guidance belongs
 in. [`CONTRIBUTING.md`](CONTRIBUTING.md) is for changing this repo. This file
 says how to actually use the thing: what to type, what happens next, and what

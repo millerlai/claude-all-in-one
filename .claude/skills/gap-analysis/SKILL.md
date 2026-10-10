@@ -35,7 +35,7 @@ disable-model-invocation: true
 4. **拆機制。** 各一列：機制／誰在做、怎麼做／數字。拆的是機制，不是產品名；
    來源有幾個就列幾個——一整份 playbook 通常 5–8 個，一篇 blog 可能只有 2–3 個，
    不湊數。
-5. **逐項找 cai 對應，先跑 program 層。** 從 `README.md` 的四層與三張表定位這個
+5. **逐項找 cai 對應，先跑 program 層。** 從 `README.md` 的四層與 `REFERENCE.md` 的三張表（軌道工具、其他工具、subagent）定位這個
    機制落在哪個 stage／tool／script；stage 的話沿 `plugins/cai/skills/track/stages.json`
    → 該 stage 的 `references/stage-*.md` → 它派的 `agents/*.md`。再用 Grep／Glob
    找步驟 4 那一列裡的概念字（例：來源講 review 就搜 `lens`、`REVIEW.md`、
