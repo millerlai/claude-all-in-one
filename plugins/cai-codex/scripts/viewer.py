@@ -872,7 +872,8 @@ function stageTimingLabel(stage){
   const valid = Number.isSafeInteger(ms) && ms >= 0;
   if (!valid) return tr('timing.incomplete');
   const seconds = Math.floor(ms / 1000);
-  const time = Math.floor(seconds / 60) + ':' + pad(seconds % 60);
+  // From one hour up, read like the track total: minutes never run past 59.
+  const time = seconds < 3600 ? Math.floor(seconds / 60) + ':' + pad(seconds % 60) : trackClockFmt(ms);
   if (status !== 'incomplete') return time;
   return tr(coverageOnly(stage) ? 'timing.atLeast' : 'timing.lowerBound', {time: time});
 }
