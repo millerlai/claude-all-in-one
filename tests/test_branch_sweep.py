@@ -3,12 +3,18 @@
 The case that justifies the file is `squash_merged_branch_is_deletable`: it is
 the one `git branch --merged` cannot answer, and the reason the script reads
 three signals instead of the one every other tool reads. The rest guard the
-safety policy around it -- held, ahead and gone must survive every merge signal,
-because each of them names a branch whose deletion would either fail or lose the
-only copy of something. Backup branches left behind by `ship` before it squashes
-are covered too.
+safety policy around it -- ahead and gone must survive every merge signal,
+because each of them names a branch whose deletion would lose the only copy of
+something. Backup branches left behind by `ship` before it squashes are covered
+too.
+
+A worktree is the other half: it must not hide a merge signal, and freeing a
+branch from one must never remove the worktree or touch a file in it.
 """
 import json
+import os
+import shlex
+import shutil
 import subprocess
 import sys
 
@@ -62,6 +68,27 @@ def delete_on_remote(repo, branch):
     """What a merge does for itself where the remote deletes head branches."""
     git(repo, "push", "origin", "--delete", branch)
     git(repo, "fetch", "--prune")
+
+
+def add_worktree(repo, path, branch):
+    git(repo, "worktree", "add", str(path), branch)
+    return path
+
+
+def link_dir(target, link):
+    """A directory link of the kind each platform makes without privilege: a
+    junction on Windows, a symlink elsewhere."""
+    if os.name == "nt":
+        import _winapi
+        _winapi.CreateJunction(str(target), str(link))
+    else:
+        os.symlink(str(target), str(link), target_is_directory=True)
+
+
+def local_branch_names(repo):
+    out, _ = git(repo, "for-each-ref", "--format=%(refname:short)",
+                 "refs/heads")
+    return set(out.splitlines())
 
 
 def use_fake_gh(monkeypatch, merged=(), mode="ok", stderr="", exit_code="1"):
@@ -125,15 +152,76 @@ def test_ancestry_merged_branch_is_deletable_without_any_pr(repo, monkeypatch):
     assert why(repo, "feat/ff") == "ancestry: already on main"
 
 
-def test_branch_held_by_a_worktree_is_never_deletable(repo, tmp_path,
-                                                      monkeypatch):
+def test_merged_branch_in_a_worktree_is_detachable_not_deletable(
+        repo, tmp_path, monkeypatch):
     commit_on(repo, "feat/held", "work")
     push(repo, "feat/held")
-    git(repo, "worktree", "add", str(tmp_path / "wt"), "feat/held")
+    add_worktree(repo, tmp_path / "wt", "feat/held")
     use_fake_gh(monkeypatch, merged=[(102, "feat/held")])
 
     found, _ = statuses(repo)
-    assert found["feat/held"] == "held"
+    assert found["feat/held"] == "detachable"
+    reason = why(repo, "feat/held")
+    assert reason.startswith("pr: #102 merged; worktree ")
+    assert reason.endswith("/wt")
+
+
+def test_ancestry_merged_branch_in_a_worktree_is_detachable(repo, tmp_path,
+                                                            monkeypatch):
+    """The reported case: seven worktrees of branches already on main, every
+    one of them read as `held` with no word about the merge."""
+    commit_on(repo, "feat/ff", "work")
+    git(repo, "merge", "--ff-only", "feat/ff")
+    add_worktree(repo, tmp_path / "wt", "feat/ff")
+    use_fake_gh(monkeypatch, merged=[])
+
+    found, _ = statuses(repo)
+    assert found["feat/ff"] == "detachable"
+    assert why(repo, "feat/ff").startswith(
+        "ancestry: already on main; worktree ")
+
+
+def test_unmerged_branch_in_a_worktree_is_held(repo, tmp_path, monkeypatch):
+    commit_on(repo, "feat/live", "work")
+    add_worktree(repo, tmp_path / "wt", "feat/live")
+    use_fake_gh(monkeypatch, merged=[])
+
+    found, _ = statuses(repo)
+    assert found["feat/live"] == "held"
+    assert why(repo, "feat/live").startswith("no merge signal; worktree ")
+
+
+def test_unpushed_commits_in_a_worktree_outrank_a_merged_pr(repo, tmp_path,
+                                                            monkeypatch):
+    commit_on(repo, "feat/kept-going", "work")
+    push(repo, "feat/kept-going")
+    wt = add_worktree(repo, tmp_path / "wt", "feat/kept-going")
+    git(wt, "commit", "--allow-empty", "-m", "after the merge")
+    use_fake_gh(monkeypatch, merged=[(99, "feat/kept-going")])
+
+    found, _ = statuses(repo)
+    assert found["feat/kept-going"] == "held"
+    assert why(repo, "feat/kept-going").startswith(
+        "1 commit(s) not on its upstream; worktree ")
+
+
+def test_the_branch_checked_out_where_it_ran_is_held(repo, tmp_path,
+                                                     monkeypatch):
+    """Freeing it would rewrite the HEAD of the directory the person is
+    standing in. From any other worktree the same branch is detachable."""
+    commit_on(repo, "feat/ff", "work")
+    git(repo, "merge", "--ff-only", "feat/ff")
+    wt = add_worktree(repo, tmp_path / "wt", "feat/ff")
+    use_fake_gh(monkeypatch, merged=[])
+
+    rows, _ = branch_sweep.sweep("main", cwd=str(wt))
+    assert [(status, reason) for name, status, reason in rows
+            if name == "feat/ff"] == [
+        ("held", "ancestry: already on main; checked out in the current "
+                 "worktree")]
+
+    found, _ = statuses(repo)
+    assert found["feat/ff"] == "detachable"
 
 
 def test_unpushed_commits_outrank_a_merged_pr(repo, monkeypatch):
@@ -248,6 +336,135 @@ def test_default_run_changes_nothing(repo, monkeypatch):
     assert "feat/squashed" in remaining.splitlines()
 
 
+def merged_branch_in_a_worktree(repo, tmp_path, monkeypatch):
+    """`feat/ff` already on main and checked out in a second worktree.
+    Returns (the worktree's path, the branch's SHA)."""
+    sha = commit_on(repo, "feat/ff", "work")
+    git(repo, "merge", "--ff-only", "feat/ff")
+    wt = add_worktree(repo, tmp_path / "wt", "feat/ff")
+    use_fake_gh(monkeypatch, merged=[])
+    return wt, sha
+
+
+def test_the_table_says_how_to_free_a_detachable_branch(repo, tmp_path,
+                                                        capsys, monkeypatch):
+    wt, _ = merged_branch_in_a_worktree(repo, tmp_path, monkeypatch)
+
+    assert branch_sweep.main(["--repo", str(repo)]) == 0
+
+    out = capsys.readouterr().out
+    assert "1 detachable." in out
+    assert "--delete --detach" in out
+    assert git(wt, "symbolic-ref", "-q", "HEAD") == ("refs/heads/feat/ff", 0)
+
+
+def test_delete_alone_leaves_a_detachable_branch_where_it_is(
+        repo, tmp_path, monkeypatch):
+    wt, _ = merged_branch_in_a_worktree(repo, tmp_path, monkeypatch)
+
+    assert branch_sweep.main(["--repo", str(repo), "--delete"]) == 0
+
+    assert "feat/ff" in local_branch_names(repo)
+    assert git(wt, "symbolic-ref", "-q", "HEAD") == ("refs/heads/feat/ff", 0)
+
+
+def test_detach_without_delete_exits_two(repo, tmp_path, capsys, monkeypatch):
+    wt, _ = merged_branch_in_a_worktree(repo, tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit) as stopped:
+        branch_sweep.main(["--repo", str(repo), "--detach"])
+
+    assert stopped.value.code == 2
+    assert "--detach" in capsys.readouterr().err
+    assert git(wt, "symbolic-ref", "-q", "HEAD") == ("refs/heads/feat/ff", 0)
+
+
+def test_detach_frees_the_branch_and_leaves_the_worktree_as_it_was(
+        repo, tmp_path, monkeypatch):
+    """The worktree is not removed and nothing in it is touched: not an
+    uncommitted file, and not what a directory link inside it points at.
+    `git worktree remove` loses both -- measured on git 2.39.2 for Windows, it
+    follows a junction and deletes the files on the other side."""
+    wt, sha = merged_branch_in_a_worktree(repo, tmp_path, monkeypatch)
+    (wt / "scratch.txt").write_text("not committed\n", encoding="utf-8")
+    outside = tmp_path / "shared-data"
+    outside.mkdir()
+    (outside / "precious.txt").write_text("only copy\n", encoding="utf-8")
+    link_dir(outside, wt / "data")
+
+    assert branch_sweep.main(["--repo", str(repo), "--delete",
+                              "--detach"]) == 0
+
+    assert "feat/ff" not in local_branch_names(repo)
+    assert git(wt, "rev-parse", "HEAD") == (sha, 0)
+    assert git(wt, "symbolic-ref", "-q", "HEAD")[1] != 0
+    assert (wt / "scratch.txt").read_text(encoding="utf-8") == "not committed\n"
+    assert (wt / "data" / "precious.txt").exists()
+    assert (outside / "precious.txt").read_text(encoding="utf-8") == "only copy\n"
+
+
+def test_detach_prints_commands_that_undo_it(repo, tmp_path, capsys,
+                                             monkeypatch):
+    wt, sha = merged_branch_in_a_worktree(repo, tmp_path, monkeypatch)
+
+    branch_sweep.main(["--repo", str(repo), "--delete", "--detach"])
+
+    out = capsys.readouterr().out
+    assert "git branch feat/ff " + sha[:7] in out
+    undo = [line for line in out.splitlines() if line.startswith("    git ")]
+    assert len(undo) == 2
+    # Run them as printed -- they are the only undo the person gets.
+    for line in undo:
+        done = subprocess.run(shlex.split(line), cwd=str(repo),
+                              capture_output=True, text=True, encoding="utf-8")
+        assert done.returncode == 0, done.stderr
+    assert git(wt, "symbolic-ref", "-q", "HEAD") == ("refs/heads/feat/ff", 0)
+    assert git(wt, "rev-parse", "HEAD") == (sha, 0)
+    assert git(wt, "status", "--porcelain") == ("", 0)
+
+
+def test_a_worktree_that_cannot_be_detached_keeps_its_branch(
+        repo, tmp_path, capsys, monkeypatch):
+    """Its directory is gone but git still lists it, so the branch is still
+    held: nothing can be detached there, and the branch stays."""
+    wt, _ = merged_branch_in_a_worktree(repo, tmp_path, monkeypatch)
+    shutil.rmtree(wt)
+
+    assert branch_sweep.main(["--repo", str(repo), "--delete",
+                              "--detach"]) == 0
+
+    assert "feat/ff" in local_branch_names(repo)
+    assert "Could not delete feat/ff" in capsys.readouterr().out
+
+
+def test_a_branch_that_outlives_its_detach_says_how_to_reattach(
+        repo, tmp_path, capsys, monkeypatch):
+    """A branch forced into two worktrees: one is freed, git still refuses the
+    delete because of the other. The output has to say which worktree is off
+    its branch now and how to put it back."""
+    wt, _ = merged_branch_in_a_worktree(repo, tmp_path, monkeypatch)
+    second = tmp_path / "wt2"
+    git(repo, "worktree", "add", "--force", str(second), "feat/ff")
+
+    branch_sweep.main(["--repo", str(repo), "--delete", "--detach"])
+
+    out = capsys.readouterr().out
+    assert "feat/ff" in local_branch_names(repo)
+    still_on_it = [git(w, "symbolic-ref", "-q", "HEAD")[1] == 0
+                   for w in (wt, second)]
+    assert sorted(still_on_it) == [False, True]
+    assert "Could not delete feat/ff" in out
+    reattach = [line for line in out.splitlines()
+                if line.startswith("    git ")]
+    assert len(reattach) == 1
+    done = subprocess.run(shlex.split(reattach[0]), cwd=str(repo),
+                          capture_output=True, text=True, encoding="utf-8")
+    assert done.returncode == 0, done.stderr
+    for w in (wt, second):
+        assert git(w, "symbolic-ref", "-q", "HEAD") == (
+            "refs/heads/feat/ff", 0)
+
+
 def test_a_base_that_does_not_exist_exits_two(repo, capsys, monkeypatch):
     """Otherwise `--merged` just fails and every branch silently loses its
     ancestry signal -- a mistyped base would return a shorter table, not an
@@ -332,7 +549,7 @@ def test_backups_are_kept_when_gh_is_unavailable(repo, monkeypatch):
     assert note is not None
 
 
-def test_backup_held_by_a_worktree_is_held(repo, tmp_path, monkeypatch):
+def test_backup_held_by_a_worktree_is_detachable(repo, tmp_path, monkeypatch):
     commit_on(repo, "feat/squashed", "work")
     push(repo, "feat/squashed")
     git(repo, "branch", "backup/feat/squashed-20260926-194453", "feat/squashed")
@@ -341,7 +558,7 @@ def test_backup_held_by_a_worktree_is_held(repo, tmp_path, monkeypatch):
     use_fake_gh(monkeypatch, merged=[(106, "feat/squashed", MERGED_AFTER)])
 
     found, _ = statuses(repo)
-    assert found["backup/feat/squashed-20260926-194453"] == "held"
+    assert found["backup/feat/squashed-20260926-194453"] == "detachable"
 
 
 def test_delete_prints_the_sha_that_undoes_a_backup(repo, capsys, monkeypatch):

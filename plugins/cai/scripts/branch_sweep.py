@@ -34,11 +34,21 @@ than that merge. The match is by name only; nothing checks the backup's
 contents. The time check is what keeps a backup made in a later round of a
 reused branch name from riding on the earlier round's merge.
 
+A branch checked out in a worktree is read for the same signals; git refuses
+to delete it, which is no reason to hide that it is merged. One that would
+otherwise be `deletable` is reported `detachable`: `--delete --detach` moves
+its worktree onto the same commit with no branch, then deletes the branch. The
+worktree's directory is never removed and nothing in it is touched. Removing
+one stays with a person: `git worktree remove` deletes ignored files unasked
+and, measured on git 2.39.2.windows.1 on 2026-10-10, follows a directory
+junction inside the worktree and deletes the files it points at.
+
 Prints a table and changes nothing unless `--delete` is passed.
 
-    branch_sweep.py                 # show the table
-    branch_sweep.py --delete        # delete only what the table calls deletable
-    branch_sweep.py --base develop  # compare against a branch other than the default
+    branch_sweep.py                    # show the table
+    branch_sweep.py --delete           # delete only what the table calls deletable
+    branch_sweep.py --delete --detach  # and free what it calls detachable
+    branch_sweep.py --base develop     # compare against a branch other than the default
 """
 import argparse
 import datetime
@@ -79,7 +89,12 @@ _NO_REPO = ("could not resolve to a repository", "not a git repository",
 _UNREACHABLE = ("error connecting to", "dial tcp", "timeout awaiting",
                 "no such host")
 
-STATUS_ORDER = ("deletable", "gone", "ahead", "held", "keep")
+STATUS_ORDER = ("deletable", "detachable", "gone", "ahead", "held", "keep")
+
+# What puts a detached worktree back on its branch. `symbolic-ref`, not
+# `git switch`: it is the exact inverse of detach() and, like it, reads no
+# working tree -- `git switch` exits 128 in a worktree whose `git status` does.
+REATTACH = '    git -C "%s" symbolic-ref HEAD refs/heads/%s'
 
 
 def run(argv, cwd=None):
@@ -199,15 +214,27 @@ def local_branches(cwd=None):
 
 
 def held_branches(cwd=None):
-    """Branches checked out in any worktree, the current one included -- the
-    main worktree is a worktree, so this needs no separate HEAD check. Deleting
-    one of these fails anyway; naming it is the point."""
+    """{branch: worktree path} for every branch checked out in a worktree, the
+    current one included -- the main worktree is a worktree, so this needs no
+    separate HEAD check. Deleting one of these fails anyway; naming it, and
+    where it is held, is the point."""
     out, rc = git(["worktree", "list", "--porcelain"], cwd=cwd)
     if rc != 0:
-        return set()
-    return {line[len("branch refs/heads/"):]
-            for line in out.splitlines()
-            if line.startswith("branch refs/heads/")}
+        return {}
+    held, path = {}, ""
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            path = line[len("worktree "):]
+        elif line.startswith("branch refs/heads/"):
+            held[line[len("branch refs/heads/"):]] = path
+    return held
+
+
+def current_branch(cwd=None):
+    """The branch checked out where this runs, empty on a detached HEAD."""
+    out, _ = git(["symbolic-ref", "-q", "HEAD"], cwd=cwd)
+    out = out.strip()
+    return out[len("refs/heads/"):] if out.startswith("refs/heads/") else ""
 
 
 def merged_by_ancestry(base, cwd=None):
@@ -272,15 +299,29 @@ def committed_before(committed, merged_at):
         return False
 
 
-def classify(row, base, held, ancestry, prs):
-    """(status, why) for one branch. Order is the safety policy: anything a
-    delete would fail on or lose is settled before any merge signal is read."""
-    name, _upstream, ahead, gone, committed = row
-    unproven = None
+def classify(row, base, held, here, ancestry, prs):
+    """(status, why) for one branch. A worktree never hides what the signals
+    say: it only renames a branch they prove merged, from `deletable` to
+    `detachable`. `here` is the one worktree that is not offered -- freeing
+    its branch would rewrite the HEAD of the directory this was run from."""
+    name = row[0]
     if name == base:
         return None, None
-    if name in held:
-        return "held", "checked out in a worktree"
+    status, why = signals(row, base, ancestry, prs)
+    if name not in held:
+        return status, why
+    if name == here:
+        return "held", why + "; checked out in the current worktree"
+    why = "%s; worktree %s" % (why, held[name])
+    return ("detachable" if status == "deletable" else "held"), why
+
+
+def signals(row, base, ancestry, prs):
+    """(status, why) from the merge signals alone, as if no worktree held the
+    branch. Order is the safety policy: a branch whose delete would lose
+    commits is settled before any merge signal is read."""
+    name, _upstream, ahead, gone, committed = row
+    unproven = None
     if ahead:
         return "ahead", "%d commit(s) not on its upstream" % ahead
     if name in ancestry:
@@ -303,28 +344,52 @@ def sweep(base, cwd=None):
     """[(name, status, why)] ordered by status then name, plus the gh note."""
     prs, note = gh_merged_prs(cwd=cwd)
     held = held_branches(cwd=cwd)
+    here = current_branch(cwd=cwd)
     ancestry = merged_by_ancestry(base, cwd=cwd)
     rows = []
     for row in local_branches(cwd=cwd):
-        status, why = classify(row, base, held, ancestry, prs)
+        status, why = classify(row, base, held, here, ancestry, prs)
         if status:
             rows.append((row[0], status, why))
     rows.sort(key=lambda r: (STATUS_ORDER.index(r[1]), r[0]))
     return rows, note
 
 
-def delete(names, cwd=None):
-    """[(name, sha_or_None)] for each attempted delete. `-D` not `-d`: a
-    squash-merged branch is not an ancestor of anything, so `-d` refuses
-    exactly the branches this exists to remove."""
+def detach(path, name):
+    """Whether the worktree at `path` was moved off branch `name`, onto the
+    same commit with no branch. `update-ref` rather than `checkout --detach`:
+    it writes that worktree's HEAD and nothing else, so it runs no checkout
+    hook and still works where the worktree's own `git status` fails. Passing
+    the SHA as the old value too makes it a compare-and-swap -- a worktree
+    whose HEAD is anywhere but the branch's tip is left alone."""
+    sha, rc = git(["rev-parse", "refs/heads/" + name], cwd=path)
+    if rc != 0:
+        return False
+    sha = sha.strip()
+    _, rc = git(["update-ref", "--no-deref", "-m",
+                 "branch_sweep: detach from " + name, "HEAD", sha, sha],
+                cwd=path)
+    return rc == 0
+
+
+def delete(names, cwd=None, held=None):
+    """[(name, sha_or_None, worktree_or_None)] for each attempted delete.
+    `worktree` is the path that was detached to free the branch, so a row
+    with a worktree and no SHA is one left detached with its branch still
+    there. `-D` not `-d`: a squash-merged branch is not an ancestor of
+    anything, so `-d` refuses exactly the branches this exists to remove."""
     done = []
     for name in names:
         # refs/heads/ explicitly: a tag sharing the branch's name would win
         # the bare-name lookup, and the SHA printed here is the whole undo.
         sha, rc = git(["rev-parse", "--short", "refs/heads/" + name], cwd=cwd)
         sha = sha.strip() if rc == 0 else None
+        path = (held or {}).get(name)
+        if path and not detach(path, name):
+            done.append((name, None, None))
+            continue
         _, rc = git(["branch", "-D", name], cwd=cwd)
-        done.append((name, sha if rc == 0 else None))
+        done.append((name, sha if rc == 0 else None, path))
     return done
 
 
@@ -337,9 +402,9 @@ def render(rows, note, base):
         lines.append("No local branches besides %s." % base)
         return lines
     width = max(len(name) for name, _, _ in rows)
-    lines.append("%-*s  %-9s  %s" % (width, "BRANCH", "STATUS", "WHY"))
+    lines.append("%-*s  %-10s  %s" % (width, "BRANCH", "STATUS", "WHY"))
     for name, status, why in rows:
-        lines.append("%-*s  %-9s  %s" % (width, name, status, why))
+        lines.append("%-*s  %-10s  %s" % (width, name, status, why))
     counts = {}
     for _, status, _ in rows:
         counts[status] = counts.get(status, 0) + 1
@@ -349,6 +414,10 @@ def render(rows, note, base):
     lines.append(summary + ".")
     if counts.get("deletable"):
         lines.append("Re-run with --delete to remove the deletable ones.")
+    if counts.get("detachable"):
+        lines.append("Re-run with --delete --detach to free the detachable "
+                     "ones too: each worktree stays in place, on the same "
+                     "commit with no branch.")
     return lines
 
 
@@ -357,8 +426,13 @@ def main(argv=None):
     ap.add_argument("--base", help="branch the work should have landed on")
     ap.add_argument("--delete", action="store_true",
                     help="delete the branches reported deletable")
+    ap.add_argument("--detach", action="store_true",
+                    help="with --delete: also move worktrees off the branches "
+                         "reported detachable, then delete those branches")
     ap.add_argument("--repo", help="run against this directory")
     args = ap.parse_args(argv)
+    if args.detach and not args.delete:
+        ap.error("--detach only does something together with --delete")
 
     cwd = args.repo
     _, rc = git(["rev-parse", "--git-dir"], cwd=cwd)
@@ -383,14 +457,27 @@ def main(argv=None):
 
     if not args.delete:
         return 0
-    targets = [name for name, status, _ in rows if status == "deletable"]
+    wanted = ("deletable", "detachable") if args.detach else ("deletable",)
+    targets = [name for name, status, _ in rows if status in wanted]
     if not targets:
         return 0
     print("")
-    for name, sha in delete(targets, cwd=cwd):
-        if sha:
+    # Read again, not carried over from the table: this is the moment another
+    # worktree's HEAD is rewritten, so it is decided on what is held now.
+    held = held_branches(cwd=cwd) if args.detach else {}
+    for name, sha, path in delete(targets, cwd=cwd, held=held):
+        if sha and path:
+            print("Deleted %s (was %s) and detached worktree %s -- undo with:"
+                  % (name, sha, path))
+            print("    git branch %s %s" % (name, sha))
+            print(REATTACH % (path, name))
+        elif sha:
             print("Deleted %s (was %s) -- undo with: git branch %s %s"
                   % (name, sha, name, sha))
+        elif path:
+            print("Could not delete %s -- its worktree %s is detached now; "
+                  "put it back with:" % (name, path))
+            print(REATTACH % (path, name))
         else:
             print("Could not delete %s" % name)
     return 0
