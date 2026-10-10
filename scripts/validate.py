@@ -2820,10 +2820,12 @@ def _track_references():
         check("%s: %s%s" % (ac, label, " -- missing: %s" % "; ".join(missing) if missing else ""),
               not missing)
 
-    # AC11: README.md and MANUAL.md each name the four levels, the declaration's
-    # file, that verify prints the plan first, and that cai neither deploys nor
-    # brings a browser (what it cannot check is listed as Not covered).
-    for doc in ("README.md", "MANUAL.md"):
+    # AC11: REFERENCE.md and MANUAL.md each name the four levels, the
+    # declaration's file, that verify prints the plan first, and that cai neither
+    # deploys nor brings a browser (what it cannot check is listed as Not
+    # covered). The long form moved out of README.md into REFERENCE.md when the
+    # README was cut down to a front door.
+    for doc in ("REFERENCE.md", "MANUAL.md"):
         doc_text = " ".join(read_text(doc).split()) if os.path.isfile(doc) else ""
         missing = [p for p in ("`test`", "`local-run`", "`deployed`", "`manual`",
                                ".claude/cai.json", "verify plan",

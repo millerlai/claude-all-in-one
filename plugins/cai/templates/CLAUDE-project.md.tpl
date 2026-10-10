@@ -14,7 +14,7 @@
      No test command yet? Leave this section empty and fill it in once the
      first one exists. The stages that run tests do not read this section:
      they take `test.commands` from `.claude/cai.json`, or detect a command at
-     the repo root (see the README, "Which test command runs"). -->
+     the repo root (see REFERENCE.md, "Which test command runs"). -->
 
 ## Architecture
 
