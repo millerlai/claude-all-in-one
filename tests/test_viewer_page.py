@@ -232,6 +232,15 @@ def test_coverage_only_stage_is_a_lower_bound_not_incomplete_data(language, oute
         _track_page_eval("tr('note.reason-unknown')", language)
 
 
+def test_stage_time_of_an_hour_or_more_shows_hours():
+    # Minutes never run past 59: from one hour up a stage reads like the track total.
+    stages = [{"elapsed_ms": ms, "timing_status": "complete"} for ms in (3599999, 3600000, 90000000)]
+    stages += [{"elapsed_ms": 4179509, "timing_status": "incomplete", "timing_reasons": reasons}
+               for reasons in (["coverage-missing"], ["coverage-missing", "event-missing"])]
+    assert _track_page_eval(json.dumps(stages) + ".map(stageTimingLabel)") == [
+        "59:59", "01:00:00", "25:00:00", "At least 01:09:39", "At least 01:09:39 · Incomplete data"]
+
+
 @pytest.mark.parametrize("bad_stage", [
     {"elapsed_ms": -1}, {"elapsed_ms": 0.5}, {"elapsed_ms": "1000"},
     {"elapsed_ms": True}, {"elapsed_ms": None}, {"elapsed_ms": 9007199254740992},
