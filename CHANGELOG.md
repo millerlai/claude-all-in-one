@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.50.0 — 2026-10-10
+
+This release lets `/cai:git-sweep` free merged branches that are checked out in a worktree, instead of leaving them stuck as `held` with no indication they're already merged.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.49.5.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.49.5 to 1.50.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress is unaffected; nothing changes in its saved state or ledger.
+- No further action is needed beyond the update steps above.
+
+### Git Sweep
+
+- Branches checked out in another worktree are no longer automatically reported as `held`; a merge signal is read for every branch regardless of worktree status. (#357)
+- A new `detachable` status appears for a branch that's proven merged but still checked out in another worktree, with the WHY column showing that worktree's path. (#357)
+- `--delete --detach` moves the worktree onto the same commit with no branch attached, then deletes the branch; `--delete` alone behaves as before, and `--detach` alone exits with an error. (#357)
+- The branch checked out where the script itself runs still shows as `held`. (#357)
+- Each freed branch now prints two undo commands. (#357)
+- A worktree with no commits of its own may show as `detachable` even though work has just started there; the tool flags this before asking for `--detach`. (#357)
+
 ## v1.49.5 — 2026-10-09
 
 This release fixes a bug from v1.49.4 that broke every new Claude Code session on macOS and Linux: the SessionStart hook failed with a permission error instead of running. If you're on v1.49.4, update right away.
