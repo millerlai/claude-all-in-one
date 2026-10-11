@@ -2525,6 +2525,33 @@ def _track_stages():
               and "never on the code the design describes" in designer_text
               and "Do NOT write implementation code" in designer_text)
 
+        # #375: stage-design.md tells whoever runs the stage to run
+        # `plan-review`, and the dispatched designer has no tool that invokes a
+        # skill. The gate section says how it runs instead; STAGE_TOOL_NEEDS
+        # could not see this one because the need is a way of working, not a
+        # tool name. So: the gate must name the skill file, and every tool it
+        # names for the run (`Agent` to dispatch a reviewer, `Skill` to invoke)
+        # must be one designer.md grants. Folded because the section wraps.
+        design_ref = f"{PLUGIN}/skills/track/references/stage-design.md"
+        gate_text = ""
+        if os.path.isfile(design_ref):
+            design_text = read_text(design_ref)
+            gate_at = design_text.find("## The gate every mode shares")
+            if gate_at >= 0:
+                gate_end = design_text.find("\n## ", gate_at + 1)
+                gate_text = " ".join(
+                    design_text[gate_at:gate_end if gate_end > 0 else None].split())
+        check(f"{design_ref}'s gate section names the plan-review skill file",
+              "${CLAUDE_PLUGIN_ROOT}/skills/plan-review/SKILL.md" in gate_text)
+        run_tools = sorted(set(re.findall(r"`(Agent|Skill)`", gate_text)))
+        check(f"{design_ref}'s gate section names the tool plan-review runs through",
+              bool(run_tools))
+        designer_tools = agent_tools_line(f"{PLUGIN}/agents/designer.md") or ""
+        for tool in run_tools:
+            check(f"{design_ref} runs plan-review through `{tool}`, which "
+                  f"{PLUGIN}/agents/designer.md grants",
+                  re.search(rf"\b{tool}\b", designer_tools) is not None)
+
         CONTEXT_PEAK = f"{PLUGIN}/scripts/context_peak.py"
         check(f"{CONTEXT_PEAK} ships", os.path.isfile(CONTEXT_PEAK))
         if os.path.isfile(CONTEXT_PEAK):
