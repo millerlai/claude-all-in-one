@@ -475,7 +475,19 @@ def test_docs_name_every_entry_file_the_resolver_reads(doc):
 
 
 def test_this_repo_resolves_to_pytest():
+    # #370: this repo's own .claude/cai.json may declare the command (the
+    # pre-build menu's recommended choice writes it there), which flips
+    # `source` to "declared". Only the command is this repo's fact; how it was
+    # found is pinned on a copy of pyproject.toml below.
     result = rtc.resolve(REPO)
+    assert result["status"] == "resolved"
+    assert [c["command"] for c in result["commands"]] == ["python -m pytest"]
+
+
+def test_this_repos_pyproject_is_detected_as_pytest(tmp_path):
+    # Detection from the real pyproject.toml, unaffected by REPO's cai.json.
+    with open(os.path.join(REPO, "pyproject.toml"), encoding="utf-8") as fh:
+        result = rtc.resolve(make(tmp_path, {"pyproject.toml": fh.read()}))
     assert result["status"] == "resolved"
     assert result["source"] == "detected"
     assert pairs(result) == [("python -m pytest", "", "paths", "pyproject.toml")]
