@@ -259,6 +259,75 @@ marketplace files reverted to the old relative-path form, so installs fall
 back to that tag instead of a broken `main` HEAD. This is a manual,
 maintainer-run procedure — `scripts/release.py` does not automate it.
 
+### Upgrade-axis samples
+
+`tests/fixtures/releases/<tag>/` holds what one released version leaves on a
+person's disk partway through a track: `state.md` and `current`, the attempt
+ledger, a round of pending questions, and a saved model choice. That tag's own
+scripts wrote them, as its `SOURCE.md` records, and
+`tests/test_upgrade_axis.py` reads a copy of each with the scripts in the
+checkout. Every other test builds those files with the code under test, so a
+change of format passes them all: the writer and the reader moved together.
+
+When one of those tests goes red, the checkout no longer reads what that
+release wrote, and a person who updates in the middle of a track would meet
+the same failure.
+
+- Fix the reader so the old file loads again.
+- If the break is meant, leave the sample alone and add the
+  `(release, reader)` pair to `XFAIL` in the test, with the reason and the
+  release that changes the format. That is the "an old save file no longer
+  loading" row of README's [Compatibility](README.md#compatibility) table.
+- Never edit, regenerate or delete a merged sample to turn a test green. A
+  tag's directory only ever gains files.
+
+After a release is published, add a directory for its tag in a follow-up pull
+request, so the newest release is always covered. From Git Bash at the repo
+root, with `PREV` the newest directory already there:
+
+```bash
+TAG=vX.Y.Z; PREV=vA.B.C
+R="$PWD/tests/fixtures/releases"; T=.claude/track/export-csv
+WORK="$(mktemp -d)"; mkdir -p "$WORK/old" "$WORK/proj/.claude"
+git archive "$TAG" plugins/cai | tar -x -C "$WORK/old"
+cp -r "$R/$PREV/track" "$WORK/proj/.claude/track"
+rm "$WORK/proj/$T/ledger.jsonl" "$WORK/proj/$T/pending.md"
+cp "$R/_inputs/intake.md" "$WORK/proj/$T/intake.md"
+old() { ( cd "$WORK/proj" && env -u CLAUDE_CODE_SESSION_ID \
+    CAI_USAGE_LEDGER="$WORK/usage.jsonl" CLAUDE_CONFIG_DIR="$WORK/config" \
+    python "$WORK/old/plugins/cai/scripts/$1" "${@:2}" ); }
+old ledger.py append --track-dir $T --stage intake --outcome passed \
+    --artifact $T/intake.md --note "Goal and AC1-AC2 confirmed with the user."
+old ledger.py append --track-dir $T --stage discover --outcome skipped \
+    --artifact — --note "the request already names every unknown"
+old ledger.py append --track-dir $T --stage design --outcome failed \
+    --note "the stance doc left the separator undecided"
+old pending.py start --track-dir $T --stage design --round 1 \
+    --report-file "$R/_inputs/report.md"
+old pending.py answer --track-dir $T --question 1 \
+    --answer-file "$R/_inputs/answer-1.md"
+old model_choice.py set chore=sonnet think=fable
+rm "$WORK/proj/$T/intake.md"
+mkdir "$R/$TAG" && cp -r "$WORK/proj/.claude/track" "$WORK/config" "$R/$TAG/"
+```
+
+`old` runs the tag's scripts from a scratch project root with no session id
+and with the usage ledger and config root inside `$WORK`. That is what keeps a
+session id, a token count and a local path out of a public repo, and the test
+fails a sample that carries one.
+
+`state.md` and `current` are the two files no script writes; the copy from
+`PREV` carries them over. Before running anything, read
+`git diff $PREV $TAG -- plugins/cai/skills/track/SKILL.md`: if what the track
+skill says about either file changed, rewrite the copy by hand to the new
+wording. If an old script no longer takes these arguments, change the
+command, never its output.
+
+Then write `$R/$TAG/SOURCE.md` from `PREV`'s — the tag, its commit
+(`git rev-parse "$TAG^{commit}"`), the date, the `SKILL.md` lines, and any
+command that had to change — and run
+`python -m pytest tests/test_upgrade_axis.py -n0`.
+
 ## Maintainer tools
 
 None of these is run by a shipped component:

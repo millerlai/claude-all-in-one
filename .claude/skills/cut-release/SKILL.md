@@ -11,8 +11,10 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
 
 平常發版走 `cut-release` workflow（CONTRIBUTING.md `### Releasing with GitHub Actions`）：版號建議、用 Copilot CLI 起草並檢查 CHANGELOG、推 tag、發佈、把 `main` 快轉到 tag 都由它做，人只按 Run workflow 和兩次核准。本技能是 workflow 不能用時的備援，例如 Copilot 或 Actions 設定失效，或想自己寫 CHANGELOG。有兩種用法：
 
-1. 全部在本機：照下面步驟 1–6 做。
+1. 全部在本機：照下面步驟 1–7 做。
 2. 只在本機寫 CHANGELOG：做完步驟 1–4，推送候選 commit，以 `head` 輸入啟動 workflow，它會跳過 Copilot 起草，從檢查候選 commit 開始。
+
+workflow 不會補升級軸樣本：不論走哪一條路，發佈之後都要做步驟 7。
 
 ## 名詞
 
@@ -21,6 +23,7 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
 - **快轉（fast-forward）`main`**：不開 PR，直接把 `main` 推到發版 commit。發版 commit 的上一個 commit 就是 `main`，所以一般的 `git push`（不加 `--force`）就能讓 `main` 前進；`main` 在這期間如果多了別的 commit，git 會拒絕，這個號碼就作廢（D3＝B，2026-10-09）。
 - **SemVer 版號段**：MAJOR.MINOR.PATCH 三段。哪種改動升哪一段，看 README `## Compatibility` 的表。
 - **本機 gate**（本機關卡）：`cut` 推 tag 之前自己跑的 `validate.py` 加完整 pytest。
+- **升級軸樣本**：`tests/fixtures/releases/<tag>/` 裡的檔案，由那個 tag 自己的 script 寫出，合併之後不再修改。`tests/test_upgrade_axis.py` 用現在的程式去讀它，確認在 track 做到一半時更新 plugin 的人，手上的舊檔還讀得動。
 
 ## 輸入與輸出
 
@@ -28,8 +31,9 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
 - 輸出：
   - tag `vX.Y.Z`：已推上 GitHub，兩個平台都實際裝過；
   - GitHub Release `vX.Y.Z`：內容就是 CHANGELOG 的那一段；
-  - `main` 快轉到 tag 的 commit，tag 在 `main` 的歷史裡。
-- 要先問的有三處：刪遠端 branch（步驟 3）、推 tag（步驟 5）、`publish`（步驟 6，它會讓 `main` 前進）。
+  - `main` 快轉到 tag 的 commit，tag 在 `main` 的歷史裡；
+  - `tests/fixtures/releases/vX.Y.Z/`：這一版的升級軸樣本，另開一個 PR。
+- 要先問的有四處：刪遠端 branch（步驟 3）、推 tag（步驟 5）、`publish`（步驟 6，它會讓 `main` 前進）、樣本 PR 的 commit 與 push（步驟 7）。
 
 ## 步驟
 
@@ -78,6 +82,11 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
      - `git switch main && git pull --ff-only`；
      - `main` 的 push CI 要通過：在背景跑 `gh run list --branch main --limit 1 --json databaseId,headSha,conclusion` 找到這次的 run，再 `gh run watch <databaseId> --exit-status`；
      - 確認 `git merge-base --is-ancestor vX.Y.Z origin/main` 成立。
+7. **替剛發的版本補一份升級軸樣本（commit 與 push 先問）。** 指令和規則在 CONTRIBUTING.md 的 `### Upgrade-axis samples`，這裡不重抄。
+   - 從同步後的 `main` 開 branch，照那一節的指令新增 `tests/fixtures/releases/vX.Y.Z/`。發版 commit 只能改四樣，所以樣本不放進去，另開一個只動 `tests/` 的 PR。
+   - 樣本一定要用 `vX.Y.Z` 這個 tag 自己的 script 產生，不能拿現在的程式代寫，也不能照上一版的樣本改幾個字：那樣測不到兩版之間的差異。
+   - `state.md` 和 `current` 沒有 script 會寫，是從上一版的樣本帶過來的。先讀 `git diff <上一個 tag> vX.Y.Z -- plugins/cai/skills/track/SKILL.md`，track 技能對這兩個檔的說法有變，才照新的說法手改。
+   - 跑 `python -m pytest tests/test_upgrade_axis.py -n0`。紅了有兩種可能：新版讀不動舊版留下的檔，或樣本帶了 session id、token 用量或本機路徑。兩種都照 CONTRIBUTING 那一節處理，已合併的樣本不能改。
 
 ## 踩過的坑
 
@@ -94,3 +103,4 @@ description: Use when asked to cut, publish or bump a release of this repo's plu
 - [ ] `cut` 全部 PASS，兩個平台都印出 `installed and verified`
 - [ ] `publish` 前問過；GitHub Release 不是草稿
 - [ ] `main` 已快轉到 tag，tag 在 `main` 的歷史裡，`main` 的 push CI 通過
+- [ ] 這一版的升級軸樣本已經開 PR，或已說明為什麼還沒開
