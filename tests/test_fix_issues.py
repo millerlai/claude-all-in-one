@@ -578,6 +578,18 @@ DEFAULT = frozenset({142, 145, 150})
     ("+163", DEFAULT | {163}),
     ("-145 +163", frozenset({142, 150, 163})),
     ("-#145", frozenset({142, 150})),
+    # a multi-question answer: checkbox labels, the shortcut, typed numbers
+    ("#145 ★建議 · Retry after timeout charges twice", frozenset({145})),
+    ("#163 · Rewrite the model, #142 ★建議 · Export", frozenset({142, 163})),
+    ("#163 · Rewrite\n#142 ★建議 · Export\n", frozenset({142, 163})),
+    ("★ 全選建議的 3 個", DEFAULT),
+    ("★ 全選建議的 3 個, #163 · Rewrite", DEFAULT | {163}),
+    ("#163 · Rewrite, 150", frozenset({150, 163})),
+    ('{"q1": "★ 全選建議的 3 個, #163 · Rewrite", "q2": "145"}', DEFAULT | {163}),
+    ('{"q1": ["#142 ★建議 · A", "#163 · B"], "q2": []}', frozenset({142, 163})),
+    ('{"q1": "", "q2": ""}', frozenset()),
+    ("{}", frozenset()),
+    ("Fix none, #142 · A", frozenset({142})),
 ])
 def test_parse_answer_understood(text, numbers):
     assert fi.parse_answer(text, LISTED, DEFAULT) == fi.Selection(numbers, None)
@@ -595,6 +607,10 @@ def test_parse_answer_understood(text, numbers):
     ("-142 -777", "-777"),
     ("Fix everything", "Fix"),
     ("fix none", "fix"),
+    ("#999 · Elsewhere", "#999"),
+    ("#142 · A, +163", "+163"),
+    ("#142 · A, 999", "999"),
+    ("#142 · A, abc", "abc"),
 ])
 def test_parse_answer_not_understood(text, problem):
     assert fi.parse_answer(text, LISTED, DEFAULT) == fi.Selection(None, problem)
@@ -628,31 +644,58 @@ def sample_analysis():
             163: entry("feature", "large")}
 
 
-# The fictional screen of the detail design, one line per element.
+SHORTCUT = "★ 全選建議"
+
+
+def questions_of(lines):
+    """[[[label, description], ...], ...]: the options of each question, in order."""
+    out = []
+    for line in lines:
+        if line.startswith("question "):
+            out.append([])
+        elif line.startswith("  option: "):
+            out[-1].append([line[len("  option: "):], ""])
+        elif line.startswith("    description: "):
+            out[-1][-1][1] = line[len("    description: "):]
+    return out
+
+
+def option_of(lines, number):
+    for page in questions_of(lines):
+        for label, desc in page:
+            if label.startswith(f"#{number} "):
+                return label, desc
+    raise AssertionError(f"#{number} is not an option")
+
+
+# The screen of the detail design: 9 options (the shortcut and 8 issues) in 3 questions.
 SAMPLE_SCREEN = [
     "acme/widgets: 8 open issues.",
-    "",
-    "Worked on if you take the default (2)",
-    "  #142  bug · small · alice (OWNER)               Export to CSV garbles non-ASCII columns",
-    "  #145  bug · medium · bob (COLLABORATOR)         Retry after timeout charges twice",
-    "",
-    "Ticked by default, but not worked on this round (2)",
-    "  #150  bug · small · carol (MEMBER)              Reconciliation report is off after a retry",
-    "        - depends on #145: waits for its pull request to merge",
-    "  #163  feature · large · alice (OWNER)           Rewrite the permission model",
-    "        - too large: only listed as needing a track",
-    "",
-    "Not ticked by default (4)",
-    "  #147  bug · small · alice (OWNER)               Settings page hides a button on mobile",
-    '        - claimed by track "mobile-settings" (bob, updated 2026-10-07T08:00:00Z)',
-    "  #151  bug · small · dave (NONE)                 README install command lacks a flag",
-    "  #153  chore · small · github-actions[bot] (NONE)  Weekly dependency check failed",
-    "  #156  bug · medium · alice (OWNER)              Session survives logout",
-    "        - has open pull request #160: selecting it opens no second one",
-    "",
+    "question 1 of 3: Which issues should be fixed? Tick any (1/3)",
+    "  option: ★ 全選建議的 4 個",
+    "    description: ticks every issue marked ★建議; issues ticked by hand are added to them",
+    "  option: #142 ★建議 · Export to CSV garbles non-ASCII columns",
+    "    description: bug · small · alice (OWNER)",
+    "  option: #145 ★建議 · Retry after timeout charges twice",
+    "    description: bug · medium · bob (COLLABORATOR)",
+    "  option: #147 · Settings page hides a button on mobile",
+    "    description: bug · small · alice (OWNER) - claimed by track \"mobile-settings\" "
+    "(bob, updated 2026-10-07T08:00:00Z)",
+    "question 2 of 3: Which issues should be fixed? Tick any (2/3)",
+    "  option: #150 ★建議 · Reconciliation report is off after a retry",
+    "    description: bug · small · carol (MEMBER) - depends on #145: waits for its "
+    "pull request to merge",
+    "  option: #151 · README install command lacks a flag",
+    "    description: bug · small · dave (NONE)",
+    "  option: #153 · Weekly dependency check failed",
+    "    description: chore · small · github-actions[bot] (NONE)",
+    "question 3 of 3: Which issues should be fixed? Tick any (3/3)",
+    "  option: #156 · Session survives logout",
+    "    description: bug · medium · alice (OWNER) - has open pull request #160: selecting it "
+    "opens no second one",
+    "  option: #163 ★建議 · Rewrite the permission model",
+    "    description: feature · large · alice (OWNER) - too large: only listed as needing a track",
     "default: #142 #145 #150 #163",
-    "option 1: Fix the default: #142 #145 #150 #163 (Recommended)",
-    "option 2: Fix none",
 ]
 
 
@@ -660,36 +703,55 @@ def test_render_screen_equals_the_designed_sample_line_for_line():
     assert fi.render_screen(sample_issues(), sample_analysis()) == SAMPLE_SCREEN
 
 
-def test_render_screen_column_fits_the_longest_description_up_to_forty():
-    short = fi.render_screen([lnode(1, "T", author="al")], {1: entry()})
-    assert "  #1  bug · small · al (OWNER)  T" in short
-    long_login = "x" * 60
-    long_row = fi.render_screen([lnode(1, "T", author=long_login), lnode(2, "U", author="al")],
-                                {1: entry(), 2: entry()})
-    row_two = next(line for line in long_row if line.startswith("  #2"))
-    assert row_two == "  #2  " + "bug · small · al (OWNER)".ljust(40) + "  U"
+def test_render_screen_nine_issues_are_three_questions_by_number():
+    # AC1: the shortcut and 3 issues, then 4, then 2.
+    issues = [lnode(n) for n in (3, 1, 9, 2, 8, 4, 7, 5, 6)]
+    pages = questions_of(fi.render_screen(issues, {n: entry() for n in range(1, 10)}))
+    assert [len(p) for p in pages] == [4, 4, 2]
+    assert pages[0][0][0] == "★ 全選建議的 9 個"
+    got = [int(label.split()[0][1:]) for p in pages for label, _ in p[(1 if p is pages[0] else 0):]]
+    assert got == list(range(1, 10))
 
 
-def test_render_screen_with_many_ticked_counts_instead_of_listing():
-    issues = [lnode(n) for n in range(1, 8)]
-    lines = fi.render_screen(issues, {n: entry() for n in range(1, 8)})
-    assert lines[-2:] == ["option 1: Fix the default: 7 issues, as listed above (Recommended)",
-                          "option 2: Fix none"]
-    assert "default: #1 #2 #3 #4 #5 #6 #7" in lines
+def test_render_screen_never_leaves_a_question_with_one_option():
+    # 4 issues and the shortcut are 5 options: 4 + 1 would be a one-option question.
+    pages = questions_of(fi.render_screen([lnode(n) for n in range(1, 5)],
+                                          {n: entry() for n in range(1, 5)}))
+    assert [len(p) for p in pages] == [3, 2]
 
 
-def test_render_screen_six_ticked_are_still_listed():
-    issues = [lnode(n) for n in range(1, 7)]
-    lines = fi.render_screen(issues, {n: entry() for n in range(1, 7)})
-    assert lines[-2] == "option 1: Fix the default: #1 #2 #3 #4 #5 #6 (Recommended)"
+def test_render_screen_a_lone_unticked_issue_still_makes_a_two_option_question():
+    lines = fi.render_screen([lnode(1, assoc="NONE")], {1: entry()})
+    assert [label for p in questions_of(lines) for label, _ in p] == ["#1 · Some title",
+                                                                       "Fix none"]
 
 
-def test_render_screen_with_nothing_ticked_recommends_nothing():
+def test_render_screen_lists_fifteen_and_names_the_rest():
+    # AC2: 20 open issues, 15 listed once each, the other 5 named.
+    issues = [lnode(n) for n in range(1, 21)]
+    lines = fi.render_screen(issues, {n: entry() for n in range(1, 21)})
+    pages = questions_of(lines)
+    assert [len(p) for p in pages] == [4, 4, 4, 4]
+    labels = [label for p in pages for label, _ in p][1:]
+    assert [int(label.split()[0][1:]) for label in labels] == list(range(1, 16))
+    assert pages[0][0][0] == "★ 全選建議的 15 個"
+    assert any(line.startswith("not listed (5): #16 #17 #18 #19 #20") for line in lines)
+
+
+def test_render_screen_marks_only_the_default_ticked_and_strips_commas_from_the_title():
+    issues = [lnode(1, title="Fix a, b，c"), lnode(2, assoc="NONE", title="Other")]
+    lines = fi.render_screen(issues, {1: entry(), 2: entry()})
+    assert option_of(lines, 1)[0] == "#1 ★建議 · Fix a bc"
+    assert option_of(lines, 2)[0] == "#2 · Other"
+    assert not any("," in label or "，" in label for p in questions_of(lines) for label, _ in p)
+
+
+def test_render_screen_with_nothing_ticked_has_no_shortcut():
     issues = [lnode(1, assoc="NONE"), lnode(2, assoc="NONE")]
     lines = fi.render_screen(issues, {1: entry(), 2: entry()})
-    assert lines[-3:] == ["default: none", "option 1: Fix the default: none ticked",
-                          "option 2: Fix none"]
-    assert "Worked on if you take the default" not in "\n".join(lines)
+    assert [label for p in questions_of(lines) for label, _ in p] == ["#1 · Some title",
+                                                                       "#2 · Some title"]
+    assert lines[-1] == "default: none"
 
 
 def test_render_screen_notes_for_half_done_kept_branch_cycle_and_unclear():
@@ -709,70 +771,56 @@ def test_render_screen_notes_for_half_done_kept_branch_cycle_and_unclear():
     assert "- too unclear: only listed as needing a track" in text
 
 
-def _not_ticked_block(lines):
-    """The lines of the "Not ticked by default" section, header excluded."""
-    start = next(i for i, line in enumerate(lines) if line.startswith("Not ticked by default"))
-    end = next((i for i in range(start + 1, len(lines)) if lines[i] == ""), len(lines))
-    # column padding depends on the longest row, so compare with runs of spaces squeezed
-    return [" ".join(line.split()) for line in lines[start + 1:end]]
+def notes_of(lines, number):
+    """The notes in an option's description: what follows its kind, size and author."""
+    return option_of(lines, number)[1].split(" - ")[1:]
 
 
 def test_render_screen_an_unticked_row_shows_what_waiting_on_a_ticked_issue_would_do():
     issues = [lnode(145), lnode(151, assoc="NONE")]
     lines = fi.render_screen(issues, {145: entry(), 151: entry(deps=[145])})
-    assert _not_ticked_block(lines) == [
-        "#151 bug · small · alice (NONE) Some title",
-        "- depends on #145: waits for its pull request to merge"]
-    assert lines[-3:] == ["default: #145", "option 1: Fix the default: #145 (Recommended)",
-                          "option 2: Fix none"]
+    assert notes_of(lines, 151) == ["depends on #145: waits for its pull request to merge"]
+    assert lines[-1] == "default: #145"
 
 
 def test_render_screen_an_unticked_row_behind_an_unticked_dependency_says_it_waits():
     issues = [lnode(1, assoc="NONE"), lnode(2, assoc="NONE")]
     lines = fi.render_screen(issues, {1: entry(), 2: entry(deps=[1])})
-    assert _not_ticked_block(lines) == [
-        "#1 bug · small · alice (NONE) Some title",
-        "#2 bug · small · alice (NONE) Some title",
-        "- depends on #1: it is not ticked, so this waits"]
+    assert notes_of(lines, 1) == []
+    assert notes_of(lines, 2) == ["depends on #1: it is not ticked, so this waits"]
 
 
 def test_render_screen_an_unticked_row_behind_an_open_pull_request_says_it_waits():
     pr = {"number": 9, "url": "https://github.com/acme/widgets/pull/9", "state": "OPEN"}
     issues = [lnode(1, prs=[pr]), lnode(2, assoc="NONE")]
     lines = fi.render_screen(issues, {1: entry(), 2: entry(deps=[1])})
-    assert "- depends on #1: waits for its pull request to merge" in _not_ticked_block(lines)
+    assert notes_of(lines, 2) == ["depends on #1: waits for its pull request to merge"]
 
 
 def test_render_screen_an_unticked_large_or_unclear_row_says_it_needs_a_track():
     issues = [lnode(1, assoc="NONE"), lnode(2, assoc="NONE")]
     lines = fi.render_screen(issues, {1: entry(size="large"), 2: entry(size="unclear")})
-    assert _not_ticked_block(lines) == [
-        "#1 bug · large · alice (NONE) Some title",
-        "- too large: only listed as needing a track",
-        "#2 bug · unclear · alice (NONE) Some title",
-        "- too unclear: only listed as needing a track"]
+    assert notes_of(lines, 1) == ["too large: only listed as needing a track"]
+    assert notes_of(lines, 2) == ["too unclear: only listed as needing a track"]
 
 
 def test_render_screen_an_unticked_cycle_member_is_marked():
     issues = [lnode(3, assoc="NONE"), lnode(4, assoc="NONE"), lnode(5, assoc="NONE")]
     analysis = {3: entry(deps=[4]), 4: entry(deps=[3]), 5: entry()}
-    block = _not_ticked_block(fi.render_screen(issues, analysis))
-    assert block == [
-        "#3 bug · small · alice (NONE) Some title",
-        "- dependency cycle with #3, #4: not worked on",
-        "#4 bug · small · alice (NONE) Some title",
-        "- dependency cycle with #3, #4: not worked on",
-        "#5 bug · small · alice (NONE) Some title"]
+    lines = fi.render_screen(issues, analysis)
+    assert notes_of(lines, 3) == notes_of(lines, 4) == [
+        "dependency cycle with #3, #4: not worked on"]
+    assert notes_of(lines, 5) == []
 
 
 def test_render_screen_an_unticked_row_with_a_pull_request_or_kept_state_is_not_noted_twice():
     pr = {"number": 160, "url": "https://github.com/acme/widgets/pull/160", "state": "OPEN"}
     issues = [lnode(1), lnode(2, prs=[pr]), disposed(lnode(3, assoc="NONE"), "complete-push", "f")]
     analysis = {1: entry(), 2: entry(deps=[1]), 3: entry(deps=[1])}
-    notes = [line for line in _not_ticked_block(fi.render_screen(issues, analysis))
-             if line.startswith("- ")]
-    assert notes == ["- has open pull request #160: selecting it opens no second one",
-                     "- earlier run left this half-done: selecting it completes the missing step"]
+    lines = fi.render_screen(issues, analysis)
+    assert notes_of(lines, 2) == ["has open pull request #160: selecting it opens no second one"]
+    assert notes_of(lines, 3) == [
+        "earlier run left this half-done: selecting it completes the missing step"]
 
 
 def test_render_screen_notes_on_unticked_rows_leave_ticked_rows_and_choices_as_they_were():
@@ -781,11 +829,9 @@ def test_render_screen_notes_on_unticked_rows_leave_ticked_rows_and_choices_as_t
     noted = dict(base)
     noted[3], noted[4] = entry(deps=[1]), entry(size="large")
     plain, with_notes = fi.render_screen(issues, base), fi.render_screen(issues, noted)
-    assert plain[:plain.index("Not ticked by default (2)")] == \
-        with_notes[:with_notes.index("Not ticked by default (2)")]
-    assert plain[-3:] == with_notes[-3:] == [
-        "default: #1 #2", "option 1: Fix the default: #1 #2 (Recommended)", "option 2: Fix none"]
-    assert len(with_notes) == len(plain) + 2
+    for n in (1, 2):
+        assert option_of(plain, n) == option_of(with_notes, n)
+    assert plain[-1] == with_notes[-1] == "default: #1 #2"
 
 
 def test_render_screen_escapes_what_others_wrote():
@@ -865,6 +911,44 @@ def test_select_free_text_chooses_exactly_those(tmp_path, capsys):
     code, out = run_select(capsys, tmp_path, "#151, 142")
     assert code == 0
     assert out == ["order: #142 -> #151", "item 142 fix debug", "item 151 fix debug"]
+
+
+def test_select_only_the_shortcut_is_the_default(tmp_path, capsys):
+    # AC3: the shortcut alone is what "Fix the default" was.
+    code, out = run_select(capsys, tmp_path, "★ 全選建議的 4 個")
+    assert (code, out) == run_select(capsys, tmp_path, "Fix the default: #142 #145 #150 #163")
+    assert code == 0 and out[0] == "order: #142 -> #145"
+
+
+def test_select_the_shortcut_and_ticks_are_a_union(tmp_path, capsys):
+    answer = json.dumps({"Which issues? (1/3)": "★ 全選建議的 4 個, #147 · Settings page",
+                         "Which issues? (2/3)": "#151 · README"})
+    code, out = run_select(capsys, tmp_path, answer)
+    assert code == 0
+    assert out[0] == "order: #142 -> #145 -> #147 -> #151"
+
+
+def test_select_a_number_typed_in_the_free_text_entry_is_accepted(tmp_path, capsys):
+    code, out = run_select(capsys, tmp_path, "#151 · README, 142")
+    assert code == 0 and out == ["order: #142 -> #151", "item 142 fix debug", "item 151 fix debug"]
+
+
+def test_select_nothing_ticked_is_exit_4_with_no_order(tmp_path, capsys):
+    # AC4
+    code, out = run_select(capsys, tmp_path, '{"Which issues? (1/3)": "", "Which issues? (2/3)": ""}')
+    assert code == 4 and not any(line.startswith("order:") for line in out)
+
+
+def test_select_an_issue_not_listed_on_the_screen_is_not_in_the_shortcut(tmp_path, capsys):
+    # 16 open issues: #16 is only reachable by its number, so the shortcut leaves it out.
+    issues = [lnode(n) for n in range(1, 17)]
+    analysis = {n: entry() for n in range(1, 17)}
+    code, out = run_select(capsys, tmp_path, "★ 全選建議的 15 個", issues=issues,
+                           analysis=analysis)
+    assert code == 0 and out[0] == "order: " + " -> ".join(f"#{n}" for n in range(1, 16))
+    assert not any(line.startswith("item 16 ") for line in out)
+    code, out = run_select(capsys, tmp_path, "16", issues=issues, analysis=analysis)
+    assert code == 0 and out == ["order: #16", "item 16 fix debug"]
 
 
 def test_select_an_answer_it_cannot_read_is_exit_3(tmp_path, capsys):

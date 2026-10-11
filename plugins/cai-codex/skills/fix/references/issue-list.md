@@ -59,18 +59,24 @@ per issue to an analysis file, as a JSON array:
 
 ## 4. Show the screen
 
-Run `screen`, and paste its output as it is:
+Run `screen`:
 
 ```text
 <cai> fix_issues screen --list-file <list file> --analysis-file <analysis file>
 ```
+
+It prints one `question <n> of <m>` line per question, and under each an
+`option:` line (the label) and a `description:` line per option. The notes the
+issues carry are in the descriptions; there is no other list to paste. A
+`not listed` line names the issues that did not fit; say so in one line when
+you ask, they are `not-selected` unless the person types their numbers.
 
 Exit 2 with `analysis-invalid`: correct the analysis file as the line says and
 run it again.
 
 ## 5. Ask once
 
-Print the two options `screen` printed as numbered text, say that a typed
+Print the options `screen` printed as numbered text, say that a typed
 selection is accepted as well, then end the turn and wait for the person's
 reply.
 
@@ -82,7 +88,8 @@ says the same for every menu.
 
 ## 6. Turn the answer into an order
 
-Write the answer exactly as the tool returned it to an answer file, then run:
+Write the answers of every question, and anything typed in the free-text
+entry, exactly as the tool returned them to one answer file, then run:
 
 ```text
 <cai> fix_issues select --list-file <list file> --analysis-file <analysis file> --answer-file <answer file>

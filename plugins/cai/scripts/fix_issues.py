@@ -552,32 +552,87 @@ class Selection(NamedTuple):
 
 
 _TOKEN = re.compile(r"([+-]?)#?(\d+)\Z")
+# What an option label starts with: `#<number>` then a space; see _option_label.
+_BOX = re.compile(r"#(\d+)(?:\s|\Z)")
+MARK = "★建議"
+SHORTCUT = "★ 全選建議"
+
+
+def _strings(data, out):
+    """Every string inside a decoded JSON answer, in order."""
+    if isinstance(data, str):
+        out.append(data)
+    elif isinstance(data, dict):
+        for value in data.values():
+            _strings(value, out)
+    elif isinstance(data, list):
+        for value in data:
+            _strings(value, out)
+
+
+def _answer_pieces(text):
+    """(pieces, structured): the answer cut into one piece per ticked label or
+    typed word. The shape the question tool returns for several multi-select
+    questions is not known, so a JSON object or list and plain text are both
+    read; labels hold no comma, so commas and newlines are the cuts."""
+    strings, structured = [text], False
+    if text.startswith(("{", "[")):
+        try:
+            data = json.loads(text)
+        except ValueError:
+            pass
+        else:
+            strings, structured = [], True
+            _strings(data, strings)
+    pieces = []
+    for string in strings:
+        for line in string.splitlines():
+            line = line.strip()
+            # that label holds a comma ("3 issues, as listed above")
+            parts = [line] if line.startswith("Fix the default") else re.split(r"[,，]", line)
+            pieces += [p.strip() for p in parts if p.strip()]
+    return pieces, structured
 
 
 def parse_answer(text, listed, default):
     """The issue numbers an answer picks, or the first piece that cannot be read.
-    Accepted: the default option's label, `Fix none`, plain numbers (exactly
-    those), or `+N` / `-N` changes to the default; nothing mixed."""
-    text = text.strip()
-    if text.startswith("Fix the default"):
-        return Selection(frozenset(default), None)
-    if text == "Fix none":
-        return Selection(frozenset(), None)
-    pieces = [p for p in re.split(r"[\s,]+", text) if p]
+    Accepted, one per piece: an option label of the screen (`#N ...` adds that
+    issue, the shortcut adds the default), the default option's label, `Fix
+    none`, plain numbers; or `+N` / `-N` changes to the default, which do not
+    mix with the rest."""
+    pieces, structured = _answer_pieces(text.strip())
     if not pieces:
-        return Selection(None, "(nothing)")
-    parsed = []
+        # a menu that came back with every question empty ticked nothing
+        return Selection(frozenset() if structured else None,
+                         None if structured else "(nothing)")
+    chosen, parsed, boxed = set(), [], False
     for piece in pieces:
-        m = _TOKEN.match(piece)
-        if m is None:
-            return Selection(None, piece)
-        parsed.append((m.group(1), int(m.group(2)), piece))
-    signed = bool(parsed[0][0])
-    for sign, number, piece in parsed:
-        if bool(sign) != signed or number not in listed:
-            return Selection(None, piece)
+        if piece.startswith(("Fix the default", SHORTCUT)):
+            chosen |= default
+            boxed = True
+        elif piece == "Fix none":
+            continue
+        else:
+            words = piece.split()
+            m = _BOX.match(piece)
+            # `#142 #145` is two typed numbers; `#142 ★建議 · Title` is a label
+            if m and not all(_TOKEN.match(w) for w in words):
+                if int(m.group(1)) not in listed:
+                    return Selection(None, "#" + m.group(1))
+                chosen.add(int(m.group(1)))
+                boxed = True
+                continue
+            for word in words:
+                m = _TOKEN.match(word)
+                if m is None:
+                    return Selection(None, word)
+                parsed.append((m.group(1), int(m.group(2)), word))
+    signed = bool(parsed) and bool(parsed[0][0])
+    for sign, number, word in parsed:
+        if bool(sign) != signed or number not in listed or (signed and boxed):
+            return Selection(None, word)
     if not signed:
-        return Selection(frozenset(n for _, n, _ in parsed), None)
+        return Selection(frozenset(chosen | {n for _, n, _ in parsed}), None)
     chosen = set(default)
     for sign, number, _ in parsed:
         chosen.add(number) if sign == "+" else chosen.discard(number)
@@ -589,11 +644,11 @@ def parse_answer(text, listed, default):
 # ---------------------------------------------------------------------------
 
 DOT = " · "
-DESC_WIDTH_CAP = 40
 HALF_DONE = "earlier run left this half-done: selecting it completes the missing step"
-SECTIONS = ("Worked on if you take the default",
-            "Ticked by default, but not worked on this round",
-            "Not ticked by default")
+# The question tool takes at most 4 questions of at most 4 options each; the
+# shortcut option takes one of those 16 slots.
+PAGE_SIZE = 4
+MAX_LISTED = 15
 
 
 def _fact_notes(issue):
@@ -624,56 +679,78 @@ def _repo_name(issues):
     return None
 
 
+def _on_screen(issues):
+    """The issues the screen lists: the lowest-numbered ones that fit its slots."""
+    return sorted(issues, key=lambda i: i["number"])[:MAX_LISTED]
+
+
+def screen_default(issues):
+    """What the default ticks: only among the issues the screen lists, so the
+    shortcut never works on one the person could not see marked."""
+    return frozenset(i["number"] for i in _on_screen(issues) if default_ticked(i))
+
+
+def _pages(options):
+    """The options cut into questions of PAGE_SIZE; a last question of one option
+    takes one from the question before it, as the tool asks for at least two."""
+    pages = [options[i:i + PAGE_SIZE] for i in range(0, len(options), PAGE_SIZE)]
+    if len(pages) > 1 and len(pages[-1]) == 1:
+        pages[-1].insert(0, pages[-2].pop())
+    return pages
+
+
 def render_screen(issues, analysis):
-    """The selection screen as lines: three sections by what taking the default
-    would do, then the default and the two options of the one question."""
-    ticked = {i["number"] for i in issues if default_ticked(i)}
-    planned = {d.number: (d, notes) for d, notes in _plan(issues, analysis, frozenset(ticked))}
+    """The selection screen as lines: one multi-select question per PAGE_SIZE
+    options (`question`, then `option` and `description` lines), the numbers
+    left off the screen, and the default."""
+    shown = _on_screen(issues)
+    ticked = screen_default(issues)
+    planned = {d.number: notes for d, notes in _plan(issues, analysis, ticked)}
     by_number, graph = _graph(issues, analysis)
     cache = {}
-    rows = {name: [] for name in SECTIONS}
-    for issue in issues:
+    options = []
+    if ticked:
+        options.append(("%s的 %d 個" % (SHORTCUT, len(ticked)),
+                        "ticks every issue marked %s; issues ticked by hand are added to them"
+                        % MARK))
+    for issue in shown:
         n = issue["number"]
-        disposition, plan_notes = planned[n]
         if n in ticked:
-            name = SECTIONS[0] if disposition.action in WORKING_ACTIONS else SECTIONS[1]
-            notes = plan_notes + _fact_notes(issue)
+            notes = planned[n] + _fact_notes(issue)
         else:
             # what adding this one issue to the default would do; a kept state or an open
             # pull request answers with no notes here, its line comes from _fact_notes
             _, _, plan_notes = _decide(issue, analysis[n], graph, by_number,
                                        frozenset(ticked | {n}), cache)
-            name, notes = SECTIONS[2], plan_notes + _fact_notes(issue)
+            notes = plan_notes + _fact_notes(issue)
         entry = analysis[n]
         author = issue.get("author") or {}
         desc = DOT.join([entry["kind"], entry["size"],
                          "%s (%s)" % (_escape(str(author.get("login") or "ghost")),
                                       _escape(str(issue.get("authorAssociation") or "unknown")))])
-        rows[name].append((f"#{n}", desc, _escape(str(issue.get("title") or "")), notes))
-    every = [r for section in rows.values() for r in section]
-    num_w = max((len(r[0]) for r in every), default=0)
-    # a long login overflows its own row rather than push every title to the right
-    desc_w = min(max((len(r[1]) for r in every), default=0), DESC_WIDTH_CAP)
+        # No comma in a label: the answer is cut at commas to find the ticked ones.
+        title = re.sub(r"[,，]", "", _escape(str(issue.get("title") or "")))
+        mark = MARK + DOT if n in ticked else "· "
+        label = ("#%d %s%s" % (n, mark, title)).rstrip()
+        options.append((label, "".join([desc] + [" - " + note for note in notes])))
+    if len(options) == 1:
+        # one unticked issue and no shortcut: the tool takes at least two options
+        options.append(("Fix none", "ticks nothing; no branch is created"))
     repo = _repo_name(issues)
     count = len(issues)
     lines = [("%s: " % _escape(repo) if repo else "")
              + "%d open issue%s." % (count, "" if count == 1 else "s")]
-    for name in SECTIONS:
-        if not rows[name]:
-            continue
-        lines += ["", "%s (%d)" % (name, len(rows[name]))]
-        for num, desc, title, notes in rows[name]:
-            lines.append(f"  {num.ljust(num_w)}  {desc.ljust(desc_w)}  {title}".rstrip())
-            lines += [" " * (4 + num_w) + "- " + note for note in notes]
-    numbers = ["#%d" % n for n in sorted(ticked)]
-    if not numbers:
-        label = "Fix the default: none ticked"
-    elif len(numbers) > 6:
-        label = "Fix the default: %d issues, as listed above (Recommended)" % len(numbers)
-    else:
-        label = "Fix the default: %s (Recommended)" % " ".join(numbers)
-    return lines + ["", "default: " + (" ".join(numbers) or "none"),
-                    "option 1: " + label, "option 2: Fix none"]
+    pages = _pages(options)
+    for p, page in enumerate(pages, 1):
+        lines.append("question %d of %d: Which issues should be fixed? Tick any (%d/%d)"
+                     % (p, len(pages), p, len(pages)))
+        for label, desc in page:
+            lines += ["  option: " + label, "    description: " + desc]
+    rest = [i["number"] for i in sorted(issues, key=lambda i: i["number"])[MAX_LISTED:]]
+    if rest:
+        lines.append("not listed (%d): %s - type a number in the free-text entry to choose one"
+                     % (len(rest), " ".join("#%d" % n for n in rest)))
+    return lines + ["default: " + (" ".join("#%d" % n for n in sorted(ticked)) or "none")]
 
 
 # ---------------------------------------------------------------------------
@@ -697,12 +774,12 @@ def _select(args):
     except OSError:
         raise _Stop("unreadable", "The answer file could not be read.")
     listed = frozenset(i["number"] for i in issues)
-    default = frozenset(i["number"] for i in issues if default_ticked(i))
+    default = screen_default(issues)
     selection = parse_answer(answer, listed, default)
     if selection.numbers is None:
         print("selection not understood: " + _escape(selection.problem))
-        print("Write issue numbers to fix exactly those, for example `142 145`, or "
-              "`+150 -145` to change the default.")
+        print("Tick issues on the screen, or write issue numbers to add, for example "
+              "`142 145`, or `+150 -145` to change the default.")
         return 3
     planned = plan(issues, analysis, selection.numbers)
     order = [d.number for d in planned if d.action in WORKING_ACTIONS]

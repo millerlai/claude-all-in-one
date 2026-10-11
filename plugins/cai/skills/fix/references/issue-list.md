@@ -57,19 +57,27 @@ per issue to an analysis file, as a JSON array:
 
 ## 4. Show the screen
 
-Run `screen`, and paste its output as it is:
+Run `screen`:
 
 ```text
 python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_issues.py screen --list-file <list file> --analysis-file <analysis file>
 ```
+
+It prints one `question <n> of <m>` line per question, and under each an
+`option:` line (the label) and a `description:` line per option. The notes the
+issues carry are in the descriptions; there is no other list to paste. A
+`not listed` line names the issues that did not fit; say so in one line when
+you ask, they are `not-selected` unless the person types their numbers.
 
 Exit 2 with `analysis-invalid`: correct the analysis file as the line says and
 run it again.
 
 ## 5. Ask once
 
-Ask one question with the question tool: the two options `screen` printed,
-and the free-text entry the tool adds itself.
+Ask with one call of the question tool, with one question for each `question`
+line, each `multiSelect`, and the options of each exactly as `screen` printed
+them, label and description. The tool adds a free-text entry itself. The call
+is the only prompt of the run.
 
 A menu that closes on its own, is cancelled, or comes back with nothing
 selected counts as no issue chosen: do not run `select`, never pick the first
@@ -79,7 +87,8 @@ says the same for every menu.
 
 ## 6. Turn the answer into an order
 
-Write the answer exactly as the tool returned it to an answer file, then run:
+Write the answers of every question, and anything typed in the free-text
+entry, exactly as the tool returned them to one answer file, then run:
 
 ```text
 python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_issues.py select --list-file <list file> --analysis-file <analysis file> --answer-file <answer file>
