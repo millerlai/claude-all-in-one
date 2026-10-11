@@ -127,3 +127,20 @@ def test_report_and_answers_go_in_on_stdin_with_a_powershell_fallback(plugin_roo
     assert "--report-file -`" in flat and "--answer-file -`" in flat
     assert "<<'CAI_PENDING_EOF'" in flat
     assert flat.count("PowerShell") >= 3
+
+
+@pytest.mark.parametrize("plugin_root", TREES)
+def test_one_place_defines_a_round_and_the_other_texts_point_at_it(plugin_root):
+    # #374: "round" was undefined, so design's fixed stops and the three-round
+    # cap counted different things. The definition lives in one section.
+    pq = _flat(plugin_root, "references", "pending-questions.md")
+    rule = _section(pq, "## What counts as a round", "## Resuming a saved round")
+    assert "\"Changes requested\"" in rule
+    assert "The other stops, which are not gates" in rule
+    assert "--stop" in rule and "N of 3 rounds spent" in rule
+    gates = _flat(plugin_root, "references", "approval-gates.md")
+    assert "What counts as a round" in gates
+    assert "Counts as one of that stage's three rounds" not in gates
+    design = _flat(plugin_root, "references", "stage-design.md")
+    assert "What counts as a round" in design
+    assert "At most three rounds" not in design

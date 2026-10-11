@@ -121,7 +121,7 @@ def test_pending_section_follows_next_and_reads_the_live_branch(root, capsys, mo
     code, out, err = _status(root, capsys)
     assert (code, err) == (0, "")
     assert out == _after_next(
-        "pending: build, round 1, 0 of 2 answered\n"
+        "pending: build, 1 of 3 rounds spent, 0 of 2 answered\n"
         "  file: %s\n"
         "  1. [open] Commit per unit?\n"
         "  2. [open] Parallel lane?\n"
@@ -134,8 +134,21 @@ def test_answered_questions_are_counted_and_marked(root, capsys, monkeypatch):
     _pending_file(root, rnd=2, answered=(2,))
     _git_answers(monkeypatch)
     _, out, _ = _status(root, capsys)
-    assert "pending: build, round 2, 1 of 2 answered\n" in out
+    assert "pending: build, 2 of 3 rounds spent, 1 of 2 answered\n" in out
     assert "  1. [open] Commit per unit?\n  2. [answered] Parallel lane?\n" in out
+
+
+def test_a_prescribed_stop_shows_no_round_spent(root, capsys, monkeypatch):
+    # #374: a stop the procedure itself prescribes spends no round, and status
+    # must say so rather than print "round 1" for a hand-up that did not count.
+    track_dir = os.path.join(root, "billing")
+    report = os.path.join(os.path.dirname(root), "report.md")
+    with open(report, "wb") as fh:
+        fh.write(REPORT.encode("utf-8"))
+    pending.start(track_dir, "build", 0, report, stop=True)
+    _git_answers(monkeypatch)
+    _, out, _ = _status(root, capsys)
+    assert "pending: build, 0 of 3 rounds spent, 0 of 2 answered\n" in out
 
 
 @pytest.mark.parametrize("fake, line", [

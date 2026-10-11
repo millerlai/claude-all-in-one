@@ -190,7 +190,9 @@ def test_build_first_pass_asks_before_any_unit_starts(tree):
     assert "`## Pending questions`" in step
     assert "no unit starts" in step
     assert "no commit is made" in step
-    assert "one round" in step
+    # #374: one hand-up, and a stop that spends none of pending-questions.md's rounds.
+    assert "one hand-up" in step
+    assert "does not count as one of its three rounds" in " ".join(step.split())
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -224,7 +226,7 @@ def test_gates_file_describes_step_0_5_as_one_round(tree):
     text = _reference(tree, "approval-gates.md")
     start = text.index("- `stage-build.md` Step 0.5 —")
     bullet = text[start:text.index(" - Gate 2's triage menu", start)]
-    assert "one round" in bullet
+    assert "one hand-up" in bullet
     assert "up to three turns" not in bullet
 
 

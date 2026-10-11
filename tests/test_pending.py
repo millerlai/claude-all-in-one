@@ -198,6 +198,31 @@ def test_round_three_is_accepted(track, tmp_path):
     assert pending.load(str(track / "pending.md"))["round"] == 3
 
 
+# A prescribed stop (#374) is a hand-up the procedure itself calls for. It
+# spends no round, so --stop takes the rounds already spent, zero included.
+def _stop(track, tmp_path, rnd):
+    return _run("start", "--track-dir", str(track), "--stage", "build",
+                "--round", str(rnd), "--stop", "--report-file",
+                _write(tmp_path, "report.md", REPORT))
+
+
+def test_a_prescribed_stop_is_accepted_before_any_round_is_spent(track, tmp_path):
+    done = _stop(track, tmp_path, 0)
+    assert done.returncode == 0, done.stderr
+    assert pending.load(str(track / "pending.md"))["round"] == 0
+
+
+def test_a_prescribed_stop_keeps_the_rounds_already_spent(track, tmp_path):
+    assert _start(track, tmp_path, rnd=2).returncode == 0
+    assert _stop(track, tmp_path, 2).returncode == 0
+    assert pending.load(str(track / "pending.md"))["round"] == 2
+
+
+def test_stop_does_not_lift_the_cap(track, tmp_path):
+    assert _stop(track, tmp_path, 4).returncode == 2
+    assert _only_pending(track) == []
+
+
 def test_an_answer_to_the_first_of_two_questions_reads_back(track, tmp_path):
     _start(track, tmp_path)
     for n, expect in ((1, ["answered", "open"]), (2, ["answered", "answered"])):

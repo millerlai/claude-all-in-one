@@ -17,7 +17,8 @@ pending.md is a public contract. It starts `# pending questions`, then
 `format: N`; a reader that does not know N must say so and read no further.
 Change the layout and N moves up by one; load() keeps reading every old N.
 
-Usage:  pending.py start  --track-dir DIR --stage S --round 1..3 --report-file F
+Usage:  pending.py start  --track-dir DIR --stage S --round 1..3 [--stop] --report-file F
+                          (--stop: a prescribed stop, spends no round, --round 0..3)
         pending.py answer --track-dir DIR --question N --answer-file F
         pending.py clear  --track-dir DIR --stage S
 Exit:   0 done, 2 refused or the write failed, 1 usage error.
@@ -227,14 +228,18 @@ def _finished(track_dir, stage):
     return bool(row) and len(row) > 1 and row[1] in ("done", "skipped")
 
 
-def start(track_dir, stage, rnd, report_file):
+def start(track_dir, stage, rnd, report_file, stop=False):
+    """`rnd` is the rounds spent so far, this hand-up included. A prescribed
+    stop (#374) spends none, so it passes the count unchanged -- zero when
+    nothing has been spent -- and a counted hand-up is always at least 1."""
     path = _path(track_dir)
     if stage not in stage_ids():
         raise PendingError("unknown stage: %s (expected one of %s)"
                            % (stage, ", ".join(stage_ids())))
-    if not 1 <= rnd <= MAX_ROUND:
-        raise PendingError("round must be 1 to %d, got %d; a fourth round means "
-                           "the stage failed" % (MAX_ROUND, rnd))
+    low = 0 if stop else 1
+    if not low <= rnd <= MAX_ROUND:
+        raise PendingError("round must be %d to %d, got %d; a fourth round means "
+                           "the stage failed" % (low, MAX_ROUND, rnd))
     report = read_input(report_file)
     questions = [{"text": t, "answer": None} for t in extract_questions(report)]
     if os.path.exists(path):
@@ -297,6 +302,9 @@ def main(argv=None):
     ap.add_argument("--track-dir", required=True)
     ap.add_argument("--stage")
     ap.add_argument("--round", type=int)
+    ap.add_argument("--stop", action="store_true",
+                    help="this hand-up is a stop the procedure prescribes and "
+                         "spends no round; --round is then the rounds already spent")
     ap.add_argument("--report-file")
     ap.add_argument("--question", type=int)
     ap.add_argument("--answer-file")
@@ -310,7 +318,8 @@ def main(argv=None):
         ap.error("%s needs --%s" % (args.command, ", --".join(m.replace("_", "-") for m in missing)))
     try:
         if args.command == "start":
-            start(args.track_dir, args.stage, args.round, args.report_file)
+            start(args.track_dir, args.stage, args.round, args.report_file,
+                  args.stop)
             print("wrote %s" % os.path.join(args.track_dir, FILE_NAME))
         elif args.command == "answer":
             answer(args.track_dir, args.question, args.answer_file)
