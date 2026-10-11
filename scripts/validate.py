@@ -2184,6 +2184,13 @@ def _track_stages():
             # model turn -- the opposite of the reason the probe exists at all.
             ("a python interpreter", _grants_python),
             ("a mermaid renderer", _grants_mermaid),
+            # #360: stage-design.md sends a Blocker/Major back to fix and
+            # re-review, up to three rounds, and designer.md's body says an
+            # existing document is changed in place. With Write alone every
+            # fix wrote the whole document out again -- 1187 lines, three
+            # times, in the track that reported it. Write still opens the
+            # document; Edit is what a fix uses.
+            ("Edit", lambda tools: re.search(r"\bEdit\b", tools) is not None),
         ],
         "build": [
             ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
@@ -2454,6 +2461,25 @@ def _track_stages():
             for label, predicate in needs:
                 check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
                       tools_line is not None and predicate(tools_line))
+
+        # #360: the Edit grant above only makes an in-place fix possible; this
+        # sentence is what asks for one, and nothing else restates it. The
+        # second check is the other half of the same change: no hook narrows
+        # where Write or Edit may land, so these two sentences are the whole
+        # of the designer's write boundary and a tool grant must not cost
+        # them. Folded because they wrap across source lines.
+        designer_ref = f"{PLUGIN}/agents/designer.md"
+        designer_text = (" ".join(read_text(designer_ref).split())
+                         if os.path.isfile(designer_ref) else "")
+        check(f"{designer_ref} says an existing document is changed in place, "
+              "not written out again",
+              "change it in place" in designer_text
+              and "Never write the whole document out again" in designer_text)
+        check(f"{designer_ref} keeps its write boundary (the document and its "
+              "diagrams, never the code)",
+              "only on the document itself and its diagrams" in designer_text
+              and "never on the code the design describes" in designer_text
+              and "Do NOT write implementation code" in designer_text)
 
         CONTEXT_PEAK = f"{PLUGIN}/scripts/context_peak.py"
         check(f"{CONTEXT_PEAK} ships", os.path.isfile(CONTEXT_PEAK))

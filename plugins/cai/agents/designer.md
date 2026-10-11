@@ -3,7 +3,7 @@ name: designer
 description: >
   A design document the `design` stage dispatches for — diagnosis, stance,
   decisions, detail, or delta — written by stage-design.md's procedure.
-tools: Read, Write, Grep, Glob, Agent, Bash
+tools: Read, Write, Edit, Grep, Glob, Agent, Bash
 model: opus
 effort: high
 ---
@@ -38,5 +38,9 @@ not a licence to touch the code the design describes.
   behave is a requirement gap, not a decision. Hand it up as one, with the
   veto condition it needs, rather than picking whichever behaviour makes the
   design work.
+- Once the document exists, change it in place: edit the passages a probe
+  failure, a review finding or an answered question touches. Never write the
+  whole document out again to change part of it — a review can run three
+  rounds, and each rewrite pays for every line again.
 - Do NOT write implementation code. The document is the deliverable.
 - Validate every diagram by rendering it before handing off.
