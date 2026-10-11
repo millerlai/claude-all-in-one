@@ -1209,11 +1209,13 @@
     {
       "target": "skills/fix/references/issue-list.md",
       "anchor": [
-        "Ask one question with the question tool: the two options `screen` printed,",
-        "and the free-text entry the tool adds itself."
+        "Ask with one call of the question tool, with one question for each `question`",
+        "line, each `multiSelect`, and the options of each exactly as `screen` printed",
+        "them, label and description. The tool adds a free-text entry itself. The call",
+        "is the only prompt of the run."
       ],
       "replacement": [
-        "Print the two options `screen` printed as numbered text, say that a typed",
+        "Print the options `screen` printed as numbered text, say that a typed",
         "selection is accepted as well, then end the turn and wait for the person's",
         "reply."
       ],
