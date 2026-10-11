@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.51.0 — 2026-10-11
+
+This release adds `/cai:fix`, a command that fixes an issue, a Jira ticket, a set of chosen open issues, or a pull request's review threads all the way to a pushed result without stopping for approval along the way. It also fixes a track push gate that hid skipped stages, a design-fix step that rewrote whole documents, a viewer time format, and reorganizes README.md.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.50.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.50.0 to 1.51.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- A track already in progress keeps its saved state and ledger; the only change it sees is at the push gate, where a new line now names any stage it skipped.
+- No further action is needed beyond the update steps above.
+
+### Fix
+
+- `/cai:fix <url>` fixes an issue, a Jira ticket, a list of chosen open issues, or a pull request's review threads, running from start to a pushed result without pausing between steps. (#369)
+- Given a pull request, it makes one commit per review thread on the pull request's own branch, pushes once, then replies on and resolves the fixed threads. (#369)
+- Given an issues URL, it shows a selection screen and asks only one question: which issues to fix. (#369)
+- It never merges, never force-pushes, and never pushes to the default branch, and it only runs when typed. (#369)
+
+### Track
+
+- Pushing now shows a new `skipped_stages` line listing every skipped stage and its recorded reason in the same message as the push commands, so a skipped `verify` (or any other skipped stage) is visible at the push gate itself, not only in `/cai:track status`. (#368)
+
+### Design
+
+- A design fix made after `plan-review` now edits the existing document in place instead of writing the whole document out again on each round. (#365)
+
+### Viewer
+
+- A stage that ran for an hour or more now shows its time as `hh:mm:ss` instead of minutes rolling past 60. (#359)
+
+### Docs
+
+- README.md is shorter and now serves as a front door, with the longer material — subagents, hooks, test-command resolution, the full Codex steps, and more — moved into a new REFERENCE.md. (#358)
+
 ## v1.50.0 — 2026-10-10
 
 This release lets `/cai:git-sweep` free merged branches that are checked out in a worktree, instead of leaving them stuck as `held` with no indication they're already merged.
