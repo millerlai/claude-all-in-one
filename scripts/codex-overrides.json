@@ -540,11 +540,12 @@
         "a subagent definition; spawn only what that file names."
       ],
       "replacement": [
-        "You only ever receive one unit's brief from `stage-build.md`, handed to you",
-        "directly by the main session, which dispatches `explorer` and `test-runner`",
-        "itself. You never dispatch another agent yourself."
+        "You only ever receive one brief at a time, handed to you directly by the",
+        "main session: one unit of `stage-build.md`, or one item of the `fix` skill.",
+        "The main session dispatches `explorer` and `test-runner` itself. You",
+        "never dispatch another agent yourself."
       ],
-      "why": "D9: implementer only ever implements one briefed unit; the main session does every dispatch stage-build.md needs, never handing the whole procedure to a subagent."
+      "why": "D9: implementer only ever implements one briefed unit; the main session does every dispatch stage-build.md needs, never handing the whole procedure to a subagent; the fix skill dispatches it one item at a time."
     },
     {
       "target": "agents/shipper.md",
@@ -1189,6 +1190,34 @@
       "anchor": ["Any message file goes in the system temp directory, never inside the repository, and is deleted once the command has run — left in the work tree it is an untracked file the next `git status` reports."],
       "replacement": ["Any message file goes in `<scratch-dir>` chosen by `rules/workflow.md`'s Codex sandbox permissions section and is left there afterwards, as that section says; confirm that workspace-local output paths are ignored before writing."],
       "why": "#304: a message file need not force an external-directory write; checked ignored output paths preserve the clean-tree requirement. #345: scratch files are left in place, not deleted -- Codex stops to approve each `rm -f` of one, even inside its writable roots, so cleanup asked the person once per answer, draft, report and message."
+    },
+    {
+      "target": "skills/fix/SKILL.md",
+      "anchor": [
+        "Every file this skill hands to a command — a reply, a commit message, the",
+        "analysis, an answer — goes in the system temp directory, never inside the",
+        "repository, and is deleted once the command has run."
+      ],
+      "replacement": [
+        "Every file this skill hands to a command — a reply, a commit message, the",
+        "analysis, an answer — goes in `<scratch-dir>` chosen by",
+        "`rules/workflow.md`'s Codex sandbox permissions section, and is left there",
+        "afterwards, as that section says."
+      ],
+      "why": "#304/#345: scratch files follow the checked writable location and are not deleted, as for the git skill's message files."
+    },
+    {
+      "target": "skills/fix/references/issue-list.md",
+      "anchor": [
+        "Ask one question with the question tool: the two options `screen` printed,",
+        "and the free-text entry the tool adds itself."
+      ],
+      "replacement": [
+        "Print the two options `screen` printed as numbered text, say that a typed",
+        "selection is accepted as well, then end the turn and wait for the person's",
+        "reply."
+      ],
+      "why": "The Codex question tool takes one choice, and whether it adds a free-text entry is untested; the selection needs typed numbers, so it is asked as numbered text."
     },
     {
       "target": "skills/track/references/pending-questions.md",

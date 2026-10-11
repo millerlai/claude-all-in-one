@@ -56,6 +56,12 @@ or specs, and only concepts specific to this project.
 **彙整檔（synthesis）**: verify 階段對每條驗收條件的判斷彙整：對到哪些測試、掛了哪些發現。
 **證據清單（evidence manifest）**: verify 結束時為每條驗收條件列出層級、結果與證據的清單，ledger 以它作為 verify 的成果。
 **紅燈基準（red baseline）**: build 在一個單元改程式之前，先對它的本機檢查跑一次得到的失敗輸出，用來證明改動之後才轉為通過。
+**對象（target kind）**: The kind of thing the fix command is pointed at: one issue, a list of issues, the inline review threads on a pull request, or one Jira ticket.
+**項目（item）**: One issue, one ticket, or one review thread that a fix run works on, and that ends the run with exactly one outcome.
+**結果詞（outcome word）**: The single fixed English word an item ends a fix run with, paired with a fixed sentence the report prints.
+**處置（disposition）**: The verdict the tool gives an issue before any work starts, such as fix it, finish an interrupted push, or skip because a pull request is already open.
+**起點 ref（starting ref）**: The branch, or commit when there is no branch, the person was on when they started the command; every item returns there when it ends.
+**基準 ref（base ref）**: The starting point of a fix branch: the remote's default branch for an issue or ticket, or the pull request's own branch for review threads.
 
 ## Process
 

@@ -470,7 +470,13 @@ def _skills():
     # scripts/model_choice.py. It declares no model of its own on purpose -- a
     # tier set to a model that does not start must not take down the command
     # that fixes it.
-    SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git",
+    #
+    # `fix` is the same kind once more: a person types it with a URL, and what
+    # it decides lives in scripts/fix_*.py. It carries the flag because it
+    # pushes and opens pull requests, which no model may start on its own, and
+    # that also keeps its description out of the always-on budget. The `fix`
+    # section below pins the flag and the `allowed-tools` line.
+    SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "fix", "git",
                    "git-sweep", "goal", "intake", "models", "options", "plan-review",
                    "quiz", "refactor", "setup", "ship", "track", "usage", "verify",
                    "viewer"]
@@ -588,6 +594,44 @@ def _options():
     for path in (OPTION_RULE, OPTIONS_TEMPLATE):
         check(f"{path} names the `(recommended)` marker",
               "(recommended)" in read_text(path))
+
+
+@section("fix")
+def _fix():
+    # `fix` pushes and opens pull requests, so only a person may start it, and the
+    # one `allowed-tools` line it carries must stay exactly what the design named:
+    # git push, gh pr create, and one entry per scripts/fix_*.py. A fifth tool
+    # slipped into that line would be granted without a prompt in every session.
+    # FIX_GRANTS is False when the grant has been withdrawn (the design's
+    # fallback if the grant does not hold for a dispatched agent); the line must
+    # then be absent. It is False because the 2026-10-11 probe showed the line
+    # reaches a dispatched implementer, so its git push would run unprompted too.
+    FIX_SKILL = f"{PLUGIN}/skills/fix/SKILL.md"
+    FIX_GRANTS = False
+    text = read_text(FIX_SKILL)
+    # The frontmatter only: a body line that starts `model:` is prose.
+    front = text[3:text.find("\n---", 3)] if text.startswith("---") else ""
+    check(f"{FIX_SKILL} disables model invocation",
+          "disable-model-invocation: true" in text)
+    check(f"{FIX_SKILL} declares no model",
+          not re.search(r"^model:", front, re.MULTILINE))
+    line = re.search(r"^allowed-tools:[ \t]*(.*)$", front, re.MULTILINE)
+    if FIX_GRANTS:
+        items = re.findall(r"[A-Za-z]+\([^)]*\)|[A-Za-z]+", line.group(1)) if line else []
+        want = {"Bash(git push *)", "Bash(gh pr create *)"} | {
+            "Bash(python ${CLAUDE_PLUGIN_ROOT}/scripts/%s *)" % os.path.basename(p)
+            for p in glob.glob(f"{PLUGIN}/scripts/fix_*.py")}
+        check(f"{FIX_SKILL} grants exactly git push, gh pr create and its own "
+              f"scripts ({len(items)})",
+              line is not None and set(items) == want and len(items) == len(set(items)))
+    else:
+        check(f"{FIX_SKILL} grants no tool", line is None)
+    # Every target kind has its procedure now; the sentence that stood in for a
+    # missing one must be gone with it.
+    refs = ("single-issue", "issue-list", "review-threads", "jira-ticket")
+    check(f"{FIX_SKILL} names a reference for each of the four target kinds",
+          all("${CLAUDE_PLUGIN_ROOT}/skills/fix/references/%s.md" % r in text for r in refs)
+          and "installed yet" not in text)
 
 
 @section("rules")

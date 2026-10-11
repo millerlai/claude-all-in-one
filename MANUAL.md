@@ -22,6 +22,7 @@ like they fit, the more specific one is right.
 | Pick up where you left off | `/cai:track` | Resumes whatever `current` names |
 | Know where a track stopped | `/cai:track status` | Reads files, calls no model |
 | Fix something broken | `/cai:debug` | Root cause before any fix |
+| Fix an issue, a PR's review threads or a Jira ticket, end to end | `/cai:fix <url>` | Pushes, opens PRs and replies itself; never merges |
 | Clean up code that already works | `/cai:refactor` | Behaviour unchanged, by the catalog |
 | Ask whether a branch is mergeable | `/cai:verify` | Four review lenses over the diff |
 | Find out what you're missing | `/cai:discover` | Surfaces unknowns before code |
@@ -37,8 +38,16 @@ like they fit, the more specific one is right.
 
 `debug`, `refactor`, `verify`, `discover`, `plan-review`, `git` and `chore`
 also start on their own when what you say matches them, so you rarely type
-those. `quiz`, `options`, `usage`, `setup`, the 72 named refactorings, and the
-four stages that write things (below) only ever start when typed.
+those. `quiz`, `options`, `usage`, `setup`, `fix`, the 72 named refactorings,
+and the four stages that write things (below) only ever start when typed.
+
+`/cai:fix` pushes and opens pull requests, so it asks once at most: which
+issues to fix, when you give it an issues URL. A Jira ticket needs `acli`
+signed in the official way first, and nothing is written back to Jira. It has
+no pre-approved permissions, so Claude Code asks before each `git push` and
+`gh pr create` unless you saved allow rules such as `Bash(git push *)` and
+`Bash(gh pr create *)`; a rule matches the text of a command and is not a
+safety boundary.
 
 ## What you see when one fires
 

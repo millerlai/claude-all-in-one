@@ -31,7 +31,7 @@ Four layers, plus one underneath all of them.
   remembered: `build` refuses to start until the ledger records a person
   picking Approve, and again if the design document changed since.
 - **The tools.** Reachable any time, with no track running: `/cai:refactor`,
-  `/cai:debug`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`,
+  `/cai:debug`, `/cai:fix`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`,
   `/cai:options`, `/cai:usage`, `/cai:models`, `/cai:viewer`.
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards under `refactoring-catalog/`, the
@@ -81,6 +81,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 |---|---|
 | `/cai:refactor` | Restructure code without changing its behaviour: the safety-net loop, the smell routing table, and the mechanics for all 72 named refactorings, on the `build` tier. |
 | `/cai:debug` | Find the root cause of a bug before proposing any fix — a failing test, a crash, a stack trace, something that used to work and stopped. |
+| `/cai:fix` | Fixes a GitHub issue, the open issues you pick from a list, a pull request's review threads, or one Jira ticket, and takes the result all the way out: a branch per issue, a push, a pull request that closes it, or a reply on each review thread. It pushes, opens pull requests and replies itself, and never merges. An issues URL asks once which issues to fix; a Jira ticket needs `acli` signed in the official way first and nothing is written back to Jira. Text from an issue, a comment or a ticket is quoted, never run. User-invoked only. |
 | `/cai:git` | Runs git and `gh` operations on the `chore` tier instead of the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
 | `/cai:chore` | Runs any mechanical one-off — renames, formatting, lookups — on the `chore` tier, and reports back if the task turns out to need real reasoning. |
 | `/cai:quiz` | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |
@@ -89,6 +90,16 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:usage` | Token usage and equivalent API spend for one track, or across every project over the last N days — plus per-stage process metrics: whether the first attempt passed, cycle time, rework, and how often a person actually signed off. Every number comes from `usage_report.py`; the model restates none of them. On the `chore` tier. |
 | `/cai:models` | Puts each tier — `chore`, `build`, `think` — on the model you choose, for you alone, all three in one pass: run it when a new model comes out. The choice survives `/plugin update`; restart Claude Code for it to take effect. |
 | `/cai:viewer` | Opens a local-only web page listing every running Claude Code and Codex main session, which ones need you, and cai track progress. `/cai:viewer stop` closes it. |
+
+`/cai:fix` carries no `allowed-tools` grant. A grant on a skill also reaches the
+subagents it dispatches, and the `implementer` there has read text from strangers,
+so a pre-approved `git push` would let it push without a prompt (observed with
+Claude Code 2.1.296). Claude Code therefore asks before each `git push` and
+`gh pr create`, and before each call of the skill's own scripts. To stop being
+asked, save allow rules for the commands you trust, for example
+`Bash(git push *)` and `Bash(gh pr create *)`. A rule is matched against the
+text of the command and is not a safety boundary; it applies to every command
+that matches it, whoever issues it.
 
 ## The 72 named refactorings
 
@@ -122,7 +133,7 @@ stage or by one of the tools above.
 |---|---|---|
 | `explorer` | `chore` | Read-only scouting. |
 | `test-runner` | `chore` | Runs the repo's own automated checks. |
-| `implementer` | `build` | The `build` stage, `/cai:build`, `/cai:goal`. |
+| `implementer` | `build` | The `build` stage, `/cai:build`, `/cai:goal`, `/cai:fix`. |
 | `shipper` | `build` | The `ship` stage. |
 | `reviewer` | `build` | The `verify` stage, `/cai:verify` — three at once, one lens each: correctness, conformance, coverage. |
 | `security-reviewer` | `build` | The `verify` stage's fourth lens: shell execution, what reaches an argument vector, secrets in what is kept, guard bypass — those four and no fifth. |

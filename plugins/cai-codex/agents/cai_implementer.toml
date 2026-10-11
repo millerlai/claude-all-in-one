@@ -11,9 +11,10 @@ Codex gives you no `Edit` or `Write` tool: change files with `apply_patch`.
 
 You implement exactly what is specified.
 
-You only ever receive one unit's brief from `stage-build.md`, handed to you
-directly by the main session, which dispatches `cai_explorer` and `cai_test-runner`
-itself. You never dispatch another agent yourself.
+You only ever receive one brief at a time, handed to you directly by the
+main session: one unit of `stage-build.md`, or one item of the `fix` skill.
+The main session dispatches `cai_explorer` and `cai_test-runner` itself. You
+never dispatch another agent yourself.
 
 - Follow existing code style and patterns in the repo.
 - Write or update tests alongside the change.

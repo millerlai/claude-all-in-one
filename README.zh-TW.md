@@ -82,6 +82,7 @@ flowchart TB
 | 指令 | 作用 |
 |---|---|
 | `/cai:debug` | 在提出任何修正之前，先找出 bug 的根本原因。 |
+| `/cai:fix` | 修正一個 GitHub issue、從清單中挑選的多個 issue、一個 pull request 的行內留言（review thread），或一張 Jira ticket，並一路推送到底、中途不停：它會自己 push、開 pull request、回覆留言，而且從不合併。 |
 | `/cai:refactor` | 在不改變行為的前提下重整程式碼；Fowler 目錄裡的 72 種具名重構，也各自是一個 `/cai:<名稱>`。 |
 | `/cai:git` | 在 `chore` 等級而非主 session 的模型上執行 git 與 `gh` 操作。 |
 | `/cai:chore` | 在 `chore` 等級執行機械性的一次性工作——改名、格式化、查找。 |
@@ -91,6 +92,8 @@ flowchart TB
 | `/cai:usage` | 單一軌道、或跨專案的 token 用量與等值 API 花費。 |
 | `/cai:models` | 把每個模型等級指定到你選的模型，只對你自己生效。 |
 | `/cai:viewer` | 開啟 [Agent Viewer](#agent-viewer)。 |
+
+`/cai:fix` 只在你親自輸入時才會啟動。給它 issues 的網址時，它會先問一次要修哪些；Jira ticket 需要先用官方方式登入 `acli`，而且不會寫回 Jira。它不帶任何預先放行的權限，所以 Claude Code 會在每次 `git push` 與 `gh pr create` 之前詢問，除非你已存了 allow 規則（例如 `Bash(git push *)` 與 `Bash(gh pr create *)`）；規則比對的是指令的文字，不是安全邊界。
 
 什麼時候該輸入什麼：[MANUAL.md](MANUAL.md#what-to-type)。每個指令的完整說明、子代理，以及一律常駐的 guard（守門腳本）與 hook：[REFERENCE.md](REFERENCE.md)。這兩份目前只有英文版。
 
