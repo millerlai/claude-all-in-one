@@ -105,6 +105,7 @@ Tools, reachable any time:
 | Command | What it does |
 |---|---|
 | `/cai:debug` | Find the root cause of a bug before proposing any fix. |
+| `/cai:fix` | Fix a GitHub issue, the issues you pick from a list, a pull request's review threads, or one Jira ticket, and push the result with no stop in between: it pushes, opens pull requests and replies to review threads itself, and never merges. |
 | `/cai:refactor` | Restructure code without changing its behaviour; every one of Fowler's 72 named refactorings is also its own `/cai:<name>`. |
 | `/cai:git` | Run git and `gh` operations on the `chore` tier instead of the main session model. |
 | `/cai:chore` | Run a mechanical one-off — renames, formatting, lookups — on the `chore` tier. |
@@ -114,6 +115,13 @@ Tools, reachable any time:
 | `/cai:usage` | Token usage and equivalent API spend for one track, or across projects. |
 | `/cai:models` | Put each model tier on the model you choose, for you alone. |
 | `/cai:viewer` | Open the [Agent Viewer](#agent-viewer). |
+
+`/cai:fix` starts only when you type it. Given an issues URL it asks once which
+issues to fix; a Jira ticket needs `acli` signed in the official way first, and
+nothing is written back to Jira. It carries no pre-approved permissions, so
+Claude Code asks before each `git push` and `gh pr create` unless you have
+saved allow rules such as `Bash(git push *)` and `Bash(gh pr create *)`; a
+rule matches the text of a command and is not a safety boundary.
 
 What to type when: [MANUAL.md](MANUAL.md#what-to-type). Full descriptions, the
 subagents, and the guard and hooks that are always on:
