@@ -1066,6 +1066,26 @@ def docs_not_in_git(track_dir, project_dir):
         _escape_control_chars(p) for p in missing)
 
 
+def skipped_stages(track_dir):
+    """Report-only, never blocks (#367): every stage this track skipped, in
+    state.md's row order, with the reason recorded for each.
+
+    verify_status passes a `skipped` verify row the same as a `done` one, so
+    nothing Gate 2 is told to quote said the branch was never reviewed -- the
+    fact sat in state.md, where only `/cai:track status` shows it (#363).
+    Every skipped stage is listed, not verify alone: which skip matters is
+    for the person reading the line to judge, not for this script.
+
+    Caller guarantees state.md is readable: ship() returns before this when
+    it cannot find the verify row."""
+    with open(os.path.join(track_dir, "state.md"), encoding="utf-8") as fh:
+        rows = data_rows(fh.read())
+    skipped = ["%s: %s" % (cells[0], _escape_control_chars(
+                   (cells[3] if len(cells) > 3 else "") or "no reason recorded"))
+               for cells in rows if len(cells) > 1 and cells[1] == "skipped"]
+    return True, "skipped_stages (%s)" % ("; ".join(skipped) or "none")
+
+
 def ship(track_dir, project_dir):
     row = state_row(track_dir, "verify")
     if row is None:
@@ -1110,7 +1130,8 @@ def ship(track_dir, project_dir):
 
     return [status_check, clean_check, branch_check, merge_check,
             untracked_since_start(track_dir, project_dir),
-            docs_not_in_git(track_dir, project_dir)]
+            docs_not_in_git(track_dir, project_dir),
+            skipped_stages(track_dir)]
 
 
 STAGES = {"design": design, "intake": intake, "discover": discover,

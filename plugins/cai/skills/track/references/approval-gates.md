@@ -196,12 +196,18 @@ python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py ship --track-dir .claude/track
 "Stop — hand me the commands" hands over the quoted commands only, not
 these two.
 
-**Two reminders ride along with this gate, neither of them a stop (#198).**
+**Three reminders ride along with this gate, none of them a stop (#198, #367).**
 `preflight.py ship`'s always-PASS `untracked_since_start` line names the
 untracked files this track appears to have produced — code the squash never
 picks up and git never sees again once the branch merges — so quote that
 line in the same message as the commands above; it is a reminder, not
-another question. Once "Run them" has run, or the commands have been handed
+another question. Its always-PASS `skipped_stages` line names every stage
+this track skipped, with the reason recorded for each: `verify_status`
+passes a skipped `verify` the same as a finished one, so nothing else here
+says the branch was not reviewed. Quote that line in the same message too
+whenever it names a stage, and leave it out when it reads `(none)`; it adds
+no option and asks nothing.
+Once "Run them" has run, or the commands have been handed
 over, say in one line which documents `docs_not_in_git` named: design
 documents this track wrote that are not in git (in this repo, `docs/` is
 gitignored, so they never show up in `git status` on their own) — and that

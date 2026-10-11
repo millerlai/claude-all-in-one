@@ -377,7 +377,7 @@ names one of these:
 | `merges_cleanly` | `verify` and `ship`: your branch conflicts with the remote's default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Only the committed HEAD is tried, so uncommitted changes in your working tree are not part of the check. Checked when `verify` starts (without a fetch) and when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |
 | `ledger_attempts` | Any stage: five failed or blocked attempts since it last passed or was skipped | The message lists every attempt's note and the three ways out: `/cai:track skip <stage> --reason "<why>"`, `CAI_TRACK_MAX_ATTEMPTS` set higher (or `0` for no cap), or deleting the track's `ledger.jsonl` |
 
-Four more lines always print as `PASS` and are still worth reading:
+Five more lines always print as `PASS` and are still worth reading:
 `track_ignored` at `intake` says when git is *not* ignoring the track's
 files, and `ledger_intact` on every stage counts ledger lines that could not
 be parsed. At `ship`, `untracked_since_start` names the untracked files that
@@ -385,8 +385,11 @@ appeared since this track began — code it looks like this track produced,
 which the squash will not pick up — and `docs_not_in_git` names this track's
 own documents (state.md's artifact, every ledger `--artifact`, a detail
 design's referenced decisions document) that exist on disk but git does not
-track, such as a design document under a gitignored `docs/`. None of the
-four ever blocks. A dispatch the provider refused — a rate limit, an
+track, such as a design document under a gitignored `docs/`. Also at `ship`,
+`skipped_stages` names every stage this track skipped, with the reason
+recorded for each — a skipped `verify` passes `verify_status`, so this is
+the line that says the branch was not reviewed. None of the five ever
+blocks. A dispatch the provider refused — a rate limit, an
 overload — is recorded as `unavailable` and never counts toward the cap.
 
 This layer exists because refusing costs nothing and asking a model costs
