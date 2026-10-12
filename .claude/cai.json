@@ -2,5 +2,10 @@
   "ticket": {
     "enabled": true,
     "backend": "github"
+  },
+  "test": {
+    "commands": [
+      "python -m pytest"
+    ]
   }
 }
