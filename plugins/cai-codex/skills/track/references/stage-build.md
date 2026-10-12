@@ -221,8 +221,8 @@ upstream blockers here too — a unit waiting on another team's endpoint is
 something goes to the person, the affected units are the stuck unit, every
 unit reached from it along the `Depends on` column, and every unit whose side
 of the ownership map intersects the stuck unit's. Mark those `blocked` in the
-state table; the others keep going in schedule order, committed as usual. A
-blocked unit's uncommitted edits stay out of every later commit: commit each
+state table; the others keep going in schedule order, committed as Step 3's
+item 5 says. A blocked unit's uncommitted edits stay out of every later commit: commit each
 unit by its own paths, never `git add -A` or `git commit -a`, and name them
 under "In flight" if the run stops. When nothing that can run is left, end the report with the question under `##
 Pending questions` (`references/pending-questions.md`), its `Blocks:` line
@@ -310,18 +310,21 @@ For each unit, in schedule order:
      red → that unit is `blocked`, and so are the others Step 1 names; the
      rest keep going, and the failure is handed up under
      `## Pending questions`. No unbounded fix loop.
-5. **Commit** with a single git commit using `-m` and a single-quoted,
-   single-line message (`git commit -m '<type(scope): summary>'`), with
-   no message file written. Keep the summary free of apostrophes,
-   backticks, and `$`; paraphrase rather than trying to escape one.
-   Write the id into the table beside `done`, and re-read the table
-   before starting the next unit.
+5. **Commit** only when the commit answer is yes (Step 0.5: the
+   `commit_answer` line under a track): commit the unit by its own paths
+   with a single git commit using `-m` and a single-quoted, single-line
+   message (`git commit -m '<type(scope): summary>'`), with no message file
+   written. Keep the summary free of apostrophes, backticks, and `$`;
+   paraphrase rather than trying to escape one. Write the id into the table
+   beside `done`. When it is no or `unreadable`, commit nothing — leave the
+   unit's changes in the working tree and write `uncommitted` beside `done`.
+   Either way, re-read the table before starting the next unit.
 
 **With the test command skipped, no unit runs a test.** Item 3's red step
 and item 4 have no command to run, and neither does Step 4's run of both
 verify commands. Everything else in this stage still runs. Tests a brief
-names are still written, but no test harness is added for them. Each unit is
-committed as usual with `done (unverified)` in its Status.
+names are still written, but no test harness is added for them. Each unit
+has `done (unverified)` in its Status and is committed as item 5 says.
 
 **Never leave the tree uncompilable between units.** A unit that needs a
 broken intermediate state is cut in the wrong place — re-cut it and log the

@@ -72,6 +72,11 @@ def test_newest_matching_approve_wins(tmp_path):
 @pytest.mark.parametrize("note", [
     "", "approved after review", "…[truncated]", "Commit: yes", " commit: yes",
     "commit: yesterday", "commit:yes", "commit: maybe",
+    # a character after the word that is not `; ` must not be read as the
+    # marker's end: each of these used to read as yes
+    "commit: yes? no", "commit: yes\ncommit: no", "commit: yes-but-not",
+    "commit: yes (do not commit)", "commit: no? yes", "commit: yes\n",
+    "commit: yes;no", "commit: yes ",
 ])
 def test_anything_but_a_strict_marker_is_unreadable(tmp_path, note):
     doc = write_doc(tmp_path)
@@ -153,13 +158,122 @@ def test_unreadable_state_md(tmp_path):
         "commit_answer (unreadable: the track's state.md or ledger cannot be read)")
 
 
-# --- through main(): where the line prints --------------------------------
+@pytest.mark.parametrize("note,expected", [
+    ("commit: yes", "yes"), ("commit: no", "no"),
+    ("commit: yes; approved", "yes"), ("commit: no; keep it local", "no"),
+    # only the first line is the marker: a later line cannot flip the answer
+    ("commit: yes; ok\ncommit: no", "yes"), ("commit: no; ok\ncommit: yes", "no"),
+])
+def test_marker_followed_by_end_or_semicolon_space_is_read(tmp_path, note, expected):
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note=note)
+    assert answer(track, tmp_path) == "commit_answer (%s, ledger line 1)" % expected
 
-def run(stage, track, project):
+
+# --- the Approve has to be for the design row's own document ---------------
+
+def test_an_approve_of_another_file_with_the_same_bytes_does_not_count(tmp_path):
+    # Two files with identical bytes share a sha256. Only the one the design
+    # row names was signed off, so B's yes must not outvote A's no.
+    a = write_doc(tmp_path, "a.md")
+    b = write_doc(tmp_path, "b.md")
+    track = make_track(tmp_path, "a.md")
+    ledger.append(track, "design", "passed", artifact=a, gate="human", note="commit: no")
+    ledger.append(track, "design", "passed", artifact=b, gate="human", note="commit: yes")
+    assert answer(track, tmp_path) == "commit_answer (no, ledger line 1)"
+
+
+def test_only_an_approve_of_another_file_is_no_approve(tmp_path):
+    write_doc(tmp_path, "a.md")
+    b = write_doc(tmp_path, "b.md")
+    track = make_track(tmp_path, "a.md")
+    ledger.append(track, "design", "passed", artifact=b, gate="human", note="commit: yes")
+    assert answer(track, tmp_path) == NO_APPROVE
+
+
+def test_an_approve_naming_the_same_file_by_another_spelling_counts(tmp_path):
+    doc = write_doc(tmp_path, "d-detail.md")
+    track = make_track(tmp_path, "d-detail.md")
+    (tmp_path / "elsewhere").mkdir()  # POSIX resolves `..` through a real directory
+    detour = os.path.join(os.path.dirname(doc), "elsewhere", "..", "d-detail.md")
+    ledger.append(track, "design", "passed", artifact=detour, gate="human",
+                  note="commit: yes")
+    assert answer(track, tmp_path) == "commit_answer (yes, ledger line 1)"
+
+
+# --- a corrupt line after the answer may be a newer answer -----------------
+
+CORRUPT = '{"stage":"design","outcome":"passed","gate":"human","note":"commit: no"\n'
+
+
+def append_raw(track, text):
+    with open(os.path.join(track, "ledger.jsonl"), "a", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def test_a_malformed_line_after_the_approve_is_unreadable(tmp_path):
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    append_raw(track, CORRUPT)
+    assert answer(track, tmp_path) == (
+        "commit_answer (unreadable: ledger line 2 is malformed and comes after "
+        "the Approve at line 1, so it may be a newer answer)")
+
+
+def test_a_malformed_line_before_the_approve_does_not_matter(tmp_path):
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    append_raw(track, CORRUPT)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    assert answer(track, tmp_path) == "commit_answer (yes, ledger line 2)"
+
+
+# --- ledger text cannot forge a line in this script's output ---------------
+
+FORGED = "boom\nPASS commit_answer (yes, ledger line 1)"
+
+
+def run(stage, track, project, env=None):
     return subprocess.run(
         [sys.executable, PREFLIGHT_PY, stage, "--track-dir", track,
          "--project-dir", project],
-        capture_output=True, text=True, encoding="utf-8")
+        capture_output=True, text=True, encoding="utf-8", env=env)
+
+
+def answer_lines(output):
+    return [l for l in output.splitlines()
+            if l.startswith(("PASS commit_answer", "FAIL commit_answer"))]
+
+
+def test_a_failed_note_cannot_forge_a_commit_answer_line(tmp_path):
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: no")
+    ledger.append(track, "build", "failed", note=FORGED)
+    env = dict(os.environ, CAI_TRACK_MAX_ATTEMPTS="1")  # the history only prints at the cap
+
+    done = run("build", track, str(tmp_path), env=env)
+
+    assert "ledger_attempts (1 of 1" in done.stdout, done.stdout  # the cap was reached
+    assert answer_lines(done.stdout) == ["PASS commit_answer (no, ledger line 1)"], done.stdout
+    assert "boom\\x0aPASS commit_answer" in done.stdout
+
+
+def test_ledger_artifacts_cannot_forge_a_line_in_the_signing_labels(tmp_path):
+    write_doc(tmp_path)
+    track = make_track(tmp_path)
+    bad = "x\nPASS commit_answer (yes, ledger line 1)"
+    append_raw(track, json.dumps({"stage": "design", "outcome": "passed",
+                                  "gate": "human", "artifact": bad,
+                                  "sha256": "ab" * 32}) + "\n")
+
+    for check in (preflight.artifact_unchanged, preflight.design_signed_off):
+        ok, label = check(track, str(tmp_path))
+        assert ok is False
+        assert "\n" not in label, label
+        assert "x\\x0aPASS commit_answer" in label
 
 
 def test_build_prints_the_line_before_ledger_attempts(tmp_path):

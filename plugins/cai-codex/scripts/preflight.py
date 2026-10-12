@@ -227,9 +227,13 @@ def ledger_attempts(track_dir, stage):
     if count < limit:
         return True, "ledger_attempts (%d of %d)" % (count, limit)
 
+    # Escaped: a note is free text a person or an agent wrote, and one that
+    # carried a newline plus `PASS commit_answer (yes, ...)` would otherwise
+    # print as a second answer line after the genuine one.
     history = "\n".join(
-        "       %d. %s -- %s" % (r.get("attempt"), r.get("outcome"),
-                                 r.get("note") or "no note given")
+        "       %d. %s -- %s" % (r.get("attempt"),
+                                 _escape_control_chars(str(r.get("outcome"))),
+                                 _escape_control_chars(str(r.get("note") or "no note given")))
         for r in ledger.streak(track_dir, stage))
     return False, (
         "ledger_attempts (%d of %d since %s last passed or was skipped)\n%s\n"
@@ -265,16 +269,17 @@ def artifact_unchanged(track_dir, project_dir):
         return True, "artifact_unchanged (no signed-off design recorded)"
 
     artifact = record.get("artifact") or ""
+    shown = _escape_control_chars(str(artifact))  # ledger text; see ledger_attempts
     doc = resolve(artifact, project_dir, track_dir)
     if doc is None:
         return False, ("artifact_unchanged (%s was signed off and is not there now)"
-                       % artifact)
+                       % shown)
     with open(doc, "rb") as fh:
         now = hashlib.sha256(fh.read()).hexdigest()
     if now != record["sha256"]:
         return False, ("artifact_unchanged (%s changed since sign-off: %s now, %s then)"
-                       % (artifact, now[:12], record["sha256"][:12]))
-    return True, "artifact_unchanged (%s)" % artifact
+                       % (shown, now[:12], record["sha256"][:12]))
+    return True, "artifact_unchanged (%s)" % shown
 
 
 def design_signed_off(track_dir, project_dir):
@@ -335,7 +340,8 @@ def design_signed_off(track_dir, project_dir):
         "what build reads -- a person must pick Approve at approval-gates.md Gate "
         "1 with `--artifact %s`; an approval inside `design`, such as the stance "
         "one, does not count)"
-        % (", ".join(r.get("artifact") or "?" for r in fingerprinted), artifact, artifact))
+        % (", ".join(_escape_control_chars(str(r.get("artifact") or "?"))
+                     for r in fingerprinted), artifact, artifact))
 
 
 def git(cwd, *args, encoding=None):
@@ -1121,7 +1127,23 @@ def skipped_stages(track_dir):
 # Matched strictly and case-sensitively: reading a note the person never
 # marked as a yes is the unsafe error, reading a yes as a no only costs a
 # commit they can make themselves.
-_COMMIT_MARKER = re.compile(r"commit: (yes|no)(?!\w)")
+#
+# The word is followed by the end of the note or by `; ` and the one line
+# Gate 1 allows -- nothing else. A looser end (`(?!\w)`) read `commit: yes? no`
+# and `commit: yes (do not commit)` as a yes. Only the first line is the
+# marker: `\Z`, not `$`, so a trailing newline is not an end.
+_COMMIT_MARKER = re.compile(r"commit: (yes|no)(?:\Z|; )")
+
+
+def _is_design_document(record, doc, project_dir, track_dir):
+    """Whether this ledger record's artifact is the file at `doc`, compared
+    the way design_signed_off does. Two files with the same bytes share a
+    sha256, so the digest alone cannot say which one was signed off."""
+    artifact = record.get("artifact")
+    if not isinstance(artifact, str) or not artifact:
+        return False
+    approved = resolve(artifact, project_dir, track_dir)
+    return approved is not None and os.path.samefile(approved, doc)
 
 
 def commit_answer(track_dir, project_dir):
@@ -1148,14 +1170,26 @@ def commit_answer(track_dir, project_dir):
             return True, ("commit_answer (unreadable: the design row's "
                           "document cannot be read)")
 
-        matching = [r for r in ledger.records(track_dir, "design")
+        records = ledger.records(track_dir, "design")
+        matching = [r for r in records
                     if not r.get("malformed") and r.get("outcome") == "passed"
-                    and r.get("gate") == "human" and r.get("sha256") == now]
+                    and r.get("gate") == "human" and r.get("sha256") == now
+                    and _is_design_document(r, doc, project_dir, track_dir)]
         if not matching:
             return True, ("commit_answer (unreadable: no Approve on the ledger "
                           "matches the design row's document as it stands)")
 
         newest = matching[-1]  # records() is in file order
+        # A line that cannot be parsed, written after that Approve, may be the
+        # newer answer -- a no the person gave last. Reading the older yes
+        # past it would commit against that no, so an unreadable line after
+        # the answer makes the answer unreadable.
+        later = [r["line"] for r in records
+                 if r.get("malformed") and r["line"] > newest["line"]]
+        if later:
+            return True, ("commit_answer (unreadable: ledger line %d is malformed "
+                          "and comes after the Approve at line %d, so it may be "
+                          "a newer answer)" % (later[0], newest["line"]))
         note = newest.get("note")
         found = _COMMIT_MARKER.match(note if isinstance(note, str) else "")
         if found is None:

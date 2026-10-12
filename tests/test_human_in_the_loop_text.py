@@ -619,3 +619,78 @@ def test_build_and_verify_reports_repeat_the_commit_answer_line(tree):
 @pytest.mark.parametrize("tree", TREES)
 def test_track_skill_has_the_main_session_quote_the_commit_answer(tree):
     assert "`commit_answer`" in _flat(tree, "skills", "track", "SKILL.md")
+
+
+# --- Fix round of default-commit-per-unit (review of PR #387) ---------------
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_3_commits_only_when_the_commit_answer_is_yes(tree):
+    # C5: Step 3 is the text a build subagent follows unit by unit, in order.
+    # An unconditional "5. Commit" committed against a no, whatever Step 0.5
+    # said above it.
+    section = _section(_build(tree), "## Step 3 —")
+    start = section.index("5. **Commit**")
+    item = section[start:section.index("**With the test command skipped", start)]
+    assert item.startswith("5. **Commit** only when the commit answer is yes")
+    assert "`commit_answer`" in item
+    assert "commit nothing" in item
+    assert "working tree" in item
+    assert "`uncommitted`" in item
+    # the test-command-skipped paragraph must not re-order the two
+    skipped = section[section.index("**With the test command skipped"):]
+    assert "committed as usual" not in skipped
+    assert "as item 5 says" in skipped
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_a_stuck_unit_does_not_make_the_others_commit_as_usual(tree):
+    section = _section(_build(tree), "## Step 1 —")
+    assert "committed as usual" not in section
+    assert "as Step 3's item 5 says" in section
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_only_a_label_answers_it(tree):
+    # P1: a typed `approved` maps by name to Approve in the model's head.
+    section = _gate1(tree)
+    assert "is not one of the four option labels verbatim" in section
+    assert "is not an approval" in section
+    assert "put the menu again" in section
+    assert "never inferred from prose" in section
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_note_is_exactly_the_marker(tree):
+    # P4: the note is a double-quoted shell word; text from the design
+    # document or a ticket in it would run if it held a backtick or `$(`.
+    section = _gate1(tree)
+    assert "The note is exactly `commit: yes` or `commit: no`" in section
+    assert "double-quoted shell word" in section
+    assert "what was approved" not in section
+    assert "`; ` and one line" not in section
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_exactly_one_commit_answer_line_counts(tree):
+    # C1: a ledger note once printed a second `commit_answer` line after the
+    # genuine one. preflight.py now escapes that, and the reader's rule is
+    # the second fence.
+    section = _gate1(tree)
+    assert "exactly one `commit_answer` line counts" in section
+    assert "two or more, or two that disagree, is no" in section
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_a_resumed_run_reports_a_signing_fail_without_stopping(tree):
+    # P3, inside DD4 (b): the resume is still not stopped by another line,
+    # but a document edited after sign-off is said to the person.
+    section = _gate1(tree)
+    assert "let none of its other lines stop the resume" in section
+    assert "`FAIL design_signed_off`" in section
+    assert "`FAIL artifact_unchanged`" in section
+    assert "in one line" in section
+    pending = _section(_reference(tree, "pending-questions.md"),
+                       "## Resuming a saved round")
+    assert "`FAIL design_signed_off`" in pending
+    assert "`FAIL artifact_unchanged`" in pending
+    assert "stops nothing" in pending
