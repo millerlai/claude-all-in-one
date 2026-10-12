@@ -352,6 +352,21 @@ def test_declared_command_with_repeated_blanks(tmp_path):
     assert runner_guard.allowed("cargo test; x", cwd, RUNNER) is False
 
 
+def test_this_repos_declared_regenerate_and_test_command_is_the_only_extra():
+    # #371: the verifier must be able to run the regeneration + pytest chain
+    # this repo declares, and still nothing else (acceptance condition 3).
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    declared = "python scripts/gen-codex.py && python -m pytest"
+    assert runner_guard.allowed(declared, repo, VERIFIER) is True
+    assert runner_guard.allowed(declared + " tests/a.py -x", repo, VERIFIER) is True
+    for blocked in ("python scripts/gen-codex.py",
+                    "python scripts/validate.py",
+                    "python scripts/gen-codex.py && python -m pytest; rm x",
+                    "python scripts/gen-codex.py && rm -rf x && python -m pytest",
+                    "python -c 'print(1)' && python -m pytest"):
+        assert runner_guard.allowed(blocked, repo, VERIFIER) is False, blocked
+
+
 def _folded(path):
     with open(path, encoding="utf-8") as fh:
         return " ".join(fh.read().split())
