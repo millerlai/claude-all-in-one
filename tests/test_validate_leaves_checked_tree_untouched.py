@@ -121,7 +121,9 @@ def test_validate_writes_nothing_inside_the_tree_it_checks(tmp_path):
     done = subprocess.run([sys.executable, "scripts/validate.py"], cwd=repo,
                           env=env, capture_output=True, encoding="utf-8")
 
-    assert done.returncode == 0, done.stdout[-3000:] + done.stderr[-3000:]
+    # The FAIL lines first: the tail alone cut off the one that named the cause (#371).
+    fails = [ln for ln in done.stdout.splitlines() if "FAIL" in ln]
+    assert done.returncode == 0, "\n".join(fails) + done.stdout[-3000:] + done.stderr[-3000:]
     writes = []
     if log.exists():
         for line in log.read_text(encoding="utf-8").splitlines():

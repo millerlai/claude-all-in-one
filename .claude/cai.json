@@ -5,7 +5,7 @@
   },
   "test": {
     "commands": [
-      "python -m pytest"
+      "python scripts/gen-codex.py && python -m pytest"
     ]
   }
 }
