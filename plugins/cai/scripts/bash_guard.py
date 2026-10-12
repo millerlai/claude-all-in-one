@@ -774,7 +774,12 @@ def ask(reason, command):
     because auto mode still shows you those prompts" -- so in an interactive
     auto mode the prompt appears, with Yes/No only. bypassPermissions and an
     allow rule do not suppress it. Under dontAsk, and a `-p` run with no
-    `--permission-prompt-tool`, nothing prompts and the call is denied."""
+    `--permission-prompt-tool`, nothing prompts and the call is denied.
+    Observed on Claude Code 2.1.296 in a terminal, running
+    `gh pr merge 999999 --squash` against a PR that does not exist: the prompt
+    appeared under bypassPermissions, auto and acceptEdits; a `-p` run did not
+    execute the command; plan mode never sent it, so plan is unobserved. The
+    allow-rule half has not been tested."""
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

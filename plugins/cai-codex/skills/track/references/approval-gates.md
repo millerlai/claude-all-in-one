@@ -435,9 +435,10 @@ person agrees. The prompt shows only the guard's reason and the command, never
 this list, which is why the list comes first, in the same message.
 
 The list, in order: every Blocker and Major (including any the person chose
-not to fix), every `unchecked` line, why the round stopped if it did, and a
-warning when `sha` and `pr-head` differ, since the merge would take the head,
-not the commit that was checked. After those, every line `python
+not to fix), every `unchecked` line, why the round stopped if it did, and,
+when `sha` and `pr-head` differ, the line `The pull request's head is no
+longer the commit that was checked, so GitHub will refuse this merge.` After
+those, every line `python
 <cai-root>/scripts/verify_plan.py merge-list --track-dir <dir>`
 prints, verbatim — the `deployed` and `manual` checks only a person can do; it
 prints nothing when the intake has none. Those lines add no `Suggest Stop`
@@ -446,10 +447,27 @@ themselves. If any of the items before them exists, add one line,
 still found no check runs is not one of these. Stop here means the prompt was
 answered No.
 
-Run it as a single Bash call whose whole command is `gh pr merge <n>`: nothing
-before it or after it, no wrapper, no new flags. The guard also asks for
-wrapped forms, but a wrapped command is a way round the prompt, which this
-track may not use.
+Whether the guard's prompt appears depends on Claude Code's permission mode:
+
+- `default`: it appears.
+- `auto`: it appears.
+- `acceptEdits`: it appears.
+- `bypassPermissions`: it appears.
+- `dontAsk`: it does not appear, and the call is denied.
+- A `-p` run with no `--permission-prompt-tool`: it does not appear, and the
+  call is denied.
+- `plan`: not verified. In plan mode Claude declined to run the merge command,
+  so the prompt was never reached.
+
+The `acceptEdits` and `bypassPermissions` entries were observed in terminal
+sessions; the VS Code extension was not checked.
+
+Run it as a single Bash call whose whole command is `gh pr merge <n> --squash
+--match-head-commit <sha>`: nothing before it or after it, no wrapper, no flag
+beyond these two. `<sha>` is the whole `sha` value, never the `pr-head` value,
+from the `sha` line of the last `ship_pr_findings.py` run that exited 0. The
+guard also asks for wrapped forms, but a wrapped command is a way round the
+prompt, which this track may not use.
 
 - **It ran and merged.** Append `ship` as `passed` with `--gate human`, the
   note `Merged PR #<n>`, and overwrite `state.md`'s ship row.

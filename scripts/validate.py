@@ -1519,6 +1519,7 @@ def _guard():
         # allow -- the ask JSON on stdout is what tests/test_bash_guard_merge.py
         # checks; this file only proves these shapes don't trip a 2 here.
         ("Bash", "gh pr merge 123 --squash", 0, WORK),
+        ("Bash", "gh pr merge 123 --squash --match-head-commit 0123456789abcdef0123456789abcdef01234567", 0, WORK),
         ("Bash", "gh api -X PUT repos/o/r/pulls/5/merge", 0, WORK),
         ("Bash", "gh --repo=owner/repo pr merge 123", 0, WORK),
         ("Bash", "gh -Rowner/repo pr merge 123", 0, WORK),

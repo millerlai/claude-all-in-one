@@ -51,6 +51,7 @@ def run(command, cwd, tool="Bash", codex=False):
 ASK_COMMANDS = [
     "gh pr merge 123",
     "gh pr merge 123 --squash",
+    "gh pr merge 123 --squash --match-head-commit 0123456789abcdef0123456789abcdef01234567",
     "gh pr merge --auto 123",
     "gh pr merge --admin 123",
     "gh pr merge -R owner/repo 123",
