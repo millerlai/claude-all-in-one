@@ -7,10 +7,12 @@ models, how many tokens, in this session since the last record". The two
 things that make this correct rather than merely plausible:
 
   - requestId dedup. One API response can land on several transcript lines,
-    each carrying its own copy of `message.usage`. Not deduping inflates the
+    each carrying its own `message.usage`. Not deduping inflates the
     count with no error to notice it by (measured 5x on a real subagent
     transcript) -- so a request without a requestId is dropped and noted in
-    `problems`, never guessed at.
+    `problems`, never guessed at. The lines are not always identical: in a
+    subagent transcript the first carries an early, small `output_tokens`
+    (#373), so a request counts once, at its largest `output_tokens`.
   - the two output columns are always dict, never anything else. A source
     this cannot read becomes an empty dict plus a reason in `problems`, not
     a zero -- zero would claim "no usage happened", which is a fact this
@@ -245,10 +247,17 @@ def read_window(path, since_ms, until_ms, problems):
     return out
 
 
-def usage_records(line_iter, source, problems):
+def usage_records(line_iter, source, problems, largest_output=False):
     """Yield (number, request_id, model, usage, timestamp) for every
     assistant line in `line_iter` whose requestId is new and whose
-    message.usage passes _valid_usage(). `usage` is the raw top-level
+    message.usage passes _valid_usage() -- the first valid line of each
+    requestId. `largest_output=True` yields instead, once the input is
+    exhausted, the valid line with the largest `output_tokens` per
+    requestId (the earliest of equals), because a subagent transcript's
+    first line of a request carries an early, small output count and a
+    later line the final one (#373). Input and cache counts are the same
+    on every line of a request, so context_peak.py keeps the default.
+    `usage` is the raw top-level
     dict, not a projection: _aggregate_with_problems() wants the TTL split
     out of it and context_peak.py wants the total, and neither may read
     the transcript a second time to get its own.
@@ -266,7 +275,8 @@ def usage_records(line_iter, source, problems):
     not already in `seen` -> _valid_usage() -> record the id -> yield. The
     id is recorded only when the record is yielded, so a line with
     malformed usage never poisons a later, correct line carrying the same
-    requestId.
+    requestId. (`largest_output` never fills `seen`, so every line of a
+    request is validated and a malformed one is still only skipped.)
 
     Top-level fields only. A real message.usage also carries an
     `iterations` list whose entries repeat the same token fields; nothing
@@ -279,6 +289,7 @@ def usage_records(line_iter, source, problems):
     malformed message.model / message.usage) is skipped and named in
     `problems`, tagged with `source` and `number`."""
     seen = set()
+    best = {}
     for number, text in enumerate(line_iter, 1):
         text = text.strip() if isinstance(text, str) else text
         if not text:
@@ -307,8 +318,19 @@ def usage_records(line_iter, source, problems):
                             "in %s line %d" % (source, number))
             continue
 
+        record = (number, request_id, model, usage, row.get("timestamp"))
+        if largest_output:
+            held = best.get(request_id)
+            if held is None or usage["output_tokens"] > held[3]["output_tokens"]:
+                best[request_id] = record
+            continue
+
         seen.add(request_id)
-        yield number, request_id, model, usage, row.get("timestamp")
+        yield record
+
+    # Replacing a dict value keeps its key's position, so these come out in
+    # the order each requestId was first seen.
+    yield from best.values()
 
 
 def cache_creation_total(usage):
@@ -335,14 +357,15 @@ def cache_creation_total(usage):
 
 
 def _aggregate_with_problems(line_iter, source, problems):
-    """Dedup by requestId, sum the five token keys per model. Every anomaly
+    """Dedup by requestId (largest output_tokens wins), sum the five token
+    keys per model. Every anomaly
     (bad JSON, missing requestId, missing/malformed message.usage, an
     unsplittable cache_creation) is skipped and named in `problems`, tagged
     with `source` and a line number -- R1's "each one names which
     column"."""
     totals = {}
     for number, _request_id, model, usage, _timestamp in usage_records(
-            line_iter, source, problems):
+            line_iter, source, problems, largest_output=True):
         ephemeral_1h, ephemeral_5m, ephemeral_problem = _resolve_ephemeral(usage)
         if ephemeral_problem:
             problems.append("%s in %s line %d" % (ephemeral_problem, source, number))

@@ -323,6 +323,40 @@ def test_aggregate_direct_dedup_and_keys():
     assert result == {"claude-opus-5": _expected(usage)}
 
 
+# --- #373: a request's lines are not identical copies; the first can carry
+# an early, small output_tokens and a later one the final figure -------------
+
+def test_same_request_id_aggregates_the_largest_output_tokens():
+    early = _usage(1)
+    early["output_tokens"] = 3
+    final = _usage(1)
+    final["output_tokens"] = 500
+    lines = [
+        _assistant_line("req-x", "claude-opus-5", early, "2026-08-30T00:00:01.000Z"),
+        _assistant_line("req-x", "claude-opus-5", final, "2026-08-30T00:00:02.000Z"),
+    ]
+    result = usage_collector.aggregate(lines)
+    assert result["claude-opus-5"]["output_tokens"] == 500
+    # Order of the lines must not matter.
+    assert usage_collector.aggregate(lines[::-1])["claude-opus-5"]["output_tokens"] == 500
+
+
+def test_malformed_first_line_does_not_hide_a_good_line_of_same_request_id():
+    final = _usage(1)
+    final["output_tokens"] = 500
+    bad = _usage(1)
+    bad["output_tokens"] = "oops"
+    lines = [
+        _assistant_line("req-x", "claude-opus-5", bad, "2026-08-30T00:00:01.000Z"),
+        _assistant_line("req-x", "claude-opus-5", final, "2026-08-30T00:00:02.000Z"),
+    ]
+    problems = []
+    result = usage_collector._aggregate_with_problems(lines, "<test>", problems)
+    assert result == {"claude-opus-5": _expected(final)}
+    assert len(problems) == 1
+    assert "line 1" in problems[0]
+
+
 # --- small path-rule sanity for the remaining public functions -------------
 
 def test_encoded_project_dir_replaces_non_alnum():
