@@ -23,6 +23,7 @@ like they fit, the more specific one is right.
 | Know where a track stopped | `/cai:track status` | Reads files, calls no model |
 | Fix something broken | `/cai:debug` | Root cause before any fix |
 | Fix an issue, a PR's review threads or a Jira ticket, end to end | `/cai:fix <url>` | Pushes, opens PRs and replies itself; never merges |
+| Index the repo so track stages re-read less | `/cai:codemap build` | Optional; writes only `.cai/codemap/`, which ignores itself |
 | Clean up code that already works | `/cai:refactor` | Behaviour unchanged, by the catalog |
 | Ask whether a branch is mergeable | `/cai:verify` | Four review lenses over the diff |
 | Find out what you're missing | `/cai:discover` | Surfaces unknowns before code |

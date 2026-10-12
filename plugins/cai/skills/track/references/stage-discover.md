@@ -48,6 +48,14 @@ the same agent with the same tools (`stages.json`), and nobody did it.
 If one fails — the tool is refused or the page will not load — name the query
 or URL among the Report's deviations, so the person can see it was not done.
 
+When the brief carries a line starting `codemap: fresh`, start from
+`<top>/.cai/codemap/repo-map.md` and the shard files it names, each read by
+its exact path, or Grep `<top>/.cai/codemap/symbols.jsonl` with that one file
+as the path — a Grep over the directory finds nothing there. The index under
+`.cai/codemap/` is a pointer, not evidence: a claim about current state cites
+the original `file:line`. Any other line, or none, means Read/Grep/Glob as you
+would without it.
+
 ### A. Blindspot pass — unfamiliar code
 
 Map the area yourself first, with `Read`/`Grep`/`Glob` — this stage's agent is

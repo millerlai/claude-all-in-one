@@ -476,10 +476,15 @@ def _skills():
     # pushes and opens pull requests, which no model may start on its own, and
     # that also keeps its description out of the always-on budget. The `fix`
     # section below pins the flag and the `allowed-tools` line.
-    SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "fix", "git",
-                   "git-sweep", "goal", "intake", "models", "options", "plan-review",
-                   "quiz", "refactor", "setup", "ship", "track", "usage", "verify",
-                   "viewer"]
+    # `codemap` is the same kind as `fix`: a person types it, what it decides lives
+    # in scripts/codemap_*.py, and it carries the flag because `build` writes a
+    # directory in the user's repository, which no model may start on its own. The
+    # flag also keeps its description out of the always-on budget below. The
+    # `codemap` section pins the flag and the absence of `model:` and `allowed-tools`.
+    SKILL_NAMES = ["build", "chore", "codemap", "debug", "design", "discover", "fix",
+                   "git", "git-sweep", "goal", "intake", "models", "options",
+                   "plan-review", "quiz", "refactor", "setup", "ship", "track", "usage",
+                   "verify", "viewer"]
     skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
     check(f"skills/ holds exactly the {len(SKILL_NAMES)} names {SKILL_NAMES} "
           f"({skill_dirs})", skill_dirs == SKILL_NAMES)
@@ -632,6 +637,59 @@ def _fix():
     check(f"{FIX_SKILL} names a reference for each of the four target kinds",
           all("${CLAUDE_PLUGIN_ROOT}/skills/fix/references/%s.md" % r in text for r in refs)
           and "installed yet" not in text)
+
+
+@section("codemap")
+def _codemap():
+    # The index is optional and a pointer. What keeps it that way is prose the
+    # three read-side agents and the three stage references carry, plus a script
+    # that only the main session runs; none of that fails by itself when someone
+    # rewords it, so the sentences are pinned here, whitespace folded.
+    #
+    # (a) the skill is typed by a person and writes into the user's repository:
+    # the flag, no model of its own, and no tool grant (the same shape as `fix`).
+    CODEMAP_SKILL = f"{PLUGIN}/skills/codemap/SKILL.md"
+    text = read_text(CODEMAP_SKILL)
+    front = text[3:text.find("\n---", 3)] if text.startswith("---") else ""
+    check(f"{CODEMAP_SKILL} disables model invocation",
+          "disable-model-invocation: true" in front)
+    check(f"{CODEMAP_SKILL} declares no model and grants no tool",
+          not re.search(r"^(model|allowed-tools):", front, re.MULTILINE))
+
+    # (b) AC2: the architect reads the index with the tools it already has.
+    ARCHITECT = f"{PLUGIN}/agents/architect.md"
+    want_tools = "Read, Grep, Glob, WebSearch, WebFetch"
+    check(f"{ARCHITECT} tools line is exactly `{want_tools}`",
+          agent_tools_line(ARCHITECT) == want_tools)
+
+    # (c) AC3: the pointer sentence and the fallback sentence are in every
+    # place a read-side stage is told to use the index, in both trees.
+    POINTER = ("The index under `.cai/codemap/` is a pointer, not evidence: a claim "
+               "about current state cites the original `file:line`.")
+    FALLBACK = "Any other line, or none, means Read/Grep/Glob as you would without it."
+    refs = [f"skills/track/references/stage-{s}.md" for s in ("intake", "discover", "design")]
+    agents = [f"agents/{a}.md" for a in ("architect", "designer", "explorer")]
+    codex_agents = [f"agents/cai_{a}.toml" for a in ("architect", "designer", "explorer")]
+    pinned = ([f"{PLUGIN}/{p}" for p in refs + agents]
+              + [f"plugins/cai-codex/{p}" for p in refs + codex_agents])
+    for path in pinned:
+        folded = " ".join(read_text(path).split()) if os.path.isfile(path) else ""
+        check(f"{path} carries the codemap pointer sentence", POINTER in folded)
+        check(f"{path} carries the codemap fallback sentence", FALLBACK in folded)
+
+    # (d) AC11: the generated Codex skill calls the launcher form and ships its
+    # openai.yaml (the agent's `$codemap status` itself is run by a person).
+    codex_skill = "plugins/cai-codex/skills/codemap/SKILL.md"
+    check(f"{codex_skill} calls the cai launcher form",
+          os.path.isfile(codex_skill) and "<cai> codemap_cli" in read_text(codex_skill))
+    check("plugins/cai-codex/skills/codemap/agents/openai.yaml exists",
+          os.path.isfile("plugins/cai-codex/skills/codemap/agents/openai.yaml"))
+
+    # (e) AC1, the code half: preflight knows nothing of the index, so a repo
+    # without one sees no difference at all.
+    PREFLIGHT = f"{PLUGIN}/scripts/preflight.py"
+    check(f"{PREFLIGHT} does not mention codemap",
+          "codemap" not in read_text(PREFLIGHT).lower())
 
 
 @section("rules")
@@ -2637,12 +2695,21 @@ def _track_references():
     # prose says so and points at where the probe does run, so this catches the
     # command being pasted in anyway -- matched as the command, not the filename,
     # because that prose names the file deliberately.
+    #
+    # The `scripts/codemap_` rows are the same shape: the three stage runners
+    # read the index with `Read`/`Grep` only, and the main session alone runs
+    # codemap_cli.py (D9; the stage-design.md row is T3-8, the same practice one
+    # file further -- designer_guard.py already blocks it, this makes the text
+    # and the capability fail together).
     RETIRED_IMPERATIVES = {
         "stage-intake.md": [("Dispatch `explorer`", "intake", "Agent"),
                             ("scripts/options_lint.py", "intake",
-                             "Write and a python interpreter")],
+                             "Write and a python interpreter"),
+                            ("scripts/codemap_", "intake", "a python interpreter")],
         "stage-discover.md": [("Dispatch `explorer`", "discover", "Agent"),
-                              ("Write it to the session", "discover", "Write")],
+                              ("Write it to the session", "discover", "Write"),
+                              ("scripts/codemap_", "discover", "a python interpreter")],
+        "stage-design.md": [("scripts/codemap_", "design", "a python interpreter")],
         "stage-ship.md": [("entry if one exists", "ship", "Write")],
     }
 

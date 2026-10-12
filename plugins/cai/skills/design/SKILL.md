@@ -7,12 +7,13 @@ disable-model-invocation: true
 
 Run the design stage for: $ARGUMENTS
 
-The procedure lives in one place, read by whoever runs this stage — a
-track's subagent or this command:
-`${CLAUDE_PLUGIN_ROOT}/skills/track/references/stage-design.md`. Read it in
-full, pick the mode it describes (diagnosis / stance / decisions / detail /
-delta), and follow it. `high-level` is the legacy single-document shape, kept
-so designs already signed off stay passable — do not start a new one there.
+The procedure lives in one place, read by whoever runs this stage — a track's subagent or this
+command: `${CLAUDE_PLUGIN_ROOT}/skills/track/references/stage-design.md`. First, if
+`<top>/.cai/codemap/state.json` exists, follow
+`${CLAUDE_PLUGIN_ROOT}/skills/track/references/codemap-brief.md` yourself; you run this stage, so
+the line it yields is yours to act on. Read the stage reference in full, pick the mode it describes
+(diagnosis / stance / decisions / detail / delta), and follow it. `high-level` is the legacy
+single-document shape, kept so designs already signed off stay passable — do not start a new one there.
 
 **Diagnosis and stance are the two entrances**, and one test picks between
 them rather than the wording of the request: can you write a test that fails

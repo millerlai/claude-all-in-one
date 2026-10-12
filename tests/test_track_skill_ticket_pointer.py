@@ -179,8 +179,13 @@ def test_skill_md_body_is_136_lines():
 
     141 -> 142 (#376): one line has the main session save intake's
     `## Intake document` as the track's intake.md, which `verify` and
-    preflight read. TRACK_SKILL_MAX moved 143 -> 144, keeping the gap."""
-    assert _skill_body_lines() == 142
+    preflight read. TRACK_SKILL_MAX moved 143 -> 144, keeping the gap.
+
+    142 -> 143 on 2026-10-11 (context-engine-system, D2): one line has the
+    main session follow codemap-brief.md before `intake`, `discover` or
+    `design`'s dispatch. TRACK_SKILL_MAX stays 144, so the gap is one line
+    rather than two -- D2 decided to spend exactly that one line."""
+    assert _skill_body_lines() == 143
 
 
 # --- '## Human gates' still says what it has always said --------------------

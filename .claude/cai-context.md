@@ -62,6 +62,19 @@ or specs, and only concepts specific to this project.
 **處置（disposition）**: The verdict the tool gives an issue before any work starts, such as fix it, finish an interrupted push, or skip because a pull request is already open.
 **起點 ref（starting ref）**: The branch, or commit when there is no branch, the person was on when they started the command; every item returns there when it ends.
 **基準 ref（base ref）**: The starting point of a fix branch: the remote's default branch for an issue or ticket, or the pull request's own branch for review threads.
+**codemap**: cai 為一個 repo 建立的可丟棄結構索引，記下有哪些檔案、各檔裡有哪些具名宣告在哪一行，讓讀端代理人少重讀同一批檔。
+**索引目錄（index directory）**: 一個 repo 裡存放 codemap 全部產出的那個目錄，每個 worktree 各有一份，且會把自己排除在 git 之外。
+**符號紀錄（symbol record）**: codemap 對一個具名宣告留下的一筆紀錄，寫明它的名稱、種類、簽名與所在檔案的起訖行。
+**repo map**: 把整個 repo 的檔案與符號濃縮成一份讀端可以一次讀完的結構摘要；太大時改成一份只列出各分片的目錄。
+**分片（shard）**: repo map 太大時依目錄切出的一份局部摘要，各自可以單獨讀。
+**轉接器（adapter）**: 針對某一種程式語言，從檔案內容抽出宣告與匯入的那一段邏輯。
+**只記檔案資訊（facts-only）**: 一個檔案不能或不必解析時，codemap 只記下檔案本身的資訊與不解析的原因，不產生符號。
+**轉接器崩潰（adapter crash）**: 轉接器碰上它沒預期的例外而解析失敗；該檔被標為未解析，但整次建立仍然完成。
+**狀態行（state line）**: codemap 對自己與工作樹是否一致的一句話回報，主 session 把它原樣交給讀端代理人，讀端依它決定要不要用索引。
+**指標句（pointer sentence）**: 讀端文字裡共用的那一句，說明索引只是指向原檔的指標，不是證據。
+**退回句（fallback sentence）**: 讀端文字裡共用的那一句，說明沒有可用的狀態行時就照原本的方式讀檔與搜尋。
+**Recall@N**: 一項任務裡應該找到的檔案，有多少比例出現在查詢結果前 N 個不同的檔案中，再對所有任務取平均。
+**純 Grep 基準（plain-Grep baseline）**: 不用索引、只靠依詞搜尋行數排序所得的檔案順序，用來和索引的查詢結果比較。
 
 ## Process
 
