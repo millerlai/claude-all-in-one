@@ -25,6 +25,8 @@ def make_track(tmp_path, rows=ROWS):
              "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
     (track / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # A `done` intake owes an intake.md (#376); these tests are about the ledger.
+    (track / "intake.md").write_text("# Intake\n", encoding="utf-8")
     return str(track)
 
 

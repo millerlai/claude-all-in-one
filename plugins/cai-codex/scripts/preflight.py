@@ -31,6 +31,7 @@ import ledger  # noqa: E402
 import design_probe  # noqa: E402
 import options_lint  # noqa: E402
 import tool_path  # noqa: E402
+import verify_plan  # noqa: E402
 
 DEFAULT_MAX_ATTEMPTS = 5
 MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
@@ -119,7 +120,36 @@ def state_row(track_dir, stage_id):
     return None
 
 
+def intake_document(track_dir):
+    """Checks for the file `verify` reads its acceptance criteria from (#376).
+
+    Only once the intake row is `done`: the main session writes `intake.md`
+    when intake passes (stage-intake.md Step 5), and a skipped or unfinished
+    intake owes none. A missing file used to be silent -- verify_plan.py just
+    planned from nothing. A legacy intake (no `## Verification levels`, exit 4
+    of `verify_plan.py levels`) is not blocked; an invalid table (exit 5) is."""
+    row = state_row(track_dir, "intake")
+    if row is None or (row[1] if len(row) > 1 else "") != "done":
+        return []
+    path = os.path.join(track_dir, verify_plan.INTAKE_NAME)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        return [(False, "intake_document (intake is done but %s cannot be read: %s -- "
+                        "the main session writes the intake report there, "
+                        "stage-intake.md Step 5)" % (path, exc))]
+    levels = verify_plan.read_levels(text)
+    if levels["status"] == "invalid":
+        return [(False, "intake_document (%s: %s)" % (path, "; ".join(levels["problems"])))]
+    return [(True, "intake_document (%s, verification levels %s)" % (path, levels["status"]))]
+
+
 def design(track_dir, project_dir):
+    return intake_document(track_dir) + _design(track_dir, project_dir)
+
+
+def _design(track_dir, project_dir):
     row = state_row(track_dir, "design")
     if row is None:
         return [(False, "state_md (cannot read state.md or find the design row)")]
@@ -435,7 +465,8 @@ def discover(track_dir, project_dir):
         return [(False, "state_md (cannot read state.md or find the intake row)")]
     status = row[1] if len(row) > 1 else ""
     ok = status in ledger.COUNTS_AS_FINISHED
-    return [(ok, "intake_status (intake row's status is %s)" % (status or "empty"))]
+    return [(ok, "intake_status (intake row's status is %s)" % (status or "empty")),
+            *intake_document(track_dir)]
 
 
 def _tier1_id(title, position):

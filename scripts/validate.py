@@ -1753,6 +1753,11 @@ def _preflight():
     PREFLIGHT_TRACK = os.path.join(PREFLIGHT_PROJECT, "track")
     os.makedirs(os.path.join(PREFLIGHT_PROJECT, "docs", "design"), exist_ok=True)
     os.makedirs(PREFLIGHT_TRACK, exist_ok=True)
+    # design and discover refuse a track whose intake is `done` but whose
+    # intake.md is missing or has an invalid levels table (#376).
+    with open(os.path.join(PREFLIGHT_TRACK, "intake.md"), "w", encoding="utf-8") as fh:
+        fh.write("# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
+                 "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look at it |\n")
 
     with open(os.path.join(PREFLIGHT_PROJECT, "docs", "design", "hld.md"), "w", encoding="utf-8") as fh:
         fh.write(HLD_OK)
@@ -3006,7 +3011,10 @@ def _track_skill():
     # command before `build`'s dispatch, pointing at test-command.md's
     # `## Before build`, where the menu and the skip's reach live. Moved together
     # with the pinned body-line count (140 -> 141), keeping the gap.
-    TRACK_SKILL_MAX = 143
+    #
+    # 143 -> 144 (#376): one line has the main session save intake's
+    # `## Intake document` as the track's intake.md. Pinned count 141 -> 142.
+    TRACK_SKILL_MAX = 144
     TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
     if os.path.isfile(TRACK_SKILL):
         track_text = read_text(TRACK_SKILL)

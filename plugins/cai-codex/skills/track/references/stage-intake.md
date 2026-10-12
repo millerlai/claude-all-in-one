@@ -146,6 +146,16 @@ That yes is a menu, not a word to type: the approaches from Step 4 become the
 options, `references/approval-gates.md` holds the shape, and the person who
 puts it is the main session (this stage's runner has no interactive tool).
 
+**Hand the whole document back as its own section** so the main session can
+save it unedited: a `## Intake document` section holding the problem
+statement, the numbered acceptance criteria, the recommended approach and the
+`## Verification levels` table above, in that order, the table last. The
+section runs to the end of the reply, or to a `## Pending questions` section
+if there is one. Inside a track the main session writes its body, verbatim,
+to `.claude/track/<feature>/intake.md` before it asks for approval, so the
+person can open the full text; `verify` and `preflight.py` read it from there
+(`verify_plan.py`'s `INTAKE_NAME`). You write no file yourself.
+
 **Hand the route up with it**, in the same breath as the problem statement:
 which entrance the design stage will take, and the evidence Step 2 produced
 for it. A route inferred later, from the shape of the request, is the guess
@@ -165,8 +175,9 @@ of the ledger's `--note`; you write no track file at all.
 A track resuming in a fresh session with no memory of this conversation
 reads that cell, not this file, to find out what happened.
 
-Evidence goes in the artifact this stage already produces, never pasted
-in here. 4000 characters is the ceiling for this section: the largest
+Evidence goes in the `## Intake document` section above, which the main
+session saves as the track's `intake.md`, never pasted in here. That section
+sits outside this ceiling too. 4000 characters is the ceiling for this section: the largest
 note any finished track has written is 1941 characters, measured across
 30 rows in five tracks, and a report carries those fields plus what never
 reaches that cell. The number is the user's call, 2026-09-08. A
