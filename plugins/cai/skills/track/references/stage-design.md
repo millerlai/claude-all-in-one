@@ -283,7 +283,8 @@ full, and lower them when the answer is no.
 
 5. **Check, then review.**
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind diagnosis <the document>`
-   until it exits 0, then `plan-review` against it.
+   until it exits 0, then `plan-review` against it (how it runs: see
+   "The gate every mode shares").
 
 6. **Stop.** `## Status` stays `draft`. What the person signs here is **the
    root cause**, not the fix: a wrong cause makes every fix downstream of it
@@ -337,7 +338,8 @@ full, and lower them when the answer is no.
 5. **Check, then review.**
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind stance <the document>`
    until it exits 0. It enforces the one-page ceiling; over it, cut, do not
-   reword. Then `plan-review` against the document.
+   reword. Then `plan-review` against the document (see "The gate every
+   mode shares" for how it runs).
 6. **Stop.** `## Status` stays `draft`. Only the person's approval changes it
    to `approved <YYYY-MM-DD>`, through the menu in
    `references/approval-gates.md`. Decisions mode reads that line and refuses
@@ -373,7 +375,8 @@ full, and lower them when the answer is no.
 5. **Check, then ask.**
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind decisions <the document>`
    until it exits 0 — budgets, citations and diagrams are all mechanical, so
-   fix them before spending any reading on review. Then `plan-review`, then
+   fix them before spending any reading on review. Then `plan-review` (see
+   "The gate every mode shares" for how it runs), then
    put Tier 1 to the person with `AskUserQuestion`, **one at a time, in
    dependency order**, re-running the cost test on what remains after each
    answer.
@@ -423,7 +426,8 @@ runs Stance then Decisions instead. The procedure below is unchanged.
 5. **Check, then review.**
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind hld <the document>`
    first — fix what it reports and re-run until it exits 0. Then invoke
-   `plan-review` against the document with the high-level skeleton, running
+   `plan-review` (see "The gate every mode shares" for how it runs) against
+   the document with the high-level skeleton, running
    lens 8 (Precision) last. Fix Blocker/Major, take section 4 to
    `AskUserQuestion`. At most three rounds.
 6. **Stop.** Hand it over with `## Status` still `draft`. Only the user's
@@ -490,8 +494,8 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    worse than an open question.
 8. **Check, then review.**
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail --project-dir <target project dir> <the document>`
-   first, fix and re-run until 0. Then `plan-review` with the detail
-   skeleton, lens 8 first. Blocker/Major → fix and re-probe *and* re-review;
+   first, fix and re-run until 0. Then `plan-review` (see "The gate every
+   mode shares" for how it runs) with the detail skeleton, lens 8 first. Blocker/Major → fix and re-probe *and* re-review;
    section 4 → `AskUserQuestion`; Minor → leave documented. At most three
    rounds; past that, stop and report what's open with a recommendation.
 
@@ -551,6 +555,15 @@ before spending any reading on `plan-review`'s findings. This is the design
 gate `track`'s human checkpoint sits on: nothing after this stage starts
 until a person signs off on the design artifact, through the menu
 `references/approval-gates.md` describes.
+
+**How `plan-review` runs.** Dispatched by the track you are a subagent, and
+a subagent has no tool that invokes a skill — so you do not call it. Dispatch
+`architect` with `Agent`: read-only, and the agent `plan-review/SKILL.md`
+already names when it escalates. Give it the path
+`${CLAUDE_PLUGIN_ROOT}/skills/plan-review/SKILL.md`, the document, and the
+requirements — not your conclusions: a review by the author is the one thing
+the gate exists to avoid. Act on what it returns as the mode's step says.
+Standing alone you are the main session and invoke the skill yourself.
 
 Each mode has its own `--kind`: `diagnosis`, `stance`, `decisions`, `detail`,
 `delta`, and `hld` for the legacy shape. What the person signs is whichever
