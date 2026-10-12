@@ -230,9 +230,10 @@ irreversible parts of `ship`** — merging, tagging, publishing. Nowhere else
 waits for you.
 
 Both arrive as a menu you pick from, never a prompt asking you to type
-`approved`. The design one offers three: approve it, ask for changes (which
-sends `design` round again with what you said, at most three rounds), or
-reject it. Ship's quotes the exact commands about to run, and offers to hand
+`approved`. The design one offers four: approve it (`build` then makes one
+local commit per verified unit, and nothing is pushed), approve it without
+commits, ask for changes (which sends `design` round again with what you said,
+at most three rounds), or reject it. Ship's quotes the exact commands about to run, and offers to hand
 them back instead. Inside a track, "Run them" covers the squash, the push and
 the `gh pr create` or `gh pr edit`, with the squash message and the PR
 description shown in full above it; after the PR opens, a triage menu (only
@@ -248,8 +249,10 @@ to squeeze into one of the options.
 
 ### The design sign-off is checked, not trusted
 
-Picking Approve writes `approved <date>` into the document's `## Status`, then
-records your sign-off in the ledger together with the document's SHA-256.
+Picking Approve, or Approve without commits, writes `approved <date>` into the
+document's `## Status`, then records your sign-off in the ledger together with
+the document's SHA-256. The ledger note starts with `commit: yes` or
+`commit: no`, which is how `build` and `verify` know whether to commit.
 `build`'s preflight reads that record, so two things stop it: no sign-off from
 a person on the ledger at all, and a design document that has changed since
 you signed it. An edit made after approval is not the design you approved —
@@ -280,7 +283,9 @@ asks — including both of the sign-off gates after `design` and before
 is written down, nothing runs, and the same question comes back to you
 later. Two of `build`'s own Step 0.5 questions land differently again: if
 "commit per unit" closes on its own it's treated as a no, so the parallel
-lane stays off for that run, and if the glossary question closes on its own
+lane stays off for that run (that question exists only when `/cai:build` runs
+with no track; under a track the commit answer is the one you gave at the
+design gate), and if the glossary question closes on its own
 none of its terms get merged — both fall back to that fixed answer and the
 run keeps going rather than asking again later. There are exactly two
 further exceptions, both low-stakes: the question about running lanes in
@@ -377,7 +382,7 @@ names one of these:
 | `artifact_kind` | Filename ends in none of `-diagnosis.md`, `-stance.md`, `-decisions.md`, `-high-level.md`, `-detail.md`, `-delta.md` | Rename it. The suffix is how the kind is known — there is no separate field |
 | `artifact_exists` | The document `state.md` names isn't on disk | Fix the path, or re-run the stage that should have written it |
 | a `design_probe.py` line | The design document fails its own structural check | Read the probe's lines; each names one missing heading, citation or number |
-| `design_signed_off` | `build` asked to run, and no person's Approve on the ledger carries the sha of the document the design row names, as it stands now | Go through the design gate and pick Approve; its ledger row takes `--artifact` with that document. Changes requested and Reject don't count, and neither does an approval of another document, such as the stance one. An Approve recorded without `--artifact` ties to no document at all, so record it again |
+| `design_signed_off` | `build` asked to run, and no person's Approve on the ledger carries the sha of the document the design row names, as it stands now | Go through the design gate and pick Approve or Approve without commits; its ledger row takes `--artifact` with that document. Changes requested and Reject don't count, and neither does an approval of another document, such as the stance one. An Approve recorded without `--artifact` ties to no document at all, so record it again |
 | `artifact_unchanged` | The design document changed, or vanished, since it was signed off | Revert the edit, or take the document back through sign-off. `build`'s unit table lives in `implementation-notes.md` for exactly this reason |
 | `work_breakdown` | A *detail* design has no `## Work breakdown` | `build` consumes that table as its schedule. The other kinds need none — `build` cuts the units itself |
 | `has_changes` | Nothing to review — clean tree, no diff from base, or git could not be asked whether the tree is clean | Commit something first. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
@@ -386,10 +391,12 @@ names one of these:
 | `merges_cleanly` | `verify` and `ship`: your branch conflicts with the remote's default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Only the committed HEAD is tried, so uncommitted changes in your working tree are not part of the check. Checked when `verify` starts (without a fetch) and when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |
 | `ledger_attempts` | Any stage: five failed or blocked attempts since it last passed or was skipped | The message lists every attempt's note and the three ways out: `/cai:track skip <stage> --reason "<why>"`, `CAI_TRACK_MAX_ATTEMPTS` set higher (or `0` for no cap), or deleting the track's `ledger.jsonl` |
 
-Five more lines always print as `PASS` and are still worth reading:
+Six more lines always print as `PASS` and are still worth reading:
 `track_ignored` at `intake` says when git is *not* ignoring the track's
 files, and `ledger_intact` on every stage counts ledger lines that could not
-be parsed. At `ship`, `untracked_since_start` names the untracked files that
+be parsed. At `build` and `verify`, `commit_answer` says the commit answer
+recorded at the design gate — `yes` or `no` with the ledger line it came from,
+or `unreadable` with the reason, which is treated as a no. At `ship`, `untracked_since_start` names the untracked files that
 appeared since this track began — code it looks like this track produced,
 which the squash will not pick up — and `docs_not_in_git` names this track's
 own documents (state.md's artifact, every ledger `--artifact`, a detail
@@ -397,7 +404,7 @@ design's referenced decisions document) that exist on disk but git does not
 track, such as a design document under a gitignored `docs/`. Also at `ship`,
 `skipped_stages` names every stage this track skipped, with the reason
 recorded for each — a skipped `verify` passes `verify_status`, so this is
-the line that says the branch was not reviewed. None of the five ever
+the line that says the branch was not reviewed. None of the six ever
 blocks. A dispatch the provider refused — a rate limit, an
 overload — is recorded as `unavailable` and never counts toward the cap.
 

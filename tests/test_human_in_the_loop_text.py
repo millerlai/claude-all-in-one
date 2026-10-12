@@ -144,7 +144,10 @@ def test_main_session_commits_verify_changes_by_reported_paths(tree):
     assert "git add -- <the paths verify reported>" in section
     assert "Never `git add -A`" in section
     assert "git status --porcelain" in section
-    assert "Step 0.5" in section
+    # #385: the answer is Gate 1's now, not Step 0.5's.
+    assert "Gate 1" in section
+    assert "`commit_answer`" in section
+    assert "Step 0.5" not in section
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -152,6 +155,14 @@ def test_verify_changes_commit_only_after_passed(tree):
     section = _section(_reference(tree, "approval-gates.md"), VERIFY_CHANGES)
     assert "passed" in section
     assert "hands a question up commits nothing" in section
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_verify_changes_act_on_the_main_sessions_own_line(tree):
+    section = _section(_reference(tree, "approval-gates.md"), VERIFY_CHANGES)
+    assert "never the report's" in section
+    assert "it changes nothing" in section
+    assert "or its report is no longer in hand" in section
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -323,6 +334,11 @@ def test_commit_no_does_not_claim_clean_tree_stops_untracked_files(tree):
 def test_step_1_records_the_step_0_5_answers_for_a_re_dispatch(tree):
     step = _section(_build(tree), "## Step 1 —")
     assert "never asks Step 0.5 again" in step
+    # #385: under a track the notes carry the commit_answer line verbatim and
+    # lose to this run's own line, so a re-signed design is not committed
+    # against a stale yes.
+    assert "the `commit_answer` line this build acted on, copied verbatim" in step
+    assert "the line wins when the notes disagree" in step
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -411,3 +427,195 @@ def test_blocked_units_uncommitted_edits_stay_out_of_later_commits(tree):
     section = _section(_build(tree), "## Step 1 —")
     assert "blocked unit's uncommitted edits stay out" in section
     assert "its own paths" in section
+
+
+# --- Unit 2 of default-commit-per-unit (#385): Gate 1 carries the answer ----
+
+def _gate1(tree):
+    return _section(_reference(tree, "approval-gates.md"), "## Gate 1")
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_has_four_options_in_order(tree):
+    section = _gate1(tree)
+    positions = [section.index(label) for label in (
+        "| Approve |", "| Approve without commits |",
+        "| Changes requested |", "| Reject |")]
+    assert positions == sorted(positions)
+    for needle in ("`commit: yes`", "`commit: no`", "--gate human",
+                   "Neither option is marked"):
+        assert needle in section, needle
+    # AC2: "Approve" is consent only because the menu says what it consents
+    # to, and "Approve without commits" says what stays off.
+    for needle in ("one local commit per verified unit", "nothing is pushed",
+                   "the parallel lane is off"):
+        assert needle in section, needle
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_table_rows_are_not_marked_recommended(tree):
+    text = _reference(tree, "approval-gates.md")
+    start = text.index("| Option | What it does | |---|---|")
+    table = text[start:text.index("**That order is not a preference.**", start)]
+    assert "(recommended)" not in table
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_stance_approval_lists_its_own_three_options(tree):
+    text = _reference(tree, "approval-gates.md")
+    assert "Approve, Changes requested, Reject" in text
+    assert "Same three options as Gate 1" not in text
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_says_how_the_answer_reaches_build(tree):
+    section = _gate1(tree)
+    assert "in every build dispatch brief" in section
+    assert "a re-dispatch carrying an answer included" in section
+    # The line is never taken from a stored report: a resumed round runs
+    # preflight again for that line alone.
+    assert "take it from that report" not in section
+    assert "never one copied from a report" in section
+    assert "for that line alone" in section
+    assert "whatever the exit code" in section
+    assert "record nothing for that run" in section
+    assert "missing or differs from yours" in section
+    assert "yours still decides" in section
+    assert "quote yours in the next dispatch" in section
+    assert "`commit_answer`" in section
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_never_re_asks_for_an_unchanged_document(tree):
+    assert "do not put Gate 1 again for an unchanged document" in _gate1(tree)
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_no_commit_option_and_unreadable_are_described(tree):
+    text = _reference(tree, "approval-gates.md")
+    row = text[text.index("| Approve without commits |"):]
+    row = row[:row.index(" | Changes requested |")]
+    assert '"Commit: no"' in row
+    verify = _section(text, VERIFY_CHANGES)
+    assert "unreadable" in verify
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_rows_each_write_their_own_marker(tree):
+    # The prose under the table names both markers without saying which option
+    # writes which, so a swap between the rows would invert the consent and
+    # still satisfy the needles in test_gate_1_has_four_options_in_order.
+    section = _gate1(tree)
+    approve = section[section.index("| Approve |"):
+                      section.index("| Approve without commits |")]
+    without = section[section.index("| Approve without commits |"):
+                      section.index("| Changes requested |")]
+    assert "`--note` starts with `commit: yes`" in approve
+    assert "`commit: no`" not in approve
+    assert "`--note` starts with `commit: no`" in without
+    assert "`commit: yes`" not in without
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_diagnosis_signoff_says_which_menu_the_main_session_asks(tree):
+    # DD of component 3: stage-design.md's side is pinned above; this is the
+    # side the main session reads when it puts the menu.
+    text = _reference(tree, "approval-gates.md")
+    start = text.index("- `stage-design.md`'s diagnosis sign-off")
+    bullet = text[start:text.index("- `stage-design.md`'s Tier 1 entries", start)]
+    assert "the stance approval's three options" in bullet
+    assert "Gate 1's four" in bullet
+    assert "with neither written, ask the four" in bullet
+    assert "is not recorded when Detail follows" in bullet
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_pending_questions_lists_the_four_option_gate_1(tree):
+    text = _reference(tree, "pending-questions.md")
+    assert "Approve, Approve without commits or Reject at Gate 1" in text
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_stage_design_names_the_route_and_the_legacy_gate(tree):
+    text = _reference(tree, "stage-design.md")
+    assert "`Next: Detail`" in text
+    assert "`Next: build`" in text
+    assert "with four options" in text
+    assert "with three options" not in text
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_0_5_item_counts_two_questions_under_a_track(tree):
+    text = _reference(tree, "approval-gates.md")
+    start = text.index("- `stage-build.md` Step 0.5 —")
+    bullet = text[start:text.index(" - Gate 2's triage menu", start)]
+    assert "one hand-up" in bullet
+    assert "up to three turns" not in bullet
+    assert "Up to two decisions under a track" in bullet
+
+
+# --- Unit 3 of default-commit-per-unit (#385): build and verify read it -----
+
+REPORT_LINE = "the `commit_answer` line this run acted on, verbatim"
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_build_commit_per_unit_is_never_asked_under_a_track(tree):
+    step = _section(_build(tree), "## Step 0.5")
+    assert "Under a track this is never asked" in step
+    assert "`commit_answer`" in step
+    assert "no `commit_answer` line at all is no" in step
+    # DD10: Codex's main session reads this file itself, so there is no brief
+    # for the line to be quoted in -- it is in the preflight output it saw.
+    assert "in the preflight output you read yourself" in step
+    assert "Repeat that line verbatim" in step
+    # standing alone keeps the question, and the reason behind it
+    assert "Standing alone, ask once for the whole run" in step
+    assert "`workflow.md` says never commit unless asked" in step
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_a_saved_report_in_the_brief_is_a_trace_not_the_answer(tree):
+    # I10: a re-dispatch carries the round's whole report in its brief, and
+    # that report repeats the line its pass acted on -- a yes that a later
+    # re-sign may have turned into a no. The agent cannot read the ledger, so
+    # the rule that picks between the two lines has to be in its own file.
+    step = _section(_build(tree), "## Step 0.5")
+    assert ("the line you act on is the one the dispatch quotes outside "
+            "that report") in step
+    verify = _reference(tree, "stage-verify.md")
+    opening = verify[:verify.index("## The evidence rule")]
+    assert ("the line you repeat is the one the dispatch quotes outside "
+            "that report") in opening
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_build_first_pass_does_not_stop_with_nothing_to_ask(tree):
+    step = _section(_build(tree), "## Step 0.5")
+    assert "With no question to hand up, the first pass does not stop" in step
+    assert "and the commit answer is yes" in step
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_build_lane_and_closeout_read_the_commit_answer(tree):
+    text = _build(tree)
+    assert "The commit answer is yes: Gate 1's" in _section(text, "## Step 4")
+    close = _section(text, "## Step 6")
+    assert "Gate 1's under a track" in close
+    assert "Step 0.5 answered commit-per-unit" not in close
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_build_and_verify_reports_repeat_the_commit_answer_line(tree):
+    assert REPORT_LINE in _section(_build(tree), "## Report")
+    verify = _reference(tree, "stage-verify.md")
+    report = _section(verify, "## Report")
+    assert REPORT_LINE in report
+    assert "Gate 1" in report
+    opening = verify[:verify.index("## The evidence rule")]
+    assert "Repeat the `commit_answer` line from your brief verbatim" in opening
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_track_skill_has_the_main_session_quote_the_commit_answer(tree):
+    assert "`commit_answer`" in _flat(tree, "skills", "track", "SKILL.md")

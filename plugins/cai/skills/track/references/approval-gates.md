@@ -67,7 +67,8 @@ for this one — the stance approval is not Gate 1.
 
 | Option | What it does |
 |---|---|
-| Approve | Where the design row's document has a `## Status` of its own (a diagnosis, a legacy high-level design), write `approved <YYYY-MM-DD>` into it **first**, then append the ledger row; elsewhere, only the row. The row is `--gate human --artifact <that document>`. `build` may start. |
+| Approve | Where the design row's document has a `## Status` of its own (a diagnosis, a legacy high-level design), write `approved <YYYY-MM-DD>` into it **first**, then append the ledger row; elsewhere, only the row. The row is `--gate human --artifact <that document>`, and its `--note` starts with `commit: yes`. `build` may start, and makes one local commit per verified unit. |
+| Approve without commits | Everything Approve does, in the same order, except that the `--note` starts with `commit: no`. `build` may start; nothing that build, or verify before Gate 2, changes is committed, as "Commit: no" under "Verify's changes, inside a track" says (a fix round after the pull request opens still commits by its own step 2). |
 | Changes requested | Re-dispatch `design` with what they said, quoted. Counts as a round (`pending-questions.md`, "What counts as a round"). |
 | Reject | The design stops here. Record the outcome and what was rejected; build nothing. |
 
@@ -83,8 +84,49 @@ about the document being signed.
 
 The writer is you, the main session. `stage-design.md` step 6's "never set it
 yourself" is addressed to the stage that produced the document, and it still
-holds: what changes `draft` to `approved` is a person picking Approve here,
-never the design stage deciding its own work is done.
+holds: what changes `draft` to `approved` is a person picking Approve or Approve
+without commits here, never the design stage deciding its own work is done.
+
+**The commit answer rides on the Approve.** The message above the menu says
+that Approve also lets `build` make one local commit per verified unit on this
+branch and lets the main session commit what verify changes, and that nothing
+is pushed before Gate 2's "Run them"; Approve without commits signs off the
+same design and commits nothing: the parallel lane is off, changes stay in the
+working tree, and `ship`'s `clean_tree` stops on the tracked files until the
+person commits. When the question tool has a description field per option,
+Approve's says the same about local commits.
+Neither option is marked `(recommended)`.
+
+The note starts with exactly `commit: yes` or `commit: no`, then optionally
+`; ` and one line saying what was approved — for example `--note "commit: yes;
+<what was approved>"`. `preflight.py` reads only those first characters. The
+`design` stage's own pass row stays `--gate auto`; when Gate 1's row doubles
+as the stage's pass row, its note starts with the marker the same way.
+
+Before `build` is dispatched, `preflight.py build` prints a `commit_answer`
+line. Quote that line, minus its `PASS `, in every build dispatch brief, a
+re-dispatch carrying an answer included.
+The line you quote, and the line you act on once verify is `passed`, is
+always one `preflight.py` printed to you — never one copied from a report.
+When a stored round is resumed (`pending-questions.md`, "Resuming a saved
+round"), or you hold no such output for the stage, run `preflight.py build`,
+or `preflight.py verify` for a verify round, for that line alone: take the
+line whatever the exit code, since it prints after the stage's own checks on
+every path; record nothing for that run, and let none of its other lines
+stop the resume. Output with no `commit_answer` line is no. The line reads
+`yes, ledger line <n>`, `no, ledger line <n>`, or `unreadable: <reason>`.
+`unreadable` is no: before build starts, tell the person in one line that
+build will not commit, and the reason printed. Every report build or verify
+hands back repeats the line on a line of its own, as a trace of the line it
+was given. When that repeated line is missing or differs from yours, yours
+still decides: tell the person in one line that the report's line differs
+from the one `preflight.py` printed and that the printed one stands, and
+quote yours in the next dispatch as usual.
+
+No menu asks about commits under a track. The answer changes only when the
+design changes and Gate 1 is put again for the changed document; do not put
+Gate 1 again for an unchanged document to change it. A person who changes
+their mind commits themselves, or leaves the changes uncommitted.
 
 **No `(recommended)` on either gate's menu**, and this is a deliberate
 exception to `epistemics.md`, which asks every question tool for "the
@@ -407,15 +449,18 @@ track may not use.
 
 ## Verify's changes, inside a track
 
-`stage-build.md` Step 0.5 asked once whether this branch may be committed, and
-that answer covers what the verify stage changes too: no menu asks again, and
-verify never has a commit menu of its own. A fix round (`### A fix round`
-above) is not covered here: it commits by its own step 2, whatever Step 0.5
-answered. Verify cannot commit, so its
-report lists every changed path, one per line, and the main session acts on
-the Step 0.5 answer once verify is recorded `passed`:
+The commit answer Gate 1 recorded covers what the verify stage changes too: no
+menu asks again, and verify never has a commit menu of its own. A fix round
+(`### A fix round` above) is not covered here: it commits by its own step 2,
+whatever Gate 1 answered. Before dispatching verify, quote in its brief the
+`commit_answer` line `preflight.py verify` printed, by Gate 1's rules for that
+line: one `preflight.py` printed to you, run again for that line alone when a
+stored round is resumed. Verify's report repeats it. Verify cannot commit, so
+its report lists every changed path, one per line, and the main session acts on
+its own line, never the report's, once verify is recorded `passed`. A report
+whose line is missing or differs is said in one line; it changes nothing:
 
-- **Commit: yes.** If verify reported no changed path, run neither command
+- **Commit: yes.** The line is `yes, ledger line <n>`. If verify reported no changed path, or its report is no longer in hand to list them, run neither command
   and say so. Otherwise `git add -- <the paths verify reported>`, then `git
   commit -m 'fix: apply verify fixes'` — one line, no apostrophe, no backtick. Never
   `git add -A`. Before the add, compare that list with `git status
@@ -425,7 +470,10 @@ the Step 0.5 answer once verify is recorded `passed`:
   hands a question up commits nothing yet: the Blocker/Major fixes already
   made wait, and are committed together with the changes made from the answer
   once the stage is `passed`.
-- **Commit: no.** Nothing is committed. The changes stay in the working tree,
+- **Commit: no.** The line is `no, …` or `unreadable: …`, or there is no
+  `commit_answer` line at all; when it is `unreadable`, say the reason in one
+  line when verify's outcome is reported. Nothing is committed. The changes
+  stay in the working tree,
   `stage-ship.md` Step 1 stops on the tracked ones (`clean_tree`), and the
   person commits them. `clean_tree` never blocks an untracked file and the
   squash omits it, so name each reported path that is untracked to the person
@@ -447,24 +495,34 @@ of them spends one of `pending-questions.md`'s three rounds: that file's
 - `stage-design.md`'s stance approval, at the end of Stance mode. Decisions
   mode refuses to start on a `draft`, so this is a real stop — but it is
   inside the `design` stage, not after it, which is why it is here and not a
-  third gate. Same three options as Gate 1, and the same writer: the date
-  goes into `## Status` when a person picks Approve, never when the stage
-  decides its own work is done.
+  third gate. Three options — Approve, Changes requested, Reject — and the
+  same writer: the date goes into `## Status` when a person picks Approve,
+  never when the stage decides its own work is done.
 - `stage-design.md`'s diagnosis sign-off, when Detail follows it. The root
   cause is approved there, in `## Status`, with no ledger row; Gate 1 comes
   after Detail, on the detail design. Going straight to `build`, the same
-  stop is Gate 1 itself.
+  stop is Gate 1 itself. When Detail follows, the menu is the stance
+  approval's three options; going straight to `build`, it is Gate 1's four.
+  The design stage's report says which (`Next: Detail` or `Next: build`);
+  with neither written, ask the four, and say that a commit answer picked
+  here is not recorded when Detail follows — there is no ledger row at this
+  stop, and Gate 1 asks again after the detail design. An extra approving
+  option commits nothing; a missing one would leave a direct-to-build sign-off
+  without its commit answer.
 - `stage-design.md`'s Tier 1 entries, in Decisions mode — one menu per entry,
   in dependency order, re-running the cost test on what remains after each
   answer. These are ordinary choices between ways forward, so unlike the two
   gates they **do** carry a `(recommended)` when the evidence supports one.
-- `stage-build.md` Step 0.5 — commit per unit, the parallel lane, and, for a
+- `stage-build.md` Step 0.5 — under a track, the parallel lane and, for a
   detail design whose glossary has terms that pass the glossary check, which
-  of them join `.claude/cai-context.md`. Up to three decisions, one menu per
-  turn, the glossary one in as many menus of up to four terms as it needs;
-  all handed up from build's first pass in one hand-up, before any unit
-  starts. The lane is asked only when the `Alongside` column names a pair
-  of units.
+  of them join `.claude/cai-context.md`; standing alone, commit per unit as
+  well, asked first. Up to two decisions under a track and up to three
+  standing alone, one menu per turn, the glossary one in as many menus of up
+  to four terms as it needs; all handed up from build's first pass in one
+  hand-up, before any unit starts. With no lane pair and no such term there is
+  nothing to hand up and the first pass does not stop. The lane is asked only
+  when the commit answer is yes and the `Alongside` column names a pair of
+  units.
 - `test-command.md`'s `## Before build` — which test command build uses, or
   Skip, asked by the main session before build's first dispatch and never
   handed up. An ordinary choice, so it carries a `(recommended)`. A command
@@ -492,22 +550,21 @@ here is the shape and the free-text slot, not a vocabulary.
 
 ### The reference run's stops
 
-Stops are counted on one run: ticket mirroring on, a design with no gaps, all
-three Step 0.5 questions asked, one fix round, then a merge. The table counts
-the stops from Step 0.5 to the merge, seven at most; Gate 1, intake, the
+Stops are counted on one run: ticket mirroring on, a design with no gaps, both
+Step 0.5 questions a track can ask asked, one fix round, then a merge. The table counts
+the stops from Step 0.5 to the merge, six at most; Gate 1, intake, the
 ticket-name menu and the test-command menu before build also wait in that
 run and are not counted here. The quotation
 beside each file name can be found word for word in that file.
 
 | # | Stop | Defined in | Asked when |
 |---|---|---|---|
-| 1 | Step 0.5 commit per unit | `stage-build.md` "Commit per unit." | Once for the whole run, before any unit starts. |
-| 2 | Step 0.5 parallel lane | `stage-build.md` "The parallel lane itself." | Only when two units' sides of the ownership map do not intersect. |
-| 3 | Step 0.5 glossary | `stage-build.md` "Which glossary terms join `.claude/cai-context.md`." | Only when the detail design's glossary has a term that passes the glossary check; one menu per four such terms, counted as one stop. |
-| 4 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
-| 5 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
-| 6 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
-| 7 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
+| 1 | Step 0.5 parallel lane | `stage-build.md` "The parallel lane itself." | Only when the commit answer is yes and two units' sides of the ownership map do not intersect. |
+| 2 | Step 0.5 glossary | `stage-build.md` "Which glossary terms join `.claude/cai-context.md`." | Only when the detail design's glossary has a term that passes the glossary check; one menu per four such terms, counted as one stop. |
+| 3 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
+| 4 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
+| 5 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
+| 6 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
 
 ## A menu that closes on its own
 
@@ -530,7 +587,7 @@ in this file does about one:
 | Gate 2's push menu (the squash included) | None of it runs. |
 | The triage menu (Gate 2, after the PR opens) | Left unanswered, even when the result lists ticked options: no verify runs, nothing is committed, and the merge is not run until it is answered. |
 | Gate 2's merge, the bash guard's permission prompt | Not a menu. Whether it ever closes on its own is untested; a merge that did not run is recorded as `### The merge` says, never retried. |
-| Step 0.5 commit per unit | Treated as no, so the parallel lane stays off. |
+| Step 0.5 commit per unit, standing alone with no track | Treated as no, so the parallel lane stays off. Under a track there is no such menu: the answer is Gate 1's. |
 | Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
 | Step 0.5 glossary | None of that menu's terms joins `.claude/cai-context.md`; for them the file is left untouched, and a glossary menu already answered still counts. |
 | The test command before build (`test-command.md`) | Treated as Skip: nothing is written to `.claude/cai.json`, no detected command is used, and build starts with `Test command: skipped (the menu timed out)`. |

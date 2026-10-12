@@ -1974,8 +1974,9 @@ def _preflight():
     check("preflight intake is quiet once the track is ignored",
           "track_ignored" in done.stdout and "NOT ignored" not in done.stdout)
 
-    # verify has nothing to read from state.md -- it only asks git whether there
-    # is a diff to review, so its fixtures are bare repos.
+    # verify reads state.md and the ledger only for the `commit_answer` line,
+    # which always passes, so its fixtures are still bare repos: it otherwise
+    # only asks git whether there is a diff to review.
     VERIFY_CLEAN = temp_repo("clean-branch")
     done = run_preflight_at("verify", VERIFY_CLEAN, os.path.join(VERIFY_CLEAN, "track"))
     check("preflight verify [clean tree, no base diff] -> 2", done.returncode == 2)
@@ -3014,7 +3015,11 @@ def _track_skill():
     #
     # 143 -> 144 (#376): one line has the main session save intake's
     # `## Intake document` as the track's intake.md. Pinned count 141 -> 142.
-    TRACK_SKILL_MAX = 144
+    #
+    # 144 -> 145 (#385): one line has the main session quote the
+    # `commit_answer` line in `build`'s and `verify`'s brief. Pinned count
+    # 142 -> 143.
+    TRACK_SKILL_MAX = 145
     TRACK_SKILL = f"{PLUGIN}/skills/track/SKILL.md"
     if os.path.isfile(TRACK_SKILL):
         track_text = read_text(TRACK_SKILL)

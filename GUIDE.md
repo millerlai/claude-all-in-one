@@ -206,7 +206,8 @@ restatement is a ledger line, not new code.
   the model is forbidden to invoke.** Check that before reaching for the flag.
 - Fixed, and the same failure from another side: stage procedures told
   whoever ran them to ask the user — `stage-design.md`'s decision rule,
-  `stage-build.md`'s commit-per-unit question, `stage-ship.md`'s confirmation.
+  `stage-build.md`'s commit-per-unit question (under a track, that consent now
+  comes from Gate 1, #385), `stage-ship.md`'s confirmation.
   Dispatched by the track, that runner is a subagent, and the platform removes
   `AskUserQuestion` from every subagent whatever its `tools:` field says. The
   instruction named a tool the runner did not have, so it answered the

@@ -1117,6 +1117,58 @@ def skipped_stages(track_dir):
     return True, "skipped_stages (%s)" % ("; ".join(skipped) or "none")
 
 
+# The marker a Gate 1 Approve writes at the very start of its ledger note.
+# Matched strictly and case-sensitively: reading a note the person never
+# marked as a yes is the unsafe error, reading a yes as a no only costs a
+# commit they can make themselves.
+_COMMIT_MARKER = re.compile(r"commit: (yes|no)(?!\w)")
+
+
+def commit_answer(track_dir, project_dir):
+    """Report-only, never blocks (#385): the commit answer the person gave at
+    Gate 1, read from the newest passed + human design record that matches the
+    design document as it stands. Anything this cannot read is a no -- the
+    label says why -- so a missing or prose note never turns into a commit.
+
+    Never raises: build and verify read state.md and the ledger far less than
+    the other stages do, and an information line must not turn into a
+    traceback."""
+    try:
+        row = state_row(track_dir, "design")
+        artifact = row[2] if row is not None and len(row) > 2 else ""
+        doc = (resolve(artifact, project_dir, track_dir)
+               if artifact not in ("", "—") else None)
+        if doc is None:
+            return True, ("commit_answer (unreadable: the design row names no "
+                          "document that exists)")
+        try:
+            with open(doc, "rb") as fh:
+                now = hashlib.sha256(fh.read()).hexdigest()
+        except (OSError, UnicodeDecodeError):
+            return True, ("commit_answer (unreadable: the design row's "
+                          "document cannot be read)")
+
+        matching = [r for r in ledger.records(track_dir, "design")
+                    if not r.get("malformed") and r.get("outcome") == "passed"
+                    and r.get("gate") == "human" and r.get("sha256") == now]
+        if not matching:
+            return True, ("commit_answer (unreadable: no Approve on the ledger "
+                          "matches the design row's document as it stands)")
+
+        newest = matching[-1]  # records() is in file order
+        note = newest.get("note")
+        found = _COMMIT_MARKER.match(note if isinstance(note, str) else "")
+        if found is None:
+            return True, ("commit_answer (unreadable: ledger line %d's note "
+                          "does not start with commit: yes or commit: no)"
+                          % newest["line"])
+        return True, "commit_answer (%s, ledger line %d)" % (found.group(1),
+                                                             newest["line"])
+    except (OSError, UnicodeDecodeError):
+        return True, ("commit_answer (unreadable: the track's state.md or "
+                      "ledger cannot be read)")
+
+
 def ship(track_dir, project_dir):
     row = state_row(track_dir, "verify")
     if row is None:
@@ -1201,6 +1253,10 @@ def main():
     # and UC8 asks for the ledger's condition on every stage, including the
     # ones that are already blocked for another reason.
     checks = list(STAGES[args.stage](args.track_dir, args.project_dir))
+    # Added here, for the same reason: build() and verify() each return early
+    # on several paths, and the answer must print whichever one was taken.
+    if args.stage in ("build", "verify"):
+        checks.append(commit_answer(args.track_dir, args.project_dir))
     checks.append(ledger_attempts(args.track_dir, args.stage))
     checks.append(ledger_intact(args.track_dir))
 
