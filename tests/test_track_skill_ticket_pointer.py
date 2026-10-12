@@ -175,8 +175,12 @@ def test_skill_md_body_is_136_lines():
     command before `build`'s dispatch, pointing at test-command.md's
     `## Before build`, which holds the menu and what a skip means for build
     and verify. TRACK_SKILL_MAX moved 142 -> 143 in the same change, keeping
-    the gap."""
-    assert _skill_body_lines() == 141
+    the gap.
+
+    141 -> 142 (#376): one line has the main session save intake's
+    `## Intake document` as the track's intake.md, which `verify` and
+    preflight read. TRACK_SKILL_MAX moved 143 -> 144, keeping the gap."""
+    assert _skill_body_lines() == 142
 
 
 # --- '## Human gates' still says what it has always said --------------------
