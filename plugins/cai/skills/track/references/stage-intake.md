@@ -18,6 +18,14 @@ no `Agent` (`architect.md:7`), and keeping it that way is the trade this makes. 
 question asked without having looked first spends the person's time on something
 you could have found yourself.
 
+When the brief carries a line starting `codemap: fresh`, start from
+`<top>/.cai/codemap/repo-map.md` and the shard files it names, each read by
+its exact path, or Grep `<top>/.cai/codemap/symbols.jsonl` with that one file
+as the path — a Grep over the directory finds nothing there. The index under
+`.cai/codemap/` is a pointer, not evidence: a claim about current state cites
+the original `file:line`. Any other line, or none, means Read/Grep/Glob as you
+would without it.
+
 Facts from outside this repo — how other products handle the same request, what
 a vendor's documentation promises — are part of the same look: search and fetch
 them yourself with `WebSearch`/`WebFetch` (`architect.md:7`), recording the URL

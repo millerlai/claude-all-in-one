@@ -17,3 +17,10 @@ provide it; this agent has no shell tool.
 - Do NOT propose fixes or refactors.
 - If the target is ambiguous, list all candidates ranked by likelihood.
 - Keep output terse: bullet list, no prose.
+- When the brief carries a line starting `codemap: fresh`, start from
+  `<top>/.cai/codemap/repo-map.md` and the shard files it names, each read by
+  its exact path, or Grep `<top>/.cai/codemap/symbols.jsonl` with that one
+  file as the path — a Grep over the directory finds nothing there. The index
+  under `.cai/codemap/` is a pointer, not evidence: a claim about current
+  state cites the original `file:line`. Any other line, or none, means
+  Read/Grep/Glob as you would without it.

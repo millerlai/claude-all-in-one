@@ -106,6 +106,7 @@ Tools, reachable any time:
 |---|---|
 | `/cai:debug` | Find the root cause of a bug before proposing any fix. |
 | `/cai:fix` | Fix a GitHub issue, the issues you pick from a list, a pull request's review threads, or one Jira ticket, and push the result with no stop in between: it pushes, opens pull requests and replies to review threads itself, and never merges. |
+| `/cai:codemap` | Build, refresh, check or query an optional index of the repository's files and symbols under `.cai/codemap/`; once it exists, the track hands the read-side agents its state line so they start from it instead of re-reading the same files. It ignores itself in git and can be deleted at any time. |
 | `/cai:refactor` | Restructure code without changing its behaviour; every one of Fowler's 72 named refactorings is also its own `/cai:<name>`. |
 | `/cai:git` | Run git and `gh` operations on the `chore` tier instead of the main session model. |
 | `/cai:chore` | Run a mechanical one-off — renames, formatting, lookups — on the `chore` tier. |

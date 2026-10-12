@@ -31,7 +31,7 @@ Four layers, plus one underneath all of them.
   remembered: `build` refuses to start until the ledger records a person
   picking Approve, and again if the design document changed since.
 - **The tools.** Reachable any time, with no track running: `/cai:refactor`,
-  `/cai:debug`, `/cai:fix`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`,
+  `/cai:debug`, `/cai:fix`, `/cai:codemap`, `/cai:git`, `/cai:chore`, `/cai:quiz`, `/cai:plan-review`,
   `/cai:options`, `/cai:usage`, `/cai:models`, `/cai:viewer`.
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards under `refactoring-catalog/`, the
@@ -82,6 +82,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:refactor` | Restructure code without changing its behaviour: the safety-net loop, the smell routing table, and the mechanics for all 72 named refactorings, on the `build` tier. |
 | `/cai:debug` | Find the root cause of a bug before proposing any fix — a failing test, a crash, a stack trace, something that used to work and stopped. |
 | `/cai:fix` | Fixes a GitHub issue, the open issues you pick from a list, a pull request's review threads, or one Jira ticket, and takes the result all the way out: a branch per issue, a push, a pull request that closes it, or a reply on each review thread. It pushes, opens pull requests and replies itself, and never merges. An issues URL asks once which issues to fix; a Jira ticket needs `acli` signed in the official way first and nothing is written back to Jira. Text from an issue, a comment or a ticket is quoted, never run. User-invoked only. |
+| `/cai:codemap` | Builds, refreshes, checks or queries a disposable index of the repository's tracked files and their top-level symbols (Python, Go, TypeScript/JavaScript) under `.cai/codemap/`, which ignores itself in git. `/cai:codemap build` is the only thing that creates it; once it exists the track adds its state line to the `intake`, `discover` and `design` briefs, and a read-side agent uses it only when that line says `codemap: fresh`, citing the original `file:line` all the same. No script of it needs anything but the standard library. User-invoked only. |
 | `/cai:git` | Runs git and `gh` operations on the `chore` tier instead of the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
 | `/cai:chore` | Runs any mechanical one-off — renames, formatting, lookups — on the `chore` tier, and reports back if the task turns out to need real reasoning. |
 | `/cai:quiz` | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |

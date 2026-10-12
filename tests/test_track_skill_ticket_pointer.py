@@ -184,8 +184,13 @@ def test_skill_md_body_is_136_lines():
     142 -> 143 (#385): one line has the main session quote the
     `commit_answer` line in `build`'s and `verify`'s brief and act on it,
     pointing at approval-gates.md's Gate 1. TRACK_SKILL_MAX moved 144 -> 145,
-    keeping the gap."""
-    assert _skill_body_lines() == 143
+    keeping the gap.
+
+    143 -> 144 on 2026-10-11 (context-engine-system, D2): one line has the
+    main session follow codemap-brief.md before `intake`, `discover` or
+    `design`'s dispatch. TRACK_SKILL_MAX stays 145, so the gap is one line
+    rather than two -- D2 decided to spend exactly that one line."""
+    assert _skill_body_lines() == 144
 
 
 # --- '## Human gates' still says what it has always said --------------------

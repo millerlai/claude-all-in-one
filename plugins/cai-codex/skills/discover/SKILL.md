@@ -10,8 +10,11 @@ Run the discover stage for: $ARGUMENTS
 
 The procedure lives in one place, read by whoever runs this stage — a
 track's subagent or this command:
-`<cai-root>/skills/track/references/stage-discover.md`. Read it
-in full and follow it.
+`<cai-root>/skills/track/references/stage-discover.md`. First, if
+`<top>/.cai/codemap/state.json` exists, follow
+`<cai-root>/skills/track/references/codemap-brief.md` yourself; you
+run this stage, so the line it yields is yours to act on. Read the stage
+reference in full and follow it.
 
 **Running this stage on its own writes nothing to any track's `state.md`.**
 There is no track underneath this command — the reference file's closing

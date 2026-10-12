@@ -109,6 +109,15 @@ name implies, what a similar project usually does, "standard practice".
 Catching yourself writing *typically*, *generally*, *should be able to*, or
 *presumably* means you are writing `UNVERIFIED` in a longer form.
 
+The codemap index is not a fourth source. When the brief carries a line
+starting `codemap: fresh`, start from `<top>/.cai/codemap/repo-map.md` and the
+shard files it names, each read by its exact path, or Grep
+`<top>/.cai/codemap/symbols.jsonl` with that one file as the path — a Grep over
+the directory finds nothing there. The index under `.cai/codemap/` is a
+pointer, not evidence: a claim about current state cites the original
+`file:line`. Any other line, or none, means Read/Grep/Glob as you would
+without it.
+
 **The decision rule.** Never resolve a choice silently in either direction.
 Writing your preference in is a decision the person never made; leaving
 something out because they did not ask for it is the same decision with the
