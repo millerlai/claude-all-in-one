@@ -7,6 +7,9 @@ is what lets an incremental update be compared byte for byte with a rebuild.
 Only files that have symbols appear in the map; every file, symbol-less or
 not, is in files.jsonl.
 """
+import hashlib
+import re
+
 CHARS_PER_TOKEN = 4
 BUDGET_TOKENS = 1000     # a constant: no requirement varies it
 TOLERANCE_TOKENS = 100
@@ -92,6 +95,30 @@ def _split(files, prefix, by_path, limit, groups):
         _split(inside, prefix + [name], by_path, limit, groups)
 
 
+_UNSAFE_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+MAX_SHARD_NAME = 100
+
+
+def _shard_names(groups):
+    """One file name per group, in group order. The readable `a--b` when it is
+    safe and no other group flattens to the same name (ignoring case, as
+    Windows and macOS file systems do); otherwise a bounded slug plus a hash of
+    the real path, so `a/b` and `a--b`, `Foo` and `foo`, or a chain of long
+    directory names never share a file or overflow a name limit."""
+    plain = ["--".join(prefix) or ROOT for prefix, _, _ in groups]
+    seen = {}
+    for name in plain:
+        seen[name.lower()] = seen.get(name.lower(), 0) + 1
+    names = []
+    for (prefix, _, _), name in zip(groups, plain):
+        if (seen[name.lower()] > 1 or len(name) > MAX_SHARD_NAME
+                or _UNSAFE_NAME.search(name) or name.endswith((".", " "))):
+            digest = hashlib.sha256("/".join(prefix).encode("utf-8", "replace")).hexdigest()[:8]
+            name = "%s~%s" % (_UNSAFE_NAME.sub("_", name)[:60], digest)
+        names.append(name)
+    return names
+
+
 def render(files: list, symbols: list, budget: int, tolerance: int) -> dict:
     """{"repo-map.md": text} when everything fits budget + tolerance, else
     {"repo-map.md": index, "packages/<dir>.md": shard, ...}."""
@@ -118,8 +145,7 @@ def render(files: list, symbols: list, budget: int, tolerance: int) -> dict:
                by_path, limit, groups)
 
     out, rows = {}, []
-    for prefix, group_files, text in groups:
-        name = "--".join(prefix) or ROOT
+    for (prefix, group_files, text), name in zip(groups, _shard_names(groups)):
         out["packages/%s.md" % name] = text
         count = sum(len(by_path[f["path"]]) for f in group_files)
         rows.append("- %s: %d files, %d symbols -> %s%s.md"

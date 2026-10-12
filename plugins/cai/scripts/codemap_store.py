@@ -8,6 +8,7 @@ turns it into one state line.
 import hashlib
 import json
 import os
+import stat
 import sys
 from typing import NamedTuple, Optional
 
@@ -17,6 +18,9 @@ import preflight  # noqa: E402
 
 INDEX_PARTS = (".cai", "codemap")
 SCHEMA_VERSION = 1
+# A data file this large is not one this tool wrote; refusing it keeps a
+# planted device, pipe or huge file from being read into memory.
+MAX_ARTIFACT_BYTES = 1 << 28
 STATE_NAME = "state.json"
 FILES_NAME = "files.jsonl"
 SYMBOLS_NAME = "symbols.jsonl"
@@ -65,17 +69,22 @@ def _write_self_ignore(top: str, target: str) -> None:
             fh.write(SELF_IGNORE_BODY)
 
 
+def _check_inside_repository(top: str) -> str:
+    """A tracked `.cai` symlink passes `tracked_inside` (git lists the link, not
+    a path under it) and would carry every read, write and sweep outside the
+    repository, past what typing `build` authorises."""
+    path = index_dir(top)
+    inside = os.path.join(os.path.realpath(top), *INDEX_PARTS)
+    if os.path.normcase(os.path.realpath(path)) != os.path.normcase(inside):
+        raise IndexUnreadable(".cai/codemap is not inside the repository")
+    return path
+
+
 def ensure_dir(top: str) -> str:
     """Returns the index directory with its `.gitignore` guaranteed `*\\n`."""
     if tracked_inside(top):
         raise IndexUnreadable(".cai/codemap holds tracked files")
-    path = index_dir(top)
-    # A tracked `.cai` symlink passes the check above (git lists the link, not
-    # a path under it) and would carry every write and every sweep outside the
-    # repository, past what typing `build` authorises.
-    inside = os.path.join(os.path.realpath(top), *INDEX_PARTS)
-    if os.path.normcase(os.path.realpath(path)) != os.path.normcase(inside):
-        raise IndexUnreadable(".cai/codemap is not inside the repository")
+    path = _check_inside_repository(top)
     os.makedirs(path, exist_ok=True)
     target = os.path.join(path, SELF_IGNORE_NAME)
     try:
@@ -107,14 +116,46 @@ def commit_state(top: str, state: dict) -> None:
 
 
 def _read(path):
+    # lstat, not open-then-fstat: a symlink, device or pipe is refused before it
+    # is opened. FileNotFoundError still travels as itself.
+    info = os.lstat(path)
+    if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_ARTIFACT_BYTES:
+        raise IndexUnreadable("%s is not a regular file of at most %d bytes"
+                              % (os.path.basename(path), MAX_ARTIFACT_BYTES))
     with open(path, "rb") as fh:
-        return fh.read()
+        data = fh.read(MAX_ARTIFACT_BYTES + 1)
+    if len(data) > MAX_ARTIFACT_BYTES:
+        raise IndexUnreadable("%s grew past %d bytes while it was read"
+                              % (os.path.basename(path), MAX_ARTIFACT_BYTES))
+    return data
+
+
+def _is_index_name(name) -> bool:
+    """state.json names the files it vouches for, and it is a file on disk like
+    any other: one name, or one name under `packages/`, never a way out."""
+    if not isinstance(name, str):
+        return False
+    parts = name.split("/")
+    if not (len(parts) == 1 or (len(parts) == 2 and parts[0] == "packages")):
+        return False
+    return all(p not in ("", ".", "..", STATE_NAME) and not set(p) & set("\\:\0")
+               for p in parts)
+
+
+def _records(blob: bytes) -> list:
+    """The lines of a JSONL file. Split on `\\n` only: `json.dumps` escapes a
+    newline inside a record but leaves U+2028, U+2029 and U+0085 raw, and
+    `str.splitlines` would cut a record at each of them."""
+    parts = blob.decode("utf-8").split("\n")
+    if parts and parts[-1] == "":
+        parts.pop()
+    return parts
 
 
 def load(top: str) -> Optional[Index]:
     """None when there is no state file; raises IndexUnreadable when the state
     file or any file it vouches for cannot be trusted."""
-    root = index_dir(top)
+    root = _check_inside_repository(top)
     try:
         raw = _read(os.path.join(root, STATE_NAME))
     except FileNotFoundError:
@@ -130,6 +171,9 @@ def load(top: str) -> Optional[Index]:
         raise IndexUnreadable("state.json has the wrong shape or schema_version")
     blobs = {}
     for name, digest in state["artifacts"].items():
+        if not _is_index_name(name):
+            # The name itself is not echoed: it came from a file we do not trust.
+            raise IndexUnreadable("state.json names a file outside the index directory")
         try:
             data = _read(os.path.join(root, *name.split("/")))
         except OSError:
@@ -139,11 +183,10 @@ def load(top: str) -> Optional[Index]:
         blobs[name] = data
     try:
         files = {}
-        for line in blobs.get(FILES_NAME, b"").decode("utf-8").splitlines():
+        for line in _records(blobs.get(FILES_NAME, b"")):
             record = json.loads(line)
             files[record["path"]] = record
-        symbols = [json.loads(line)
-                   for line in blobs.get(SYMBOLS_NAME, b"").decode("utf-8").splitlines()]
+        symbols = [json.loads(line) for line in _records(blobs.get(SYMBOLS_NAME, b""))]
     except (ValueError, KeyError, TypeError, UnicodeDecodeError):
         raise IndexUnreadable("a data file holds a line that is not a record")
     return Index(state, files, symbols)

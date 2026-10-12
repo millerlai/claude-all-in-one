@@ -132,6 +132,10 @@ def update(top: str) -> Optional[Result]:
     """None, with nothing written, when there is no index: only a person's
     `build` creates one. A damaged index is rebuilt in full."""
     facts = inventory.inventory(top)
+    # Before load, not only in ensure_dir: a state.json that is itself tracked
+    # came with the repository, and nothing in it may be parsed.
+    if store.tracked_inside(top):
+        raise store.IndexUnreadable(".cai/codemap holds tracked files")
     try:
         previous = store.load(top)
     except store.IndexUnreadable:

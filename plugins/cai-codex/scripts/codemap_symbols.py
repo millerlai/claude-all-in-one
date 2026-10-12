@@ -25,7 +25,15 @@ def _failed(reason):
     return Extraction([], [], None, None, reason)
 
 
+# The map shows a signature for orientation. Without a cap one minified line
+# becomes a signature as long as the file, and every later symbol in that
+# shard falls off the end of the map behind it.
+MAX_SIGNATURE = 200
+
+
 def _record(language, path, qualified, kind, start, end, signature, backend, confidence):
+    if len(signature) > MAX_SIGNATURE:
+        signature = signature[:MAX_SIGNATURE - 3] + "..."
     return {"id": "%s:%s:%s" % (language, path, qualified),
             "name": qualified.rsplit(".", 1)[-1], "qualified_name": qualified,
             "kind": kind, "path": path, "start_line": start, "end_line": end,
