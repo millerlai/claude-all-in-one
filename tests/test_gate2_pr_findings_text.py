@@ -288,10 +288,38 @@ def test_the_merge_is_a_list_and_one_bare_command_not_a_menu(plugin_root):
     flat = _flat(sec)
     assert "Suggest Stop: <reason>" in flat
     assert "Stop here means the prompt was answered No" in flat
-    assert "a single Bash call whose whole command is `gh pr merge <n>`" in flat
-    assert "no wrapper" in flat and "no new flags" in flat
+    assert ("a single Bash call whose whole command is `gh pr merge <n> "
+            "--squash --match-head-commit <sha>`") in flat
+    assert "no wrapper" in flat and "no flag beyond these two" in flat
+    assert "no new flags" not in flat
+    assert "never the `pr-head` value" in flat
+    # AC4
+    assert ("Whether the guard's prompt appears depends on Claude Code's "
+            "permission mode:") in flat
+    assert "- `default`: it appears." in flat
+    assert "- `auto`: it appears." in flat
+    assert "- `dontAsk`: it does not appear, and the call is denied." in flat
+    assert ("- A `-p` run with no `--permission-prompt-tool`: it does not "
+            "appear, and the call is denied.") in flat
+    assert "- `acceptEdits`: it appears." in flat
+    assert "- `bypassPermissions`: it appears." in flat
+    assert ("- `plan`: not verified. In plan mode Claude declined to run the "
+            "merge command, so the prompt was never reached.") in flat
+    assert ("The `acceptEdits` and `bypassPermissions` entries were observed "
+            "in terminal sessions; the VS Code extension was not checked.") in flat
     assert "pr-head" in flat
     assert "Merged PR #<n>" in flat and "`--gate human`" in flat
+
+
+@pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
+def test_the_merge_command_carries_a_method_flag_and_the_checked_head(plugin_root):
+    # #372: gh refuses a merge with no method flag when it cannot prompt, and
+    # without --match-head-commit it merges whatever the head is by then.
+    flat = _flat(_sub(SUBSECTIONS[4], plugin_root))
+    head = "whose whole command is `"
+    command = flat[flat.index(head) + len(head):].split("`", 1)[0]
+    assert re.search(r"(?<!\S)--(?:merge|rebase|squash)(?!\S)", command), command
+    assert "--match-head-commit" in command, command
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
@@ -469,3 +497,8 @@ def test_merge_menu_lists_what_was_not_fixed_and_the_guard_cases():
     assert "A re-look that still found no check runs is not one of these" \
         in flat
     assert "If `gh pr merge` itself fails, relay the first line" in flat
+    assert ("when `sha` and `pr-head` differ, the line `The pull request's "
+            "head is no longer the commit that was checked, so GitHub will "
+            "refuse this merge.`") in flat
+    assert "since the merge would take the head, not the commit that was " \
+           "checked" not in flat

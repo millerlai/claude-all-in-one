@@ -240,7 +240,8 @@ the `gh pr create` or `gh pr edit`, with the squash message and the PR
 description shown in full above it; after the PR opens, a triage menu (only
 when something is worth fixing and rounds are left; with two to four findings
 you tick the ones to fix) follows, and then the list of what is still open and
-a bare `gh pr merge` that the permission prompt asks you about, so nothing
+one `gh pr merge <n> --squash --match-head-commit <sha>`, `<sha>` being the
+commit that was checked, that the permission prompt asks you about, so nothing
 merges before you have read the list. The ticket update at ship is not asked
 about at all. Whether to close the issue is not
 asked here at all — that comes later, at `/cai:track done`, once the track

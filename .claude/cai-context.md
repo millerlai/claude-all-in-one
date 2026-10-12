@@ -76,6 +76,9 @@ or specs, and only concepts specific to this project.
 **Recall@N**: 一項任務裡應該找到的檔案，有多少比例出現在查詢結果前 N 個不同的檔案中，再對所有任務取平均。
 **純 Grep 基準（plain-Grep baseline）**: 不用索引、只靠依詞搜尋行數排序所得的檔案順序，用來和索引的查詢結果比較。
 **commit 答案**: 本人在 track 的 Gate 1 選「核准」或「核准，但不 commit」時一併給出的同意與否，決定 build 和 verify 能不能在這條分支上做本地 commit。
+**合併清單（merge list）**: Gate 2 合併指令前、同一則訊息裡的純文字清單，列出還沒修的發現與合併前該知道的事；守門程式的提示看不到它。
+**合併指令**: Gate 2 合併小節規定要跑的那一個 Bash 指令，帶合併方式旗標與檢查過的提交，由守門程式的提示取得本人同意。
+**override 錨點（override anchor）**: 產生 Codex 檔時逐字比對的一句話，必須在來源文件裡恰好出現一次，Codex 版才能據此替換。
 
 ## Process
 
