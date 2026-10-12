@@ -1,5 +1,39 @@
 # Changelog
 
+## v1.52.0 — 2026-10-12
+
+This release adds `/cai:codemap`, an optional index of a repo that intake, discover and design can start from, and moves a track's commit question from build to the design approval at Gate 1.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.51.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.51.0 to 1.52.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- Finish any track that has passed Gate 1 before updating if you can. Its design approval carries no commit answer, so after the update it reads as "no": build makes no per-unit commits for the units still to do, and `ship` stops on tracked files with uncommitted changes until you commit them yourself.
+- A track whose `intake` is done but has no `.claude/track/<feature>/intake.md` is stopped by the `discover` and `design` preflight until the intake report is saved there.
+- The new skill changes nothing in a repo that has no index.
+
+### Added
+
+- `/cai:codemap build` creates an optional, disposable index of a repo's tracked files and their top-level declarations in `.cai/codemap/`, which git ignores. Python is read with `ast`; Go and TypeScript/JavaScript by line patterns, and those entries are marked as heuristic. (#386)
+- Before `intake`, `discover` or `design` runs, a track refreshes an index that already exists and passes its status line on. The agents use the index only when that line says `fresh`, and only as a pointer, not as evidence. Only a person typing `/cai:codemap build` creates an index. (#386)
+- Codex gets the same skill as `$codemap`; that Codex can run its scripts has not been checked yet. (#386)
+
+### Track
+
+- Gate 1 has four options: Approve, Approve without commits, Changes requested, Reject. Neither approving option is marked recommended. (#387)
+- The commit question moved there from build: under a track, `build` no longer asks whether to commit each unit. Approve makes one local commit per verified unit and pushes nothing before Gate 2; Approve without commits leaves the changes in the working tree, and `ship` stops until you commit them. Standalone `/cai:build` still asks once. (#387)
+- The answer is read from the Gate 1 ledger row and printed by preflight as `commit_answer`. A note can no longer forge a second `commit_answer` line with a newline, and a loosely worded note, an Approve row for a different file with the same hash, or a malformed ledger line after the newest Approve reads as unreadable, which counts as "no". Build commits only when the answer is yes. (#388)
+- `intake` now saves its report as `.claude/track/<feature>/intake.md`, written by the main session before the approval menu. `discover` and `design` stop if a done intake has no readable file or an invalid verification-levels table. (#384)
+- A pending-question "round" is now defined: only a hand-up that no fixed step asks for, or Changes requested at the stance approval or Gate 1, spends one of the three rounds. `track_state.py status` prints `N of 3 rounds spent`, and `pending.py` gains `--stop` to record a prescribed stop without spending one. (#381)
+- A designer dispatched by a track runs `plan-review` by dispatching `architect` with the skill file, the document and the requirements, but not its own conclusions. Run alone, the main session invokes the skill. (#380)
+
+### Fix
+
+- `/cai:fix <issues URL>` shows one checkbox per issue, up to 15 with four per question and a shortcut that ticks all recommended ones, instead of one two-option question with every other choice typed by number. (#378)
+- Subagent output tokens in `/cai:usage` and the ledger's `agents` column were undercounted by about two orders of magnitude on Claude Code 2.1.296 transcripts, because only a request's first line was kept. Each request is now counted at its largest `output_tokens`; records written earlier are not corrected. (#383)
+
 ## v1.51.0 — 2026-10-11
 
 This release adds `/cai:fix`, a command that fixes an issue, a Jira ticket, a set of chosen open issues, or a pull request's review threads all the way to a pushed result without stopping for approval along the way. It also fixes a track push gate that hid skipped stages, a design-fix step that rewrote whole documents, a viewer time format, and reorganizes README.md.
