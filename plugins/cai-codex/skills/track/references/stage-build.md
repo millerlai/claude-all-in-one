@@ -75,8 +75,9 @@ anything is started. Under a track the first pass is Step 0, those four
 lines, and Step 1's state table (the lane question needs its `Alongside`
 column); it then ends with all the questions below in one `## Pending
 questions` report and nothing else done: no unit starts, no commit is made.
-That is one round of `references/pending-questions.md`'s three, and the
-main session re-dispatches you with the answers. Up to three decisions, one
+That is one hand-up, a stop that `references/pending-questions.md` does not
+count as one of its three rounds, and the main session re-dispatches you with
+the answers. Up to three decisions, one
 menu per turn, and the glossary decision can take several menus —
 `references/approval-gates.md` holds the shape, and none is a sentence the
 person types a word back into:

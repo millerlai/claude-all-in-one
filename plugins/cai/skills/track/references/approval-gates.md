@@ -68,7 +68,7 @@ for this one — the stance approval is not Gate 1.
 | Option | What it does |
 |---|---|
 | Approve | Where the design row's document has a `## Status` of its own (a diagnosis, a legacy high-level design), write `approved <YYYY-MM-DD>` into it **first**, then append the ledger row; elsewhere, only the row. The row is `--gate human --artifact <that document>`. `build` may start. |
-| Changes requested | Re-dispatch `design` with what they said, quoted. Counts as one of that stage's three rounds. |
+| Changes requested | Re-dispatch `design` with what they said, quoted. Counts as a round (`pending-questions.md`, "What counts as a round"). |
 | Reject | The design stops here. Record the outcome and what was rejected; build nothing. |
 
 **That order is not a preference.** `ledger.py append --artifact` takes a
@@ -435,7 +435,9 @@ the Step 0.5 answer once verify is recorded `passed`:
 
 `SKILL.md` names exactly two gates and this file does not add a third. These
 stops already exist in their own stage references; what they take from here
-is only the shape — a menu, never a sentence to type a word back into:
+is only the shape — a menu, never a sentence to type a word back into. None
+of them spends one of `pending-questions.md`'s three rounds: that file's
+"What counts as a round" is the definition, and these are its stops:
 
 - `stage-intake.md` Step 5 — the problem statement, the route Step 2 derived
   (broken, or never there) with its evidence, and the recommended approach,
@@ -460,7 +462,7 @@ is only the shape — a menu, never a sentence to type a word back into:
   detail design whose glossary has terms that pass the glossary check, which
   of them join `.claude/cai-context.md`. Up to three decisions, one menu per
   turn, the glossary one in as many menus of up to four terms as it needs;
-  all handed up from build's first pass in one round, before any unit
+  all handed up from build's first pass in one hand-up, before any unit
   starts. The lane is asked only when the `Alongside` column names a pair
   of units.
 - `test-command.md`'s `## Before build` — which test command build uses, or

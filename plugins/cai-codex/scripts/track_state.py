@@ -133,8 +133,11 @@ def pending_lines(track_dir):
         return ["pending: %s is for %s, which is already %s; stale, ignored"
                 % (pending.FILE_NAME, data["stage"], status)]
     answered = sum(1 for q in data["questions"] if q["status"] == "answered")
-    lines = ["pending: %s, round %d, %d of %d answered"
-             % (data["stage"], data["round"], answered, len(data["questions"])),
+    # The file's `round:` is the rounds spent, not an index: a prescribed stop
+    # spends none, so "round 1" would claim a count the stage did not make.
+    lines = ["pending: %s, %d of %d rounds spent, %d of %d answered"
+             % (data["stage"], data["round"], pending.MAX_ROUND, answered,
+                len(data["questions"])),
              "  file: %s" % path]
     for q in data["questions"]:
         # text starts "N. <the decision>"; the number is printed by us.

@@ -42,7 +42,8 @@ and got nothing back", which is a different and much worse claim.
 questions exist only in this conversation, and a session that ends first
 takes them along. Feed the stage's whole report on stdin to
 `<cai> pending start --track-dir
-.claude/track/<feature> --stage <stage> --round <1-3> --report-file -`,
+.claude/track/<feature> --stage <stage> --round <n> [--stop] --report-file -`
+(`<n>` and `--stop` are set by "What counts as a round" below),
 behind a quoted heredoc delimiter the report does not contain
 (`<<'CAI_PENDING_EOF'`), so no file is written and none is left to delete
 (#345). Only a shell with no heredoc, such as PowerShell, takes a file:
@@ -118,13 +119,37 @@ instead.
    with `record_start_command.py`), run exactly that command, the person's
    answers filled in: the stage cannot run it, and without it the same
    question is handed up again.
-3. **Three rounds at most.** A fourth means the stage cannot be specified by
-   asking: record `failed`, `--note` naming what stayed open.
+3. **Three rounds at most.** A fourth counted round, as the next section
+   defines one, means the stage cannot be specified by asking: record
+   `failed`, `--note` naming what stayed open. Stops are not counted and have
+   no limit of their own.
+
+## What counts as a round
+
+A round is a hand-up the stage's own procedure did not call for, or a
+rejection of what it handed over. Exactly two things count:
+
+- A hand-up for something the stage found it could not settle and that no
+  fixed step of its reference asks (`stage-design.md`'s "What you could not
+  pin down", a command the designer cannot run itself).
+- "Changes requested" at the stance approval or at Gate 1.
+
+Every other hand-up is a **stop**: one the procedure prescribes, which spends
+no round however many a stage has. That is every item of
+`approval-gates.md`'s "The other stops, which are not gates", and Approve or
+Reject at Gate 1 and at the stance approval. One hand-up carrying several
+questions is one hand-up: it counts once if it counts at all.
+
+`--round` takes the number of rounds spent so far, this hand-up included. A
+counted hand-up passes the previous number plus one (1 to 3). A stop passes
+the previous number unchanged (0 when none is spent) and adds `--stop`, which
+is what lets `pending.py` accept `0`. `track_state.py status` prints that
+number as `N of 3 rounds spent`, so a resumed session counts from it.
 
 ## Resuming a saved round
 
 `track_state.py status` prints a `pending:` section after `next:` when the
-track holds a `pending.md`: the stage, the round, how many questions are
+track holds a `pending.md`: the stage, the rounds spent, how many questions are
 answered, one line per question, and `on:`, the branch and short HEAD as
 they are now — the file does not store them, so compare `on:` with the
 branch the track belongs to and say so if they differ. Do not run the

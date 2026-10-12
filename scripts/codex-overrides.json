@@ -744,10 +744,10 @@
     {
       "target": "skills/track/references/stage-design.md",
       "anchor": [
-        "   `AskUserQuestion`. At most three rounds."
+        "   `AskUserQuestion`. At most three review passes."
       ],
       "replacement": [
-        "   the question tool. At most three rounds."
+        "   the question tool. At most three review passes."
       ],
       "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
     },

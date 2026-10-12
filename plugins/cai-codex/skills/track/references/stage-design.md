@@ -11,6 +11,8 @@ subagent, and no subagent can ask the person directly here either.
 Each mention of the question tool below then means: finish
 what the answer does not block, and end the report with the
 `## Pending questions` section `references/pending-questions.md` specifies.
+Most of those hand-ups are fixed steps of this procedure and spend none of
+that file's three rounds; its "What counts as a round" says which do.
 Standing alone you are the main session — ask directly.
 
 The failure this stage exists to catch is a design that arrives already
@@ -247,8 +249,9 @@ full, and lower them when the answer is no.
    afterward. Name every command in full, every tagged log's `file:line`
    and the line to add there, every Step 4 temporary change's `file:line`
    and its edit, and which outputs to bring back — everything this pass can
-   already name, in one item, since each hand-up spends one of
-   `pending-questions.md`'s three rounds. Told to run it: add the logs and
+   already name, in one item, since no fixed step asks for it and each such
+   hand-up therefore spends one of `pending-questions.md`'s three rounds.
+   Told to run it: add the logs and
    temporary changes, run the commands, revert both back to what they were,
    grep the tag for zero hits, redact the output per `debug/SKILL.md`'s
    redact rule, and carry that output unchanged into the next pass. Refused,
@@ -432,7 +435,7 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    `plan-review` (see "The gate every mode shares" for how it runs) against
    the document with the high-level skeleton, running
    lens 8 (Precision) last. Fix Blocker/Major, take section 4 to
-   the question tool. At most three rounds.
+   the question tool. At most three review passes.
 6. **Stop.** Hand it over with `## Status` still `draft`. Only the user's
    approval changes it to `approved <YYYY-MM-DD>` — never set it yourself.
    That approval is the track's first human gate, and it is asked as a menu
@@ -500,7 +503,7 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    first, fix and re-run until 0. Then `plan-review` (see "The gate every
    mode shares" for how it runs) with the detail skeleton, lens 8 first. Blocker/Major → fix and re-probe *and* re-review;
    section 4 → the question tool; Minor → leave documented. At most three
-   rounds; past that, stop and report what's open with a recommendation.
+   review passes; past that, stop and report what's open with a recommendation.
 
 ## Mode: Delta
 
