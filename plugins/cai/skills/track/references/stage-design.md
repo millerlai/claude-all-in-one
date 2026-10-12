@@ -311,7 +311,10 @@ full, and lower them when the answer is no.
    the design row's document, and the Approve fingerprints it. Going to
    Detail, it is a stop inside `design`, like the stance approval — the date
    goes into `## Status`, no ledger row — and Gate 1 comes after Detail, on
-   the detail design the design row then names.
+   the detail design the design row then names. With Detail after it the menu
+   has the stance approval's three options; going to `build` this stop is
+   Gate 1 and has four. Say which in the report, as `Next: Detail` or
+   `Next: build`, so the main session asks the right menu.
 
 ## Mode: Stance
 
@@ -445,7 +448,7 @@ runs Stance then Decisions instead. The procedure below is unchanged.
 6. **Stop.** Hand it over with `## Status` still `draft`. Only the user's
    approval changes it to `approved <YYYY-MM-DD>` — never set it yourself.
    That approval is the track's first human gate, and it is asked as a menu
-   with three options: `references/approval-gates.md` holds them, and says
+   with four options: `references/approval-gates.md` holds them, and says
    who writes the date once Approve comes back.
    Before handing over, check the draft carries no signature, schema, file
    path for code that doesn't exist, pinned version, or pseudocode — those

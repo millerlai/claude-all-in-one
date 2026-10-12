@@ -136,8 +136,9 @@ rejection of what it handed over. Exactly two things count:
 
 Every other hand-up is a **stop**: one the procedure prescribes, which spends
 no round however many a stage has. That is every item of
-`approval-gates.md`'s "The other stops, which are not gates", and Approve or
-Reject at Gate 1 and at the stance approval. One hand-up carrying several
+`approval-gates.md`'s "The other stops, which are not gates", and Approve,
+Approve without commits or Reject at Gate 1, and Approve or Reject at the
+stance approval. One hand-up carrying several
 questions is one hand-up: it counts once if it counts at all.
 
 `--round` takes the number of rounds spent so far, this hand-up included. A
@@ -153,7 +154,10 @@ track holds a `pending.md`: the stage, the rounds spent, how many questions are
 answered, one line per question, and `on:`, the branch and short HEAD as
 they are now — the file does not store them, so compare `on:` with the
 branch the track belongs to and say so if they differ. Do not run the
-stage's preflight and dispatch again. Ask the first question marked `open`
+stage's preflight and dispatch again. One exception: for a `build` or
+`verify` round, run that stage's preflight once more before step 2's
+dispatch, only to read its `commit_answer` line, as `approval-gates.md`'s
+Gate 1 says; nothing else it prints is acted on. Ask the first question marked `open`
 as steps 0 and 1 say, taking its text from `pending.md`; once none is open,
 go straight to step 2. A `pending:` line that ends `ignored` — the file
 could not be read, is in a format this version does not know, or belongs to

@@ -10,8 +10,9 @@ whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends
 architecture decisions to the user, then mean: finish what the answer does
 not block and end the report with the `## Pending questions` section
 `references/pending-questions.md` specifies. Step 0.5 blocks every unit, so
-under a track the first pass stops there: no unit starts until the answers
-come back. Standing alone you are the main session — ask directly.
+under a track the first pass stops there when it has a question to hand up:
+no unit starts until the answers come back; with none, it does not stop.
+Standing alone you are the main session — ask directly.
 
 Long runs do not fail gracefully. A session limit, a token limit, or a
 dropped connection lands wherever it lands, and the cost is set entirely by
@@ -65,30 +66,42 @@ them can run alongside another, the verify command each will have to pass,
 and anything in the document you already know you will have to ask about.
 A long pass nobody sized is a long pass nobody agreed to.
 
-Then up to three answers, once for the whole run and not per unit, before
-anything is started. Under a track the first pass is Step 0, those four
-lines, and Step 1's state table (the lane question needs its `Alongside`
-column); it then ends with all the questions below in one `## Pending
+Then up to three answers standing alone and up to two under a track, once for
+the whole run and not per unit, before anything is started. Under a track the
+first pass is Step 0, those four lines, and Step 1's state table (the lane
+question needs its `Alongside` column); when there is a lane or glossary
+question to ask it then ends with all the questions below in one `## Pending
 questions` report and nothing else done: no unit starts, no commit is made.
-That is one hand-up, a stop that `references/pending-questions.md` does not
-count as one of its three rounds, and the main session re-dispatches you with
-the answers. Up to three decisions, one
-menu per turn, and the glossary decision can take several menus —
-`references/approval-gates.md` holds the shape, and none is a sentence the
-person types a word back into:
+With no question to hand up, the first pass does not stop: it carries on from
+Step 1 and puts the four lines in its report. That is one hand-up, a stop that
+`references/pending-questions.md` does not count as one of its three rounds,
+and the main session re-dispatches you with the answers. Up to three
+decisions standing alone, up to two under a track, one menu per turn, and the
+glossary decision can take several menus — `references/approval-gates.md`
+holds the shape, and none is a sentence the person types a word back into:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
   procedure needs one commit per verified unit, and the parallel lane below
-  cannot work at all without them. Ask once for the whole run: the answer
+  cannot work at all without them. Under a track this is never asked: the
+  person answered it at Gate 1, and the answer is the `commit_answer` line
+  `preflight.py build` printed for this build — quoted in your brief when
+  the track dispatched you, or in the preflight output you read yourself
+  when you, the main session, run this file under a track. `yes, ledger
+  line <n>` is yes; `no, …`, `unreadable: …`, or no `commit_answer` line
+  at all is no, and the report says which. A saved report carried in your brief repeats the line its own pass acted on: that is a trace, and the line you act on is the one the dispatch quotes outside that report. Repeat that line verbatim, on a
+  line of its own, in every report you hand back — in a report that ends
+  with `## Pending questions`, above that section. That answer
   covers the verify stage's changes too, and the person is not asked again
-  there. If yes, the main session commits verify's changes by the paths
-  verify reports (`references/approval-gates.md`, "Verify's changes"). If no,
-  the parallel lane is off and an interruption costs a revert — say so
+  there: if yes, the main session commits verify's changes by the paths
+  verify reports (`references/approval-gates.md`, "Verify's changes").
+  Standing alone, ask once for the whole run. Either way, if the answer is
+  no, the parallel lane is off and an interruption costs a revert — say so
   plainly — and every change stays in the working tree, build's and
-  verify's: `ship`'s Step 1 stops on the tracked ones (`clean_tree`) and the
-  person commits.
+  verify's: `ship`'s Step 1 stops on the tracked ones (`clean_tree`) and
+  the person commits.
 - **The parallel lane itself.** Asked only when the `Alongside` column names a
-  pair of units whose sides of the ownership map do not intersect; with no
+  pair of units whose sides of the ownership map do not intersect, and the
+  commit answer is yes; with no
   such pair there is no menu, and the four lines say "sequential" in one
   line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
   four small units it is not worth it. Recommend, let the user decide,
@@ -129,11 +142,12 @@ person types a word back into:
   "Merge none"; with none passed there is no menu, and the rejected list
   goes in the report. Say in the four opening lines how many glossary
   menus there will be, and fold them all into the same
-  `## Pending questions` report as the other two.
+  `## Pending questions` report as the other questions.
 
 A Step 0.5 menu that closes on its own leaves that answer unmade, not
 defaulted: `references/approval-gates.md`'s new section names the fallback
-each takes — commit per unit is treated as no, so the parallel lane stays
+each takes — commit per unit, asked only standing alone, is treated as no,
+so the parallel lane stays
 off and falls back to sequential, and a glossary menu falls back to merge
 none for its own terms, while a glossary menu already answered stands. The
 run states which menus timed out, by name, and build proceeds on whichever
@@ -173,9 +187,13 @@ Step 0.5's glossary answer belongs here too: once decided, record the terms
 that ended up merged, the definition and heading each will write, any
 definition each replaces, and every term the check rejected with its
 reason — a resumed session needs this at Step 6 without re-asking.
-Record the other two answers the same way (commit yes or no, and whether a
-lane was approved). A re-dispatch after any later stop reads all three from
-the notes and never asks Step 0.5 again. A `Test command: skipped` line is
+Record the other two answers the same way: whether a lane was approved, and
+the commit answer — under a track, the `commit_answer` line this build acted
+on, copied verbatim; standing alone, yes or no. A re-dispatch after any later
+stop reads the lane and glossary answers from the notes and never asks Step
+0.5 again. Standing alone, a resumed session reads the commit answer from the
+notes too; under a track the commit answer is taken from this run's
+`commit_answer` line every time, and the line wins when the notes disagree. A `Test command: skipped` line is
 copied into the notes verbatim, on a line of its own: the main session reads
 it there before any later dispatch of this build or of verify, and asks no
 more.
@@ -324,7 +342,7 @@ Only when all three hold, otherwise sequential, silently:
 1. The schedule's `Alongside` column names the other unit.
 2. Their two sides of the ownership map do not intersect — checked by
    reading both sets; the map wins over `Alongside` when they disagree.
-3. Commit permission was given in Step 0.5.
+3. The commit answer is yes: Gate 1's, from the `commit_answer` line, under a track; Step 0.5's yes standing alone.
 
 Two lanes, never three — `model-selection.md` caps parallel work at 2–4 and
 prefers sequential; two is the conservative end of that range.
@@ -511,7 +529,8 @@ Units all green is not done:
    Exit 0 means the project's `.gitignore` ignores it: add and commit
    nothing — never `git add -f`, never an edit to `.gitignore` — and say
    in the report that it was written but will not reach the PR. Exit 1:
-   when Step 0.5 answered commit-per-unit yes, commit this write on its
+   when the commit answer is yes (Gate 1's under a track, Step 0.5's
+   standing alone), commit this write on its
    own by its path, the same way Step 3's commit does; otherwise leave it
    in the working tree. Any other exit: commit nothing, and quote git's
    first line in the report.
@@ -545,6 +564,7 @@ of the ledger's `--note`; you write no track file at all.
 - what was built
 - which units ran in parallel
 - every deviation
+- the `commit_answer` line this run acted on, verbatim, or a line saying there was none
 - anything skipped, the test command included when it was
 - every glossary definition replaced, old text quoted, and every glossary
   term the check kept out, with its reason

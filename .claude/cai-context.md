@@ -75,6 +75,7 @@ or specs, and only concepts specific to this project.
 **退回句（fallback sentence）**: 讀端文字裡共用的那一句，說明沒有可用的狀態行時就照原本的方式讀檔與搜尋。
 **Recall@N**: 一項任務裡應該找到的檔案，有多少比例出現在查詢結果前 N 個不同的檔案中，再對所有任務取平均。
 **純 Grep 基準（plain-Grep baseline）**: 不用索引、只靠依詞搜尋行數排序所得的檔案順序，用來和索引的查詢結果比較。
+**commit 答案**: 本人在 track 的 Gate 1 選「核准」或「核准，但不 commit」時一併給出的同意與否，決定 build 和 verify 能不能在這條分支上做本地 commit。
 
 ## Process
 

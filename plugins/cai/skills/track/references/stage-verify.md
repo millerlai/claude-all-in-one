@@ -9,8 +9,10 @@ subagent, and the platform gives no subagent an interactive tool. Every place be
 requirement decision, a parked proposal, `provenance.py` exiting 2 — then
 means: stop there, and end the report with the `## Pending questions` section
 `references/pending-questions.md` specifies. The main session puts it to the
-person and re-dispatches this stage with the answer. Standing alone you are
-the main session — ask directly. Re-dispatched with an answer: when the
+person and re-dispatches this stage with the answer. Repeat the `commit_answer`
+line from your brief verbatim, on a line of its own, in every report you hand
+back — in a report that ends with `## Pending questions`, above that section. A saved report carried in your brief repeats the line its own pass acted on: that is a trace, and the line you repeat is the one the dispatch quotes outside that report.
+Standing alone you are the main session — ask directly. Re-dispatched with an answer: when the
 round's report came from Step 0.5's stop, no lens has run and there are no
 findings to take, so start again at Step 0; when the answer is to record the
 start candidate, rerun Step 0.75, the runtime check, the synthesis and
@@ -290,6 +292,7 @@ of the ledger's `--note`; you write no track file at all, with one exception:
 - the path of the last round's `manifest.json`, the `manifest:` line `check`
   printed, or `none` and why when `check` exited 4 or 5; the main session
   passes it as the verify ledger row's `--artifact`
+- the `commit_answer` line this run acted on, verbatim, or a line saying there was none
 - what was fixed
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered
@@ -301,7 +304,8 @@ of the ledger's `--note`; you write no track file at all, with one exception:
 - every path you changed or added, new test files included, one per line,
   across every round of this stage (a re-dispatch takes the earlier rounds'
   paths from the report it was given), and a line saying you did not commit:
-  you cannot. Step 0.5 of `stage-build.md` decided who does. After a
+  you cannot. Under a track, the commit answer the person gave at Gate 1
+  decides who does. After a
   commit "yes" the main session adds exactly those paths
   (`references/approval-gates.md`, "Verify's changes, inside a track"); after
   "no" they stay in the working tree, `ship`'s Step 1 `clean_tree` check stops
