@@ -62,6 +62,7 @@ or specs, and only concepts specific to this project.
 **處置（disposition）**: The verdict the tool gives an issue before any work starts, such as fix it, finish an interrupted push, or skip because a pull request is already open.
 **起點 ref（starting ref）**: The branch, or commit when there is no branch, the person was on when they started the command; every item returns there when it ends.
 **基準 ref（base ref）**: The starting point of a fix branch: the remote's default branch for an issue or ticket, or the pull request's own branch for review threads.
+**commit 答案**: 本人在 track 的 Gate 1 選「核准」或「核准，但不 commit」時一併給出的同意與否，決定 build 和 verify 能不能在這條分支上做本地 commit。
 
 ## Process
 

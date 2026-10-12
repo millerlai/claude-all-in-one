@@ -1254,6 +1254,16 @@
         "   draft goes in `<scratch-dir>`, never inside the repo:"
       ],
       "why": "#311: options drafts nothing reads back follow the same writable scratch policy as the report. #345: the stdin form writes no file at all; this now covers only the PowerShell fallback."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "Neither option is marked `(recommended)`."
+      ],
+      "replacement": [
+        "Neither option is marked `(recommended)`. On this platform, Gate 1 always offers all four options and marks none of them (Recommended), whatever the question tool's description suggests; if `request_user_input` cannot carry all four, ask with numbered text instead."
+      ],
+      "why": "#385 DD9: plan-review reported that request_user_input's own description asks for 2-3 choices and a (Recommended) suffix on the first (UNVERIFIED, the source was not read by the builder). If the tool does not reject four options, the existing numbered-text fallback never fires and a model following the description would silently drop one approving option or mark Approve recommended. This states the already approved four-option, none-recommended Gate 1 on Codex."
     }
   ]
 }

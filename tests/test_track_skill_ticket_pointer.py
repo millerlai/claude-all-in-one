@@ -179,8 +179,13 @@ def test_skill_md_body_is_136_lines():
 
     141 -> 142 (#376): one line has the main session save intake's
     `## Intake document` as the track's intake.md, which `verify` and
-    preflight read. TRACK_SKILL_MAX moved 143 -> 144, keeping the gap."""
-    assert _skill_body_lines() == 142
+    preflight read. TRACK_SKILL_MAX moved 143 -> 144, keeping the gap.
+
+    142 -> 143 (#385): one line has the main session quote the
+    `commit_answer` line in `build`'s and `verify`'s brief and act on it,
+    pointing at approval-gates.md's Gate 1. TRACK_SKILL_MAX moved 144 -> 145,
+    keeping the gap."""
+    assert _skill_body_lines() == 143
 
 
 # --- '## Human gates' still says what it has always said --------------------

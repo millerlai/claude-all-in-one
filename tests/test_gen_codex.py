@@ -528,6 +528,15 @@ def test_generated_menu_policy_uses_only_waiting_question_tool(tmp_path):
         assert "rules/epistemics.md" in text
 
 
+def test_generated_gate_1_asks_for_all_four_options_on_codex(tmp_path):
+    # #385: the question tool's own description may suggest 2-3 choices and a
+    # recommended first one; Gate 1 has four options and recommends none.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+    gates = (out / "skills/track/references/approval-gates.md").read_text(encoding="utf-8")
+    assert "Gate 1 always offers all four options" in gates
+
+
 def test_hand_written_setup_uses_the_same_waiting_menu_policy():
     setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
     assert "Use only `request_user_input`" in setup
