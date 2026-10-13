@@ -160,10 +160,7 @@ stops in the last section are ordinary choices and do carry a recommendation
 — the carve-out is the two gates, not the file. One stop that is not a gate
 takes it too: the close menu at `$track done`, listed below, because its
 yes runs the one irreversible call ticket mirroring makes, and a
-recommendation there would be the model choosing it. Step 0.5's glossary
-menus carry none either, for another reason: each is a list of terms to
-tick, not a choice between ways forward, so its question says which terms
-build proposes instead.
+recommendation there would be the model choosing it.
 
 ## Gate 2 — before `ship`'s irreversible operations
 
@@ -362,9 +359,8 @@ The shape depends on how many Blockers and Majors the list carries; Minors and
 `<k>` is the finding's number on the list; the comment text stays out of the
 label, because it is a third party's. Ask the person to type the numbers to fix, or `none`.
 
-Nothing on that menu is marked `(recommended)` — one of two exceptions to a
-single recommended option, Step 0.5's glossary menus being the other — and
-the question says what the recommendation is: fix
+Nothing on that menu is marked `(recommended)` — an exception to a single
+recommended option — and the question says what the recommendation is: fix
 every one of them. To fix none, the person types `none`; to fix a Minor, the person types
 its list number too. Say in the question that a fix is
 committed to this branch.
@@ -549,16 +545,13 @@ of them spends one of `pending-questions.md`'s three rounds: that file's
   in dependency order, re-running the cost test on what remains after each
   answer. These are ordinary choices between ways forward, so unlike the two
   gates they **do** carry a `(recommended)` when the evidence supports one.
-- `stage-build.md` Step 0.5 — under a track, the parallel lane and, for a
-  detail design whose glossary has terms that pass the glossary check, which
-  of them join `.claude/cai-context.md`; standing alone, commit per unit as
-  well, asked first. Up to two decisions under a track and up to three
-  standing alone, one menu per turn, the glossary one in as many menus of up
-  to four terms as it needs; all handed up from build's first pass in one
-  hand-up, before any unit starts. With no lane pair and no such term there is
-  nothing to hand up and the first pass does not stop. The lane is asked only
-  when the commit answer is yes and the `Alongside` column names a pair of
-  units.
+- `stage-build.md` Step 0.5 — under a track, the parallel lane; standing
+  alone, commit per unit as well, asked first. One decision at most under a
+  track and up to two standing alone, one menu per turn; all handed up from
+  build's first pass in one hand-up, before any unit starts. With no lane
+  pair there is nothing to hand up and the first pass does not stop. The
+  lane is asked only when the commit answer is yes and the `Alongside`
+  column names a pair of units.
 - `test-command.md`'s `## Before build` — which test command build uses, or
   Skip, asked by the main session before build's first dispatch and never
   handed up. An ordinary choice, so it carries a `(recommended)`. A command
@@ -586,9 +579,9 @@ here is the shape and the free-text slot, not a vocabulary.
 
 ### The reference run's stops
 
-Stops are counted on one run: ticket mirroring on, a design with no gaps, both
-Step 0.5 questions a track can ask asked, one fix round, then a merge. The table counts
-the stops from Step 0.5 to the merge, six at most; Gate 1, intake, the
+Stops are counted on one run: ticket mirroring on, a design with no gaps, the
+one Step 0.5 question a track can ask asked, one fix round, then a merge. The table counts
+the stops from Step 0.5 to the merge, five at most; Gate 1, intake, the
 ticket-name menu and the test-command menu before build also wait in that
 run and are not counted here. The quotation
 beside each file name can be found word for word in that file.
@@ -596,11 +589,10 @@ beside each file name can be found word for word in that file.
 | # | Stop | Defined in | Asked when |
 |---|---|---|---|
 | 1 | Step 0.5 parallel lane | `stage-build.md` "The parallel lane itself." | Only when the commit answer is yes and two units' sides of the ownership map do not intersect. |
-| 2 | Step 0.5 glossary | `stage-build.md` "Which glossary terms join `.claude/cai-context.md`." | Only when the detail design's glossary has a term that passes the glossary check; one menu per four such terms, counted as one stop. |
-| 3 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
-| 4 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
-| 5 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
-| 6 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
+| 2 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
+| 3 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
+| 4 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
+| 5 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
 
 ## A menu that closes on its own
 
@@ -620,7 +612,6 @@ in this file does about one:
 | Gate 2's merge, the bash guard's permission prompt | Denied by the guard on this platform, so nothing prompts: the exact command is handed to the person to run themselves, never retried. |
 | Step 0.5 commit per unit, standing alone with no track | Treated as no, so the parallel lane stays off. Under a track there is no such menu: the answer is Gate 1's. |
 | Step 0.5 parallel lane | Left unanswered; no parallel lane is started; execution stays sequential. |
-| Step 0.5 glossary | None of that menu's terms joins `.claude/cai-context.md`; for them the file is left untouched, and a glossary menu already answered still counts. |
 | The test command before build (`test-command.md`) | Treated as Skip: nothing is written to `.claude/cai.json`, no detected command is used, and build starts with `Test command: skipped (the menu timed out)`. |
 | The track-directory name (`ticket-mirror.md`) | Left unanswered; no directory is created or pointed. |
 | The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.claude/track/current` is not written. Left unanswered. |

@@ -545,13 +545,14 @@ def test_stage_design_names_the_route_and_the_legacy_gate(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_step_0_5_item_counts_two_questions_under_a_track(tree):
+def test_step_0_5_item_counts_one_question_under_a_track(tree):
     text = _reference(tree, "approval-gates.md")
     start = text.index("- `stage-build.md` Step 0.5 —")
     bullet = text[start:text.index(" - Gate 2's triage menu", start)]
     assert "one hand-up" in bullet
     assert "up to three turns" not in bullet
-    assert "Up to two decisions under a track" in bullet
+    assert "One decision at most under a track" in bullet
+    assert "Up to two decisions under a track" not in bullet
 
 
 # --- Unit 3 of default-commit-per-unit (#385): build and verify read it -----

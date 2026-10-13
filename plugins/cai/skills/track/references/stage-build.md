@@ -59,26 +59,26 @@ before reading anything:
 A non-zero exit means building against a document already known to be
 wrong — say so and stop.
 
-## Step 0.5 — Say what it will cost, then get up to three answers
+## Step 0.5 — Say what it will cost, then get up to two answers
 
 Four lines first, before anything is dispatched: how many units, which of
 them can run alongside another, the verify command each will have to pass,
 and anything in the document you already know you will have to ask about.
 A long pass nobody sized is a long pass nobody agreed to.
 
-Then up to three answers standing alone and up to two under a track, once for
-the whole run and not per unit, before anything is started. Under a track the
+Then up to two answers standing alone and at most one under a track, once for the
+whole run and not per unit, before anything is started. Under a track the
 first pass is Step 0, those four lines, and Step 1's state table (the lane
-question needs its `Alongside` column); when there is a lane or glossary
-question to ask it then ends with all the questions below in one `## Pending
-questions` report and nothing else done: no unit starts, no commit is made.
+question needs its `Alongside` column); when there is a lane question to ask
+it then ends with that question in one `## Pending questions` report and
+nothing else done: no unit starts, no commit is made.
 With no question to hand up, the first pass does not stop: it carries on from
 Step 1 and puts the four lines in its report. That is one hand-up, a stop that
 `references/pending-questions.md` does not count as one of its three rounds,
-and the main session re-dispatches you with the answers. Up to three
-decisions standing alone, up to two under a track, one menu per turn, and the
-glossary decision can take several menus — `references/approval-gates.md`
-holds the shape, and none is a sentence the person types a word back into:
+and the main session re-dispatches you with the answer. Up to two decisions
+standing alone and at most one under a track, one menu per turn —
+`references/approval-gates.md` holds the shape, and none is a sentence the
+person types a word back into:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
   procedure needs one commit per verified unit, and the parallel lane below
@@ -106,52 +106,13 @@ holds the shape, and none is a sentence the person types a word back into:
   line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
   four small units it is not worth it. Recommend, let the user decide,
   default to sequential.
-- **Which glossary terms join `.claude/cai-context.md`.** Only when the
-  document is a Detail design and its `## Glossary` has at least one data
-  row that is not the template's placeholder. A project term is a concept
-  specific to this project that someone who has read no track would need
-  explained: something the project deals in, or a step, stage or role of
-  its work. Build leaves out file names, functions, fields, status
-  strings, agent names and everyday words. For each term, in this order:
-  take decision ids and track-document paths out of its definition;
-  rewrite a definition that reads like a rule or a number into one or two
-  sentences saying what the thing is; then write every term as a
-  `**Term**: definition` line to one file in the system temp directory and
-  run `python ${CLAUDE_PLUGIN_ROOT}/scripts/glossary_check.py <that file>`.
-  A term it flags is rejected, and a rejected term is never an option; the
-  check ran only when its last line is `-- glossary: N entries checked, M flagged`
-  with N above 0, and any other outcome, whatever the exit code, offers no
-  term at all, and the report says so.
-  Every term that passed is an option, in the Glossary's order, four at
-  most to a menu, the terms split into as few menus as hold them with
-  sizes differing by at most one,
-  so no menu has fewer than two. Each menu is one multiSelect question with
-  nothing marked `(recommended)`; an option is labelled with the term and
-  described by its definition, the heading it would go under, and, for a
-  term `.claude/cai-context.md` already has under the same name, the
-  definition it replaces. The heading is `## Domain` for something the
-  project deals in, `## Process` for a step, stage or role, another heading
-  that file already has, or a new one named right there. The first menu's
-  question says which options build proposes and which it leaves out under
-  the rules above, and lists every rejected term with the check's reason —
-  not as an option: the person brings one in only by giving it a new
-  definition in free text. Free text takes `**Term**: definition` lines
-  only — a rejected term, a new term, or a replacement — and Step 6.2
-  checks them again; anything else in it writes nothing and is quoted in
-  the report. With one term passed, the menu is "Merge <term>" or
-  "Merge none"; with none passed there is no menu, and the rejected list
-  goes in the report. Say in the four opening lines how many glossary
-  menus there will be, and fold them all into the same
-  `## Pending questions` report as the other questions.
 
 A Step 0.5 menu that closes on its own leaves that answer unmade, not
 defaulted: `references/approval-gates.md`'s new section names the fallback
 each takes — commit per unit, asked only standing alone, is treated as no,
-so the parallel lane stays
-off and falls back to sequential, and a glossary menu falls back to merge
-none for its own terms, while a glossary menu already answered stands. The
-run states which menus timed out, by name, and build proceeds on whichever
-fallback applies.
+so the parallel lane stays off and falls back to sequential. The run states
+which menus timed out, by name, and build proceeds on whichever fallback
+applies.
 
 ## Step 1 — Turn the schedule into a state table
 
@@ -183,20 +144,17 @@ compare against and nothing to trip, but keep the table out of the design
 document there too — the next run may be a tracked one. Say in the notes
 which design document the table belongs to.
 
-Step 0.5's glossary answer belongs here too: once decided, record the terms
-that ended up merged, the definition and heading each will write, any
-definition each replaces, and every term the check rejected with its
-reason — a resumed session needs this at Step 6 without re-asking.
-Record the other two answers the same way: whether a lane was approved, and
+Step 0.5's answers belong here too, so a resumed session needs none of them
+again: whether a lane was approved, and
 the commit answer — under a track, the `commit_answer` line this build acted
 on, copied verbatim; standing alone, yes or no. A re-dispatch after any later
-stop reads the lane and glossary answers from the notes and never asks Step
+stop reads the lane answer from the notes and never asks Step
 0.5 again. Standing alone, a resumed session reads the commit answer from the
 notes too; under a track the commit answer is taken from this run's
 `commit_answer` line every time, and the line wins when the notes disagree. A `Test command: skipped` line is
 copied into the notes verbatim, on a line of its own: the main session reads
 it there before any later dispatch of this build or of verify, and asks no
-more.
+more. Step 6.2 keeps its glossary record in these same notes.
 
 Under a track the notes go in `.claude/track/<feature>/`, beside the
 `state.md` a cold session resumes from. Check `.gitignore` covers
@@ -491,39 +449,106 @@ Units all green is not done:
    `not run: test command skipped`. The `file:line` columns are filled in as
    usual.
 2. **Write the merged terms into `<top>/.claude/cai-context.md`**, before
-   verify. Skip entirely — no file created, nothing said about it in the
-   report — when no glossary term ended up merged (no glossary menu was
-   asked, none had a term ticked or given in free text, every one timed
-   out, or the check kept every term out). Otherwise:
-   `<top>` is what `git rev-parse --show-toplevel` prints. Write each
-   merged term as the `**Term**: definition` line it will become — a
-   definition given in free text replaces the menu's — to one file in the
-   system temp directory, and run
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/glossary_check.py <that file>`
-   again. A term it flags is not written, and the report names it with
-   the reason the check printed; no further menu is asked. The same
-   test of whether the check ran applies: the check ran only when its
-   last line is `-- glossary: N entries checked, M flagged` with N above 0,
-   and on any other outcome, whatever the exit code, write nothing and say
-   in the report that the check did not run. If
-   `.claude/cai-context.md` does not exist, create it verbatim from
-   `${CLAUDE_PLUGIN_ROOT}/templates/cai-context.md.tpl` first. Write each
-   line exactly as it was checked: a line whose bold name is the same term
-   (case-insensitive), under any heading, is replaced in place; otherwise
-   the line goes after the last entry under the heading its menu named,
-   or directly under that heading when it has none, and a heading the menu
-   named that the file lacks is added at the end of the file first. A term
-   given only in free text goes under the heading its menu proposed for
-   it, or, when it was never an option, under `## Domain` for something
-   the project deals in and `## Process` for a step, stage or role; when
-   the file lacks that `## Domain` or `## Process` heading, the term is
-   not written and the heading is not re-created, because no menu named it,
-   and the report names the term and the missing heading and asks the
-   person to add the heading back by hand and run again.
-   Hand-written `_Avoid_` lines, other headings and comments are left
-   untouched, and no `Where it lives` column is written. Replacing by name
-   rather than appending a duplicate makes this idempotent — an
-   interrupted rerun lands the same file.
+   verify. The merged terms are the project terms the Detail design's
+   `## Glossary` defines that pass the glossary check. Nobody is asked
+   which, under a track or standing alone: no menu, no pending question.
+   `<top>` is what `git rev-parse --show-toplevel` prints.
+
+   A finished glossary record is never judged again, so look for one
+   first. With no design document there is nothing to hash: skip this item
+   entirely and say nothing about it in the report. Run
+   `git hash-object <the design document>` from `<top>`; when it
+   exits non-zero, write nothing, record nothing, quote git's first line
+   in the report and skip the rest of this item. A record in
+   `implementation-notes.md` belongs to this design only when its first
+   line names the design document's path relative to `<top>`, written
+   with `/`, and that hash. When one does and it ends in
+   `- Complete: yes`, an earlier run made every choice below: do not judge
+   the skip conditions, and pick, rewrite or place nothing again; run the
+   check on the record's `- Line:` entries and go on to the write. A
+   record that does not end that way,
+   or that names another hash because the design changed since, counts as
+   never written — judge from the start, and replace it rather than add a
+   second.
+
+   With no such record, skip entirely — no file created, nothing said
+   about it in the report — when the document is not a Detail design, its
+   `## Glossary` has no data row that is not the template's placeholder,
+   or none of its terms is a project term. Otherwise pick the terms from
+   that `## Glossary` only, never from
+   another document, the conversation or the file's existing entries. A
+   project term is a concept specific to this project that someone who has
+   read no track would need explained: something the project deals in, or
+   a step, stage or role of its work. Build leaves out file names,
+   functions, fields, status strings, agent names and everyday words. For
+   each term kept, in this order: take decision ids and track-document
+   paths out of its definition; rewrite a definition that reads like a
+   rule or a number into one or two sentences saying what the thing is;
+   give it `## Domain` for something the project deals in and `## Process`
+   for a step, stage or role, never another heading.
+
+   Write every kept term as the `**Term**: definition` line it will become,
+   in the Glossary's order, to one file in the system temp directory, and
+   run `python ${CLAUDE_PLUGIN_ROOT}/scripts/glossary_check.py <that file>`.
+   A term it flags is not written, and the report names it with the reason
+   the check printed; the check ran only when its last line is
+   `-- glossary: N entries checked, M flagged` with N above 0, and on any
+   other outcome, whatever the exit code, write nothing, record nothing,
+   say in the report that the check did not run, and skip the rest of
+   this item — except that on a rerun from a finished record the report
+   still names as written each `- Write:` whose `- Line:` the file already
+   holds, and the `git check-ignore` step below still runs for them. A
+   finished record with no `- Line:` entry runs no check. With no finished
+   record for this design, record the
+   outcome in one edit to `implementation-notes.md` before
+   `.claude/cai-context.md` is touched — one `- Write:` entry per term that
+   passed, one `- Kept out:` entry per term flagged, `- Complete: yes`
+   last, each field on a line of its own so that nothing inside a
+   definition can split it:
+
+   ```md
+   **Glossary record** for <the design document's path, relative to `<top>`> at <what git hash-object printed>
+   - Write: <`## Domain` or `## Process`>
+     - Line: <the checked line>
+     - Replaces: <the line it replaces, verbatim>, or nothing
+   - Kept out: <Term>
+     - Reason: <the reason the check printed>
+   - Complete: yes
+   ```
+
+   With no `- Write:` entry in the record, write nothing, create no file
+   and skip the rest of this item; the same when this run's check flags
+   every `- Line:`; the report still names every term kept out.
+   Otherwise, if `.claude/cai-context.md`
+   does not exist, create it verbatim from
+   `${CLAUDE_PLUGIN_ROOT}/templates/cai-context.md.tpl` first. Then write
+   each `- Line:` exactly as it was checked, in the record's order. The
+   first line in the file, under any heading, whose bold name is the same
+   term — the same once backticks are dropped, runs of whitespace are
+   folded to one and case is ignored, the way the glossary check compares
+   names — is replaced in place. It stays under the heading it was under,
+   and the report names that heading, on a rerun too, not the one its
+   `- Write:` entry says. With no such line, the new line goes
+   after the last entry under its `- Write:` heading, or directly under
+   that heading when it has none; when the file lacks that `## Domain` or
+   `## Process` heading, add it at the end of the file first; those two
+   are the only headings build ever adds. Hand-written `_Avoid_` lines,
+   every other line, other headings and comments are left untouched; a
+   term left out or kept out never changes an existing entry, even one
+   with its name; and no `Where it lives` column is written.
+   A rerun may find part of the write already done. A line that already
+   reads as the recorded line is left as it is. When the first line under
+   that name is neither the recorded line nor the line the record says it
+   replaces — or the record names a line to replace and the file has no
+   line of that name — it was changed by hand in between: write nothing
+   for that term and quote what the file holds in the report. On a rerun
+   from a finished record, the report is built from the record: each
+   `- Write:` entry counts as written and its `- Replaces:` line as
+   replaced, whichever run wrote it, unless it was left alone as changed
+   by hand or flagged by this run's check; each `- Kept out:` entry is
+   named with its reason. Writing by
+   name from a record that is never judged again makes this idempotent —
+   an interrupted rerun lands the same file.
    If `<top>/CONTEXT.md` exists and its first four lines are the
    template's first four, an earlier cai wrote it. Leave it untouched, and
    say in the report that cai no longer reads it, so the person can move
@@ -544,19 +569,21 @@ Units all green is not done:
    one. Run `stage-verify.md` over the whole branch, passing the design
    document and the approved intake as the requirements its conformance
    lens reviews against (including the AC rows when no UC/R ids exist), and
-   Step 0.5's glossary answer as recorded in `implementation-notes.md`. Fix
+   the glossary record Step 6.2 kept in `implementation-notes.md`. Fix
    Blocker/Major per that stage's rules; leave Minor documented; its
    requirement decisions go to the user.
 4. **Report.** What each unit built and where it landed, the traceability
-   table, every deviation, every glossary definition replaced with the old
-   text quoted, every glossary term the check kept out with its reason,
-   every free-text term left unwritten for a missing heading,
-   the sentences Step 6.2 calls for about an earlier cai's file and an
-   ignored file, the review verdict (under a track: reviewed by the verify
-   stage), and what could not be verified automatically as numbered
-   manual steps. Each deviation that changed an interface goes in as an
-   item of its own among those, so the main session's `Left open:`
-   carries it to Gate 2.
+   table, every deviation, the name and heading of every glossary term
+   written, every glossary definition replaced with the old text quoted, every
+   glossary term the check kept out with its reason, every glossary line
+   Step 6.2 left alone because it was changed by hand, quoted,
+   the sentences Step 6.2 calls for about an earlier cai's file, an
+   ignored file, a check that did not run and a `git hash-object` that
+   failed, the review verdict (under a
+   track: reviewed by the verify stage), and what could not be verified
+   automatically as numbered manual steps. Each deviation that changed an
+   interface goes in as an item of its own among those, so the main
+   session's `Left open:` carries it to Gate 2.
 
 ## Report
 
@@ -570,8 +597,11 @@ of the ledger's `--note`; you write no track file at all.
 - every deviation
 - the `commit_answer` line this run acted on, verbatim, or a line saying there was none
 - anything skipped, the test command included when it was
-- every glossary definition replaced, old text quoted, and every glossary
-  term the check kept out, with its reason
+- the name and heading of every glossary term written; every glossary
+  definition replaced, old text quoted; every glossary term the check kept
+  out, with its reason; every glossary line left alone because it was
+  changed by hand, quoted; that the glossary check did not run, when it
+  did not; and git's first line, when `git hash-object` failed
 - what is left open -- every step Step 6.4 names as a manual step, and every
   deviation that changed an interface, one item each; with the test command
   skipped, one more item saying no unit ran a test
@@ -586,4 +616,8 @@ note any finished track has written is 1941 characters, measured across
 30 rows in five tracks, and a report carries those fields plus what never
 reaches that cell. The number is the user's call, 2026-09-08. A
 `## Pending questions` section (`references/pending-questions.md`) sits
-outside the ceiling -- a decision handed up has to carry its evidence.
+outside the ceiling -- a decision handed up has to carry its evidence. The
+glossary item above is not counted toward the ceiling either, the user's
+call, 2026-10-12: under a track it is where the terms build wrote without
+asking reach a person -- the only place, when the glossary file is
+git-ignored -- so it is never cut to fit.

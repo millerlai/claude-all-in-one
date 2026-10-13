@@ -93,6 +93,12 @@ or specs, and only concepts specific to this project.
 **合併清單（merge list）**: Gate 2 合併指令前、同一則訊息裡的純文字清單，列出還沒修的發現與合併前該知道的事；守門程式的提示看不到它。
 **合併指令**: Gate 2 合併小節規定要跑的那一個 Bash 指令，帶合併方式旗標與檢查過的提交，由守門程式的提示取得本人同意。
 **override 錨點（override anchor）**: 產生 Codex 檔時逐字比對的一句話，必須在來源文件裡恰好出現一次，Codex 版才能據此替換。
+**詞彙表（glossary）**: 專案根目錄下由 cai 維護的一份檔，每行一個專案詞和一兩句定義，分在 Domain 與 Process 兩個標題下。intake、design、debug 和 refactor 開工前會先讀它。
+**專案詞（project term）**: 只屬於這個專案、沒讀過任何 track 的人需要解釋才懂的概念：專案處理的東西，或它工作中的步驟、階段或角色。檔名、函式、欄位、狀態字串、agent 名稱和日常用語都不算。
+**寫入紀錄（glossary record）**: 詞彙寫入動檔之前記在 build 工作筆記裡的一段，列出每條要寫的行、它的標題、它取代的舊行和每個被擋的詞。中斷後重跑只照這段紀錄寫，不再重新判斷。
+**被擋的詞（rejected term）**: 詞彙檢查標出問題、因此沒有寫進詞彙表的詞；build 的報告會列出它和檢查給的理由。
+**停點（stop）**: track 執行途中要等本人回答才繼續的地方。
+**參考執行（reference run）**: 用來數停點的一次假想執行：開著工單同步、設計沒有缺口、track 能問的問題都問到、修一輪後合併。
 
 ## Process
 
@@ -116,6 +122,8 @@ or specs, and only concepts specific to this project.
 **階段執行（stage run）**: track 一個階段的一次分派，從開始到交回為止。
 **計時來源准入（source admission）**: 決定某個計時資料來源能不能被採信的那道檢查。
 **詞彙檢查（glossary check）**: 隨 cai 出貨的檢查，判斷一條定義能不能寫進詞彙表；它擋下的定義不會被寫入。
+**詞彙寫入（glossary write）**: build 收尾、verify 之前，把細部設計列出的專案詞寫進詞彙表的那一步，過程中不問任何人。
+**就地取代（in-place replacement）**: 詞彙表已經有同名的詞時，把那一行換成新定義，而不是另外加一行。
 **沿用（reuse）**: 更新時遇到內容沒變、上次也沒有解析失敗的檔，直接採用舊紀錄，不重新解析。
 **全量建立（full build）**: 不沿用任何舊紀錄、把每個追蹤檔重新解析一遍的建立方式。
 **形狀檢查（shape check）**: 讀取索引時，逐筆確認紀錄的欄位與型別是讀端所需的樣子；不合就視為這份索引不可信。
