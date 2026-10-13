@@ -55,19 +55,32 @@ def _facts_record(facts, reason):
             "backend": None, "confidence": None, "imports": []}
 
 
-def _parse(top, facts):
+def _retryable(reason):
+    """A file that exists but could not be opened: the next update reads it again."""
+    return reason is not None and reason.startswith(inventory.CANNOT_OPEN)
+
+
+def _parse(top_real, facts):
     """(file record, symbol records, crash reason or None) for one file."""
     if facts.reason is not None:
-        return _facts_record(facts, facts.reason), [], None
+        retry = facts.reason if _retryable(facts.reason) else None
+        return _facts_record(facts, facts.reason), [], retry
     if facts.bytes > MAX_PARSE_BYTES:
         return _facts_record(facts, "too-large"), [], None
+    got = inventory.read_tracked(top_real, facts.path, MAX_PARSE_BYTES)
+    if _retryable(got.reason):
+        # Inventory's hash and size stay, so status sees partial and not stale.
+        return _facts_record(facts, got.reason), [], got.reason
+    if got.reason is not None:
+        # Gone, replaced or moved out since inventory looked: what inventory
+        # would record for it now, so the next status finds the same thing.
+        return _facts_record(facts._replace(bytes=None, sha256=None), got.reason), [], None
+    if len(got.data) > MAX_PARSE_BYTES:
+        return _facts_record(facts, "too-large"), [], None
+    # The record describes the bytes parsed, not the ones inventory hashed.
+    facts = facts._replace(bytes=got.size, sha256=got.sha256)
     try:
-        with open(os.path.join(top, *facts.path.split("/")), "rb") as fh:
-            data = fh.read()
-    except OSError:
-        return _facts_record(facts, "missing"), [], None
-    try:
-        ex = symbols.extract(facts.path, facts.language, data)
+        ex = symbols.extract(facts.path, facts.language, got.data)
     except Exception as exc:  # noqa: BLE001 -- an adapter crash costs one file, not the build
         reason = "adapter-crash: %s" % type(exc).__name__
         return _facts_record(facts, reason), [], reason
@@ -92,6 +105,7 @@ def _write(top, facts, previous):
             if path not in retry:
                 reuse_files[path] = rec
                 reuse_symbols[path] = by_path.get(path, [])
+    top_real = os.path.realpath(top)
     records, all_symbols, partial, reparsed = [], [], [], 0
     for f in facts:
         old = reuse_files.get(f.path)
@@ -99,7 +113,7 @@ def _write(top, facts, previous):
                 f.sha256 is not None or old.get("reason") == f.reason):
             record, syms, crash = old, reuse_symbols[f.path], None
         else:
-            record, syms, crash = _parse(top, f)
+            record, syms, crash = _parse(top_real, f)
             reparsed += 1
         if crash is not None:
             partial.append((f.path, crash))
@@ -115,7 +129,8 @@ def _write(top, facts, previous):
     state = {"schema_version": store.SCHEMA_VERSION,
              "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
              "head": _head(top), "file_count": len(records), "artifacts": artifacts,
-             "partial": [{"path": p, "reason": r} for p, r in partial]}
+             "partial": [{"path": p, "reason": r} for p, r in partial],
+             **store.extractor_stamp()}
     store.commit_state(top, state)
     store.sweep(top, set(artifacts))
     return Result("partial" if partial else "fresh", reparsed, len(records),
@@ -188,8 +203,11 @@ def status(top: str) -> Status:
     if partial:
         return Status("partial", _named(partial, "not parsed"), partial)
     head = index.state.get("head")
-    return Status("fresh", "%d files, %s" % (
-        len(index.files), "head %s" % head[:7] if head else "no commit yet"), [])
+    # Says whether the map has anything in it: a repo of a language with no
+    # adapter is "fresh" and empty, which the file count alone hides.
+    with_symbols = len({s["path"] for s in index.symbols})
+    return Status("fresh", "%d files, %d with symbols, %s" % (
+        len(index.files), with_symbols, "head %s" % head[:7] if head else "no commit yet"), [])
 
 
 def state_line(status: Status) -> str:

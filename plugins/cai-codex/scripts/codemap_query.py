@@ -43,22 +43,19 @@ def terms(text: str) -> list:
 
 def tracked_texts(top: str) -> list:
     """[(path, text)] for every tracked file git lists that can be read as
-    text now: not a symlink, not a submodule, under the size cap, no NUL."""
+    text now: not a symlink, not a submodule, a regular file inside the
+    repository, under the size cap, no NUL."""
     out = []
+    top_real = os.path.realpath(top)
     for mode, path in inventory.list_tracked(top):
         if mode in ("120000", "160000") or "�" in path:
             continue
-        full = os.path.join(top, *path.split("/"))
-        try:
-            if os.path.getsize(full) > MAX_TEXT_BYTES:
-                continue
-            with open(full, "rb") as fh:
-                data = fh.read()
-        except OSError:
+        got = inventory.read_tracked(top_real, path, MAX_TEXT_BYTES)
+        if got.reason is not None or len(got.data) > MAX_TEXT_BYTES:
             continue
-        if b"\0" in data:
+        if b"\0" in got.data:
             continue
-        out.append((path, data.decode("utf-8", errors="replace")))
+        out.append((path, got.data.decode("utf-8", errors="replace")))
     return out
 
 

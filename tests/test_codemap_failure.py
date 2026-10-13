@@ -55,6 +55,7 @@ def test_missing_data_file_is_unsupported(tmp_path):
     (top / ".cai" / "codemap" / "symbols.jsonl").unlink()
     st = idx.status(str(top))
     assert st.word == "unsupported"
+    assert "symbols.jsonl is missing" in st.detail
 
 
 def test_adapter_crash_makes_the_file_partial_not_the_build_fail(tmp_path, monkeypatch, capsys):

@@ -17,13 +17,20 @@ sys.path.insert(0, HERE)
 import preflight  # noqa: E402
 
 INDEX_PARTS = (".cai", "codemap")
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+# Covers every piece of code that turns a file's path and bytes into records:
+# codemap_inventory.LANGUAGES and the reasons read_tracked returns,
+# codemap_index.MAX_PARSE_BYTES, _facts_record and _parse, and all of
+# codemap_symbols (MAX_SIGNATURE included). Bump it when any of them changes
+# what a record says; an index written before the bump is then rebuilt.
+EXTRACTOR_VERSION = 1
 # A data file this large is not one this tool wrote; refusing it keeps a
 # planted device, pipe or huge file from being read into memory.
 MAX_ARTIFACT_BYTES = 1 << 28
 STATE_NAME = "state.json"
 FILES_NAME = "files.jsonl"
 SYMBOLS_NAME = "symbols.jsonl"
+REPO_MAP_NAME = "repo-map.md"
 SELF_IGNORE_NAME = ".gitignore"
 SELF_IGNORE_BODY = b"*\n"
 
@@ -36,6 +43,12 @@ class Index(NamedTuple):
     state: dict
     files: dict      # path -> file record (dict)
     symbols: list    # symbol records, file order
+
+
+def extractor_stamp() -> dict:
+    """The state fields that say which extractor and which Python wrote an index."""
+    return {"extractor_version": EXTRACTOR_VERSION,
+            "python_version": "%d.%d" % sys.version_info[:2]}
 
 
 def index_dir(top: str) -> str:
@@ -142,6 +155,40 @@ def _is_index_name(name) -> bool:
                for p in parts)
 
 
+def _is_int(value) -> bool:
+    # bool is a subclass of int, and JSON `true` would otherwise pass for a line.
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _str_or_none(value) -> bool:
+    return value is None or isinstance(value, str)
+
+
+def _is_state(state: dict) -> bool:
+    """The state.json fields the readers use that `load` does not already check.
+    Only fields a reader takes are looked at: one nobody reads cannot hurt."""
+    partial = state.get("partial", [])
+    return _str_or_none(state.get("head")) and isinstance(partial, list) and all(
+        isinstance(entry, dict) and isinstance(entry.get("path"), str) for entry in partial)
+
+
+def _is_file_record(record) -> bool:
+    """A key read with `.get` may be absent; one read with `[]` may not. A field
+    the tool itself writes as null (`sha256`, `reason`, `confidence`) stays null."""
+    return (isinstance(record, dict) and isinstance(record.get("path"), str)
+            and isinstance(record.get("language"), str)
+            and all(_str_or_none(record.get(k)) for k in ("sha256", "reason", "confidence")))
+
+
+def _is_symbol_record(record) -> bool:
+    return (isinstance(record, dict)
+            and all(isinstance(record.get(k), str)
+                    for k in ("path", "qualified_name", "name", "kind"))
+            and _is_int(record.get("start_line"))
+            and (record.get("end_line") is None or _is_int(record.get("end_line")))
+            and _str_or_none(record.get("signature")))
+
+
 def _records(blob: bytes) -> list:
     """The lines of a JSONL file. Split on `\\n` only: `json.dumps` escapes a
     newline inside a record but leaves U+2028, U+2029 and U+0085 raw, and
@@ -166,9 +213,20 @@ def load(top: str) -> Optional[Index]:
         state = json.loads(raw.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         raise IndexUnreadable("state.json is not valid JSON")
-    if not isinstance(state, dict) or state.get("schema_version") != SCHEMA_VERSION \
-            or not isinstance(state.get("artifacts"), dict):
+    if not isinstance(state, dict):
         raise IndexUnreadable("state.json has the wrong shape or schema_version")
+    # Before schema_version: an index from before the stamp existed is both, and
+    # "another codemap wrote it" is the reason that helps the person reading it.
+    if any(state.get(key) != value for key, value in extractor_stamp().items()):
+        raise IndexUnreadable("built by another codemap or Python version")
+    if state.get("schema_version") != SCHEMA_VERSION \
+            or not isinstance(state.get("artifacts"), dict) or not _is_state(state):
+        raise IndexUnreadable("state.json has the wrong shape or schema_version")
+    # The readers open these three by name; a table that does not list one would
+    # leave it unchecked against its digest.
+    for name in (FILES_NAME, SYMBOLS_NAME, REPO_MAP_NAME):
+        if name not in state["artifacts"]:
+            raise IndexUnreadable("%s is missing" % name)
     blobs = {}
     for name, digest in state["artifacts"].items():
         if not _is_index_name(name):
@@ -183,10 +241,17 @@ def load(top: str) -> Optional[Index]:
         blobs[name] = data
     try:
         files = {}
-        for line in _records(blobs.get(FILES_NAME, b"")):
+        for line in _records(blobs[FILES_NAME]):
             record = json.loads(line)
+            if not _is_file_record(record):
+                raise ValueError("not a file record")
             files[record["path"]] = record
-        symbols = [json.loads(line) for line in _records(blobs.get(SYMBOLS_NAME, b""))]
+        symbols = []
+        for line in _records(blobs[SYMBOLS_NAME]):
+            record = json.loads(line)
+            if not _is_symbol_record(record):
+                raise ValueError("not a symbol record")
+            symbols.append(record)
     except (ValueError, KeyError, TypeError, UnicodeDecodeError):
         raise IndexUnreadable("a data file holds a line that is not a record")
     return Index(state, files, symbols)
