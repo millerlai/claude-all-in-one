@@ -51,7 +51,7 @@ def test_step0_names_path_plus_summaries_as_the_failure(plugin_root):
 
 
 @pytest.mark.parametrize("plugin_root,scratch,lint", [
-    ("plugins/cai", "the system temp directory", "scripts/options_lint.py -"),
+    ("plugins/cai", "the scratch directory", "scripts/options_lint.py -"),
     ("plugins/cai-codex", "`<scratch-dir>`", "<cai> options_lint -"),
 ])
 def test_step0_keeps_only_tier1_drafts_in_the_track_dir(plugin_root, scratch, lint):

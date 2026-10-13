@@ -15,7 +15,7 @@ The result of the item is one entry for the final report:
 ## 1. Read the issue
 
 Run `show` with the target's owner, repo and number, and `--out` a file in the
-temp directory:
+scratch directory:
 
 ```text
 <cai> fix_issues show --project-dir <root> --owner <owner> --repo <repo> --issue <N> --out <item file>
@@ -95,7 +95,7 @@ Its report ends with the block `implementer-brief.md` defines.
 
 ## 5. Check what changed, then commit
 
-Write the `paths:` lines of its report to a file in the temp directory, then run:
+Write the `paths:` lines of its report to a file in the scratch directory, then run:
 
 ```text
 <cai> fix_target changes --project-dir <root> --expect-head <start_sha> --expect-branch <branch> --reported-file <reported file> --pathspec-out <pathspec file> --ready-file <ready file>
@@ -121,7 +121,7 @@ To add the paths:
 git --literal-pathspecs add --pathspec-from-file=<pathspec file> --pathspec-file-nul
 ```
 
-Write each commit message to a file in the temp directory and commit with
+Write each commit message to a file in the scratch directory and commit with
 `git commit -F <message file>`; never put the message on the command line.
 
 A `fix:` message file is:

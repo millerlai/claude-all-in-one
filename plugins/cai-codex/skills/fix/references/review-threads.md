@@ -21,7 +21,7 @@ word needs (`url`, `branch`, `paths`, `detail`) and any `notes`.
 ## 1. List the threads and get on the branch
 
 Run `list`. Leave `--number` off when `number` is null; `--out-dir` is a new
-directory in the temp directory:
+directory in the scratch directory:
 
 ```text
 <cai> fix_threads list --project-dir <root> --owner <owner> --repo <repo> --number <n> --login <login> --out-dir <item dir>
@@ -159,7 +159,7 @@ any thread. The replies of step 4 for threads that were not fixed are still sent
 
 ## 4. Answer the threads
 
-Write what you want to say to a file in the temp directory, in the language the
+Write what you want to say to a file in the scratch directory, in the language the
 thread's comments are written in; it follows the fixed first line the script
 writes. Never put it on a command line. Never run `reply` twice for one thread
 unless the first call said nothing was written: a second call after a success

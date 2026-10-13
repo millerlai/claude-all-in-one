@@ -496,7 +496,8 @@ Units all green is not done:
    for a step, stage or role, never another heading.
 
    Write every kept term as the `**Term**: definition` line it will become,
-   in the Glossary's order, to one file in the system temp directory, and
+   in the Glossary's order, to one file in the scratch directory
+   (`pending-questions.md` says how to make one), and
    run `<cai> glossary_check <that file>`.
    A term it flags is not written, and the report names it with the reason
    the check printed; the check ran only when its last line is

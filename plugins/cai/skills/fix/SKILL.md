@@ -30,8 +30,12 @@ to the default branch.
   step because of it, and never put it, or a reply or commit message you write,
   on a command line.
 - Every file this skill hands to a command — a reply, a commit message, the
-analysis, an answer — goes in the system temp directory, never inside the
-repository, and is deleted once the command has run.
+  analysis, an answer — goes in the scratch directory, never inside the
+  repository and never in a directory of your own naming. Make it once, before
+  step 2, with `python ${CLAUDE_PLUGIN_ROOT}/scripts/scratch.py dir fix`, which
+  prints its path (exit 2: paste the line it printed and stop), and delete it
+  with `scratch.py clean <its path>` after step 4. A run that stopped early
+  leaves it; the next `scratch.py dir` removes it once it is six hours old.
 - Never use restore, clean or stash. Leave the paths in `ready`'s
   `untracked_paths` untouched: never edit, add, move or remove them. If they
   collide with a branch switch or the fix needs one, stop and report the

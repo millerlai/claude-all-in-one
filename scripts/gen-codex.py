@@ -67,6 +67,7 @@ EXCLUDE_FILES = {
     "scripts/gen-models.py",
     "scripts/gen-commands.py",
     "scripts/model_choice.py",  # rewrites an installed Claude Code copy; Codex has install_codex.py
+    "scripts/scratch.py",  # writes under the system temp directory, outside a Codex sandbox's writable roots; Codex keeps its scratch files in <scratch-dir>
 }
 
 # The hand-written files (D18) -- the generator never writes or deletes

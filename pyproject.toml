@@ -7,6 +7,12 @@ testpaths = ["tests"]
 # slow ones on one worker while the others sit idle. Measured on 14 workers
 # (2026-09-28): 193 s and 200 s with `load`, 144 s and 155 s with worksteal.
 addopts = ["-n", "auto", "--dist", "worksteal"]
+# Some twenty tests copy the whole repo into their tmp_path, so one full run
+# left about 600 MB under the temp directory and pytest's default kept the last
+# three runs (measured 2026-10-13: eight explicit-basetemp runs, 4.9 GB). A
+# passing test's directory is removed as soon as it passes; a failing test's is
+# kept, which is the only one anyone reads.
+tmp_path_retention_policy = "failed"
 
 # Read by `pytest --cov`, which CI runs; a plain `python -m pytest` stays as
 # fast as before. CI gates the lines a pull request changes (diff-cover in
