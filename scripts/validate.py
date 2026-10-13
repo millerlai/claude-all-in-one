@@ -1159,8 +1159,10 @@ def _encoding():
     # every Linux pattern, and a `\>` before the last two characters makes findstr
     # silently skip the line (E6: every rm rule went missing, no error). The BOM
     # check above only scans TEXT's extensions, so these files get their own. The
-    # agent file is the one Agent calls read (#277).
-    for pattern_name in ("reduced-check-patterns.txt", "reduced-check-agent-patterns.txt"):
+    # agent file is the one Agent calls read (#277), and the write file the one
+    # Write, Edit and NotebookEdit calls read.
+    for pattern_name in ("reduced-check-patterns.txt", "reduced-check-agent-patterns.txt",
+                         "reduced-check-write-patterns.txt"):
         pattern_path = f"{PLUGIN}/hooks/{pattern_name}"
         check(f"{pattern_name} ships with the plugin", os.path.isfile(pattern_path))
         if not os.path.isfile(pattern_path):
@@ -1569,23 +1571,121 @@ def _guard():
         # An existing deny rule stays denied even on a command that also merges --
         # ask never weakens a deny.
         ("Bash", "git push --force origin main && gh pr merge 5", 2, WORK),
+        # The track ledger is the main session's alone (#392). Write, Edit and
+        # NotebookEdit carry a path, so `cmd` is the whole tool_input here; the
+        # trailing fields are agent_type and agent_id. N1, N2, N13, N14, N16.
+        ("Write", {"file_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}, 2, WORK,
+         None, "agent-ledger-test"),
+        ("Edit", {"file_path": "C:\\p\\.claude\\track\\t\\LEDGER.JSONL", "content": "x"}, 2, WORK,
+         None, "agent-ledger-test"),
+        ("Write", {"file_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}, 0, WORK),
+        ("NotebookEdit", {"notebook_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}, 2, WORK,
+         None, "agent-ledger-test"),
+        ("Write", {"file_path": "/p/docs/notes.md",
+                   "content": "git push --force origin main, ledger.jsonl"}, 0, WORK,
+         "cai:designer", "agent-ledger-test"),
+        # The same rule on commands: a subagent's ledger.py append, or any command
+        # naming ledger.jsonl, is blocked; the main session's is not (B and A
+        # cases of the design; K1, the known way round, is pytest's alone).
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+                 "--stage design --outcome passed --gate human --note \"commit: yes\"", 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+                 "--stage design --outcome passed --gate human --note \"commit: yes\"", 0, WORK),
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+                 "--stage design --outcome passed --gate human --note \"commit: yes\"", 0, WORK,
+         "cai:implementer"),
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+                 "--stage design --outcome passed --gate human --note \"commit: yes\"", 0, WORK,
+         None, ""),
+        ("Bash", "cd plugins/cai/scripts && python -m ledger append --track-dir t", 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "python -m ledger show --track-dir t", 0, WORK, None, "agent-ledger-test"),
+        # B2-B5, B7, B9, B10, B12 and A4-A7 of the same table, and a continuation
+        # between the script and `append`: AC1 asks CASES to cover every one.
+        ("Bash", r'py -3 "C:\x\scripts\LEDGER.PY" append --track-dir t', 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "cd plugins/cai/scripts && python ledger.py append --track-dir t", 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "python ledger.py --track-dir t --gate human append", 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", """echo '{"stage":"design"}' >> .claude/track/t/ledger.jsonl""", 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "python - <<'EOF'\nopen('.claude/track/t/ledger.jsonl','a').write('x')\nEOF",
+         2, WORK, None, "agent-ledger-test"),
+        ("Bash", 'git commit -m "fix ledger.jsonl reader"', 2, WORK, None, "agent-ledger-test"),
+        ("Bash", 'python ledger.py show --note "append later"', 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "python ledger.pyc append --track-dir t", 2, WORK, None, "agent-ledger-test"),
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py \\\n    append --track-dir t", 2, WORK,
+         None, "agent-ledger-test"),
+        ("PowerShell", "python /p/plugins/cai/scripts/ledger.py `\n    append --track-dir t",
+         2, WORK, None, "agent-ledger-test"),
+        ("Bash", "git add plugins/cai/scripts/ledger.py", 0, WORK, None, "agent-ledger-test"),
+        ("Bash", "python plugins/cai/scripts/ledger.py show --track-dir .claude/track/fix-append-x",
+         0, WORK, None, "agent-ledger-test"),
+        ("Bash", "git log -S append -- plugins/cai/scripts/ledger.py", 0, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "grep -n append plugins/cai/scripts/ledger.py", 0, WORK,
+         None, "agent-ledger-test"),
+        ("PowerShell", "Add-Content .claude\\track\\t\\Ledger.JSONL '{}'", 2, WORK,
+         None, "agent-ledger-test"),
+        ("Bash", "cat .claude/track/t/ledger.jsonl", 2, WORK, None, "agent-ledger-test"),
+        ("Monitor", "python ledger.py append --track-dir t", 2, WORK, None, "agent-ledger-test"),
+        ("Bash", "python -m pytest tests/test_ledger.py", 0, WORK, None, "agent-ledger-test"),
+        ("Bash", "git diff plugins/cai/scripts/ledger.py | grep append", 0, WORK,
+         None, "agent-ledger-test"),
+        # B14: the designer guard allows this one, and the ledger rule still holds.
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail "
+                 ".claude/track/t/ledger.jsonl", 2, WORK, "cai:designer", "agent-ledger-test"),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail "
+                 ".claude/track/t/ledger.jsonl", 0, WORK, "cai:designer"),
+        # D2: a Monitor command meets the Bash rules.
+        ("Monitor", "git push --force origin main", 2, WORK),
+        ("Monitor", "echo `date`", 2, WORK),
+        ("Monitor", "Remove-Item build -Recurse -Force", 0, WORK),
+        ("Monitor", "tail -f build.log", 0, WORK),
+        ("Monitor", "gh pr merge 1", 0, WORK),
+        ("Monitor", "tail -f build.log", 2, WORK, "cai:designer"),
+        ("Monitor", {"ws": "wss://example.invalid/stream"}, 0, WORK),
     ]
 
-    def run_process(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
-        payload = {"tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}
+    def run_process(argv, cmd, tool="Bash", cwd="", agent=None, agent_id=None, env=None,
+                    ascii_only=True):
+        # `cmd` is a command, or a dict that is the whole tool_input (a write tool's
+        # path). agent_id is written even when empty: the empty id is a case.
+        payload = {"tool_name": tool,
+                   "tool_input": cmd if isinstance(cmd, dict) else {"command": cmd},
+                   "cwd": cwd}
         if agent:
             payload["agent_type"] = agent
+        if agent_id is not None:
+            payload["agent_id"] = agent_id
+        if ascii_only:
+            return subprocess.run(
+                argv, input=json.dumps(payload), capture_output=True, text=True, env=env,
+            )
+        # What the platform sends: UTF-8, nothing escaped.
         return subprocess.run(
-            argv, input=json.dumps(payload), capture_output=True, text=True, env=env,
+            argv, input=json.dumps(payload, ensure_ascii=False), capture_output=True,
+            text=True, encoding="utf-8", errors="replace", env=env,
         )
 
-    def run(argv, cmd, tool="Bash", cwd="", agent=None, env=None):
-        return run_process(argv, cmd, tool, cwd, agent, env).returncode
+    def run(argv, cmd, tool="Bash", cwd="", agent=None, agent_id=None, env=None,
+            ascii_only=True):
+        return run_process(argv, cmd, tool, cwd, agent, agent_id=agent_id, env=env,
+                           ascii_only=ascii_only).returncode
 
-    for tool, cmd, expected, cwd, *agent in CASES:
-        label = cmd.replace("\n", "\\n") + (f" as {agent[0]}" if agent else "")
+    for tool, cmd, expected, cwd, *who in CASES:
+        agent_type = who[0] if who else None
+        agent_id = who[1] if len(who) > 1 else None
+        label = (json.dumps(cmd) if isinstance(cmd, dict) else cmd).replace("\n", "\\n")
+        if agent_type is not None:
+            label += f" as {agent_type}"
+        if agent_id is not None:
+            label += f" with agent_id={agent_id!r}"
         check(f"guard {tool} [{label}] -> {expected}",
-              run([sys.executable, GUARD], cmd, tool, cwd, *agent) == expected)
+              run([sys.executable, GUARD], cmd, tool, cwd, agent_type, agent_id) == expected)
 
     # The dispatcher is what hooks.json actually invokes. Exercise the branch this
     # platform would take, so a broken interpreter lookup or a swallowed exit code
@@ -1606,6 +1706,26 @@ def _guard():
     forced = run_process(dispatch, "git push --force origin main", "Bash", WORK, env=dispatch_env)
     check("dispatcher [git push --force origin main] -> 2 with the guard's own message",
           forced.returncode == 2 and "bash_guard blocked this command" in forced.stderr)
+
+    # Write, Edit and NotebookEdit reach the same dispatcher with `write` (hooks.json):
+    # a subagent's write to the ledger is blocked, nobody else's write is.
+    write_dispatch = dispatch + ["write"]
+    ledger_write = {"file_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}
+    notes_write = {"file_path": "/p/docs/notes.md",
+                   "content": "git push --force origin main, ledger.jsonl"}
+    written = run_process(write_dispatch, ledger_write, "Write", WORK, None, "agent-ledger-test",
+                          env=dispatch_env)
+    check("dispatcher write [Write ledger.jsonl as a subagent] -> 2 with the guard's own message",
+          written.returncode == 2 and "bash_guard blocked this command" in written.stderr)
+    check("dispatcher write [Write ledger.jsonl as the main session] -> 0",
+          run(write_dispatch, ledger_write, "Write", WORK, env=dispatch_env) == 0)
+    check("dispatcher write [Write notes.md as cai:designer] -> 0",
+          run(write_dispatch, notes_write, "Write", WORK, "cai:designer",
+              "agent-ledger-test", env=dispatch_env) == 0)
+    # The platform sends UTF-8 unescaped; a note in Chinese must not hide the append.
+    check("dispatcher [ledger.py append with a non-ASCII note as a subagent] -> 2",
+          run(dispatch, "python ledger.py append --note \"核准\"", "Bash", WORK,
+              None, "agent-ledger-test", env=dispatch_env, ascii_only=False) == 2)
 
     # With no interpreter on PATH the dispatcher runs its reduced check: exit 2 and
     # a line of its own, never the guard's text (D6, which /cai:setup step 6 reads).
@@ -1639,6 +1759,21 @@ def _guard():
               "with its own reduced-check line",
               bare_merge.returncode == 2 and "cai guard reduced check:" in bare_merge.stderr
               and "bash_guard blocked this command" not in bare_merge.stderr)
+        # Write mode, no interpreter: only a subagent's write to ledger.jsonl is
+        # blocked, and the other writes pass silently (exit 0, nothing on stderr).
+        # Each call has a config root of its own, for the reason given above.
+        for label, tool_input, agent, agent_id, expected in [
+                ("Write ledger.jsonl as a subagent", ledger_write, None, "agent-ledger-test", 2),
+                ("Write ledger.jsonl as the main session", ledger_write, None, None, 0),
+                ("Write notes.md as cai:designer", notes_write, "cai:designer", None, 0)]:
+            bare_write = run_process(
+                bare_dispatch + ["write"], tool_input, "Write", WORK, agent, agent_id,
+                env=dict(dispatch_env, PATH=bare_dir,
+                         CLAUDE_CONFIG_DIR=tempfile.mkdtemp(prefix="cai-guard-config-")))
+            check(f"dispatcher write without an interpreter [{label}] -> {expected}",
+                  bare_write.returncode == expected
+                  and ("cai guard reduced check:" in bare_write.stderr) == (expected == 2)
+                  and "bash_guard blocked this command" not in bare_write.stderr)
 
 
 @section("models-dispatcher")

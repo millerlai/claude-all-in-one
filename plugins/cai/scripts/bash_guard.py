@@ -18,6 +18,7 @@ Exit codes: 0 = allow (or ask, on Claude Code -- see ask() below), 2 = block
 """
 import json
 import os
+import posixpath
 import re
 import shlex
 import subprocess
@@ -51,6 +52,36 @@ COMMIT_FIRST = (
     "another one can pop yours (#230). "
     "If the user explicitly asked to discard them, tell them the guard "
     "blocked it and ask them to run it manually."
+)
+
+# The track ledger is the one file only the main session may write: a Gate 1
+# Approve row there decides whether build may commit. The write tools and the
+# field that names the file each of them writes.
+LEDGER_NAME = "ledger.jsonl"
+LEDGER_TOOLS = {"Write": "file_path", "Edit": "file_path", "NotebookEdit": "notebook_path"}
+LEDGER_WRITE_REASON = "a subagent may not write the track ledger (ledger.jsonl)"
+LEDGER_COMMAND_REASON = (
+    "a subagent may not write the track ledger (ledger.py append, or a command "
+    "naming ledger.jsonl)"
+)
+# Tools whose input is a shell command and gets the Bash rules, not PowerShell's.
+BASH_LIKE = ("Bash", "Monitor")
+# A command that runs ledger.py (or `-m ledger`) and, in the same segment after
+# it, says `append`. Neither side may be glued to a longer word or path part, so
+# `tests/test_ledger.py` and `fix-append-x` do not count.
+LEDGER_SCRIPT = re.compile(r"(?<![\w.-])ledger\.pyc?(?![\w-])|(?<![\w.-])-m\s*ledger(?![\w.-])", re.I)
+LEDGER_APPEND = re.compile(r"(?<![\w.-])append(?![\w.-])", re.I)
+LEDGER_FILE = re.compile(r"ledger\.jsonl", re.I)
+LEDGER_SEGMENT = re.compile(r"[;&|\n]")
+# Bash's backslash-newline and PowerShell's backtick-newline join two lines into
+# one command, so the newline is not a cut there (scan_command does the same).
+LEDGER_CONTINUATION = re.compile(r"[\\`]\r?\n")
+LEDGER_ADVICE = (
+    "Only the main session writes .claude/track/<feature>/ledger.jsonl, and a "
+    "Gate 1 row only after the person picks Approve. Put what should be "
+    "recorded in your report and let the main session write it. To read the "
+    "ledger, run ledger.py show, or open the file with a file-reading tool if "
+    "you have one."
 )
 
 # A -C/-c value quoted because it holds a space -- an ordinary Windows user
@@ -790,9 +821,77 @@ def ask(reason, command):
     return 0
 
 
+def is_subagent(payload):
+    """A call from a subagent: the platform puts a non-empty agent_id on it."""
+    agent_id = payload.get("agent_id")
+    return isinstance(agent_id, str) and agent_id != ""
+
+
+def names_ledger_write(command):
+    """Whether a command writes the ledger or names its file.
+
+    Reading counts too: `cat ledger.jsonl` is refused, because the command text
+    cannot tell a read from a write and the advice names the tools that read it.
+    The command is cut at `;`, `&`, `|` and newlines that no continuation joins
+    (quotes are not parsed, so a `;` inside a quoted note splits it too: a known
+    way round)."""
+    if LEDGER_FILE.search(command):
+        return True
+    for segment in LEDGER_SEGMENT.split(LEDGER_CONTINUATION.sub(" ", command)):
+        script = LEDGER_SCRIPT.search(segment)
+        if script and LEDGER_APPEND.search(segment, script.end()):
+            return True
+    return False
+
+
+def fallback_target_name(path):
+    """The last segment, for when ledger_target_names() could not answer."""
+    return path.replace("\\", "/").rsplit("/", 1)[-1].casefold()
+
+
+def ledger_target_names(path):
+    """Every file name `path` may end up writing, casefolded.
+
+    Backslashes become slashes first and the last segment is taken before any
+    `:` is split off: Windows hands back `C:\\p\\t\\ledger.jsonl`, and a
+    split on the colon first leaves only `C`. What follows the last colon is an
+    NTFS stream (`ledger.jsonl::$DATA`), and trailing dots and spaces are
+    dropped by Windows when the name is resolved. A path that exists also
+    contributes the name it resolves to, which catches a link and a short name."""
+    p = re.sub(r"^[A-Za-z]:", "", path.replace("\\", "/"))  # `C:ledger.jsonl`
+    last = posixpath.normpath(p).rsplit("/", 1)[-1]
+    names = {last.split(":", 1)[0].rstrip(". ").casefold()}
+    if os.path.exists(path):
+        real = os.path.realpath(path).replace("\\", "/").rsplit("/", 1)[-1]
+        names.add(real.split(":", 1)[0].rstrip(". ").casefold())
+    return names
+
+
+def check_ledger_target(payload):
+    """Exit code for a Write, Edit or NotebookEdit call: 2 when a subagent
+    names the track ledger, 0 for everyone and everything else."""
+    if not is_subagent(payload):
+        return 0
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return 0
+    path = tool_input.get(LEDGER_TOOLS[payload.get("tool_name")])
+    if not isinstance(path, str) or not path:
+        return 0
+    try:
+        names = ledger_target_names(path)
+    except Exception:
+        names = {fallback_target_name(path)}
+    if LEDGER_NAME in names:
+        return deny(LEDGER_WRITE_REASON, path, LEDGER_ADVICE)
+    return 0
+
+
 def main() -> int:
     try:
-        payload = json.load(sys.stdin)
+        # Bytes, so the platform's text-mode decoding of stdin (the console
+        # code page on Windows) never decides what a non-ASCII command says.
+        payload = json.loads(sys.stdin.buffer.read())
     except (json.JSONDecodeError, ValueError):
         return 0  # malformed input: fail open, don't break the session
 
@@ -801,6 +900,11 @@ def main() -> int:
     if payload.get("tool_name") in ("Agent", "Task"):
         import runner_guard
         return runner_guard.check_dispatch(payload)
+
+    # Write tools carry a path, not a command, and the scoped guards below say
+    # nothing about them.
+    if payload.get("tool_name") in LEDGER_TOOLS:
+        return check_ledger_target(payload)
 
     command = (payload.get("tool_input") or {}).get("command", "")
     if not command:
@@ -820,10 +924,17 @@ def main() -> int:
             if runner_guard.check(payload) == 2:
                 return 2
 
+    # After the scoped guards, which let some commands through, and before the
+    # rules below: a command they allowed still may not write the ledger. Reads
+    # the command as typed, not with heredoc bodies removed.
+    if is_subagent(payload) and names_ledger_write(command):
+        return deny(LEDGER_COMMAND_REASON, command, LEDGER_ADVICE)
+
     # An unknown tool is treated as not-Bash: a wrongly blocked here-string
     # would be a false positive on valid PowerShell, and a guard that blocks
     # legitimate work gets switched off along with the rules that matter.
-    shell_rules = BASH_ONLY if payload.get("tool_name") == "Bash" else NON_BASH
+    bash_like = payload.get("tool_name") in BASH_LIKE
+    shell_rules = BASH_ONLY if bash_like else NON_BASH
 
     # Match against the command with heredoc bodies removed, but always show
     # the user what they actually typed.
@@ -833,7 +944,7 @@ def main() -> int:
         if re.search(pattern, code):
             return deny(reason, command, advice)
 
-    if verdict and payload.get("tool_name") == "Bash":
+    if verdict and bash_like:
         advice = SUBSTITUTION if verdict in (SUBSTITUTED, UNPARSED_SUBSTITUTION) else BACKTICK
         return deny(verdict, command, advice)
 
@@ -881,7 +992,7 @@ def main() -> int:
     # Checked last: every rule above is a deny, and a command that trips one
     # of them stays denied even if it also merges -- ask never weakens a
     # deny.
-    if merges_pr(code, payload.get("tool_name") == "Bash"):
+    if merges_pr(code, bash_like):
         if os.environ.get(CODEX_GUARD_ENV) == "1":
             return deny(MERGE_REASON, command, MERGE_CODEX_ADVICE)
         return ask(MERGE_REASON, command)

@@ -1146,11 +1146,19 @@ def _is_design_document(record, doc, project_dir, track_dir):
     return approved is not None and os.path.samefile(approved, doc)
 
 
+def _marker(record):
+    """"yes", "no", or None when the note does not start with a strict marker."""
+    note = record.get("note")
+    found = _COMMIT_MARKER.match(note if isinstance(note, str) else "")
+    return found.group(1) if found else None
+
+
 def commit_answer(track_dir, project_dir):
     """Report-only, never blocks (#385): the commit answer the person gave at
-    Gate 1, read from the newest passed + human design record that matches the
-    design document as it stands. Anything this cannot read is a no -- the
-    label says why -- so a missing or prose note never turns into a commit.
+    Gate 1, read from every passed + human design record that matches the
+    design document as it stands; any one of them that says no makes the answer
+    no. Anything this cannot read is a no -- the label says why -- so a missing
+    or prose note never turns into a commit.
 
     Never raises: build and verify read state.md and the ledger far less than
     the other stages do, and an information line must not turn into a
@@ -1179,25 +1187,29 @@ def commit_answer(track_dir, project_dir):
             return True, ("commit_answer (unreadable: no Approve on the ledger "
                           "matches the design row's document as it stands)")
 
-        newest = matching[-1]  # records() is in file order
-        # A line that cannot be parsed, written after that Approve, may be the
-        # newer answer -- a no the person gave last. Reading the older yes
-        # past it would commit against that no, so an unreadable line after
-        # the answer makes the answer unreadable.
+        # records() is in file order. A later yes never outvotes a no: the
+        # sooner a person said no, the less the rows after it can say.
+        for r in matching:
+            if _marker(r) == "no":
+                return True, "commit_answer (no, ledger line %d)" % r["line"]
+        # A line that cannot be parsed may itself have been a matching no, so
+        # any such line after the first matching Approve makes the answer
+        # unreadable -- unless a readable no was found above.
+        first = matching[0]
         later = [r["line"] for r in records
-                 if r.get("malformed") and r["line"] > newest["line"]]
+                 if r.get("malformed") and r["line"] > first["line"]]
         if later:
             return True, ("commit_answer (unreadable: ledger line %d is malformed "
                           "and comes after the Approve at line %d, so it may be "
-                          "a newer answer)" % (later[0], newest["line"]))
-        note = newest.get("note")
-        found = _COMMIT_MARKER.match(note if isinstance(note, str) else "")
-        if found is None:
-            return True, ("commit_answer (unreadable: ledger line %d's note "
-                          "does not start with commit: yes or commit: no)"
-                          % newest["line"])
-        return True, "commit_answer (%s, ledger line %d)" % (found.group(1),
-                                                             newest["line"])
+                          "a newer answer)" % (later[0], first["line"]))
+        for r in matching:
+            if _marker(r) is None:
+                return True, ("commit_answer (unreadable: ledger line %d's note "
+                              "does not start with commit: yes or commit: no. "
+                              "Build will not commit: commit the changes "
+                              "yourself, or change the design and sign Gate 1 "
+                              "again)" % r["line"])
+        return True, "commit_answer (yes, ledger line %d)" % matching[-1]["line"]
     except (OSError, UnicodeDecodeError):
         return True, ("commit_answer (unreadable: the track's state.md or "
                       "ledger cannot be read)")

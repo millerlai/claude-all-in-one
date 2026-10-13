@@ -86,8 +86,11 @@ def test_the_pattern_file_hits_every_merge_and_no_other_gh_command(compact, patt
 def test_both_launcher_blocks_name_merge_in_their_message():
     # The CMD block and the sh block each print what the reduced check covers;
     # a merge that is blocked but unlisted would read as a bug to the person.
+    # Write mode's two lines (Write, Edit, NotebookEdit) check no command, so
+    # they list nothing: the message of the Bash and Agent modes is the one
+    # that says "no working Python 3 was found".
     lines = [ln for ln in LAUNCHER.read_text(encoding="ascii").splitlines()
-             if "cai guard reduced check:" in ln]
+             if "cai guard reduced check: no working Python 3 was found" in ln]
     assert len(lines) == 2, lines
     for line in lines:
         assert "gh pr merge" in line, line

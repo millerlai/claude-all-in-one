@@ -198,13 +198,17 @@ def _standin(directory, name, mode, log=None):
     exit0 and exit9 answer that code to anything; input9 answers 9 when stdin
     holds a line and 0 when it is empty; forward appends a line to `log` then
     runs the real interpreter with the same arguments; drainw reads all of stdin,
-    then exits 1 for the record writer and 0 for the guard."""
+    then exits 1 for the record writer and 0 for the guard; w73input9 exits 73
+    for the record writer (the record cannot be written) and acts as input9 for
+    the guard."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     if os.name == "nt":
         body = {"exit0": "exit /b 0", "exit9": "exit /b 9",
                 "input9": 'set "X="\nset /p X=\nif defined X exit /b 9\nexit /b 0',
                 "drainw": 'findstr "^" >nul\nif "%~nx1"=="record_launcher.py" exit /b 1\nexit /b 0',
+                "w73input9": 'if "%~nx1"=="record_launcher.py" exit /b 73\n'
+                             'set "X="\nset /p X=\nif defined X exit /b 9\nexit /b 0',
                 "forward": 'echo x>>"%s"\n"%s" %%*\nexit /b %%ERRORLEVEL%%' % (log, sys.executable)}[mode]
         path = directory / (name + ".bat")
         path.write_bytes(("@echo off\r\n" + body.replace("\n", "\r\n") + "\r\n").encode("ascii"))
@@ -212,6 +216,8 @@ def _standin(directory, name, mode, log=None):
     body = {"exit0": "exit 0", "exit9": "exit 9",
             "input9": 'IFS= read -r X\n[ -n "$X" ] && exit 9\nexit 0',
             "drainw": 'while IFS= read -r L; do :; done\ncase "$1" in *record_launcher.py) exit 1;; esac\nexit 0',
+            "w73input9": 'case "$1" in *record_launcher.py) exit 73;; esac\n'
+                         'IFS= read -r X\n[ -n "$X" ] && exit 9\nexit 0',
             "forward": 'echo x >> "%s"\nexec "%s" "$@"' % (log, sys.executable)}[mode]
     path = directory / name
     path.write_bytes(("#!/bin/sh\n" + body + "\n").encode("utf-8"))
@@ -428,6 +434,112 @@ def test_unwritable_config_root_still_runs_the_guard_by_name(tmp_path):
     assert "bash_guard blocked this command" in result.stderr
     assert _call(argv, env, "git status").returncode == 0
     assert (cfg / "cai").is_file()  # nothing replaced it
+
+
+LEDGER_PATH = "/p/.claude/track/t/ledger.jsonl"
+
+
+def _write_call(argv, env, path, agent_id=None, agent_type=None, tool="Write",
+                field="file_path", content="x", compact=True, agent_id_last=False):
+    """The dispatcher in write mode, called as hooks.json calls it for a write tool."""
+    payload = {"tool_name": tool}
+    if agent_type:
+        payload["agent_type"] = agent_type
+    if agent_id is not None and not agent_id_last:
+        payload["agent_id"] = agent_id
+    payload["tool_input"] = {field: path, "content": content}
+    if agent_id is not None and agent_id_last:
+        payload["agent_id"] = agent_id
+    separators = (",", ":") if compact else None
+    return subprocess.run(argv + ["write"], input=json.dumps(payload, separators=separators),
+                          capture_output=True, text=True, env=env)
+
+
+@pytest.mark.parametrize("compact", [True, False])
+def test_write_mode_without_python_blocks_only_a_subagents_ledger_write(tmp_path, compact):
+    # O1: findstr /R /G: and grep -f read the same four-line pattern file.
+    argv, env = _wrapper_without_python(tmp_path)
+    sub = "agent-ledger-test"
+    for kwargs in [
+            dict(path=LEDGER_PATH, agent_id=sub),
+            dict(path="C:\\p\\.claude\\track\\t\\LEDGER.JSONL", agent_id=sub),
+            dict(path=LEDGER_PATH, agent_id=sub, tool="NotebookEdit", field="notebook_path"),
+            dict(path=LEDGER_PATH, agent_id=sub, agent_id_last=True),
+            dict(path=LEDGER_PATH, agent_id="")]:  # the pattern file reads only the key
+        result = _write_call(argv, env, compact=compact, **kwargs)
+        assert result.returncode == 2, (kwargs, result.stderr)
+        assert "cai guard reduced check:" in result.stderr
+    for kwargs in [
+            dict(path=LEDGER_PATH),  # the main session
+            dict(path="/p/docs/notes.md", agent_type="cai:designer",
+                 content="git push --force origin main, ledger.jsonl"),
+            dict(path="/p/t/ledger.jsonl.bak", agent_id=sub),
+            dict(path="/p/notes.md", agent_id=sub, content='"\\ledger.jsonl"')]:
+        result = _write_call(argv, env, compact=compact, **kwargs)
+        assert (result.returncode, result.stderr) == (0, ""), kwargs
+    assert not _record_file(env).exists()
+
+
+def test_write_mode_lets_a_call_through_when_the_pattern_file_cannot_be_read(tmp_path):
+    # O2: a scan that failed is not a verdict, and a write is not blocked on it.
+    argv, env = _wrapper_without_python(tmp_path)
+    (Path(argv[-1]).parent / "reduced-check-write-patterns.txt").unlink()
+    for path, agent_id in [(LEDGER_PATH, "agent-ledger-test"), ("/p/notes.md", None)]:
+        result = _write_call(argv, env, path, agent_id=agent_id)
+        assert result.returncode == 1, (path, result.stderr)
+        assert "could not be read" in result.stderr
+
+
+def test_write_mode_lets_a_failed_launcher_through_and_keeps_the_record_rules(tmp_path):
+    # O3: exit 9 on every input drops the record, exit 9 on this input only keeps it.
+    argv, env = _wrapper_env(tmp_path)
+    for mode, kept in [("exit9", False), ("input9", True)]:
+        standin = _standin(tmp_path / mode, mode, mode)
+        _plant_record(env, "cai-launcher 1 path %s end" % standin)
+        result = _write_call(argv, env, LEDGER_PATH, agent_id="agent-ledger-test")
+        assert result.returncode == 1, (mode, result.stderr)
+        assert "cai guard launcher failed:" in result.stderr
+        assert _record_file(env).exists() is kept, mode
+
+
+def test_write_mode_with_a_vanished_record_path_scans_without_a_message(tmp_path):
+    # O4: the record names a file that is gone; stdin is unread, so the pattern
+    # file decides. Both calls run with no Python anywhere, so the probe after
+    # the dropped record finds none either.
+    argv, env = _wrapper_without_python(tmp_path)
+    gone = "cai-launcher 1 path %s end" % (tmp_path / "gone" / "python.exe")
+    _plant_record(env, gone)
+    result = _write_call(argv, env, LEDGER_PATH, agent_id="agent-ledger-test")
+    assert result.returncode == 2, result.stderr
+    assert "cai guard reduced check:" in result.stderr
+    assert "no longer exists" not in result.stderr
+    assert not _record_file(env).exists()
+    _plant_record(env, gone)
+    result = _write_call(argv, env, "/p/notes.md", agent_id="agent-ledger-test")
+    assert (result.returncode, result.stderr) == (0, "")
+    assert not _record_file(env).exists()
+
+
+def test_write_mode_lets_a_candidate_that_fails_on_this_input_through(tmp_path):
+    # O5: the first candidate runs the guard on empty input but cannot write its record.
+    argv, env = _wrapper_env(tmp_path, [(FIRST, "w73input9")], private_hooks=True)
+    result = _write_call(argv, env, LEDGER_PATH, agent_id="agent-ledger-test")
+    assert result.returncode == 1, result.stderr
+    assert "nothing was recorded" in result.stderr
+
+
+@pytest.mark.skipif(os.name != "nt", reason="findstr's stdin line limit is a Windows fact")
+def test_findstr_on_stdin_still_matches_a_line_of_ten_thousand_bytes(tmp_path):
+    # O6: a third party's record says findstr never matches a stdin line of 8191
+    # bytes or more. Measured on Windows 11 (2026-10-12): it does match, so a
+    # long Write is blocked like a short one.
+    argv, env = _wrapper_without_python(tmp_path)
+    sub = "agent-ledger-test"
+    assert _write_call(argv, env, "/p/notes.md", agent_id=sub,
+                       content="a" * 10000).returncode == 0
+    for size in (4000, 10000):
+        result = _write_call(argv, env, LEDGER_PATH, agent_id=sub, content="a" * size)
+        assert result.returncode == 2, size
 
 
 WRITER = Path("plugins/cai/hooks/record_launcher.py")

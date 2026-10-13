@@ -91,7 +91,7 @@ For the stage about to run:
      overwrite that stage's `state.md` row: `status` = `done`, plus artifact
      and note — never append a row; the row count must equal `stages.json`'s.
 
-   `--gate human` belongs to the two human gates below and nowhere else; at the design gate it takes `--artifact`.
+   `--gate human` belongs to the two human gates below and nowhere else; at the design gate it takes `--artifact`, and its `--note` is exactly `commit: yes` or `commit: no`, with nothing after it.
    A non-zero exit stops the step: report it and leave `state.md` untouched.
 
 When `.claude/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `$track skip`.

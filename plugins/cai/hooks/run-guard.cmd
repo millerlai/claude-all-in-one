@@ -12,6 +12,10 @@ REM interpreter exits with anything else once it has the real input, so this
 REM call is blocked for every caller and the record is dropped unless the
 REM interpreter still runs the guard on empty input. Degraded: no candidate
 REM runs the guard, so a pattern file checks the untouched input instead.
+REM Write mode (Write, Edit, NotebookEdit) is the exception: a failed call, or a
+REM write pattern file that cannot be read, is let through with exit 1; a
+REM degraded call the file does not match passes silently, as here; only a
+REM subagent's write to ledger.jsonl that the file matches is blocked.
 REM
 REM Exit codes are compared as strings, never with errorlevel tests: those mean
 REM greater or equal, and a negative Windows exit code would read as success.
@@ -29,6 +33,13 @@ set "PATTERNS=%~dp0reduced-check-patterns.txt"
 REM hooks.json passes agent for Agent calls: a prompt is not a command, so the
 REM reduced check only looks for the verifier there (#277).
 if "%~1"=="agent" set "PATTERNS=%~dp0reduced-check-agent-patterns.txt"
+REM hooks.json passes write for Write, Edit and NotebookEdit calls. A broken
+REM interpreter must not stop every file write of a session, so write mode lets
+REM a failed call through (exit 1, hook error), and its pattern file knows only
+REM a subagent's write to ledger.jsonl.
+set "WRITEMODE="
+if "%~1"=="write" set "WRITEMODE=1"
+if "%~1"=="write" set "PATTERNS=%~dp0reduced-check-write-patterns.txt"
 if not defined CLAUDE_CONFIG_DIR goto defaultroot
 set "REC=%CLAUDE_CONFIG_DIR%\cai\guard-launcher-cmd.txt"
 goto haveroot
@@ -62,6 +73,7 @@ goto runbyname
 if not "%KIND%"=="path" goto runlauncher
 if exist "%LAUNCHER%" goto runlauncher
 del "%REC%" >nul 2>nul
+if defined WRITEMODE goto reduced
 >&2 echo cai guard launcher failed: %LAUNCHER% no longer exists, record dropped. This call is blocked for every caller, the next call probes again.
 exit /b 2
 
@@ -78,9 +90,11 @@ if "%KIND%"=="name" call %%LAUNCHER%% "%%GUARD%%" <nul >nul 2>nul
 set "AGAIN=%ERRORLEVEL%"
 if "%AGAIN%"=="0" goto keeprecord
 del "%REC%" >nul 2>nul
+if defined WRITEMODE goto writedropped
 >&2 echo cai guard launcher failed: %LAUNCHER% exited %RC% on this input, record dropped. This call is blocked for every caller, the next call probes again.
 exit /b 2
 :keeprecord
+if defined WRITEMODE goto writekept
 >&2 echo cai guard launcher failed: %LAUNCHER% exited %RC% on this input but still runs the guard on empty input, record kept. This call is blocked for every caller.
 exit /b 2
 
@@ -91,6 +105,7 @@ call %%CAND%% "%%GUARD%%" %*
 set "RC=%ERRORLEVEL%"
 if "%RC%"=="0" exit /b 0
 if "%RC%"=="2" exit /b 2
+if defined WRITEMODE goto writebyname
 >&2 echo cai guard launcher failed: %CAND% exited %RC% on this input, nothing was recorded. This call is blocked for every caller, the next call probes again.
 exit /b 2
 
@@ -106,8 +121,28 @@ if "%RC%"=="2" call :scanwait
 if "%RC%"=="2" call :scanwait
 if "%RC%"=="2" call :scanwait
 if "%RC%"=="1" exit /b 0
+if defined WRITEMODE goto writeverdict
 >&2 echo cai guard reduced check: no working Python 3 was found, so only force push, reset --hard, git clean -f, --no-verify, rm -rf, gh pr merge and the scoped agents are checked. This call is blocked.
 exit /b 2
+
+REM Write mode ends here. A match blocks; a scan that itself failed is no
+REM verdict, so the call goes through with exit 1 and shows a hook error.
+:writeverdict
+if not "%RC%"=="0" goto writepass
+>&2 echo cai guard reduced check: the Python guard did not run, so only a subagent's write to ledger.jsonl is checked. This call is blocked.
+exit /b 2
+:writepass
+>&2 echo cai guard reduced check: the Python guard did not run and the write pattern file could not be read, so this call is let through without the ledger check.
+exit /b 1
+:writedropped
+>&2 echo cai guard launcher failed: %LAUNCHER% exited %RC% on this input, record dropped. Write mode: this call is let through without the ledger check, the next call probes again.
+exit /b 1
+:writekept
+>&2 echo cai guard launcher failed: %LAUNCHER% exited %RC% on this input but still runs the guard on empty input, record kept. Write mode: this call is let through without the ledger check.
+exit /b 1
+:writebyname
+>&2 echo cai guard launcher failed: %CAND% exited %RC% on this input, nothing was recorded. Write mode: this call is let through without the ledger check, the next call probes again.
+exit /b 1
 
 :scanwait
 ping -n 2 127.0.0.1 >nul 2>nul
@@ -151,7 +186,11 @@ CMDBLOCK
 # Same three endings as the CMD block above (healthy, failed, degraded), and no
 # `exec`: control has to come back here so a failing recorded interpreter can be
 # turned into exit 2. Probing reads /dev/null, so the hook input on stdin is
-# read once, by the guard or by the reduced check.
+# read once, by the guard or by the reduced check. Write mode is the exception
+# the CMD block's header names: a failed call, or a write pattern file that
+# cannot be read, is let through with exit 1; a degraded call the file does not
+# match passes silently; only a subagent's write to ledger.jsonl it matches is
+# blocked.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 GUARD="$DIR/../scripts/bash_guard.py"
 WRITER="$DIR/record_launcher.py"
@@ -159,6 +198,14 @@ PATTERNS="$DIR/reduced-check-patterns.txt"
 # hooks.json passes agent for Agent calls: a prompt is not a command, so the
 # reduced check only looks for the verifier there (#277).
 [ "$1" = agent ] && PATTERNS="$DIR/reduced-check-agent-patterns.txt"
+# hooks.json passes write for Write, Edit and NotebookEdit calls: a broken
+# interpreter must not stop every file write, so a failed call is let through
+# with exit 1 and the pattern file knows only a subagent's write to ledger.jsonl.
+WRITE_MODE=
+if [ "$1" = write ]; then
+    WRITE_MODE=1
+    PATTERNS="$DIR/reduced-check-write-patterns.txt"
+fi
 REC="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/cai/guard-launcher-sh.txt"
 
 # One line: cai-launcher 1, a kind (path or name), the launcher, a closing end
@@ -182,13 +229,29 @@ run_launcher() {
     if [ "$KIND" = path ]; then "$LAUNCHER" "$@"; else $LAUNCHER "$@"; fi
 }
 
+# Write mode, and nothing has read stdin: the write pattern file decides. No
+# match is a silent pass, a match blocks, and a grep that failed (a missing
+# pattern file) lets the call through with a hook error. Never returns.
+write_scan() {
+    grep -q -f "$PATTERNS"
+    RC=$?
+    [ "$RC" -eq 1 ] && exit 0
+    if [ "$RC" -eq 0 ]; then
+        printf '%s\n' "cai guard reduced check: the Python guard did not run, so only a subagent's write to ledger.jsonl is checked. This call is blocked." >&2
+        exit 2
+    fi
+    printf '%s\n' "cai guard reduced check: the Python guard did not run and the write pattern file could not be read, so this call is let through without the ledger check." >&2
+    exit 1
+}
+
 # The record is valid: run the guard on the real input and pass 0 or 2 on. Any
 # other code is this input or the launcher, so ask the guard once more with
 # empty input: it answers 0 whenever it runs at all. Either way this call is
-# blocked for every caller. Never returns.
+# blocked for every caller (write mode: let through with exit 1). Never returns.
 run_recorded() {
     if [ "$KIND" = path ] && [ ! -x "$LAUNCHER" ]; then
         rm -f "$REC"
+        [ -n "$WRITE_MODE" ] && write_scan
         printf '%s\n' "cai guard launcher failed: $LAUNCHER no longer exists, record dropped. This call is blocked for every caller, the next call probes again." >&2
         exit 2
     fi
@@ -197,9 +260,17 @@ run_recorded() {
     [ "$RC" -eq 0 ] && exit 0
     [ "$RC" -eq 2 ] && exit 2
     if run_launcher "$GUARD" </dev/null >/dev/null 2>&1; then
+        if [ -n "$WRITE_MODE" ]; then
+            printf '%s\n' "cai guard launcher failed: $LAUNCHER exited $RC on this input but still runs the guard on empty input, record kept. Write mode: this call is let through without the ledger check." >&2
+            exit 1
+        fi
         printf '%s\n' "cai guard launcher failed: $LAUNCHER exited $RC on this input but still runs the guard on empty input, record kept. This call is blocked for every caller." >&2
     else
         rm -f "$REC"
+        if [ -n "$WRITE_MODE" ]; then
+            printf '%s\n' "cai guard launcher failed: $LAUNCHER exited $RC on this input, record dropped. Write mode: this call is let through without the ledger check, the next call probes again." >&2
+            exit 1
+        fi
         printf '%s\n' "cai guard launcher failed: $LAUNCHER exited $RC on this input, record dropped. This call is blocked for every caller, the next call probes again." >&2
     fi
     exit 2
@@ -227,6 +298,10 @@ for c in python3 python; do
         RC=$?
         [ "$RC" -eq 0 ] && exit 0
         [ "$RC" -eq 2 ] && exit 2
+        if [ -n "$WRITE_MODE" ]; then
+            printf '%s\n' "cai guard launcher failed: $c exited $RC on this input, nothing was recorded. Write mode: this call is let through without the ledger check, the next call probes again." >&2
+            exit 1
+        fi
         printf '%s\n' "cai guard launcher failed: $c exited $RC on this input, nothing was recorded. This call is blocked for every caller, the next call probes again." >&2
         exit 2
     fi
@@ -234,6 +309,7 @@ done
 
 # Nothing runs the guard and nothing has read stdin. grep exits 1 for no match;
 # a match, or grep failing (a missing pattern file), blocks.
+[ -n "$WRITE_MODE" ] && write_scan
 grep -q -f "$PATTERNS"
 RC=$?
 [ "$RC" -eq 1 ] && exit 0
