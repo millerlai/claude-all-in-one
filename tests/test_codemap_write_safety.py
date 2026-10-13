@@ -119,10 +119,13 @@ def test_ac1_a_planted_packages_link(tmp_path, capsys, kind):
     build = _cli(capsys, "build", repo)
     after_build = sorted(os.listdir(str(outside)))
     update = _cli(capsys, "update", repo)
+    # Read again after `update`: a write through the link there would not show
+    # in the listing taken after `build`.
+    after_update = sorted(os.listdir(str(outside)))
     status = idx.status(str(repo))
-    assert (build, update, after_build, status.word, status.detail) == (
+    assert (build, update, after_build, after_update, status.word, status.detail) == (
         (2, "codemap: unsupported (%s)" % reason),
-        (2, "codemap: unsupported (%s)" % reason), [], "unsupported", reason)
+        (2, "codemap: unsupported (%s)" % reason), [], [], "unsupported", reason)
 
 
 def test_a_real_packages_directory_is_not_refused(tmp_path, capsys):
@@ -529,3 +532,55 @@ def test_a_failing_unlock_does_not_change_the_result(tmp_path, capsys, monkeypat
     if os.name != "nt":
         # Closing every descriptor releases a flock; Windows frees it on its own schedule.
         assert _cli(capsys, "build", tmp_path)[0] == 0
+
+
+def _index_bytes(repo):
+    """Every regular file under the index directory, as {relative path: bytes}."""
+    root = str(repo / ".cai" / "codemap")
+    out = {}
+    for base, _, names in os.walk(root):
+        for name in names:
+            full = os.path.join(base, name)
+            with open(full, "rb") as fh:
+                out[os.path.relpath(full, root)] = fh.read()
+    return out
+
+
+def test_a_directory_on_a_data_file_name_is_refused_before_any_rename(tmp_path, capsys):
+    """#423: it used to pass check_entries, fail its rename after files.jsonl
+    was already replaced, and leave status saying "run build" while build
+    failed the same way."""
+    repo, _, index = _setup(tmp_path, {"a.py": "def f():\n    pass\n"})
+    assert _cli(capsys, "build", repo)[0] == 0
+    os.remove(str(index / "repo-map.md"))
+    (index / "repo-map.md").mkdir()
+    (repo / "a.py").write_text("def g():\n    pass\n", encoding="utf-8")
+    before = _index_bytes(repo)
+
+    update = _cli(capsys, "update", repo)
+    build = _cli(capsys, "build", repo)
+
+    refused = (2, "codemap: unsupported (.cai/codemap holds a directory where a data file goes)")
+    assert (update, build) == (refused, refused)
+    assert _index_bytes(repo) == before
+    assert "disagree" not in idx.status(str(repo)).detail
+
+
+def test_state_json_is_renamed_after_every_data_file(tmp_path, capsys, monkeypatch):
+    """A rename that fails on files.jsonl must leave every index file as it
+    was; with state.json renamed first, state.json would already be new."""
+    repo, _, _ = _setup(tmp_path, {"a.py": "def f():\n    pass\n"})
+    assert _cli(capsys, "build", repo)[0] == 0
+    (repo / "a.py").write_text("def g():\n    pass\n", encoding="utf-8")
+    before = _index_bytes(repo)
+    real = store._replace_retrying
+
+    def refuse_files(src, dst):
+        if os.path.basename(dst) == store.FILES_NAME:
+            raise PermissionError(errno.EACCES, "busy")
+        return real(src, dst)
+
+    monkeypatch.setattr(store, "_replace_retrying", refuse_files)
+
+    assert _cli(capsys, "update", repo)[0] == 2
+    assert _index_bytes(repo) == before

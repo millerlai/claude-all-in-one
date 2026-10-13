@@ -128,6 +128,7 @@ def _write(top, facts, previous):
     lock = store.acquire_write_lock(top)
     try:
         store.check_entries(top)
+        store.check_targets(top, list(blobs) + [store.STATE_NAME])
         # Every temp file is written before the first rename, so an error up to
         # there leaves the previous index exactly as it was.
         staged = []

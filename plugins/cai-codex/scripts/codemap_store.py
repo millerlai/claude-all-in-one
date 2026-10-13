@@ -259,6 +259,20 @@ def check_entries(top: str) -> None:
                     ".cai/codemap holds an entry that is not a regular file or directory")
 
 
+def check_targets(top: str, names) -> None:
+    """Refuses the write when one of the names it is about to rename onto is
+    something other than a regular file. `check_entries` lets every real
+    directory through, since `packages/` must be one; a directory sitting on a
+    data file's name would fail its rename halfway through `publish`, after
+    earlier data files were already replaced, and every later `build` would
+    fail the same way. Called before anything is staged, so the previous
+    index stays exactly as it was."""
+    for name in names:
+        info = _lstat_or_none(os.path.join(index_dir(top), *name.split("/")))
+        if info is not None and _entry_kind(info) != "file":
+            raise IndexUnreadable(".cai/codemap holds a directory where a data file goes")
+
+
 def acquire_write_lock(top: str) -> int:
     """Takes the index directory's write lock without waiting; returns the fd
     that `release_write_lock` gives back. The lock file is never deleted: on
