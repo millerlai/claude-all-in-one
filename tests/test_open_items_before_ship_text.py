@@ -219,6 +219,20 @@ def test_done_publishes_again_after_the_picks_and_runs_one_fix_round(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
+def test_done_looks_again_at_what_publish_left_before_mirroring_and_moving(tree):
+    # publish hands a pick it could not write back as `undecided again:`, or
+    # leaves it `filing`; moving the track then would drop the person's pick.
+    text = _stop(tree)
+    done = text[text.index("the same items are asked again"):]
+    step = done[done.index("**No Fix now and no Stop.**"):]
+    assert "run `undecided` again" in step
+    assert "does not print `undecided 0`" in step
+    assert "exited 2" in step
+    assert "with no ticket mirroring and no move" in step
+    assert step.index("run `undecided` again") < step.index("ticket mirroring and the move as")
+
+
+@pytest.mark.parametrize("tree", TREES)
 def test_a_fix_that_misses_the_pr_leaves_a_reminder(tree):
     text = _stop(tree)
     assert "`fix for <id> not in PR #<n>`" in text

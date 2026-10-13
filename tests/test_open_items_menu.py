@@ -546,7 +546,12 @@ def test_record_url_note_target_notes_every_filing_item_of_that_comment(track, p
 @pytest.mark.parametrize("target,url", [
     ("issue", COMMENT), ("note-1", ISSUE), ("issue", "https://github.com/o/r/pull/7"),
     ("issue", "https://github.com/o/r/issues/x"), ("issue", "not a url"),
-    ("issue", ISSUE + "\nextra"), ("note-1", "https://github.com/o/r/pull/7#issuecomment-")])
+    ("issue", ISSUE + "\nextra"), ("note-1", "https://github.com/o/r/pull/7#issuecomment-"),
+    # The URL is printed into the ticket's public final comment: no account
+    # and no port in the host.
+    ("issue", "https://user:tok@github.com/o/r/issues/12"),
+    ("issue", "https://github.com:8443/o/r/issues/12"),
+    ("note-1", "https://user:tok@github.com/o/r/pull/7#issuecomment-99")])
 def test_record_url_refuses_the_wrong_shape_and_writes_nothing(track, project, target, url):
     _state(track)
     _record(track, _item(1, state="filing", target=target))

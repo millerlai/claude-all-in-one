@@ -384,6 +384,56 @@ def test_a_timeout_leaves_filing_with_one_call_and_a_second_publish_makes_none(
     assert len(gh.calls()) == 1 and _by_id(track)["open-1"]["state"] == "filing"
 
 
+def test_a_record_write_failing_after_the_create_keeps_filing_and_names_the_url(
+        tmp_path, monkeypatch, track, project):
+    # The one place the never-retry rule and a lost URL meet: gh made the
+    # issue, then the record could not be written.
+    _record(track, _item(1))
+    _shipped(track)
+    gh = _gh(tmp_path, monkeypatch, track)
+    real, calls = open_items.write_atomic, []
+
+    def flaky(path, text):
+        calls.append(path)
+        if len(calls) == 2:  # the first is the `filing` flush before the call
+            raise OSError("disk full")
+        return real(path, text)
+
+    monkeypatch.setattr(open_items, "write_atomic", flaky)
+    with pytest.raises(open_items.OpenItemsError) as raised:
+        _publish(track, project, at="ship", pr=7, pr_state="OPEN")
+    assert ISSUE % 11 in str(raised.value) and "disk full" in str(raised.value)
+    assert _by_id(track)["open-1"]["state"] == "filing"
+    monkeypatch.setattr(open_items, "write_atomic", real)
+    assert _publish(track, project, at="ship", pr=7, pr_state="OPEN") == []
+    assert len(gh.calls()) == 1
+
+
+def test_a_body_file_that_cannot_be_deleted_does_not_hide_the_created_url(
+        tmp_path, monkeypatch, track, project):
+    # An indexer or antivirus holding the temp file open makes the delete
+    # fail after gh succeeded; the URL is the only record that it did.
+    _record(track, _item(1))
+    _shipped(track)
+    gh = _gh(tmp_path, monkeypatch, track)
+    real, held = os.unlink, []
+
+    def locked(path, *a, **kw):
+        if str(path).endswith(".md") and os.path.basename(str(path)).startswith("tmp"):
+            held.append(path)
+            raise PermissionError("in use")
+        return real(path, *a, **kw)
+
+    monkeypatch.setattr(os, "unlink", locked)
+    out = _publish(track, project, at="ship", pr=7, pr_state="OPEN")
+    monkeypatch.setattr(os, "unlink", real)
+    for path in held:
+        os.unlink(path)
+    assert held, "the fixture never held a body file"
+    assert out == ["open-1 filed " + ISSUE % 11]
+    assert _by_id(track)["open-1"]["state"] == "filed" and len(gh.calls()) == 1
+
+
 def test_auth_failed_without_a_url_returns_the_item_to_undecided(
         tmp_path, monkeypatch, track, project):
     _record(track, _item(1))

@@ -664,8 +664,13 @@ ticket mirroring and the move. In order:
    `fix for <id> not in PR #<n>` as one more item of the verify row's existing
    `Left open:` list, never as a second `Left open:` marker.
 7. **No Fix now and no Stop.** Run `publish` with `--at done` again, so that
-   the picks made now are written, then ticket mirroring and the move as
-   `SKILL.md` says.
+   the picks made now are written. Then run `undecided` again. When `publish`
+   exited 2, or `undecided` does not print `undecided 0`, relay what each
+   printed and end this `done` here, with no ticket mirroring and no move, and
+   say in one line to run `$track done` again: `publish` hands a pick it
+   could not write back as `undecided again:`, and a `filing` item still
+   needs its answer. Otherwise ticket mirroring and the move as `SKILL.md`
+   says.
 
 ## The other stops, which are not gates
 

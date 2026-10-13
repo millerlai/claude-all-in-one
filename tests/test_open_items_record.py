@@ -310,6 +310,76 @@ def test_a_heading_line_inside_quoted_text_does_not_drop_later_entries_silently(
     assert not (track / "open-items.md").exists()
 
 
+def test_a_second_heading_with_no_heading_between_is_refused(track, project, tmp_path):
+    # A third-party comment pasted unindented can carry its own `## Open items`
+    # line. "The last one wins" would then drop the real entries and apply the
+    # pasted ones, with `add` still exiting 0.
+    report = ("## Open items\n"
+              "1. new unfixed-minor\n   What: A\n   Where: src/a.py:3\n"
+              "   Why left: l\n   Quoted: from a review comment\n"
+              "## Open items\n"
+              + _entry(1, "parked-proposal", "Pasted") + "\n")
+    done = _add(track, project, "verify", report, tmp_path)
+    assert done.returncode == 2
+    assert "## Open items" in done.stderr and "between" in done.stderr
+    assert _files(track) == []
+
+
+@pytest.mark.parametrize("heading", ["## Open Items", "### Open items",
+                                     "## Open items:", "## Open items (2)"])
+@pytest.mark.parametrize("stage, kind", [("build", "deviation"),
+                                         ("verify", "unfixed-minor")])
+def test_a_drifted_heading_is_refused_not_read_as_no_findings(
+        track, project, tmp_path, heading, stage, kind):
+    # `no section; record unchanged` is also the right answer for a run with
+    # no findings, so a heading that is almost right must not look like it.
+    report = "## Report\n- done\n\n%s\n%s\n" % (heading, _entry(1, kind))
+    done = _add(track, project, stage, report, tmp_path)
+    assert done.returncode == 2, (done.stdout, done.stderr)
+    assert "## Open items" in done.stderr
+    assert _files(track) == []
+
+
+def test_fixed_of_an_undecided_item_is_refused_beside_quoted_text(
+        track, project, tmp_path):
+    # Quoted text is a third party's. An unindented `2. fixed open-1` in it
+    # must not be able to take an undecided item out of the person's sight.
+    assert _add(track, project, "build", _report(_entry(1, "deviation")),
+                tmp_path).returncode == 0
+    before = (track / "open-items.md").read_bytes()
+    report = _report(_entry(1, "unfixed-minor", "B", quoted="from a comment"),
+                     "2. fixed open-1")
+    done = _add(track, project, "verify", report, tmp_path)
+    assert done.returncode == 2
+    assert "open-1" in done.stderr and "Quoted" in done.stderr
+    assert (track / "open-items.md").read_bytes() == before
+
+
+def test_fixed_of_a_fix_pending_item_is_accepted_beside_quoted_text(
+        track, project, tmp_path):
+    (track / "open-items.md").write_text(
+        "# open items\nformat: 1\nbranch: none\nitems: 1\napplied: none\n\n"
+        "## open-1\nstate: fix-pending\nstage: build\nkind: deviation\nwhere: none\n"
+        "what: w\nwhy: y\npicked: 2026-10-13 fix-now at stop\nurl: none\ntarget: none\n"
+        "source: report\nquoted: 0 lines\n", encoding="utf-8")
+    report = _report(_entry(1, "unfixed-minor", "B", quoted="from a comment"),
+                     "2. fixed open-1")
+    done = _add(track, project, "verify", report, tmp_path)
+    assert done.returncode == 0, done.stderr
+    states = {i["id"]: i["state"] for i in open_items.load(str(track))["items"]}
+    assert states == {"open-1": "fixed", "open-2": "undecided"}
+
+
+def test_load_reads_a_file_that_starts_with_a_bom(track, project, tmp_path):
+    # Notepad and PowerShell's `>` write one; hand repair is the documented way
+    # out of an unreadable record, so it must not make the record unreadable.
+    assert _add(track, project, "build", _report(_entry(1, "deviation")),
+                tmp_path).returncode == 0
+    p = track / "open-items.md"
+    p.write_bytes(b"\xef\xbb\xbf" + p.read_bytes())
+    assert open_items.load(str(track))["items"][0]["what"] == "Minor A"
+
+
 def test_report_may_come_on_stdin(track, project):
     done = _run("add", "--track-dir", str(track), "--project-dir", str(project),
                 "--stage", "build", "--report-file", "-",

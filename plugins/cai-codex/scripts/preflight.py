@@ -1219,7 +1219,8 @@ def commit_answer(track_dir, project_dir):
 
 def open_items_decided(track_dir):
     """Nothing the open-items record holds is still undecided, fix-pending or
-    filing. Not knowing is a reason to block, as at merges_cleanly."""
+    filing. Not knowing is a reason to block, as at current_branch -- unlike
+    merges_cleanly, which lets a check it could not run through."""
     if ledger.last_passed(track_dir, "ship") is not None:
         return (True, "open_items_decided (not held: the PR is open, fix rounds "
                 "are not held)")

@@ -395,6 +395,7 @@ names one of these:
 | `clean_tree` | A *tracked* file has an uncommitted change at ship time, or git could not be asked. Untracked files never trip this — the squash neither includes nor touches them | Commit or stash the file(s) the line names. If the dirty files are the track's own, ignore `.claude/track/`. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
 | `merges_cleanly` | `verify` and `ship`: your branch conflicts with the remote's default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Only the committed HEAD is tried, so uncommitted changes in your working tree are not part of the check. Checked when `verify` starts (without a fetch) and when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |
 | `ledger_attempts` | Any stage: five failed or blocked attempts since it last passed or was skipped | The message lists every attempt's note and the three ways out: `/cai:track skip <stage> --reason "<why>"`, `CAI_TRACK_MAX_ATTEMPTS` set higher (or `0` for no cap), or deleting the track's `ledger.jsonl` |
+| `open_items_decided` | `ship`: an open item in `open-items.md` is still undecided, fix pending or filing, or the record cannot be read. Not held once `ship` has a passed record, so a fix round is not stopped by it | The track stops and asks what to do with each item (Fix now, File a GitHub issue, Note on the PR, Accept as is); answer, then `ship` starts. If the line says the record cannot be read, repair `open-items.md` by hand |
 
 Six more lines always print as `PASS` and are still worth reading:
 `track_ignored` at `intake` says when git is *not* ignoring the track's
@@ -438,6 +439,7 @@ the same way.
     ledger.jsonl             every attempt, appended, never edited
     untracked-at-start.json  untracked paths seen when track_start.py ran, for ship's untracked_since_start
     implementation-notes.md  build's unit table and deviations, once build writes one
+    open-items.md            findings build or verify left unfixed, one item each; open_items.py writes it
     pending.md               a stage's unanswered questions and answers so far, only while a round is unfinished; pending.py writes it
     ticket.json              the linked issue, only with ticket mirroring on
   done/

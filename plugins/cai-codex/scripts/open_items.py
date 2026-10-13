@@ -56,7 +56,6 @@ IMPORT_WHY = "recorded before this version of cai kept open items"
 WHAT_LIMIT = 200
 
 TITLE = "# open items"
-ID = re.compile(r"open-([1-9][0-9]*)")
 SECTION = re.compile(r"## open-([1-9][0-9]*)$")
 PICKED = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2}) (fix-now|file|note|accept) "
                     r"at (stop|done|ship)$")
@@ -121,7 +120,9 @@ def load(track_dir):
         return None
     try:
         with open(path, "rb") as fh:
-            text = fh.read().decode("utf-8")
+            # utf-8-sig, as read_input: hand repair is the way out of an
+            # unreadable record, and Notepad or PowerShell's `>` add a BOM.
+            text = fh.read().decode("utf-8-sig")
     except (OSError, UnicodeDecodeError) as exc:
         raise OpenItemsError("cannot read %s: %s" % (FILE_NAME, exc))
     # A person (or git's autocrlf) may have saved it with Windows line endings.
@@ -311,8 +312,9 @@ def _p(*patterns):
 
 
 # One rule per kind AC6 excludes, tried in this order. A pattern that reads
-# one field only (`^`-anchored, or the flag count) sits in FIELD_ONLY: run
-# over a whole body it would match across fields that each pass on their own.
+# one field only (`^`-anchored, or the flag count) sits in _RAW_OUTPUT_FIELD,
+# _FLAG or _COMMAND, which forbidden() runs only with field=True: run over a
+# whole body it would match across fields that each pass on their own.
 _CREDENTIAL = _p(
     r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}",
     r"\bgithub_pat_[A-Za-z0-9_]{20,}",
@@ -412,7 +414,11 @@ def ensure_record(track_dir, project_dir):
 # ---- add --------------------------------------------------------------------
 
 HEADING = "## Open items"
-ENTRY = re.compile(r"([0-9]+)\. (?:new (\S+)|still (open-[0-9]+)|fixed (open-[0-9]+))\s*$")
+# A heading that is nearly HEADING. Reading it as "no section" would be
+# indistinguishable from a run with no findings, and the section is the only
+# carrier of build's and verify's unfixed findings.
+DRIFTED_HEADING = re.compile(r"(?im)^#{2,3}[ \t]+open[ \t]+items?\b")
+ENTRY =re.compile(r"([0-9]+)\. (?:new (\S+)|still (open-[0-9]+)|fixed (open-[0-9]+))\s*$")
 LABEL = re.compile(r"(\s+)(What|Where|Why left|Quoted):[ \t]?(.*)$")
 
 
@@ -423,6 +429,15 @@ def _section(report):
     heads = [i for i, ln in enumerate(lines) if ln.rstrip() == HEADING]
     if not heads:
         return None
+    if len(heads) > 1 and not any(re.match(r"#{1,2} ", ln)
+                                  for ln in lines[heads[-2] + 1:heads[-1]]):
+        # Earlier sections are dropped on purpose (the last one lists every
+        # round's entries), but a second heading straight after the first, with
+        # no other heading between, sits inside it: pasted Quoted text. Taking
+        # it would drop the real entries and apply the pasted ones.
+        raise OpenItemsError(
+            "two `%s` headings with no heading between them; the second is "
+            "probably inside Quoted text, so indent the Quoted lines" % HEADING)
     out = [lines[heads[-1]]]
     rest = lines[heads[-1] + 1:]
     for n, ln in enumerate(rest):
@@ -502,6 +517,9 @@ def add(track_dir, project_dir, stage, report):
     report = report.replace("\r\n", "\n")
     record, existed = _build(track_dir, project_dir)
     section = _section(report)
+    if section is None and stage in KINDS and DRIFTED_HEADING.search(report):
+        raise OpenItemsError("the report has an open-items heading that is not "
+                             "exactly `%s`; write it that way" % HEADING)
     body = section[1:] if section else []
     if not any(ln.strip() for ln in body):
         if not existed:
@@ -517,6 +535,7 @@ def add(track_dir, project_dir, stage, report):
     if any(ln.strip() for ln in body[:starts[0]]):
         raise OpenItemsError("text before entry 1 in %s" % HEADING)
 
+    carries_quoted = any(re.match(r"\s+Quoted:", ln) for ln in body)
     items = [dict(i) for i in record["items"]]
     out = []
     for n, (start, end) in enumerate(zip(starts, starts[1:] + [len(body)]), 1):
@@ -551,6 +570,15 @@ def add(track_dir, project_dir, stage, report):
         if target is None:
             raise OpenItemsError("entry %d: %s is not in the record" % (n, name))
         if fixed:
+            if target["state"] == "undecided" and carries_quoted:
+                # Quoted text is a third party's, and a column-0 line in it
+                # reads as an entry. An undecided item the person has not seen
+                # is the one a forged `fixed` would hide; a fix-pending one
+                # the person chose to fix, and an undecided one is asked again.
+                raise OpenItemsError(
+                    "entry %d: `fixed %s` names an undecided item in a report "
+                    "that also carries Quoted text; leave that line out and "
+                    "the person is asked about the item" % (n, name))
             if target["state"] in ("undecided", "fix-pending"):
                 target["state"] = "fixed"
                 out.append("%s fixed" % name)
@@ -573,9 +601,12 @@ FIX, FILE_ISSUE, NOTE_PR, ACCEPT = ("Fix now", "File a GitHub issue",
 # A menu word, never a --pick value: the main session ends `done` on it.
 STOP = "Stop: I will push the branch first"
 MAX_FIX_ROUNDS = 2
-# One shape per `target` (publish and record-url share them).
-ISSUE_URL = re.compile(r"https://[^/\s]+/[^/\s]+/[^/\s]+/issues/[0-9]+")
-NOTE_URL = re.compile(r"https://[^/\s]+/[^/\s]+/[^/\s]+/pull/[0-9]+#issuecomment-[0-9]+")
+# One shape per `target` (publish and record-url share them). The host is a
+# bare name: an `account:token@` or a port has no place in a URL that the
+# ticket's public final comment prints.
+ISSUE_URL = re.compile(r"https://[A-Za-z0-9.-]+/[^/\s]+/[^/\s]+/issues/[0-9]+")
+NOTE_URL = re.compile(
+    r"https://[A-Za-z0-9.-]+/[^/\s]+/[^/\s]+/pull/[0-9]+#issuecomment-[0-9]+")
 # approval-gates.md "A fix round" labels a fix round's quotes this way.
 THIRD_PARTY = "text posted by a third party on the pull request"
 
@@ -779,7 +810,12 @@ def _create(args, project_dir, shape, body):
         done, category = ticket_backend.run(list(args) + ["--body-file", tmp],
                                             cwd=project_dir)
     finally:
-        os.unlink(tmp)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            # A body file held open by an indexer must not replace what gh
+            # printed: its URL is the only record that the write happened.
+            pass
     stdout = done.stdout if done is not None and isinstance(done.stdout, str) else ""
     url = next((ln for ln in (x.rstrip("\r") for x in stdout.split("\n"))
                 if shape.fullmatch(ln)), None)

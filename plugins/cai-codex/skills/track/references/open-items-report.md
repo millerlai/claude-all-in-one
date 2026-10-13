@@ -68,3 +68,11 @@ Text the brief labels as posted by a third party goes only under `Quoted:`;
 is never written to GitHub. `What`, `Where` and `Why left` are written to
 GitHub when the person picks File or Note, so they carry no credential, no
 absolute local path, no raw command output and no full command line either.
+
+Indent every line of a `Quoted:` block under its label. A line that starts in
+column 0 is read as an entry or a heading of the report, not as quoted text,
+so pasted text can add entries or end the section there. Two checks guard
+this: a second `## Open items` heading with no other heading between it and
+the first is refused, and so is a `fixed open-<n>` for an undecided item in a
+report that also carries `Quoted:` text. Write the heading exactly as
+`## Open items`; any other spelling is refused, not read as "no findings".
