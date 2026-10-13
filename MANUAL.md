@@ -283,19 +283,20 @@ because you weren't there to answer it. For almost every menu the track
 asks — including both of the sign-off gates after `design` and before
 `ship` — a menu closing on its own is not taken as an answer at all: nothing
 is written down, nothing runs, and the same question comes back to you
-later. Two of `build`'s own Step 0.5 questions land differently again: if
+later. One of `build`'s own Step 0.5 questions lands differently again: if
 "commit per unit" closes on its own it's treated as a no, so the parallel
 lane stays off for that run (that question exists only when `/cai:build` runs
 with no track; under a track the commit answer is the one you gave at the
-design gate), and if the glossary question closes on its own
-none of its terms get merged — both fall back to that fixed answer and the
-run keeps going rather than asking again later. There are exactly two
+design gate) — it falls back to that fixed answer and the run keeps going
+rather than asking again later. `build` no longer asks anything about the
+glossary: it adds the design's terms to `.claude/cai-context.md` itself and
+lists them in its report. There are exactly two
 further exceptions, both low-stakes: the question about running lanes in
 parallel, and the question asking what to name the track directory. At
 those two, whichever option is showing as picked when the menu closes is
 the one used. With nothing showing as picked, the two split apart again: the
 parallel-lane question falls back to sequential and the run keeps going, the
-same way commit per unit and the glossary do; the track-directory question is
+same way commit per unit does; the track-directory question is
 left unanswered and asked again later, like almost every other menu. The close
 menu at `/cai:track done` — whether to close the mirrored issue — lands
 differently again in one respect: closing on its own without an answer, it

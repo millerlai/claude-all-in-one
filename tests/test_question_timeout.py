@@ -127,14 +127,14 @@ def test_close_at_done_grants_nothing_on_timeout(plugin_root):
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
-def test_step_0_5_commit_per_unit_and_glossary_fixed_fallbacks(plugin_root):
+def test_step_0_5_commit_per_unit_fixed_fallback(plugin_root):
     section = _section(plugin_root)
     assert "Step 0.5 commit per unit" in section
     # #385: under a track the answer is Gate 1's; only the standalone run asks.
     assert "standing alone with no track" in section
     assert "Under a track there is no such menu" in section
-    assert "Step 0.5 glossary" in section
-    assert "left untouched" in section
+    # #411: build asks nothing about the glossary, so no timeout row for it.
+    assert "Step 0.5 glossary" not in section
 
 
 def test_cai_names_the_setting_and_its_default():
@@ -170,7 +170,7 @@ def test_stage_build_step_0_5_menu_closes_on_its_own(plugin_root):
     assert "commit per unit" in para
     assert "asked only standing alone" in para
     assert "sequential" in para
-    assert "merge none" in para
+    assert "glossary" not in para
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
