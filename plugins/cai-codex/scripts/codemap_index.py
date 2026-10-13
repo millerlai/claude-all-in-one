@@ -125,14 +125,29 @@ def _write(top, facts, previous):
     store.ensure_dir(top)
     blobs = {store.FILES_NAME: _jsonl(records), store.SYMBOLS_NAME: _jsonl(all_symbols)}
     blobs.update((name, text.encode("utf-8")) for name, text in texts.items())
-    artifacts = {name: store.write_atomic(top, name, data) for name, data in blobs.items()}
-    state = {"schema_version": store.SCHEMA_VERSION,
-             "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-             "head": _head(top), "file_count": len(records), "artifacts": artifacts,
-             "partial": [{"path": p, "reason": r} for p, r in partial],
-             **store.extractor_stamp()}
-    store.commit_state(top, state)
-    store.sweep(top, set(artifacts))
+    lock = store.acquire_write_lock(top)
+    try:
+        store.check_entries(top)
+        # Every temp file is written before the first rename, so an error up to
+        # there leaves the previous index exactly as it was.
+        staged = []
+        try:
+            for name, data in blobs.items():
+                staged.append(store.write_atomic(top, name, data))
+            artifacts = {item.name: item.sha256 for item in staged}
+            state = {"schema_version": store.SCHEMA_VERSION,
+                     "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                     "head": _head(top), "file_count": len(records), "artifacts": artifacts,
+                     "partial": [{"path": p, "reason": r} for p, r in partial],
+                     **store.extractor_stamp()}
+            staged.append(store.commit_state(top, state))
+            store.publish(staged)
+        except BaseException:
+            store.discard(staged)
+            raise
+        store.sweep(top, set(artifacts))
+    finally:
+        store.release_write_lock(lock)
     return Result("partial" if partial else "fresh", reparsed, len(records),
                   len(texts) - 1, partial)
 
@@ -184,6 +199,13 @@ def status(top: str) -> Status:
     try:
         if store.tracked_inside(top):
             return _unsupported(".cai/codemap holds tracked files")
+        # run build would not help: build refuses the same directory.
+        store._check_inside_repository(top)
+    except store.IndexUnreadable as exc:
+        return _unsupported(exc.args[0])
+    except OSError:
+        return _unsupported("git did not answer")
+    try:
         index = store.load(top)
     except store.IndexUnreadable as exc:
         return _unsupported("index unreadable: %s; run build" % exc.args[0])

@@ -1,15 +1,18 @@
 """Owns every byte under `<top>/.cai/codemap/`: the directory, the self-ignore
-file written before anything else, atomic data files, and the state file written
-last and checked on read.
+file written before anything else, data files staged and renamed under a write
+lock, and the state file renamed last and checked on read.
 
 Nothing here prints; a failure travels as an exception to codemap_cli.py, which
 turns it into one state line.
 """
+import errno
 import hashlib
 import json
 import os
 import stat
 import sys
+import tempfile
+import time
 from typing import NamedTuple, Optional
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,10 +36,30 @@ SYMBOLS_NAME = "symbols.jsonl"
 REPO_MAP_NAME = "repo-map.md"
 SELF_IGNORE_NAME = ".gitignore"
 SELF_IGNORE_BODY = b"*\n"
+LOCK_NAME = "write.lock"
+BUSY_REASON = "another build or update is running"
+FILE_MODE = 0o600   # mode for files os.open creates (.gitignore, lock file);
+                    # mkstemp already gives 0o600
+TEMP_SUFFIX = ".tmp"
+# The bit a Windows reparse tag sets when the name stands for another named
+# entity: a symlink or a junction, but not a cloud-sync placeholder.
+NAME_SURROGATE_BIT = 0x20000000
+# On Windows a target another process holds open refuses the rename; 5 tries
+# 50 ms apart wait out at most 0.2 s of that.
+REPLACE_ATTEMPTS = 5
+REPLACE_DELAY_SECONDS = 0.05
 
 
 class IndexUnreadable(Exception):
     """args[0] is a one-line reason."""
+
+
+class Staged(NamedTuple):
+    """A data file written to a temp file and not yet renamed."""
+    name: str       # POSIX name inside the index directory, the artifacts key
+    tmp: str        # absolute path of the temp file
+    target: str     # absolute path it is renamed to
+    sha256: str     # hex sha256 of the bytes written
 
 
 class Index(NamedTuple):
@@ -67,30 +90,74 @@ def tracked_inside(top: str) -> bool:
     return bool(out.strip("\0"))
 
 
-def _write_self_ignore(top: str, target: str) -> None:
-    """The temp file lives in the git directory, never in the working tree:
-    killed half-way, `git status` has nothing to show (T3-1)."""
-    git_dir = os.path.join(top, _git(top, "rev-parse", "--git-dir").strip())
-    tmp = os.path.join(git_dir, "cai-codemap-gitignore.%d.tmp" % os.getpid())
-    with open(tmp, "wb") as fh:
-        fh.write(SELF_IGNORE_BODY)
+def _entry_kind(info) -> str:
+    """'link', 'directory', 'file' or 'other', from an lstat result. A Windows
+    junction lstats as a directory; its reparse tag is what says it leads elsewhere."""
+    if stat.S_ISLNK(info.st_mode) or (
+            getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+            and getattr(info, "st_reparse_tag", 0) & NAME_SURROGATE_BIT):
+        return "link"
+    if stat.S_ISDIR(info.st_mode):
+        return "directory"
+    if stat.S_ISREG(info.st_mode):
+        return "file"
+    return "other"
+
+
+def _lstat_or_none(path: str):
     try:
-        os.replace(tmp, target)
-    except OSError:
-        # A different filesystem: the one place a direct write is the only way.
-        with open(target, "wb") as fh:
-            fh.write(SELF_IGNORE_BODY)
+        return os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
 
 
 def _check_inside_repository(top: str) -> str:
     """A tracked `.cai` symlink passes `tracked_inside` (git lists the link, not
     a path under it) and would carry every read, write and sweep outside the
-    repository, past what typing `build` authorises."""
+    repository, past what typing `build` authorises. `packages` is the one
+    directory below it that the writer creates files in, so it gets the same
+    check."""
     path = index_dir(top)
     inside = os.path.join(os.path.realpath(top), *INDEX_PARTS)
     if os.path.normcase(os.path.realpath(path)) != os.path.normcase(inside):
         raise IndexUnreadable(".cai/codemap is not inside the repository")
+    packages = os.path.join(path, "packages")      # same literal as _is_index_name
+    info = _lstat_or_none(packages)
+    if info is not None and (
+            _entry_kind(info) != "directory"
+            or os.path.normcase(os.path.realpath(packages))
+            != os.path.normcase(os.path.join(inside, "packages"))):
+        raise IndexUnreadable(".cai/codemap/packages is not a directory inside the repository")
     return path
+
+
+def _ensure_self_ignore(path: str) -> None:
+    """Makes `.gitignore` in the index directory `*\\n` without ever writing
+    anywhere else: created exclusively, or compared and replaced through a temp
+    file beside it. When the rename cannot be done the error travels; a direct
+    write would follow a link planted at the name."""
+    target = os.path.join(path, SELF_IGNORE_NAME)
+    try:
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
+                     FILE_MODE)
+    except FileExistsError:
+        pass            # there already, or another writer just made it: compare it
+    else:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(SELF_IGNORE_BODY)
+        return
+    fd = os.open(target, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(fd, "rb") as fh:
+        if fh.read(len(SELF_IGNORE_BODY) + 1) == SELF_IGNORE_BODY:
+            return
+    fd, tmp = _new_temp(path, SELF_IGNORE_NAME)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(SELF_IGNORE_BODY)
+        _replace_retrying(tmp, target)
+    except BaseException:
+        _unlink_quietly(tmp)
+        raise
 
 
 def ensure_dir(top: str) -> str:
@@ -99,33 +166,141 @@ def ensure_dir(top: str) -> str:
         raise IndexUnreadable(".cai/codemap holds tracked files")
     path = _check_inside_repository(top)
     os.makedirs(path, exist_ok=True)
-    target = os.path.join(path, SELF_IGNORE_NAME)
-    try:
-        with open(target, "rb") as fh:
-            if fh.read() == SELF_IGNORE_BODY:
-                return path
-    except OSError:
-        pass
-    _write_self_ignore(top, target)
+    # lstat before anything opens the name: a FIFO would block an open, and a
+    # link would carry the write elsewhere. Both names are our own constants,
+    # so the reason may echo them.
+    for name in (SELF_IGNORE_NAME, LOCK_NAME):
+        info = _lstat_or_none(os.path.join(path, name))
+        if info is not None and _entry_kind(info) != "file":
+            raise IndexUnreadable(".cai/codemap/%s is not a regular file" % name)
+    _ensure_self_ignore(path)
     return path
 
 
-def write_atomic(top: str, name: str, data: bytes) -> str:
-    """Writes `name` (a POSIX path inside the index directory) through a
-    temp file and `os.replace`; returns the sha256 hex of `data`."""
+def _new_temp(directory: str, base: str) -> tuple:
+    """(fd, path) of a file just created exclusively beside `base`, under a name
+    nobody could have planted a link at."""
+    return tempfile.mkstemp(dir=directory, prefix=base + ".", suffix=TEMP_SUFFIX)
+
+
+def _unlink_quietly(path: str) -> None:
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def _replace_retrying(src: str, dst: str) -> None:
+    for attempt in range(REPLACE_ATTEMPTS):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(REPLACE_DELAY_SECONDS)
+
+
+def write_atomic(top: str, name: str, data: bytes) -> Staged:
+    """First half of an atomic write: `data` goes into a new temp file beside
+    `name` and `publish` renames it. Still called write_atomic because tests
+    replace it to stop a build before its first data file."""
     target = os.path.join(index_dir(top), *name.split("/"))
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = "%s.%d.tmp" % (target, os.getpid())
-    with open(tmp, "wb") as fh:
-        fh.write(data)
-    os.replace(tmp, target)
-    return hashlib.sha256(data).hexdigest()
+    directory = os.path.dirname(target)
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp = _new_temp(directory, os.path.basename(target))
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+    except BaseException:
+        _unlink_quietly(tmp)
+        raise
+    return Staged(name, tmp, target, hashlib.sha256(data).hexdigest())
 
 
-def commit_state(top: str, state: dict) -> None:
-    """Last step of every write: the state file vouches for the data files."""
+def commit_state(top: str, state: dict) -> Staged:
+    """The state file, staged like the rest; `publish` renames it last so it
+    vouches only for data files that are already in place."""
     text = json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    write_atomic(top, STATE_NAME, text.encode("utf-8"))
+    return write_atomic(top, STATE_NAME, text.encode("utf-8"))
+
+
+def publish(staged: list) -> None:
+    for item in staged:
+        _replace_retrying(item.tmp, item.target)
+
+
+def discard(staged: list) -> None:
+    """Removes the temp files that are still there; never raises, because it
+    runs while another exception is on its way to the caller."""
+    for item in staged:
+        _unlink_quietly(item.tmp)
+
+
+def check_entries(top: str) -> None:
+    """Refuses the whole write when anything in the index directory, walked
+    through real directories only, is not a regular file or a directory. Called
+    with the lock held, so no other writer is renaming names under it. The
+    reason does not echo the name: it comes from the file system, and on POSIX
+    it may hold a newline."""
+    pending = [index_dir(top)]
+    while pending:
+        directory = pending.pop()
+        for name in os.listdir(directory):
+            full = os.path.join(directory, name)
+            info = _lstat_or_none(full)
+            if info is None:
+                continue
+            kind = _entry_kind(info)
+            if kind == "directory":
+                pending.append(full)
+            elif kind != "file":
+                raise IndexUnreadable(
+                    ".cai/codemap holds an entry that is not a regular file or directory")
+
+
+def acquire_write_lock(top: str) -> int:
+    """Takes the index directory's write lock without waiting; returns the fd
+    that `release_write_lock` gives back. The lock file is never deleted: on
+    POSIX a new file would be a new inode, and two writers would both hold it."""
+    path = os.path.join(index_dir(top), LOCK_NAME)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_BINARY", 0)
+                 | getattr(os, "O_NOFOLLOW", 0), FILE_MODE)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        os.close(fd)
+        # Only "someone holds it" is the busy answer; a filesystem that cannot
+        # lock at all must not read as another writer.
+        if exc.errno in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
+            raise IndexUnreadable(BUSY_REASON) from None
+        raise
+    return fd
+
+
+def release_write_lock(fd: int) -> None:
+    """Never raises: it runs in a `finally`, and a new exception there would
+    replace the one the caller is about to see."""
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    except OSError:
+        pass        # closing the fd below releases it anyway
+    try:
+        os.close(fd)
+    except OSError:
+        pass
 
 
 def _read(path):
@@ -259,21 +434,24 @@ def load(top: str) -> Optional[Index]:
 
 def sweep(top: str, keep: set) -> None:
     """Removes `*.tmp` leftovers and data files the state no longer names.
-    `keep` holds POSIX names relative to the index directory."""
-    root = index_dir(top)
-    always = {STATE_NAME, SELF_IGNORE_NAME}
-    for dirpath, dirnames, filenames in os.walk(root, topdown=False):
-        rel_dir = os.path.relpath(dirpath, root).replace(os.sep, "/")
-        for filename in filenames:
-            rel = filename if rel_dir == "." else rel_dir + "/" + filename
-            if rel in always or rel in keep:
-                continue
+    `keep` holds POSIX names relative to the index directory. Only regular
+    files are deleted and only real directories are entered: a link or a
+    special file is left where it is, since `os.walk` would walk into a Windows
+    junction and `os.rmdir` would then remove the junction itself."""
+    _sweep(index_dir(top), "", set(keep) | {STATE_NAME, SELF_IGNORE_NAME, LOCK_NAME})
+
+
+def _sweep(directory: str, rel_dir: str, keep: set) -> None:
+    for name in os.listdir(directory):
+        full = os.path.join(directory, name)
+        rel = rel_dir + "/" + name if rel_dir else name
+        info = _lstat_or_none(full)
+        kind = _entry_kind(info) if info is not None else None
+        if kind == "directory":
+            _sweep(full, rel, keep)
             try:
-                os.remove(os.path.join(dirpath, filename))
+                os.rmdir(full)
             except OSError:
-                pass
-        if rel_dir != ".":
-            try:
-                os.rmdir(dirpath)
-            except OSError:
-                pass
+                pass        # still holds a kept file
+        elif kind == "file" and rel not in keep:
+            _unlink_quietly(full)
