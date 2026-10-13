@@ -4,8 +4,10 @@ tracked file: path, language, size, sha256, and why a file was not read.
 Read-only and repeatable. A file edited while it is read is recorded as it was
 at that instant; the next status sees the mismatch and reports stale.
 """
+import errno
 import hashlib
 import os
+import stat
 import sys
 from typing import NamedTuple, Optional
 
@@ -17,6 +19,7 @@ LANGUAGES = {".py": "python", ".go": "go", ".ts": "typescript", ".tsx": "typescr
              ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
              ".cjs": "javascript"}
 CHUNK = 1 << 16
+ERROR_INVALID_NAME = 123    # Windows: the name's syntax is not one the filesystem accepts
 
 
 class NotARepository(Exception): ...
@@ -28,7 +31,20 @@ class FileFacts(NamedTuple):
     language: str           # "python" | "go" | "typescript" | "javascript" | "other"
     bytes: Optional[int]
     sha256: Optional[str]
-    reason: Optional[str]   # None, or "symlink" | "submodule" | "missing" | "path-not-utf8"
+    reason: Optional[str]   # None, or "symlink" | "submodule" | "path-not-utf8" |
+                            # "missing" | "not-regular" | "outside-repository" |
+                            # "cannot-open: <exception type>"
+
+
+CANNOT_OPEN = "cannot-open"     # prefix of "cannot-open: <exception type>"; _parse tests it
+
+
+class TrackedRead(NamedTuple):
+    reason: Optional[str]   # None, "missing", "not-regular", "outside-repository",
+                            # or CANNOT_OPEN + ": " + type(exc).__name__
+    size: Optional[int]     # bytes read; None when reason is not None
+    sha256: Optional[str]   # hex sha256 of the bytes read; None when reason is not None
+    data: Optional[bytes]   # the bytes read when limit is given, else None
 
 
 def language_of(path: str) -> str:
@@ -55,7 +71,7 @@ def list_tracked(top: str) -> list:
     return sorted(((mode, path) for path, mode in seen.items()), key=lambda m: m[1])
 
 
-def facts(top: str, mode: str, path: str) -> FileFacts:
+def facts(top_real: str, mode: str, path: str) -> FileFacts:
     language = language_of(path)
     if "�" in path:
         return FileFacts(path, language, None, None, "path-not-utf8")
@@ -63,21 +79,78 @@ def facts(top: str, mode: str, path: str) -> FileFacts:
         return FileFacts(path, language, None, None, "symlink")
     if mode == "160000":
         return FileFacts(path, language, None, None, "submodule")
-    full = os.path.join(top, *path.split("/"))
-    digest = hashlib.sha256()
-    size = 0
+    got = read_tracked(top_real, path)
+    return FileFacts(path, language, got.size, got.sha256, got.reason)
+
+
+def inventory(top: str) -> list:
+    top_real = os.path.realpath(top)   # once per call, not once per file
+    return [facts(top_real, mode, path) for mode, path in list_tracked(top)]
+
+
+def _refused(reason: str) -> "TrackedRead":
+    return TrackedRead(reason, None, None, None)
+
+
+def _cannot_open(exc: OSError) -> "TrackedRead":
+    return _refused("%s: %s" % (CANNOT_OPEN, type(exc).__name__))
+
+
+def read_tracked(top_real: str, path: str, limit: Optional[int] = None) -> TrackedRead:
+    """top_real must be os.path.realpath(top), computed once by the caller.
+    limit None: read to end of file, keep only the hash (inventory).
+    limit N: read at most N + 1 bytes and return them (_parse, tracked_texts);
+    a caller that gets more than N bytes treats the file as over the cap.
+
+    The path is looked at before it is opened: a FIFO would block the open, and a
+    link would carry the read outside the repository. Every OSError becomes a
+    reason; nothing but a program error travels out."""
+    full = os.path.join(top_real, *path.split("/"))
     try:
-        with open(full, "rb") as fh:
+        info = os.lstat(full)
+    except (FileNotFoundError, NotADirectoryError):
+        return _refused("missing")
+    except OSError as exc:
+        # A name the filesystem refuses outright (Windows `?` or `"`, an over-long
+        # component) cannot have been checked out: the file is absent, not unopenable.
+        if getattr(exc, "winerror", None) == ERROR_INVALID_NAME or exc.errno == errno.ENAMETOOLONG:
+            return _refused("missing")
+        return _cannot_open(exc)
+    if not stat.S_ISREG(info.st_mode):
+        return _refused("not-regular")
+    # A parent directory may be a link; both sides are real paths so a repo that
+    # itself sits under a link (macOS /tmp) is not taken for being outside.
+    root = os.path.normcase(top_real)
+    try:
+        if os.path.commonpath([root, os.path.normcase(os.path.realpath(full))]) != root:
+            return _refused("outside-repository")
+    except ValueError:   # different drives on Windows
+        return _refused("outside-repository")
+    try:
+        fd = os.open(full, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                     | getattr(os, "O_BINARY", 0))
+    except (FileNotFoundError, NotADirectoryError):
+        return _refused("missing")
+    except OSError as exc:
+        return _cannot_open(exc)
+    try:
+        if limit is None:
+            digest, size = hashlib.sha256(), 0
             while True:
-                chunk = fh.read(CHUNK)
+                chunk = os.read(fd, CHUNK)
                 if not chunk:
                     break
                 digest.update(chunk)
                 size += len(chunk)
-    except OSError:
-        return FileFacts(path, language, None, None, "missing")
-    return FileFacts(path, language, size, digest.hexdigest(), None)
-
-
-def inventory(top: str) -> list:
-    return [facts(top, mode, path) for mode, path in list_tracked(top)]
+            return TrackedRead(None, size, digest.hexdigest(), None)
+        buf = bytearray()
+        while len(buf) <= limit:
+            chunk = os.read(fd, min(CHUNK, limit + 1 - len(buf)))
+            if not chunk:
+                break
+            buf += chunk
+        return TrackedRead(None, len(buf), hashlib.sha256(buf).hexdigest(), bytes(buf))
+    except OSError as exc:
+        return _cannot_open(exc)
+    finally:
+        os.close(fd)

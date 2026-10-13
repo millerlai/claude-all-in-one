@@ -26,13 +26,14 @@ def test_fresh_right_after_build(tmp_path):
     top = _built(tmp_path)
     st = idx.status(top)
     assert st.word == "fresh"
-    assert idx.state_line(st).startswith("codemap: fresh (3 files, head ")
+    assert idx.state_line(st).startswith("codemap: fresh (3 files, 0 with symbols, head ")
 
 
 def test_fresh_line_says_no_commit_yet_on_unborn_head(tmp_path):
     make_repo(tmp_path, FILES, commit=False)
     idx.build(str(tmp_path))
-    assert idx.state_line(idx.status(str(tmp_path))) == "codemap: fresh (3 files, no commit yet)"
+    assert idx.state_line(idx.status(str(tmp_path))) == \
+        "codemap: fresh (3 files, 0 with symbols, no commit yet)"
 
 
 def test_changed_file_is_stale_and_named(tmp_path):
@@ -94,5 +95,45 @@ def test_empty_repository_builds_and_is_fresh(tmp_path):
     git(tmp_path, "init", "-q")
     res = idx.build(str(tmp_path))
     assert (res.word, res.total) == ("fresh", 0)
-    assert idx.state_line(idx.status(str(tmp_path))) == "codemap: fresh (0 files, no commit yet)"
+    assert idx.state_line(idx.status(str(tmp_path))) == \
+        "codemap: fresh (0 files, 0 with symbols, no commit yet)"
     assert os.path.exists(str(tmp_path / ".cai" / "codemap" / "files.jsonl"))
+
+
+def test_fresh_counts_the_files_that_have_symbols(tmp_path):
+    top = make_repo(tmp_path, {"a.py": "def f():\n    pass\n", "b.py": "def g():\n    pass\n",
+                               "c.py": "x = 1\n", "README.md": "# r\n"})
+    idx.build(top)
+    assert idx.state_line(idx.status(top)).startswith(
+        "codemap: fresh (4 files, 2 with symbols, head ")
+
+
+def test_fresh_counts_files_and_not_the_symbols_in_them(tmp_path):
+    top = make_repo(tmp_path, {"a.py": "def f():\n    pass\n\n\ndef g():\n    pass\n",
+                               "b.py": "def h():\n    pass\n"})
+    idx.build(top)
+    assert idx.state_line(idx.status(top)).startswith(
+        "codemap: fresh (2 files, 2 with symbols, head ")
+
+
+def test_fresh_says_zero_with_symbols_when_no_language_is_supported(tmp_path):
+    top = make_repo(tmp_path, {"Main.java": "class Main {}\n", "README.md": "# r\n"})
+    idx.build(top)
+    assert idx.state_line(idx.status(top)).startswith(
+        "codemap: fresh (2 files, 0 with symbols, head ")
+
+
+def test_status_asks_git_no_more_than_it_did(tmp_path, monkeypatch):
+    top = _built(tmp_path)
+    calls, real = [], idx.preflight.git
+
+    def recording(where, *args, **kwargs):
+        calls.append(args)
+        return real(where, *args, **kwargs)
+    monkeypatch.setattr(idx.preflight, "git", recording)
+
+    assert idx.status(top).word == "fresh"
+
+    assert calls == [("rev-parse", "--is-inside-work-tree"),
+                     ("ls-files", "-z", "--stage"),
+                     ("ls-files", "-z", "--", ".cai/codemap")]
