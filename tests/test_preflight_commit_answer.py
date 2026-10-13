@@ -382,3 +382,67 @@ def test_other_stages_print_no_such_line(tmp_path):
     track = make_track(tmp_path)
     done = run("ship", track, str(tmp_path))
     assert "commit_answer" not in done.stdout
+
+
+# --- #392 item 6: verify checks the design's sign-off too ------------------
+
+def _git(cwd, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                    "-c", "commit.gpgsign=false", *args], cwd=cwd, check=True,
+                   capture_output=True)
+
+
+def _repo_with_a_change(tmp_path):
+    _git(str(tmp_path), "init", "-q")
+    (tmp_path / "a.txt").write_text("one\n", encoding="utf-8")
+    _git(str(tmp_path), "add", "a.txt")
+    _git(str(tmp_path), "commit", "-q", "-m", "init")
+    (tmp_path / "a.txt").write_text("two\n", encoding="utf-8")
+
+
+def _labels(checks):
+    return {label.split(" ", 1)[0]: (ok, label) for ok, label in checks}
+
+
+def test_verify_passes_a_design_signed_as_it_stands(tmp_path):
+    _repo_with_a_change(tmp_path)
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+
+    checks = _labels(preflight.verify(track, str(tmp_path)))
+
+    assert checks["design_signed_off"][0] is True
+    assert checks["has_changes"][0] is True
+
+
+def test_verify_blocks_a_design_edited_after_its_sign_off(tmp_path):
+    _repo_with_a_change(tmp_path)
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    write_doc(tmp_path, text=DOC + "\nedited after sign-off\n")
+
+    ok, label = _labels(preflight.verify(track, str(tmp_path)))["design_signed_off"]
+
+    assert ok is False
+    assert "changed since it was approved" in label
+
+
+@pytest.mark.parametrize("artifact", ["—", ""])
+def test_verify_after_a_skipped_design_does_not_ask_for_a_sign_off(tmp_path, artifact):
+    _repo_with_a_change(tmp_path)
+    track = make_track(tmp_path, artifact=artifact)
+
+    assert "design_signed_off" not in _labels(preflight.verify(track, str(tmp_path)))
+
+
+def test_a_withdrawal_row_turns_a_yes_into_no(tmp_path):
+    # #392 item 5: the row the main session appends when the person says to
+    # stop committing; preflight.py needs no change to honour it.
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: no")
+    assert answer(track, tmp_path) == "commit_answer (no, ledger line 2)"
+    assert preflight.design_signed_off(track, str(tmp_path))[0] is True

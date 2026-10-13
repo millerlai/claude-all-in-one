@@ -90,16 +90,18 @@
     {
       "target": "skills/track/references/stage-build.md",
       "anchor": [
-        "5. **Commit** only when the commit answer is yes (Step 0.5: the",
-        "   `commit_answer` line under a track): commit the unit by its own paths,",
+        "5. **Commit** only when the commit answer is yes (Step 0.5: under a track,",
+        "   the `commit_answer` line of a `preflight.py build` run made right before",
+        "   this commit): commit the unit by its own paths,",
         "   write the id into the table beside `done`. When it is no or `unreadable`,",
         "   commit nothing — leave the unit's changes in the working tree and write",
         "   `uncommitted` beside `done`. Either way, re-read the table before starting",
         "   the next unit."
       ],
       "replacement": [
-        "5. **Commit** only when the commit answer is yes (Step 0.5: the",
-        "   `commit_answer` line under a track): commit the unit by its own paths",
+        "5. **Commit** only when the commit answer is yes (Step 0.5: under a track,",
+        "   the `commit_answer` line of a `preflight.py build` run made right before",
+        "   this commit): commit the unit by its own paths",
         "   with a single git commit using `-m` and a single-quoted, single-line",
         "   message (`git commit -m '<type(scope): summary>'`), with no message file",
         "   written. Keep the summary free of apostrophes, backticks, and `$`;",

@@ -388,7 +388,7 @@ names one of these:
 | `artifact_kind` | Filename ends in none of `-diagnosis.md`, `-stance.md`, `-decisions.md`, `-high-level.md`, `-detail.md`, `-delta.md` | Rename it. The suffix is how the kind is known — there is no separate field |
 | `artifact_exists` | The document `state.md` names isn't on disk | Fix the path, or re-run the stage that should have written it |
 | a `design_probe.py` line | The design document fails its own structural check | Read the probe's lines; each names one missing heading, citation or number |
-| `design_signed_off` | `build` asked to run, and no person's Approve on the ledger carries the sha of the document the design row names, as it stands now | Go through the design gate and pick Approve or Approve without commits; its ledger row takes `--artifact` with that document. Changes requested and Reject don't count, and neither does an approval of another document, such as the stance one. An Approve recorded without `--artifact` ties to no document at all, so record it again |
+| `design_signed_off` | `build` or `verify` asked to run (at `verify`, only when the design row names a document), and no person's Approve on the ledger carries the sha of the document the design row names, as it stands now | Go through the design gate and pick Approve or Approve without commits; its ledger row takes `--artifact` with that document. Changes requested and Reject don't count, and neither does an approval of another document, such as the stance one. An Approve recorded without `--artifact` ties to no document at all, so record it again |
 | `artifact_unchanged` | The design document changed, or vanished, since it was signed off | Revert the edit, or take the document back through sign-off. `build`'s unit table lives in `implementation-notes.md` for exactly this reason |
 | `work_breakdown` | A *detail* design has no `## Work breakdown` | `build` consumes that table as its schedule. The other kinds need none — `build` cuts the units itself |
 | `has_changes` | Nothing to review — clean tree, no diff from base, or git could not be asked whether the tree is clean | Commit something first. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
@@ -403,7 +403,10 @@ Six more lines always print as `PASS` and are still worth reading:
 files, and `ledger_intact` on every stage counts ledger lines that could not
 be parsed. At `build` and `verify`, `commit_answer` says the commit answer
 recorded at the design gate — `yes` or `no` with the ledger line it came from,
-or `unreadable` with the reason, which is treated as a no. At `ship`, `untracked_since_start` names the untracked files that
+or `unreadable` with the reason, which is treated as a no. It is read again
+right before every commit, so telling Claude to stop committing, which adds
+one `commit: no` row, takes effect at the next commit; to commit again, change
+the design and sign it again. At `ship`, `untracked_since_start` names the untracked files that
 appeared since this track began — code it looks like this track produced,
 which the squash will not pick up — and `docs_not_in_git` names this track's
 own documents (state.md's artifact, every ledger `--artifact`, a detail

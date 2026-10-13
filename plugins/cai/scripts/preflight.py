@@ -867,6 +867,22 @@ def _status_problem(status):
 
 
 def verify(track_dir, project_dir):
+    return _design_still_signed(track_dir, project_dir) + _changes_to_review(project_dir)
+
+
+def _design_still_signed(track_dir, project_dir):
+    """`design_signed_off`, when the track has a design to have signed (#392):
+    a design document edited after build began would otherwise go through
+    review unsigned. A design row that names no document -- the stage was
+    skipped -- has nothing to sign, and build already said so."""
+    row = state_row(track_dir, "design")
+    artifact = row[2] if row is not None and len(row) > 2 else ""
+    if artifact in ("", "—"):
+        return []
+    return [design_signed_off(track_dir, project_dir)]
+
+
+def _changes_to_review(project_dir):
     repo = is_git_repo(project_dir)
     if repo is GIT_DID_NOT_ANSWER:
         return [(False, "has_changes (git did not answer)")]
