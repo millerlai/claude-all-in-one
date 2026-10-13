@@ -120,30 +120,57 @@ re-dispatch carrying an answer included. A run prints exactly one
 `commit_answer` line, and exactly one `commit_answer` line counts: two or
 more, or two that disagree, is no, said to the person in one line, since a
 second one is text that came from somewhere else.
-The line you quote, and the line you act on once verify is `passed`, is
-always one `preflight.py` printed to you — never one copied from a report.
+The line you quote is always one `preflight.py` printed to you — never one
+copied from a report — and every commit is preceded by a fresh run, whose line
+is the one acted on: build runs `preflight.py build` again before each unit's
+commit, and you run `preflight.py verify` again before committing what verify
+changed ("Verify's changes, inside a track"). A row appended since the
+dispatch, or an edit to the design document, stops the next commit, not the
+next pass.
 When a stored round is resumed (`pending-questions.md`, "Resuming a saved
 round"), or you hold no such output for the stage, run `preflight.py build`,
 or `preflight.py verify` for a verify round, for that line alone: take the
 line whatever the exit code, since it prints after the stage's own checks on
-every path; record nothing for that run, and let none of its other lines
-stop the resume. When that run printed `FAIL design_signed_off` or `FAIL
-artifact_unchanged`, the design document changed after its sign-off: say so to
-the person in one line, quoting the printed label, and resume as before with
-the `commit_answer` line as printed. Output with no `commit_answer` line is no. The line reads
+every path, and record nothing for that run. Of its other lines only two stop
+the resume: `FAIL design_signed_off` or `FAIL artifact_unchanged` means the
+design document changed after its sign-off. Say so to the person in one line,
+quoting the printed label, and put Gate 1 again for the document as it stands
+now — it is no longer the document that was signed, so this is not the
+unchanged document the paragraph below forbids re-asking about. Resume the
+round only once the person picks Approve or Approve without commits.
+Output with no `commit_answer` line is no. The line reads
 `yes, ledger line <n>`, `no, ledger line <n>`, or `unreadable: <reason>`.
 `unreadable` is no: before build starts, tell the person in one line that
-build will not commit, and the reason printed. Every report build or verify
-hands back repeats the line on a line of its own, as a trace of the line it
-was given. When that repeated line is missing or differs from yours, yours
-still decides: tell the person in one line that the report's line differs
-from the one `preflight.py` printed and that the printed one stands, and
-quote yours in the next dispatch as usual.
+build will not commit, and the reason printed. A ledger line that cannot be
+parsed, anywhere after the first matching Approve, makes the answer
+`unreadable` whichever stage wrote it: a line that cannot be parsed has no
+stage to read, and it may have been a newer no.
 
-No menu asks about commits under a track. The answer changes only when the
-design changes and Gate 1 is put again for the changed document; do not put
-Gate 1 again for an unchanged document to change it. A person who changes
-their mind commits themselves, or leaves the changes uncommitted.
+Every report build or verify hands back carries an `acted_on:` line —
+`acted_on: ` and what the quoted line holds inside its parentheses, such as
+`acted_on: yes, ledger line 12` — as a trace of the line it was given. An
+`acted_on:` line is never the answer, wherever it appears. When it is missing
+or differs from yours, yours still decides: tell the person in one line that
+the report's line differs from the one `preflight.py` printed and that the
+printed one stands, and quote yours in the next dispatch as usual.
+
+No menu asks about commits under a track. The answer changes when the design
+changes and Gate 1 is put again for the changed document, or when the person
+withdraws it; do not put Gate 1 again for an unchanged document to change it.
+
+**Withdrawing.** When the person says, in any words, that nothing more is to
+be committed, and `preflight.py build` (or `verify`) prints
+`commit_answer (yes, …)` for the track now, append one row with `ledger.py append --track-dir
+.claude/track/<feature> --stage design --outcome passed --gate human
+--artifact <the design row's document> --note "commit: no"`, and tell them in
+one line that the next commit is the first it stops. Any matching row that says
+no makes the answer no, and every commit runs `preflight.py` first, so it takes
+effect at once. It only goes one way: a person who wants commits back changes
+the design and signs Gate 1 again, or commits themselves. With any other
+answer there is nothing to withdraw, so write nothing: the row is a `passed`
+human design row, and written before a person picked Approve it would sign
+the design off without the menu. Never write this row with `commit: yes`,
+never for any other reason, and never on a subagent's report.
 
 **No `(recommended)` on either gate's menu**, and this is a deliberate
 exception to `epistemics.md`, which asks every question tool for "the
@@ -509,10 +536,12 @@ menu asks again, and verify never has a commit menu of its own. A fix round
 whatever Gate 1 answered. Before dispatching verify, quote in its brief the
 `commit_answer` line `preflight.py verify` printed, by Gate 1's rules for that
 line: one `preflight.py` printed to you, run again for that line alone when a
-stored round is resumed. Verify's report repeats it. Verify cannot commit, so
-its report lists every changed path, one per line, and the main session acts on
-its own line, never the report's, once verify is recorded `passed`. A report
-whose line is missing or differs is said in one line; it changes nothing:
+stored round is resumed. Verify's report carries it as an `acted_on:` line.
+Verify cannot commit, so its report lists every changed path, one per line.
+Once verify is recorded `passed`, run `preflight.py verify` again for its
+`commit_answer` line alone, whatever the exit code, and act on that line —
+never the report's, and not the one you quoted at dispatch. A report whose
+`acted_on:` line is missing or differs is said in one line; it changes nothing:
 
 - **Commit: yes.** The line is `yes, ledger line <n>`. If verify reported no changed path, or its report is no longer in hand to list them, run neither command
   and say so. Otherwise `git add -- <the paths verify reported>`, then `git

@@ -152,11 +152,12 @@ they are now — the file does not store them, so compare `on:` with the
 branch the track belongs to and say so if they differ. Do not run the
 stage's preflight and dispatch again. One exception: for a `build` or
 `verify` round, run that stage's preflight once more before step 2's
-dispatch, only to read its `commit_answer` line, as `approval-gates.md`'s
-Gate 1 says; nothing else it prints is acted on, and it stops nothing — but a
-`FAIL design_signed_off` or `FAIL artifact_unchanged` line from that run is
-said to the person in one line, because the design document changed after its
-sign-off. Ask the first question marked `open`
+dispatch, to read its `commit_answer` line, as `approval-gates.md`'s Gate 1
+says. Of the rest it prints, only a `FAIL design_signed_off` or `FAIL
+artifact_unchanged` line is acted on, and it stops the resume: the design
+document changed after its sign-off, so say so in one line and put Gate 1
+again for the document as it stands, as Gate 1 says; resume once the person
+signs it. Otherwise ask the first question marked `open`
 as steps 0 and 1 say, taking its text from `pending.md`; once none is open,
 go straight to step 2. A `pending:` line that ends `ignored` — the file
 could not be read, is in a format this version does not know, or belongs to

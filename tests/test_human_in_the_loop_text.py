@@ -337,7 +337,7 @@ def test_step_1_records_the_step_0_5_answers_for_a_re_dispatch(tree):
     # #385: under a track the notes carry the commit_answer line verbatim and
     # lose to this run's own line, so a re-signed design is not committed
     # against a stale yes.
-    assert "the `commit_answer` line this build acted on, copied verbatim" in step
+    assert "the `commit_answer` line this build acted on, as an `acted_on:` line" in step
     assert "the line wins when the notes disagree" in step
 
 
@@ -557,7 +557,7 @@ def test_step_0_5_item_counts_one_question_under_a_track(tree):
 
 # --- Unit 3 of default-commit-per-unit (#385): build and verify read it -----
 
-REPORT_LINE = "the `commit_answer` line this run acted on, verbatim"
+REPORT_LINE = "the `acted_on:` line for the `commit_answer` line this run acted on"
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -569,7 +569,7 @@ def test_build_commit_per_unit_is_never_asked_under_a_track(tree):
     # DD10: Codex's main session reads this file itself, so there is no brief
     # for the line to be quoted in -- it is in the preflight output it saw.
     assert "in the preflight output you read yourself" in step
-    assert "Repeat that line verbatim" in step
+    assert "Write `acted_on: ` and what that line holds inside its parentheses" in step
     # standing alone keeps the question, and the reason behind it
     assert "Standing alone, ask once for the whole run" in step
     assert "`workflow.md` says never commit unless asked" in step
@@ -582,11 +582,12 @@ def test_a_saved_report_in_the_brief_is_a_trace_not_the_answer(tree):
     # re-sign may have turned into a no. The agent cannot read the ledger, so
     # the rule that picks between the two lines has to be in its own file.
     step = _section(_build(tree), "## Step 0.5")
+    assert "A saved report carried in your brief has an `acted_on:` line" in step
     assert ("the line you act on is the one the dispatch quotes outside "
             "that report") in step
     verify = _reference(tree, "stage-verify.md")
     opening = verify[:verify.index("## The evidence rule")]
-    assert ("the line you repeat is the one the dispatch quotes outside "
+    assert ("the line you trace is the one the dispatch quotes outside "
             "that report") in opening
 
 
@@ -614,7 +615,8 @@ def test_build_and_verify_reports_repeat_the_commit_answer_line(tree):
     assert REPORT_LINE in report
     assert "Gate 1" in report
     opening = verify[:verify.index("## The evidence rule")]
-    assert "Repeat the `commit_answer` line from your brief verbatim" in opening
+    assert ("Write `acted_on: ` and what the `commit_answer` line in your brief holds "
+            "inside its parentheses") in opening
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -682,19 +684,22 @@ def test_gate_1_exactly_one_commit_answer_line_counts(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_a_resumed_run_reports_a_signing_fail_without_stopping(tree):
-    # P3, inside DD4 (b): the resume is still not stopped by another line,
-    # but a document edited after sign-off is said to the person.
+def test_a_resumed_run_stops_on_a_signing_fail(tree):
+    # #392 item 6 (owner's decision, 2026-10-13): a design document edited
+    # after sign-off stops the resume and goes back through Gate 1, instead of
+    # being said and resumed past.
     section = _gate1(tree)
-    assert "let none of its other lines stop the resume" in section
+    assert "let none of its other lines stop the resume" not in section
+    assert "Of its other lines only two stop the resume" in section
     assert "`FAIL design_signed_off`" in section
     assert "`FAIL artifact_unchanged`" in section
-    assert "in one line" in section
+    assert "put Gate 1 again for the document as it stands now" in section
     pending = _section(_reference(tree, "pending-questions.md"),
                        "## Resuming a saved round")
     assert "`FAIL design_signed_off`" in pending
     assert "`FAIL artifact_unchanged`" in pending
-    assert "stops nothing" in pending
+    assert "stops nothing" not in pending
+    assert "stops the resume" in pending
 
 
 # --- Surface findings before ship (AC9): a stop, not a third gate -----------
@@ -754,3 +759,62 @@ def test_ship_step_1_never_commits(tree):
 def test_manual_names_the_fix_round_exception():
     assert ("a fix round after it still commits, so its push carries the fixes"
             in _flat("MANUAL.md"))
+
+
+# --- #392 items 3-7 (owner's decisions, 2026-10-13) ---------------------------
+
+def _verify_changes(tree):
+    return _section(_reference(tree, "approval-gates.md"), "## Verify's changes, inside a track")
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_an_acted_on_line_is_never_the_answer(tree):
+    # Item 3: the trace a report carries no longer looks like the answer.
+    section = _gate1(tree)
+    assert "carries an `acted_on:` line" in section
+    assert "An `acted_on:` line is never the answer" in section
+    assert "repeats the line on a line of its own" not in section
+    assert "Verify's report repeats it" not in _verify_changes(tree)
+    assert "as an `acted_on:` line" in _verify_changes(tree)
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_every_commit_reads_the_answer_again(tree):
+    # Item 4: the answer is read again right before each commit, so a
+    # withdrawal or an edited design stops the next commit, not the next pass.
+    section = _gate1(tree)
+    assert "every commit is preceded by a fresh run" in section
+    step = _section(_build(tree), "## Step 0.5")
+    assert "before each unit's commit you run `preflight.py build`" in step
+    assert "commit only on a `yes` from that run's `commit_answer` line" in step
+    changes = _verify_changes(tree)
+    assert "run `preflight.py verify` again for its `commit_answer` line alone" in changes
+    assert "acts on its own line, never the report's" not in changes
+    track = _flat(tree, "skills", "track", "SKILL.md")
+    assert "runs `preflight.py` again right before every commit" in track
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_a_person_can_withdraw_the_commit_answer(tree):
+    # Item 5: a withdrawal is one more matching row that says no; it only goes
+    # from yes to no.
+    section = _gate1(tree)
+    assert "**Withdrawing.**" in section
+    assert '--note "commit: no"' in section
+    assert "It only goes one way" in section
+    assert "Never write this row with `commit: yes`" in section
+    # A withdrawal row is a passed human design row: written before any
+    # Approve, it would sign the design off without the menu.
+    assert "prints `commit_answer (yes, …)` for the track now" in section
+    assert "With any other answer there is nothing to withdraw, so write nothing" in section
+    assert "A person who changes their mind commits themselves, or leaves" not in section
+    track = _flat(tree, "skills", "track", "SKILL.md")
+    assert "and to a withdrawal of the commit answer" in track
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_a_malformed_line_of_any_stage_makes_the_answer_unreadable(tree):
+    # Item 7: kept as it is, and said.
+    section = _gate1(tree)
+    assert "whichever stage wrote it" in section
+    assert "has no stage to read" in section

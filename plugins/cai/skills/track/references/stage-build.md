@@ -88,8 +88,18 @@ person types a word back into:
   the track dispatched you, or in the preflight output you read yourself
   when you, the main session, run this file under a track. `yes, ledger
   line <n>` is yes; `no, …`, `unreadable: …`, or no `commit_answer` line
-  at all is no, and the report says which. A saved report carried in your brief repeats the line its own pass acted on: that is a trace, and the line you act on is the one the dispatch quotes outside that report. Repeat that line verbatim, on a
-  line of its own, in every report you hand back — in a report that ends
+  at all is no, and the report says which. That line decides whether this
+  pass may commit at all; then before each unit's commit you run
+  `preflight.py build` again — `python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py
+  build --track-dir <dir> --project-dir <project root>` — and commit only on a
+  `yes` from that run's `commit_answer` line, whatever its exit code: the
+  person may have withdrawn the answer, or the design may have changed, since
+  the dispatch. When such a run prints anything else, the units from there on
+  are left uncommitted, and the report names the first of them and the line.
+  A saved report carried in your brief has an `acted_on:` line: that is a
+  trace, and the line you act on is the one the dispatch quotes outside that
+  report. Write `acted_on: ` and what that line holds inside its parentheses,
+  on a line of its own, in every report you hand back — in a report that ends
   with `## Pending questions`, above that section. That answer
   covers the verify stage's changes too, and the person is not asked again
   there: if yes, the main session commits verify's changes by the paths
@@ -147,7 +157,7 @@ which design document the table belongs to.
 Step 0.5's answers belong here too, so a resumed session needs none of them
 again: whether a lane was approved, and
 the commit answer — under a track, the `commit_answer` line this build acted
-on, copied verbatim; standing alone, yes or no. A re-dispatch after any later
+on, as an `acted_on:` line; standing alone, yes or no. A re-dispatch after any later
 stop reads the lane answer from the notes and never asks Step
 0.5 again. Standing alone, a resumed session reads the commit answer from the
 notes too; under a track the commit answer is taken from this run's
@@ -262,8 +272,9 @@ For each unit, in schedule order:
      red → that unit is `blocked`, and so are the others Step 1 names; the
      rest keep going, and the failure is handed up under
      `## Pending questions`. No unbounded fix loop.
-5. **Commit** only when the commit answer is yes (Step 0.5: the
-   `commit_answer` line under a track): commit the unit by its own paths,
+5. **Commit** only when the commit answer is yes (Step 0.5: under a track,
+   the `commit_answer` line of a `preflight.py build` run made right before
+   this commit): commit the unit by its own paths,
    write the id into the table beside `done`. When it is no or `unreadable`,
    commit nothing — leave the unit's changes in the working tree and write
    `uncommitted` beside `done`. Either way, re-read the table before starting
@@ -598,7 +609,7 @@ of the ledger's `--note`; you write no track file at all.
 - what was built
 - which units ran in parallel
 - every deviation
-- the `commit_answer` line this run acted on, verbatim, or a line saying there was none
+- the `acted_on:` line for the `commit_answer` line this run acted on, or a line saying there was none
 - anything skipped, the test command included when it was
 - the name and heading of every glossary term written; every glossary
   definition replaced, old text quoted; every glossary term the check kept

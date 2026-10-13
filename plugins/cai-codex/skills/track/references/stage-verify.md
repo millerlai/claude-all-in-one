@@ -13,9 +13,12 @@ subagent, and the platform gives no subagent an interactive tool. Every place be
 requirement decision, a parked proposal, `provenance.py` exiting 2 — then
 means: stop there, and end the report with the `## Pending questions` section
 `references/pending-questions.md` specifies. The main session puts it to the
-person and re-dispatches this stage with the answer. Repeat the `commit_answer`
-line from your brief verbatim, on a line of its own, in every report you hand
-back — in a report that ends with `## Pending questions`, above that section. A saved report carried in your brief repeats the line its own pass acted on: that is a trace, and the line you repeat is the one the dispatch quotes outside that report.
+person and re-dispatches this stage with the answer. Write `acted_on: ` and
+what the `commit_answer` line in your brief holds inside its parentheses, on a
+line of its own, in every report you hand back — in a report that ends with
+`## Pending questions`, above that section. A saved report carried in your
+brief has an `acted_on:` line of its own: that is a trace, and the line you
+trace is the one the dispatch quotes outside that report.
 Standing alone you are the main session — ask directly. Re-dispatched with an answer: when the
 round's report came from Step 0.5's stop, no lens has run and there are no
 findings to take, so start again at Step 0; when the answer is to record the
@@ -296,7 +299,7 @@ of the ledger's `--note`; you write no track file at all, with one exception:
 - the path of the last round's `manifest.json`, the `manifest:` line `check`
   printed, or `none` and why when `check` exited 4 or 5; the main session
   passes it as the verify ledger row's `--artifact`
-- the `commit_answer` line this run acted on, verbatim, or a line saying there was none
+- the `acted_on:` line for the `commit_answer` line this run acted on, or a line saying there was none
 - what was fixed
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered

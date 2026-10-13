@@ -68,7 +68,8 @@ def test_resuming_asks_the_first_open_question_and_ignores_unusable_files(plugin
     assert "Do not run the stage's preflight and dispatch again" in resume
     assert "first question marked `open`" in resume
     assert "go straight to step 2" in resume
-    assert "only to read its `commit_answer` line" in resume
+    assert "to read its `commit_answer` line" in resume
+    assert "it stops the resume" in resume
     assert "already `done` or `skipped`" in resume and "ask nothing from it" in resume
 
 
