@@ -5,7 +5,9 @@
 The main session follows this before it dispatches `intake`, `discover` or
 `design`. A standalone `$intake`, `$discover` or `$design` follows it
 too, and then the session itself is the stage's agent: the line it yields is its
-own to act on. It never stops a stage and never asks a question: the most it adds
+own to act on. A standalone `$discover` skips step 2: a model may start it
+without anyone typing it, and only a person's command or a track's dispatch
+writes the index. It never stops a stage and never asks a question: the most it adds
 is one line.
 
 `<top>` is what `git rev-parse --show-toplevel` prints for the project being

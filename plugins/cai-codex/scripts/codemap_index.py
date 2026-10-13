@@ -231,8 +231,12 @@ def status(top: str) -> Status:
     # Says whether the map has anything in it: a repo of a language with no
     # adapter is "fresh" and empty, which the file count alone hides.
     with_symbols = len({s["path"] for s in index.symbols})
-    return Status("fresh", "%d files, %d with symbols, %s" % (
-        len(index.files), with_symbols, "head %s" % head[:7] if head else "no commit yet"), [])
+    # The absolute index directory: a read-only agent has no shell to find the
+    # repository's top itself, and a guess from a subdirectory or another
+    # worktree would read some other index (#401).
+    return Status("fresh", "%d files, %d with symbols, %s, index %s" % (
+        len(index.files), with_symbols, "head %s" % head[:7] if head else "no commit yet",
+        preflight._escape_control_chars(store.index_dir(top))), [])
 
 
 def state_line(status: Status) -> str:
