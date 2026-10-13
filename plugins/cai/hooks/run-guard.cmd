@@ -15,7 +15,8 @@ REM runs the guard, so a pattern file checks the untouched input instead.
 REM Write mode (Write, Edit, NotebookEdit) is the exception: a failed call, or a
 REM write pattern file that cannot be read, is let through with exit 1; a
 REM degraded call the file does not match passes silently, as here; only a
-REM subagent's write to ledger.jsonl that the file matches is blocked.
+REM subagent's write to ledger.jsonl or to the guard's launcher record that
+REM the file matches is blocked.
 REM
 REM Exit codes are compared as strings, never with errorlevel tests: those mean
 REM greater or equal, and a negative Windows exit code would read as success.
@@ -36,7 +37,7 @@ if "%~1"=="agent" set "PATTERNS=%~dp0reduced-check-agent-patterns.txt"
 REM hooks.json passes write for Write, Edit and NotebookEdit calls. A broken
 REM interpreter must not stop every file write of a session, so write mode lets
 REM a failed call through (exit 1, hook error), and its pattern file knows only
-REM a subagent's write to ledger.jsonl.
+REM a subagent's write to ledger.jsonl or to the guard's launcher record.
 set "WRITEMODE="
 if "%~1"=="write" set "WRITEMODE=1"
 if "%~1"=="write" set "PATTERNS=%~dp0reduced-check-write-patterns.txt"
@@ -129,7 +130,7 @@ REM Write mode ends here. A match blocks; a scan that itself failed is no
 REM verdict, so the call goes through with exit 1 and shows a hook error.
 :writeverdict
 if not "%RC%"=="0" goto writepass
->&2 echo cai guard reduced check: the Python guard did not run, so only a subagent's write to ledger.jsonl is checked. This call is blocked.
+>&2 echo cai guard reduced check: the Python guard did not run, so only a subagent's write to ledger.jsonl or to the guard's launcher record is checked. This call is blocked.
 exit /b 2
 :writepass
 >&2 echo cai guard reduced check: the Python guard did not run and the write pattern file could not be read, so this call is let through without the ledger check.
@@ -189,8 +190,8 @@ CMDBLOCK
 # read once, by the guard or by the reduced check. Write mode is the exception
 # the CMD block's header names: a failed call, or a write pattern file that
 # cannot be read, is let through with exit 1; a degraded call the file does not
-# match passes silently; only a subagent's write to ledger.jsonl it matches is
-# blocked.
+# match passes silently; only a subagent's write to ledger.jsonl or to the
+# guard's launcher record it matches is blocked.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 GUARD="$DIR/../scripts/bash_guard.py"
 WRITER="$DIR/record_launcher.py"
@@ -200,7 +201,8 @@ PATTERNS="$DIR/reduced-check-patterns.txt"
 [ "$1" = agent ] && PATTERNS="$DIR/reduced-check-agent-patterns.txt"
 # hooks.json passes write for Write, Edit and NotebookEdit calls: a broken
 # interpreter must not stop every file write, so a failed call is let through
-# with exit 1 and the pattern file knows only a subagent's write to ledger.jsonl.
+# with exit 1 and the pattern file knows only a subagent's write to ledger.jsonl
+# or to the guard's launcher record.
 WRITE_MODE=
 if [ "$1" = write ]; then
     WRITE_MODE=1
@@ -237,7 +239,7 @@ write_scan() {
     RC=$?
     [ "$RC" -eq 1 ] && exit 0
     if [ "$RC" -eq 0 ]; then
-        printf '%s\n' "cai guard reduced check: the Python guard did not run, so only a subagent's write to ledger.jsonl is checked. This call is blocked." >&2
+        printf '%s\n' "cai guard reduced check: the Python guard did not run, so only a subagent's write to ledger.jsonl or to the guard's launcher record is checked. This call is blocked." >&2
         exit 2
     fi
     printf '%s\n' "cai guard reduced check: the Python guard did not run and the write pattern file could not be read, so this call is let through without the ledger check." >&2
