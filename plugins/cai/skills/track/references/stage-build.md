@@ -64,7 +64,11 @@ wrong — say so and stop.
 Four lines first, before anything is dispatched: how many units, which of
 them can run alongside another, the verify command each will have to pass,
 and anything in the document you already know you will have to ask about.
-A long pass nobody sized is a long pass nobody agreed to.
+A long pass nobody sized is a long pass nobody agreed to. Under a track the
+person sized it at Gate 1, where the same four lines, read from the design,
+sit above the menu (`references/approval-gates.md`); yours come from the
+schedule you cut, so your report names any line that differs from the
+design's.
 
 Then up to two answers standing alone and at most one under a track, once for the
 whole run and not per unit, before anything is started. Under a track the
