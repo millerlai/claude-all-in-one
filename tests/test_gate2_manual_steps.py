@@ -62,4 +62,4 @@ def test_left_open_prints_build_manual_steps(tmp_path):
 
     done = run("left-open", "--track-root", root)
     assert done.returncode == 0, done.stderr
-    assert "- [build] run X by hand" in done.stdout
+    assert "- open-1 [build] run X by hand (undecided)" in done.stdout

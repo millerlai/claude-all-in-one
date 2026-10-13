@@ -301,8 +301,11 @@ of the ledger's `--note`; you write no track file at all, with one exception:
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered
 - what remains unfixed and why
-- what is left open -- every Minor left unfixed, every parked proposal, and
-  the changes made from an answer (not reviewed by the four lenses), one item each
+- what is left open -- reminders only: the changes made from an answer (not
+  reviewed by the four lenses), one item each. Every Minor left unfixed and
+  every parked proposal goes in the `## Open items` section after these
+  fields instead, as does each `fixed open-<n>` for an open item your brief
+  quoted (`references/open-items-report.md`)
 - what got parked as a proposal, and which requirement it would need to
   stop being parked
 - every path you changed or added, new test files included, one per line,

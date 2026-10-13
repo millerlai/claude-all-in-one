@@ -16,7 +16,8 @@ third-party dependency).
 Where this sits in `ticket` -> `preflight` -> `ledger` -> `usage_collector`
 (one direction, no cycle, per `ledger`'s module import rule): this
 file imports `preflight` for its table parsing and `ticket_backend` for the
-capability interface, and nothing here imports back up the chain -- in
+capability interface, reads `open_items` -- a third sibling -- inside
+`render_comment()`'s final branch only, and nothing here imports back up the chain -- in
 particular this file never imports `ledger` (DD2): a projection failure is
 recorded in `ticket.json`, never in the ledger.
 """
@@ -138,6 +139,18 @@ def _truncate_note(note):
     return note[:NOTE_LIMIT] + ELLIPSIS
 
 
+def _state_word(open_items, item):
+    """`open_items.state_word` for a public comment. The record is a file a
+    person may have edited and its `url:` is free text on load, so a url that
+    is not the issue or note shape `record-url` itself accepts is left out
+    rather than printed: it could be a local path or a line of stderr."""
+    url = item.get("url")
+    if url and not (open_items.ISSUE_URL.fullmatch(url)
+                    or open_items.NOTE_URL.fullmatch(url)):
+        item = dict(item, url=None)
+    return open_items.state_word(item)
+
+
 def render_comment(track_dir, feature, now, final=False):
     """state.md's six stage rows, rendered as the body of the mirrored
     comment. None when there is nothing sane to render -- no state.md, or a
@@ -149,9 +162,9 @@ def render_comment(track_dir, feature, now, final=False):
     so it names nothing a teammate reading the ticket could resolve.
 
     `final` selects between two bodies: an in-progress one (today's exact
-    shape, plus the status line) and a final one that also carries every
-    `preflight.left_open_items` pair -- the last thing a person sees on the
-    ticket before it closes, so it is where the track's leftovers surface
+    shape, plus the status line) and a final one that also carries every open
+    item with its state, then the reminders -- the last thing a person sees on
+    the ticket before it closes, so it is where the track's leftovers surface
     rather than only in state.md."""
     path = os.path.join(track_dir, "state.md")
     try:
@@ -180,11 +193,26 @@ def render_comment(track_dir, feature, now, final=False):
 
     if final:
         lines.append("")
-        items = preflight.left_open_items(text)
-        if items:
+        # Imported here, not at the top: open_items reaches ship_draft_check,
+        # which imports this module, so a top-level import would close a loop.
+        import open_items
+        try:
+            # The state word is appended after the cut, so a long item keeps it.
+            # An item reminders() returns has no record entry and no state.
+            entries = [(i["stage"], "%s (%s)" % (_truncate_note(i["what"]),
+                                                 _state_word(open_items, i)))
+                       for i in open_items.items_for(track_dir, text)]
+            entries += [(s, _truncate_note(w))
+                        for s, w in open_items.reminders(track_dir, text)]
+        except open_items.OpenItemsError as exc:
+            # Mirroring must never fail on the record (ticket-mirror.md).
+            print("open items: %s; the left open list is state.md's" % exc)
+            entries = [(s, _truncate_note(w))
+                       for s, w in preflight.left_open_items(text)]
+        if entries:
             lines.append("left open:")
-            for stage, item in items:
-                lines.append("- [%s] %s" % (stage, _truncate_note(item)))
+            for stage, item in entries:
+                lines.append("- [%s] %s" % (stage, item))
         else:
             lines.append("left open: none")
         lines.append("")

@@ -695,3 +695,25 @@ def test_a_resumed_run_reports_a_signing_fail_without_stopping(tree):
     assert "`FAIL design_signed_off`" in pending
     assert "`FAIL artifact_unchanged`" in pending
     assert "stops nothing" in pending
+
+
+# --- Surface findings before ship (AC9): a stop, not a third gate -----------
+
+@pytest.mark.parametrize("tree", TREES)
+def test_open_items_stop_is_in_the_other_stops_list_not_a_gate(tree):
+    text = _reference(tree, "approval-gates.md")
+    start = text.index("## The other stops, which are not gates")
+    other = text[start:text.index("### The reference run's stops", start)]
+    assert "this file does not add a third" in other
+    assert "`## Open items before ship`" in other
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_skill_md_still_names_exactly_two_gates_after_the_open_items_stop(tree):
+    gates = _section(_flat(tree, "skills", "track", "SKILL.md"), "## Human gates")
+    assert "Exactly two stages stop for a person, never more" in gates
+    assert "After `design`" in gates
+    assert "Before the irreversible operations in `ship`" in gates
+    # The stop lives in approval-gates.md's list of other stops; naming it as
+    # a gate here would be the third one.
+    assert "open item" not in gates.lower()

@@ -228,7 +228,9 @@ The six stages, in order:
 Two of the boundaries stop for a person, and only two: **after `design`**,
 while no code exists yet and changing your mind is cheap, and **before the
 irreversible parts of `ship`** — merging, tagging, publishing. Nowhere else
-waits for you.
+waits for you, except that before `ship` drafts anything you pick an outcome
+for each finding `build` or `verify` left unfixed: Fix now, File a GitHub
+issue, Note on the PR or Accept as is.
 
 Both arrive as a menu you pick from, never a prompt asking you to type
 `approved`. The design one offers four: approve it (`build` then makes one

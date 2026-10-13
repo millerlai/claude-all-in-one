@@ -47,8 +47,23 @@ def test_ticket_py_imports_only_stdlib_and_siblings():
     the two halves together, so the original spelling admitted only
     `preflight` and would have forced either a broken projection or an
     importlib trick that games this very assertion."""
-    allowed = set(sys.stdlib_module_names) | {"preflight", "ticket_backend"}
+    # open_items is read inside render_comment()'s final branch only; it
+    # imports ship_draft_check (which imports ticket) only inside publish(), so
+    # no cycle forms at import time.
+    allowed = set(sys.stdlib_module_names) | {"preflight", "ticket_backend",
+                                               "open_items"}
     found = _top_level_imports(os.path.join(SCRIPTS_DIR, "ticket.py"))
+    assert found <= allowed, found - allowed
+
+
+def test_open_items_py_imports_only_stdlib_and_its_named_siblings():
+    # A walk over every depth, so ship_draft_check -- imported inside publish()
+    # alone, to keep ticket.py -> open_items -> ship_draft_check -> ticket from
+    # closing a loop at import time -- is found here and has to be named.
+    allowed = set(sys.stdlib_module_names) | {
+        "preflight", "ledger", "ticket_backend", "ship_pr_findings", "tool_path",
+        "ship_draft_check"}
+    found = _top_level_imports(os.path.join(SCRIPTS_DIR, "open_items.py"))
     assert found <= allowed, found - allowed
 
 

@@ -7,7 +7,7 @@ never writes state.md; overwriting a row is the track's job, this only reads.
 
 Usage:  track_state.py status    [--track-root DIR]
         track_state.py resolve   [--track-root DIR]   (prints only the feature name)
-        track_state.py left-open [--track-root DIR]   (prints what state.md marks "Left open:")
+        track_state.py left-open [--track-root DIR]   (prints the open items, then the reminders state.md marks "Left open:")
 Exit:   0 an active track exists, 2 no active track (or a state.md that
         disagrees with stages.json or the status vocabulary), 1 usage error.
 """
@@ -29,6 +29,7 @@ sys.path.insert(0, HERE)
 import preflight  # noqa: E402
 import ledger  # noqa: E402
 import pending  # noqa: E402
+import open_items  # noqa: E402
 
 
 def stage_ids():
@@ -272,14 +273,30 @@ def left_open(track_root):
         print("no state.md in %s" % track_dir, file=sys.stderr)
         return 2
     with open(state_path, encoding="utf-8") as fh:
-        items = preflight.left_open_items(fh.read())
-    if not items:
+        text = fh.read()
+    # Printing is never refused: a record that cannot be read costs one line,
+    # then state.md's own `Left open:` lines are printed as before.
+    fallback = False
+    try:
+        items = open_items.items_for(track_dir, text)
+        notes = open_items.reminders(track_dir, text)
+    except open_items.OpenItemsError as exc:
+        print("open items: %s; read %s"
+              % (exc, os.path.join(track_dir, open_items.FILE_NAME)))
+        items, notes, fallback = [], preflight.left_open_items(text), True
+    if not items and not notes:
         print('Left open by %s: no "Left open:" marker in %s -- read it if '
               'this track predates the marker' % (feature, state_path))
         return 0
     print("Left open by %s:" % feature)
-    for stage, item in items:
-        print("- [%s] %s" % (stage, item))
+    for item in items:
+        where = "%s — " % item["where"] if item["where"] else ""
+        print("- %s [%s] %s%s (%s)" % (item["id"], item["stage"], where,
+                                       item["what"], open_items.state_word(item)))
+    if notes and not fallback:
+        print("Reminders:")
+    for stage, note in notes:
+        print("- [%s] %s" % (stage, note))
     return 0
 
 

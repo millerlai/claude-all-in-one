@@ -21,6 +21,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 STAGES_JSON = os.path.join(HERE, "..", "skills", "track", "stages.json")
 DESIGN_PROBE = os.path.join(HERE, "design_probe.py")
+# Asked through a subprocess, never imported: open_items imports this module.
+OPEN_ITEMS = os.path.join(HERE, "open_items.py")
 
 # The attempt ledger is read here, not shelled out to: this script already
 # opens state.md itself, and counting integers does not need a process
@@ -1215,6 +1217,35 @@ def commit_answer(track_dir, project_dir):
                       "ledger cannot be read)")
 
 
+def open_items_decided(track_dir):
+    """Nothing the open-items record holds is still undecided, fix-pending or
+    filing. Not knowing is a reason to block, as at merges_cleanly."""
+    if ledger.last_passed(track_dir, "ship") is not None:
+        return (True, "open_items_decided (not held: the PR is open, fix rounds "
+                "are not held)")
+    try:
+        done = subprocess.run(
+            [sys.executable, OPEN_ITEMS, "undecided", "--track-dir", track_dir],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=30)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return (False, "open_items_decided (cannot run open_items.py: %s)" % exc)
+    lines = done.stdout.strip().splitlines()
+    if done.returncode == 2:
+        said = done.stderr.strip().splitlines()
+        return (False, "open_items_decided (%s)"
+                % (said[0] if said else "open_items.py refused and said nothing"))
+    found = re.fullmatch(r"undecided ([0-9]+)(?:: (.+))?", lines[0]) \
+        if done.returncode == 0 and len(lines) == 1 else None
+    if found is None:
+        return (False, "open_items_decided (open_items.py answered %r, exit %d)"
+                % (done.stdout.strip()[:100], done.returncode))
+    if found.group(1) == "0":
+        return (True, "open_items_decided (no open item is undecided)")
+    return (False, "open_items_decided (%s undecided: %s -- run the open-items "
+            "stop in approval-gates.md)" % (found.group(1), found.group(2) or "?"))
+
+
 def ship(track_dir, project_dir):
     row = state_row(track_dir, "verify")
     if row is None:
@@ -1260,7 +1291,8 @@ def ship(track_dir, project_dir):
     return [status_check, clean_check, branch_check, merge_check,
             untracked_since_start(track_dir, project_dir),
             docs_not_in_git(track_dir, project_dir),
-            skipped_stages(track_dir)]
+            skipped_stages(track_dir),
+            open_items_decided(track_dir)]
 
 
 STAGES = {"design": design, "intake": intake, "discover": discover,

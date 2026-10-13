@@ -582,8 +582,10 @@ Units all green is not done:
    failed, the review verdict (under a
    track: reviewed by the verify stage), and what could not be verified
    automatically as numbered manual steps. Each deviation that changed an
-   interface goes in as an item of its own among those, so the main
-   session's `Left open:` carries it to Gate 2.
+   interface, like every other deviation and every problem found outside the
+   change's scope, goes under `## Open items`
+   (`references/open-items-report.md`), one entry each, and
+   `track_state.py left-open` carries it to Gate 2 as a `[build]` line.
 
 ## Report
 
@@ -602,9 +604,12 @@ of the ledger's `--note`; you write no track file at all.
   out, with its reason; every glossary line left alone because it was
   changed by hand, quoted; that the glossary check did not run, when it
   did not; and git's first line, when `git hash-object` failed
-- what is left open -- every step Step 6.4 names as a manual step, and every
-  deviation that changed an interface, one item each; with the test command
-  skipped, one more item saying no unit ran a test
+- what is left open -- reminders only: every step Step 6.4 names as a
+  manual step, and, with the test command skipped, one more item saying no
+  unit ran a test. Every deviation, the ones that changed an interface
+  included, and every problem found outside the change's scope, goes in the
+  `## Open items` section after these fields instead
+  (`references/open-items-report.md`)
 
 The in-flight `unit <N> of <total>` row is still written by Step 5.5
 above, not here -- this section is what you hand back once the whole

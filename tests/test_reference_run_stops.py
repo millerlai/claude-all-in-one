@@ -1,10 +1,11 @@
 """approval-gates.md's table of the reference run's stops (AC12, R7).
 
 The reference run is the one stops are counted on: ticket mirroring on, a
-design with no gaps, the one Step 0.5 question a track can ask asked, one fix
-round, then a merge. The table must stay at five rows or fewer (six before the
-glossary menu went, #411; seven before commit-per-unit moved to Gate 1, #385),
-and each row has to point
+design with no gaps, the one Step 0.5 question a track can ask asked, at least
+one open item before ship, one fix round, then a merge. The table must stay at
+six rows or fewer (five before the open-items stop; six before the glossary
+menu went, #411; seven before commit-per-unit moved to Gate 1, #385), and each
+row has to point
 at a stop that really exists: the file it names must contain the quotation
 printed beside the name. A row that cites a sentence nobody can find is a stop
 the text no longer describes.
@@ -17,7 +18,7 @@ import pytest
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 REFERENCES = os.path.join("skills", "track", "references")
 HEADING = "### The reference run's stops"
-MAX_STOPS = 5
+MAX_STOPS = 6
 ROW = re.compile(r"^\| (\d+) \| (?P<stop>[^|]+) \| `(?P<file>[\w.-]+\.md)` \"(?P<quote>[^\"]+)\" \| (?P<when>[^|]+) \|$")
 
 
@@ -59,7 +60,7 @@ def test_the_table_sits_at_the_end_of_the_other_stops(plugin_root):
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
-def test_the_reference_run_has_at_most_five_stops(plugin_root):
+def test_the_reference_run_has_at_most_six_stops(plugin_root):
     lines = _table(plugin_root)
     # lines[0] is the header; the `|---|` separator does not start with `| `.
     assert lines[0].split("|")[1:-1] == [" # ", " Stop ", " Defined in ", " Asked when "]
@@ -79,8 +80,9 @@ def test_every_row_quotes_a_sentence_its_file_really_contains(plugin_root):
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
-def test_the_table_covers_the_five_stops_the_design_counted(plugin_root):
+def test_the_table_covers_the_six_stops_the_design_counted(plugin_root):
     stops = " ".join(ROW.match(ln).group("stop") for ln in _table(plugin_root)[1:]).lower()
-    for word in ("parallel lane", "push menu", "triage", "fix round", "merge"):
+    for word in ("parallel lane", "open item", "push menu", "triage", "fix round",
+                 "merge"):
         assert word in stops, word
     assert "glossary" not in stops

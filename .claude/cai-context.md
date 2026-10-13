@@ -93,6 +93,7 @@ or specs, and only concepts specific to this project.
 **合併清單（merge list）**: Gate 2 合併指令前、同一則訊息裡的純文字清單，列出還沒修的發現與合併前該知道的事；守門程式的提示看不到它。
 **合併指令**: Gate 2 合併小節規定要跑的那一個 Bash 指令，帶合併方式旗標與檢查過的提交，由守門程式的提示取得本人同意。
 **override 錨點（override anchor）**: 產生 Codex 檔時逐字比對的一句話，必須在來源文件裡恰好出現一次，Codex 版才能據此替換。
+**未結項目（open item）**: One finding that build or verify left unfixed, kept with its details in the track directory until the person picks an outcome for it before ship or at done. Not an 項目（item）: that is one issue, ticket or review thread a fix run works on.
 **詞彙表（glossary）**: 專案根目錄下由 cai 維護的一份檔，每行一個專案詞和一兩句定義，分在 Domain 與 Process 兩個標題下。intake、design、debug 和 refactor 開工前會先讀它。
 **專案詞（project term）**: 只屬於這個專案、沒讀過任何 track 的人需要解釋才懂的概念：專案處理的東西，或它工作中的步驟、階段或角色。檔名、函式、欄位、狀態字串、agent 名稱和日常用語都不算。
 **寫入紀錄（glossary record）**: 詞彙寫入動檔之前記在 build 工作筆記裡的一段，列出每條要寫的行、它的標題、它取代的舊行和每個被擋的詞。中斷後重跑只照這段紀錄寫，不再重新判斷。
@@ -128,4 +129,5 @@ or specs, and only concepts specific to this project.
 **全量建立（full build）**: 不沿用任何舊紀錄、把每個追蹤檔重新解析一遍的建立方式。
 **形狀檢查（shape check）**: 讀取索引時，逐筆確認紀錄的欄位與型別是讀端所需的樣子；不合就視為這份索引不可信。
 **安全讀檔（safe read）**: 讀工作樹裡的追蹤檔之前，先確認它是 repo 內的一般檔，才開檔讀取。
+**未結項目停點（open-items stop）**: The point before ship's first draft where the person is asked, one open item per turn, what to do with each one still undecided; ship does not start until each has a pick.
 **兩段式寫入（staged write）**: 寫索引時先把所有資料檔寫成暫存檔，全部寫完才逐一換成正式檔名；中途出錯時上一份可用的索引不會被動到。
