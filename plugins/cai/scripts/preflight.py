@@ -346,7 +346,7 @@ def design_signed_off(track_dir, project_dir):
                      for r in fingerprinted), artifact, artifact))
 
 
-def git(cwd, *args, encoding=None):
+def git(cwd, *args, encoding=None, raw=False):
     """Runs git and returns the CompletedProcess, or None when git could not
     be run or timed out. Output is always decoded as UTF-8 with
     errors="replace" (`encoding=None` and omitting it are the same): the
@@ -356,13 +356,17 @@ def git(cwd, *args, encoding=None):
     With replace, undecodable bytes become U+FFFD instead of failing.
     stderr is decoded the same way.
 
+    With `raw`, stdout and stderr stay bytes: no decoding and no newline
+    translation, for a caller that must tell apart names differing only in
+    bytes that are not UTF-8.
+
     Not the same shape as bash_guard.py's git(), which still uses
     `text=True`."""
+    text = {} if raw else {"encoding": encoding or "utf-8", "errors": "replace"}
     try:
         # By full path from a trusted PATH entry, never a git in cwd (#294).
         return subprocess.run([tool_path.resolve("git", cwd), *args], cwd=cwd or None,
-                              capture_output=True, encoding=encoding or "utf-8",
-                              errors="replace", timeout=5)
+                              capture_output=True, timeout=5, **text)
     except (OSError, subprocess.SubprocessError):
         return None
 

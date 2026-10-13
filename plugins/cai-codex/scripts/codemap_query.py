@@ -15,6 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import codemap_inventory as inventory  # noqa: E402
 import codemap_store  # noqa: E402
+import codemap_symbols  # noqa: E402
 
 MAX_TEXT_BYTES = 1048576   # the same cap as parsing: a bigger file is not scanned
 TEXT_LINE_CAP = 5
@@ -47,8 +48,8 @@ def tracked_texts(top: str) -> list:
     repository, under the size cap, no NUL."""
     out = []
     top_real = os.path.realpath(top)
-    for mode, path in inventory.list_tracked(top):
-        if mode in ("120000", "160000") or "�" in path:
+    for mode, path, utf8 in inventory.list_tracked(top):
+        if mode in ("120000", "160000") or not utf8:
             continue
         got = inventory.read_tracked(top_real, path, MAX_TEXT_BYTES)
         if got.reason is not None or len(got.data) > MAX_TEXT_BYTES:
@@ -84,7 +85,7 @@ def query(top: str, index: codemap_store.Index, text: str, limit: int) -> list:
         if score:
             hits.append(Hit(score, path, 1, "path", path))
     for path, body in tracked_texts(top):
-        matches = [(n, line) for n, line in enumerate(body.splitlines(), start=1)
+        matches = [(n, line) for n, line in enumerate(codemap_symbols.editor_lines(body), start=1)
                    if any(w in line.lower() for w in words)]
         if matches:
             first_line, first = matches[0]

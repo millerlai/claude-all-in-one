@@ -52,28 +52,37 @@ def language_of(path: str) -> str:
 
 
 def list_tracked(top: str) -> list:
-    """[(mode, path)] sorted by path. -z so a name with a newline or a quote
-    reaches us as it is, not as git's C-quoting of it."""
+    """[(mode, path, utf8)] sorted by path. -z so a name with a newline or a
+    quote reaches us as it is, not as git's C-quoting of it; read as bytes, so
+    two names that differ only in bytes that are not UTF-8 stay two entries
+    and a carriage return in a name is not turned into a newline. A name that
+    is not UTF-8 has `utf8` False and its bad bytes written as `\\xNN`."""
     state = preflight.is_git_repo(top)
     if state is preflight.GIT_DID_NOT_ANSWER:
         raise GitFailed("git did not answer")
     if not state:
         raise NotARepository(top)
-    done = preflight.git(top, "ls-files", "-z", "--stage")
+    done = preflight.git(top, "ls-files", "-z", "--stage", raw=True)
     if done is None or done.returncode != 0:
         raise GitFailed("git ls-files failed")
     seen = {}
-    for entry in done.stdout.split("\0"):
+    for entry in done.stdout.split(b"\0"):
         if not entry:
             continue
-        meta, _, path = entry.partition("\t")
-        seen.setdefault(path, meta.split(" ")[0])   # an unmerged path appears 3 times
-    return sorted(((mode, path) for path, mode in seen.items()), key=lambda m: m[1])
+        meta, _, raw = entry.partition(b"\t")
+        seen.setdefault(raw, meta.split(b" ")[0].decode("ascii"))   # an unmerged path appears 3 times
+    out = []
+    for raw, mode in seen.items():
+        try:
+            out.append((mode, raw.decode("utf-8"), True))
+        except UnicodeDecodeError:
+            out.append((mode, raw.decode("utf-8", "backslashreplace"), False))
+    return sorted(out, key=lambda m: m[1])
 
 
-def facts(top_real: str, mode: str, path: str) -> FileFacts:
+def facts(top_real: str, mode: str, path: str, utf8: bool = True) -> FileFacts:
     language = language_of(path)
-    if "�" in path:
+    if not utf8:
         return FileFacts(path, language, None, None, "path-not-utf8")
     if mode == "120000":
         return FileFacts(path, language, None, None, "symlink")
@@ -85,7 +94,7 @@ def facts(top_real: str, mode: str, path: str) -> FileFacts:
 
 def inventory(top: str) -> list:
     top_real = os.path.realpath(top)   # once per call, not once per file
-    return [facts(top_real, mode, path) for mode, path in list_tracked(top)]
+    return [facts(top_real, mode, path, utf8) for mode, path, utf8 in list_tracked(top)]
 
 
 def _refused(reason: str) -> "TrackedRead":
