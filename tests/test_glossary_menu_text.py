@@ -143,7 +143,8 @@ def test_step_6_2_places_and_replaces_by_name_and_touches_nothing_else(tree):
     item = _step_6_2(tree)
     assert "The first line in the file, under any heading, whose bold name is the same term" in item
     assert ("the new line goes after the last entry under its `- Write:` heading, "
-            "or directly under that heading when it has none") in item
+            "and past any `_Avoid_` lines directly under that entry, or directly "
+            "under that heading when it has none") in item
     assert ("a term left out or kept out never changes an existing entry, even "
             "one with its name") in item
     assert "A line that already reads as the recorded line is left as it is" in item
@@ -252,3 +253,61 @@ def test_no_glossary_menu_left_in_gates_or_pending_questions(tree):
     assert "Step 0.5 glossary" not in gates
     assert "menus carry none either" not in gates
     assert "glossary menus being the other" not in gates
+
+
+# --- #420: the minor findings left from #411's verify ------------------------
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_0_5_and_the_reference_run_keep_their_counts(tree):
+    # Coverage m1: the counts the stop budget rests on.
+    assert ("up to two answers standing alone and at most one under a track"
+            in _step_0_5(tree))
+    gates = _flat(tree, "approval-gates.md")
+    assert "The table counts the stops from Step 0.5 to the merge, six at most" in gates
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_6_2_skip_conditions_and_template_are_pinned(tree):
+    # Coverage m2.
+    item = _step_6_2(tree)
+    assert "when the document is not a Detail design" in item
+    assert ("its `## Glossary` has no data row that is not the template's "
+            "placeholder") in item
+    assert "or none of its terms is a project term" in item
+    assert "does not exist, create it verbatim from" in item
+    assert "templates/cai-context.md.tpl" in item
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_6_2_says_a_deleted_line_comes_back(tree):
+    # m2: a rerun cannot tell a line deleted by hand from one never written.
+    assert ("A `- Write:` entry whose `- Replaces:` says nothing, and whose name "
+            "no line in the file carries, is written again") in _step_6_2(tree)
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_6_2_quotes_the_replaced_line_when_the_check_did_not_run(tree):
+    # m3
+    assert ("quoting its `- Replaces:` line when it names one" in _step_6_2(tree))
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_6_2_commits_nothing_when_nothing_changed(tree):
+    # m4: a rerun that found every line written has nothing to commit.
+    item = _step_6_2(tree)
+    assert "git status --porcelain -- .claude/cai-context.md" in item
+    assert "there is nothing to commit, so skip the commit" in item
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_6_2_keeps_an_avoid_line_with_its_entry(tree):
+    # m5
+    assert ("and past any `_Avoid_` lines directly under that entry"
+            in _step_6_2(tree))
+
+
+def test_glossary_check_names_no_maintainer_path():
+    # Conformance m1: a shipped file names no path into this repo's tooling.
+    path = os.path.join(ROOT, "plugins", "cai", "scripts", "glossary_check.py")
+    with open(path, encoding="utf-8") as fh:
+        assert "scripts/validate.py" not in fh.read()

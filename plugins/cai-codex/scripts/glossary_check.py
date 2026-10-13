@@ -8,9 +8,9 @@ and a definition of more than two sentences are all copies of something that
 lives somewhere else and goes stale there (#326), and a second entry under a
 name already used makes one term mean two things.
 
-Build runs this on the lines it is about to write, before it writes them;
-`scripts/validate.py` runs it on the whole file. Both hand it one UTF-8
-file, so there is one set of patterns.
+Build runs this on the lines it is about to write, before it writes them,
+and a whole glossary file can be handed to it the same way. Either way it
+reads one UTF-8 file, so there is one set of patterns.
 
 Usage:  glossary_check.py <file>
 Exit:   0 nothing flagged, 2 at least one entry flagged or the file unreadable.
