@@ -56,9 +56,11 @@ def test_states_ticket_body_becomes_written_requirement_for_conformance_lens():
 
 def test_states_fallback_to_existing_stage_verify_behaviour():
     text = _flat()
-    assert "stage-verify.md:47-50" in text
+    # #394: named by its rule, not by line numbers that moved.
+    assert "stage-verify.md:47-50" not in text
+    assert "`stage-verify.md` Step 1's rule for a missing requirement" in text
     assert "no written requirement" in text
-    assert "review the other three lenses" in text
+    assert "`Not covered` says so" in text
 
 
 # --- the rest of the design's stage-by-stage list --------------------------

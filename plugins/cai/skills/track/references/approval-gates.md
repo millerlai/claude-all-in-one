@@ -138,8 +138,8 @@ quoting the printed label, and put Gate 1 again for the document as it stands
 now — it is no longer the document that was signed, so this is not the
 unchanged document the paragraph below forbids re-asking about. Resume the
 round only once the person picks Approve or Approve without commits.
-Output with no `commit_answer` line is no. The line reads
-`yes, ledger line <n>`, `no, ledger line <n>`, or `unreadable: <reason>`.
+Output with no `commit_answer` line is no. Inside its parentheses the line
+holds `yes, ledger line <n>`, `no, ledger line <n>`, or `unreadable: <reason>`.
 `unreadable` is no: before build starts, tell the person in one line that
 build will not commit, and the reason printed. A ledger line that cannot be
 parsed, anywhere after the first matching Approve, makes the answer
@@ -543,8 +543,9 @@ Once verify is recorded `passed`, run `preflight.py verify` again for its
 never the report's, and not the one you quoted at dispatch. A report whose
 `acted_on:` line is missing or differs is said in one line; it changes nothing:
 
-- **Commit: yes.** The line is `yes, ledger line <n>`. If verify reported no changed path, or its report is no longer in hand to list them, run neither command
-  and say so. Otherwise `git add -- <the paths verify reported>`, then `git
+- **Commit: yes.** The line is `yes, ledger line <n>`. If verify reported no
+  changed path, or its report is no longer in hand to list them, run neither
+  command and say so. Otherwise `git add -- <the paths verify reported>`, then `git
   commit -m 'fix: apply verify fixes'` — one line, no apostrophe, no backtick. Never
   `git add -A`. Before the add, compare that list with `git status
   --porcelain`: an untracked path that is not on the list is named to the

@@ -295,7 +295,8 @@ of the ledger's `--note`; you write no track file at all, with one exception:
 - the path of the last round's `manifest.json`, the `manifest:` line `check`
   printed, or `none` and why when `check` exited 4 or 5; the main session
   passes it as the verify ledger row's `--artifact`
-- the `acted_on:` line for the `commit_answer` line this run acted on, or a line saying there was none
+- the `acted_on:` line for the `commit_answer` line this run acted on, or a
+  line saying there was none
 - what was fixed
 - what Step 3's **Requirement decisions to confirm** raised and how it was
   answered

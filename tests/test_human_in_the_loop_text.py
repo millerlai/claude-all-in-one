@@ -232,15 +232,6 @@ def test_build_commit_answer_covers_verify_and_says_what_no_means(tree):
     assert "the person commits" in step
 
 
-@pytest.mark.parametrize("tree", TREES)
-def test_gates_file_describes_step_0_5_as_one_round(tree):
-    text = _reference(tree, "approval-gates.md")
-    start = text.index("- `stage-build.md` Step 0.5 —")
-    bullet = text[start:text.index(" - Gate 2's triage menu", start)]
-    assert "one hand-up" in bullet
-    assert "up to three turns" not in bullet
-
-
 # --- Unit 4: build mid-run stops (AC3) --------------------------------------
 
 STEP_HEADINGS = [
@@ -550,7 +541,6 @@ def test_step_0_5_item_counts_one_question_under_a_track(tree):
     start = text.index("- `stage-build.md` Step 0.5 —")
     bullet = text[start:text.index(" - Gate 2's triage menu", start)]
     assert "one hand-up" in bullet
-    assert "up to three turns" not in bullet
     assert "One decision at most under a track" in bullet
     assert "Up to two decisions under a track" not in bullet
 
@@ -621,7 +611,11 @@ def test_build_and_verify_reports_repeat_the_commit_answer_line(tree):
 
 @pytest.mark.parametrize("tree", TREES)
 def test_track_skill_has_the_main_session_quote_the_commit_answer(tree):
-    assert "`commit_answer`" in _flat(tree, "skills", "track", "SKILL.md")
+    # #394: the sentence, not just the word -- "ask the person" would keep it.
+    track = _flat(tree, "skills", "track", "SKILL.md")
+    assert ("quote in the brief the `commit_answer` line `preflight.py` printed"
+            in track)
+    assert "under a track no menu asks whether to commit" in track
 
 
 # --- Fix round of default-commit-per-unit (review of PR #387) ---------------
@@ -818,3 +812,25 @@ def test_a_malformed_line_of_any_stage_makes_the_answer_unreadable(tree):
     section = _gate1(tree)
     assert "whichever stage wrote it" in section
     assert "has no stage to read" in section
+
+
+# --- #394: "unreadable is no", pinned whole in each place it decides --------
+
+@pytest.mark.parametrize("tree", TREES)
+def test_unreadable_is_no_wherever_the_answer_is_read(tree):
+    step = _section(_build(tree), "## Step 0.5")
+    assert ("`no, …`, `unreadable: …`, or no `commit_answer` line at all is no"
+            in step)
+    gate = _gate1(tree)
+    assert "`unreadable` is no" in gate
+    changes = _section(_reference(tree, "approval-gates.md"),
+                       "## Verify's changes, inside a track")
+    assert "**Commit: no.** The line is `no, …` or `unreadable: …`" in changes
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_says_what_the_line_holds_inside_its_parentheses(tree):
+    # #394: the printed line is `commit_answer (yes, ledger line N)`.
+    gate = _gate1(tree)
+    assert "Inside its parentheses the line holds `yes, ledger line <n>`" in gate
+    assert "The line reads `yes, ledger line <n>`" not in gate

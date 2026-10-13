@@ -110,7 +110,7 @@ def test_validate_reports_the_same_body_line_count_as_computed_here():
     assert reported <= ceiling
 
 
-def test_skill_md_body_is_136_lines():
+def test_skill_md_body_keeps_its_recorded_line_count():
     """120 before ticket mirroring, plus one pointer line each for it and
     for `references/pending-questions.md` (2026-09-03), plus five for
     `references/approval-gates.md` (#74).

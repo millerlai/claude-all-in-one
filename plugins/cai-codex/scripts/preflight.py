@@ -298,9 +298,7 @@ def design_signed_off(track_dir, project_dir):
     never match. A `failed` or `blocked` record -- Changes requested, Reject,
     a re-run that did not pass -- is not a pass, so it neither signs off nor
     erases an approval made before it."""
-    approvals = [r for r in ledger.records(track_dir, "design")
-                 if not r.get("malformed") and r.get("outcome") == "passed"
-                 and r.get("gate") == "human"]
+    approvals = ledger.human_passes(ledger.records(track_dir, "design"))
     if not approvals:
         return False, (
             "design_signed_off (no passed+human design record on the ledger -- a "
@@ -1204,14 +1202,13 @@ def commit_answer(track_dir, project_dir):
         try:
             with open(doc, "rb") as fh:
                 now = hashlib.sha256(fh.read()).hexdigest()
-        except (OSError, UnicodeDecodeError):
+        except OSError:
             return True, ("commit_answer (unreadable: the design row's "
                           "document cannot be read)")
 
         records = ledger.records(track_dir, "design")
-        matching = [r for r in records
-                    if not r.get("malformed") and r.get("outcome") == "passed"
-                    and r.get("gate") == "human" and r.get("sha256") == now
+        matching = [r for r in ledger.human_passes(records)
+                    if r.get("sha256") == now
                     and _is_design_document(r, doc, project_dir, track_dir)]
         if not matching:
             return True, ("commit_answer (unreadable: no Approve on the ledger "
@@ -1359,7 +1356,14 @@ def main():
     # stage functions: several of those return a single failing check early,
     # and UC8 asks for the ledger's condition on every stage, including the
     # ones that are already blocked for another reason.
-    checks = list(STAGES[args.stage](args.track_dir, args.project_dir))
+    try:
+        checks = list(STAGES[args.stage](args.track_dir, args.project_dir))
+    except (OSError, UnicodeDecodeError) as exc:
+        # A stage's own checks read files -- build reads the design document
+        # as text -- and must not take the lines below down with them: the
+        # commit answer prints on every path (#394).
+        checks = [(False, "%s_checks (stopped on a %s, so this stage's own "
+                          "checks did not finish)" % (args.stage, type(exc).__name__))]
     # Added here, for the same reason: build() and verify() each return early
     # on several paths, and the answer must print whichever one was taken.
     if args.stage in ("build", "verify"):
