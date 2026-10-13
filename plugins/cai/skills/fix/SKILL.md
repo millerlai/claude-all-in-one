@@ -32,9 +32,13 @@ to the default branch.
 - Every file this skill hands to a command — a reply, a commit message, the
 analysis, an answer — goes in the system temp directory, never inside the
 repository, and is deleted once the command has run.
-- Never use restore, clean or stash. When an item is finished the working tree
-  is clean and HEAD is back on the ref the run started from; whatever is left
-  over is committed on that item's local branch.
+- Never use restore, clean or stash. Leave the paths in `ready`'s
+  `untracked_paths` untouched: never edit, add, move or remove them. If they
+  collide with a branch switch or the fix needs one, stop and report the
+  conflict; never force the switch or overwrite a file. When an item is
+  finished tracked files have no uncommitted changes and HEAD is back on the
+  ref the run started from; the item's changes are on its local branch and
+  the pre-existing untracked files remain outside every commit.
 - Paste each script's output to the person as it is. For each item, the result
   is one of the words `fix_target.py report` accepts.
 - Before any push, the checks the project's instruction files require have
@@ -49,6 +53,11 @@ repository, and is deleted once the command has run.
    line it printed and stop.
 2. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_target.py ready --project-dir <project root>`.
    Exit 2: paste the line it printed and stop.
+   Untracked files alone do not block this check. Save its successful JSON
+   output verbatim in a `<ready file>` following the rule on files above;
+   keep that same file for every item, and pass it to every `changes` call as
+   `--ready-file <ready file>`. It records the pre-existing untracked paths;
+   new untracked files still count as changes and must be reported.
 3. Read the procedure for the classification's `kind` and follow it:
    - `issue`: read `${CLAUDE_PLUGIN_ROOT}/skills/fix/references/single-issue.md`.
    - `issue-list`: read `${CLAUDE_PLUGIN_ROOT}/skills/fix/references/issue-list.md`.

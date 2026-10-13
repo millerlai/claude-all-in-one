@@ -12,6 +12,9 @@ Work only inside the project root.
   dependency or a CI step because of it.
 - Do not commit, push, switch branches, stash, restore, clean or call `gh`.
   Leave every change in the working tree; the main session commits.
+- Leave the pre-existing untracked paths in the dispatch untouched. Do not
+  edit, add, move or remove them, or include them in your reported paths. If
+  the fix needs one of them, report `needs-decision` and say why.
 - If the fix needs a change under `.github/` or to a dependency manifest or
   lock file, do not make it. Report `needs-decision` and say why.
 
