@@ -245,7 +245,8 @@ for each finding `build` or `verify` left unfixed: Fix now, File a GitHub
 issue, Note on the PR or Accept as is.
 
 Both arrive as a menu you pick from, never a prompt asking you to type
-`approved`. The design one offers four: approve it (`build` then makes one
+`approved`. The design one first says how big the build will be — how many
+units, which can run side by side, the check each must pass — then offers four: approve it (`build` then makes one
 local commit per verified unit, and nothing is pushed), approve it without
 commits (nothing is committed before the pull request opens; a fix round after
 it still commits, so its push carries the fixes), ask for changes (which sends `design` round again with what you said,

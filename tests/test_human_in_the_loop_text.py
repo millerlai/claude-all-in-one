@@ -814,6 +814,22 @@ def test_a_malformed_line_of_any_stage_makes_the_answer_unreadable(tree):
     assert "has no stage to read" in section
 
 
+# --- #391: the cost check sits at Gate 1 ------------------------------------
+
+@pytest.mark.parametrize("tree", TREES)
+def test_gate_1_carries_the_four_cost_lines(tree):
+    # Owner's decision, 2026-10-13: build's first pass no longer stops with
+    # nothing to ask, so the four lines move to the gate everyone passes.
+    gate = _gate1(tree)
+    assert "**Say what build will cost, in the same message.**" in gate
+    assert "how many units its `## Work breakdown` lists" in gate
+    assert "build cuts the units itself and that the count is not known yet" in gate
+    assert "a long pass is agreed to here or not at all" in gate
+    assert "Say the documents' paths and those four lines, then ask" in gate
+    step = _section(_build(tree), "## Step 0.5")
+    assert "Under a track the person sized it at Gate 1" in step
+    assert "your report names any line that differs from the design's" in step
+
 # --- #394: "unreadable is no", pinned whole in each place it decides --------
 
 @pytest.mark.parametrize("tree", TREES)

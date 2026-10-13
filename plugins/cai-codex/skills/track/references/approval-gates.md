@@ -63,8 +63,17 @@ build spec is what makes the authorisation stick. An edit to it after the
 Approve re-opens the gate, and re-signing stays cheap: what the person
 re-reads is still those two small documents.
 
-Say the documents' paths, then ask. Nothing in `build` starts until this is
-answered: `preflight.py build` refuses to start unless a `passed` record with
+**Say what build will cost, in the same message.** Above the menu, four lines
+read from the design row's document: how many units its `## Work breakdown`
+lists, which of them its `Alongside` column pairs, the verify command each
+has to pass, and anything the documents leave for build to ask. With no
+`## Work breakdown`, say that build cuts the units itself and that the count
+is not known yet. Under a track this is the cost check: build's first pass
+does not stop when it has nothing to ask (`stage-build.md` Step 0.5), so a
+long pass is agreed to here or not at all.
+
+Say the documents' paths and those four lines, then ask. Nothing in `build`
+starts until this is answered: `preflight.py build` refuses to start unless a `passed` record with
 `gate: human` carries the sha256 of the design row's document as it stands —
 so skipping this menu is caught by the gate itself, and so is an edit to that
 document after it. Where that record sits on the ledger does not matter:
