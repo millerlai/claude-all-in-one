@@ -7,11 +7,13 @@ real one, run only inside tmp_path, with a local bare repository as `origin` so
 """
 import json
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 import fake_gh
+import fix_claims as fc
 import fix_issues as fi
 import ship_pr_findings as spf
 
@@ -442,6 +444,100 @@ def test_list_attaches_a_disposition_and_asks_the_remote_only_about_local_branch
     assert len(pr_calls) == 1 and "fix/5-x" in pr_calls[0]
 
 
+@pytest.mark.parametrize("platform, session", [
+    ("claude", "other"), ("codex", "mine"), ("claude", None),
+])
+def test_list_snapshots_foreign_session_claims_and_explains_the_unticked_issue(
+        tmp_path, capsys, gh, repo, monkeypatch, platform, session):
+    monkeypatch.setenv(fc.SESSION_ID_ENV, "mine")
+    started = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    row = {"platform": platform, "session_id": session, "started": started,
+           "status": "in-progress", "branch": "fix/5-x"}
+    registry = Path(fc.registry_path())
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    write_json(registry, {"claims": {"acme/widgets#5": row, "elsewhere/repo#6": row}})
+    lock = Path(str(registry) + ".lock")
+    lock.write_bytes(b"")
+    before = registry.read_bytes()
+    script_pages(gh, [page([lnode(5), lnode(6)])])
+    code, _, out_file = run_list(capsys, repo, tmp_path)
+    assert code == 0
+    issues = json.loads(out_file.read_text(encoding="utf-8"))
+    assert issues[0]["session_claims"] == [
+        {"platform": platform, "session_id": session, "started": started}]
+    assert issues[1]["session_claims"] == []
+    assert fi.screen_default(issues) == frozenset({6})
+    lines = fi.render_screen(issues, {5: entry(), 6: entry()})
+    assert (f"claimed by {platform} session {session or 'unknown'} (started {started})"
+            in "\n".join(lines))
+    assert registry.read_bytes() == before and lock.read_bytes() == b""
+    assert sorted(p.name for p in registry.parent.iterdir()) == [registry.name, lock.name]
+
+
+def test_list_ignores_own_expired_and_unreadable_session_claims(
+        tmp_path, capsys, gh, repo, monkeypatch):
+    monkeypatch.setenv(fc.SESSION_ID_ENV, "mine")
+    now = datetime.now(timezone.utc)
+    started = now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    expired = (now - timedelta(minutes=31)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    claims = {
+        "acme/widgets#5": {"platform": "claude", "session_id": "mine", "started": started},
+        "acme/widgets#6": {"platform": "codex", "session_id": "other", "started": expired},
+        "acme/widgets#7": {"platform": "claude", "session_id": "unknown", "started": started},
+    }
+    registry = Path(fc.registry_path())
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    write_json(registry, {"claims": claims})
+    Path(str(registry) + ".lock").write_bytes(b"")
+    before = registry.read_bytes()
+    script_pages(gh, [page([lnode(5), lnode(6), lnode(7)])])
+    code, _, out_file = run_list(capsys, repo, tmp_path)
+    assert code == 0
+    issues = json.loads(out_file.read_text(encoding="utf-8"))
+    assert all(i["session_claims"] == [] for i in issues)
+    assert fi.screen_default(issues) == frozenset({5, 6, 7})
+    assert not any("claimed by" in line for line in fi.render_screen(
+        issues, {n: entry() for n in (5, 6, 7)}))
+    assert registry.read_bytes() == before
+
+
+@pytest.mark.parametrize("failure", ["malformed", "denied"])
+def test_list_unreadable_session_snapshot_notes_it_without_changing_selection(
+        tmp_path, capsys, gh, repo, monkeypatch, failure):
+    registry = Path(fc.registry_path())
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text("not JSON", encoding="utf-8")
+    lock = Path(str(registry) + ".lock")
+    lock.write_bytes(b"")
+    before = registry.read_bytes()
+    if failure == "denied":
+        def denied(path, repair):
+            assert path == str(registry) and repair is False
+            raise PermissionError("registry read denied")
+        monkeypatch.setattr(fc, "load", denied)
+    script_pages(gh, [page([lnode(5), lnode(6, assoc="NONE")])])
+    code, lines, out_file = run_list(capsys, repo, tmp_path)
+    assert code == 0 and lines == ["issues 2", f"file {out_file}"]
+    issues = json.loads(out_file.read_text(encoding="utf-8"))
+    assert all(i["session_claims"] is None for i in issues)
+    assert fi.screen_default(issues) == frozenset({5})
+    rendered = fi.render_screen(issues, {5: entry(), 6: entry()})
+    assert sum("session claims could not be read" in line for line in rendered) == 2
+    assert registry.read_bytes() == before and lock.read_bytes() == b""
+    assert sorted(p.name for p in registry.parent.iterdir()) == [registry.name, lock.name]
+
+
+def test_list_without_a_registry_snapshots_empty_claims_without_creating_files(
+        tmp_path, capsys, gh, repo):
+    registry = Path(fc.registry_path())
+    script_pages(gh, [page([lnode(5)])])
+    code, _, out_file = run_list(capsys, repo, tmp_path)
+    assert code == 0
+    issues = json.loads(out_file.read_text(encoding="utf-8"))
+    assert issues[0]["session_claims"] == []
+    assert not registry.parent.exists()
+
+
 def test_list_needs_its_flags():
     with pytest.raises(SystemExit) as exc:
         fi.main(["list", "--project-dir", "."])
@@ -478,6 +574,16 @@ def test_default_ticked_unreadable_claims_follow_the_association():
     comments = [{"body": "[cai track: t]", "author": {"login": "bob"}}]
     assert fi.default_ticked(lnode(1, comments=comments, total=101)) is True
     assert fi.default_ticked(lnode(1, assoc="NONE", comments=comments, total=101)) is False
+
+
+@pytest.mark.parametrize("extra, expected", [
+    ({}, True), ({"session_claims": None}, True), ({"session_claims": []}, True),
+    ({"session_claims": [{"platform": "codex", "session_id": "other", "started": "now"}]}, False),
+    ({"session_claims": {"unexpected": "shape"}}, True),
+])
+def test_default_ticked_only_a_nonempty_session_claims_list_blocks_it(extra, expected):
+    assert fi.default_ticked(lnode(1, **extra)) is expected
+    assert fi.default_ticked(lnode(1, assoc="NONE", **extra)) is False
 
 
 # plan -----------------------------------------------------------------------
@@ -838,6 +944,27 @@ def test_render_screen_escapes_what_others_wrote():
     lines = fi.render_screen([lnode(1, title="bad\x1b[31mtitle", author="al\nice")],
                              {1: entry()})
     assert not any("\x1b" in line or "\n" in line for line in lines)
+
+
+def test_render_screen_escapes_every_session_claim_segment_and_lists_each_claim():
+    issue = lnode(1, session_claims=[
+        {"platform": "co\ndex", "session_id": "oth\rer", "started": "now\x1b"},
+        {"platform": "claude", "session_id": None, "started": "later"},
+    ])
+    lines = fi.render_screen([issue], {1: entry()})
+    text = "\n".join(lines)
+    assert "claimed by co\\x0adex session oth\\x0der (started now\\x1b)" in text
+    assert "claimed by claude session unknown (started later)" in text
+    assert not any("\x1b" in line or "\n" in line or "\r" in line for line in lines)
+
+
+def test_render_screen_only_explicit_null_session_claims_reports_unreadable():
+    issues = [lnode(1), lnode(2, session_claims=None), lnode(3, session_claims=[])]
+    lines = fi.render_screen(issues, {n: entry() for n in (1, 2, 3)})
+    assert sum("session claims could not be read" in line for line in lines) == 1
+    assert "session claims could not be read" not in " ".join(option_of(lines, 1))
+    assert "session claims could not be read" in " ".join(option_of(lines, 2))
+    assert "session claims could not be read" not in " ".join(option_of(lines, 3))
 
 
 # screen and select ----------------------------------------------------------

@@ -13,7 +13,8 @@ unreadable` when the issue has more comments than one query returns) and `file
 third-party text; none of that text is printed.
 
 `list` writes every open issue, each with the disposition `show` would give it,
-to FILE and prints `issues <count>` and `file <FILE>`; it prints nothing when it
+to FILE, including each issue's session claim snapshot. It prints
+`issues <count>` and `file <FILE>`; it prints nothing when it
 could not read the whole list. `screen` prints the selection screen and
 `select` turns the person's answer into `order: ...` and one `item <number>
 <action> <detail>` line per selected issue; both read the analysis file the
@@ -37,6 +38,7 @@ from typing import NamedTuple, Optional
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import fix_claims  # noqa: E402
 import fix_target  # noqa: E402
 import preflight  # noqa: E402
 import ship_pr_findings  # noqa: E402
@@ -354,6 +356,10 @@ def _list(args):
     issues = _list_open_issues(args.owner, args.repo, args.project_dir,
                                lambda: time.monotonic() - start > LIST_DEADLINE_SECONDS)
     _attach_dispositions(issues, args.project_dir)
+    keys = [fix_claims.item_key(args.owner, args.repo, issue["number"]) for issue in issues]
+    snapshot = fix_claims.others_by_key(keys)
+    for issue, key in zip(issues, keys):
+        issue["session_claims"] = snapshot[key] if snapshot is not None else None
     try:
         with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(issues, fh, ensure_ascii=False)
@@ -431,11 +437,13 @@ def _load_analysis(path, issues):
 
 def default_ticked(issue):
     """Ticked unless the author has no standing relation to the repository, a pull
-    request is already open for it, or a track has claimed it. A relation that
-    cannot be read is never enough."""
+    request is already open for it, or a track or another session has claimed it.
+    A relation that cannot be read is never enough."""
     if issue.get("authorAssociation") not in TRUSTED_ASSOCIATIONS:
         return False
-    return not _open_prs(issue) and not _claims(issue)
+    session_claims = issue.get("session_claims")
+    return (not _open_prs(issue) and not _claims(issue)
+            and not (isinstance(session_claims, list) and session_claims))
 
 
 def _dependencies(issue, entry, listed):
@@ -659,6 +667,13 @@ def _fact_notes(issue):
     for c in claims or []:
         notes.append('claimed by track "%s" (%s, updated %s)'
                      % (_escape(c["name"]), _escape(c["login"]), _escape(c["updated"])))
+    session_claims = issue.get("session_claims", [])
+    if session_claims is None:
+        notes.append("session claims could not be read")
+    for c in session_claims or []:
+        notes.append("claimed by %s session %s (started %s)"
+                     % (_escape(c["platform"]), _escape(c["session_id"] or "unknown"),
+                        _escape(c["started"])))
     prs = _open_prs(issue)
     state, detail = _state(issue)
     if prs:

@@ -369,6 +369,11 @@ def test_config_root_honours_env_override(monkeypatch, tmp_path):
     assert usage_collector.config_root() == str(tmp_path)
 
 
+def test_ambient_config_and_codex_session_are_isolated(tmp_path):
+    assert usage_collector.config_root() == str(tmp_path)
+    assert "CODEX_THREAD_ID" not in os.environ
+
+
 def test_central_ledger_and_data_start_are_siblings(monkeypatch, tmp_path):
     monkeypatch.delenv("CAI_USAGE_LEDGER", raising=False)
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))

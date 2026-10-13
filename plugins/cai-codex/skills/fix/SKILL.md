@@ -41,6 +41,10 @@ afterwards, as that section says.
   finished tracked files have no uncommitted changes and HEAD is back on the
   ref the run started from; the item's changes are on its local branch and
   the pre-existing untracked files remain outside every commit.
+- An item holding a session claim must release it first, however it ends or
+  the whole run stops. Use this procedure's own release command:
+  `single-issue.md` step 7, with the parameter changes in `jira-ticket.md` for
+  a ticket.
 - Paste each script's output to the person as it is. For each item, the result
   is one of the words `fix_target.py report` accepts.
 - Before any push, the checks the project's instruction files require have

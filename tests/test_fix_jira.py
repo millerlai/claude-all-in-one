@@ -382,3 +382,16 @@ def test_the_source_never_starts_a_login_or_names_a_write():
     assert len(re.findall(r"auth login", text)) == 1
     for word in ("transition", "comment add", "workitem create", "workitem edit", "assign"):
         assert word not in text
+
+
+def test_fix_never_posts_to_an_issue_or_writes_a_ticket():
+    plugin = SCRIPT.parent.parent
+    paths = sorted(p for p in (plugin / "skills" / "fix").rglob("*") if p.is_file())
+    paths += sorted((plugin / "scripts").glob("fix_*.py"))
+    forbidden = [re.compile(r"gh\s+issue\s+comment"),
+                 re.compile(r"acli\s+jira\s+workitem\s+(comment|transition|create|edit|assign)")]
+    assert paths
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for pattern in forbidden:
+            assert not pattern.search(text), str(path)

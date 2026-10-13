@@ -101,6 +101,13 @@ or specs, and only concepts specific to this project.
 **停點（stop）**: track 執行途中要等本人回答才繼續的地方。
 **參考執行（reference run）**: 用來數停點的一次假想執行：開著工單同步、設計沒有缺口、track 能問的問題都問到、修一輪後合併。
 
+**登記檔（registry）**: cai 在使用者設定目錄裡保存的本機認領集合，記下這台機器上哪個工作階段（session）正在修哪個項目。
+**讀得出的條目**: 本機認領中，平台、工作階段代號與開始時間能被 cai 辨認的一筆紀錄；這些身分資訊也足以指名它供人工清除。
+**有效認領**: 同一項目上，另一個工作階段留下且仍未過期的可辨認認領；cai 依它判斷該項目已有別人在處理。
+**自己的條目**: 同一項目上，平台與可辨認的工作階段代號都對得上目前工作階段的認領紀錄。
+**沒有代號**: cai 無法取得目前工作階段的身分時，認領紀錄中的身分空缺；顯示時以 `session unknown` 表示，意思是工作階段身分未知。
+**快照（snapshot）**: cai 在呈現修正清單時一次讀取的本機認領狀態，用來顯示已有誰在處理及決定預設勾選。
+
 ## Process
 
 **審查基準量測程序（review-benchmark procedure）**: 把一筆審查案例交給審查 agent、收下它的發現、再交給計分器的固定步驟。
@@ -131,3 +138,5 @@ or specs, and only concepts specific to this project.
 **安全讀檔（safe read）**: 讀工作樹裡的追蹤檔之前，先確認它是 repo 內的一般檔，才開檔讀取。
 **未結項目停點（open-items stop）**: The point before ship's first draft where the person is asked, one open item per turn, what to do with each one still undecided; ship does not start until each has a pick.
 **兩段式寫入（staged write）**: 寫索引時先把所有資料檔寫成暫存檔，全部寫完才逐一換成正式檔名；中途出錯時上一份可用的索引不會被動到。
+**fix-unclaim**: cai 的人工清除技能，依使用者提供的項目網址與認領身分，刪除被指名的一筆本機認領。
+**override**: cai 產生 Codex 版本時使用的逐字替換規則，把 Claude 版本中的指定原文換成該平台使用的文字。
