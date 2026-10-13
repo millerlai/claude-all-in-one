@@ -1,8 +1,11 @@
 """Keeps the index in step with the working tree (build) and says how far the
 tree is from the index (status).
 
-`status` never raises: every situation maps to one of five state words, in the
-order T3-5 of the detail design fixes.
+`status` never raises: every situation maps to one of five state words, and
+the first that holds wins: `unsupported` when git cannot answer or the index
+directory cannot be trusted, `absent` with no index, `stale` when a tracked
+file differs from its record, `partial` when a file failed to parse, `fresh`
+otherwise.
 """
 import datetime
 import json
@@ -18,9 +21,9 @@ import codemap_store as store  # noqa: E402
 import codemap_symbols as symbols  # noqa: E402
 import preflight  # noqa: E402
 
-# Over this a file is hashed but not parsed: one generated giant must not slow
-# every dispatch (T3-4).
-MAX_PARSE_BYTES = 1048576
+MAX_PARSE_BYTES = inventory.MAX_PARSE_BYTES
+# The state words under which there is no index to read.
+NO_INDEX_WORDS = ("absent", "unsupported")
 
 
 class Result(NamedTuple):
@@ -149,6 +152,7 @@ def _write(top, facts, previous):
         store.sweep(top, set(artifacts))
     finally:
         store.release_write_lock(lock)
+    # render always returns repo-map.md and, beside it, one text per shard.
     return Result("partial" if partial else "fresh", reparsed, len(records),
                   len(texts) - 1, partial)
 
@@ -166,7 +170,7 @@ def update(top: str) -> Optional[Result]:
     # Before load, not only in ensure_dir: a state.json that is itself tracked
     # came with the repository, and nothing in it may be parsed.
     if store.tracked_inside(top):
-        raise store.IndexUnreadable(".cai/codemap holds tracked files")
+        raise store.IndexUnreadable(store.TRACKED_REASON)
     try:
         previous = store.load(top)
     except store.IndexUnreadable:
@@ -180,14 +184,14 @@ def update(top: str) -> Optional[Result]:
 def _unsupported(reason):
     # A reason can quote a name read from state.json, which anyone who can
     # write the index directory controls; escaped, it stays on this one line.
-    return Status("unsupported", preflight._escape_control_chars(reason), [])
+    return Status("unsupported", preflight.escape_control_chars(reason), [])
 
 
 def _named(paths, verb):
-    """`_named_paths` caps the list at ten and counts the rest; it only knows a
+    """`named_paths` caps the list at ten and counts the rest; it only knows a
     plural, so a single file gets the singular noun here."""
     noun = "file" if len(paths) == 1 else "files"
-    return preflight._named_paths(paths, "%s %s" % (noun, verb))
+    return preflight.named_paths(paths, "%s %s" % (noun, verb))
 
 
 def status(top: str) -> Status:
@@ -201,7 +205,7 @@ def status(top: str) -> Status:
         return _unsupported("%s while reading the tree" % type(exc).__name__)
     try:
         if store.tracked_inside(top):
-            return _unsupported(".cai/codemap holds tracked files")
+            return _unsupported(store.TRACKED_REASON)
         # run build would not help: build refuses the same directory.
         store._check_inside_repository(top)
     except store.IndexUnreadable as exc:
@@ -236,7 +240,7 @@ def status(top: str) -> Status:
     # worktree would read some other index (#401).
     return Status("fresh", "%d files, %d with symbols, %s, index %s" % (
         len(index.files), with_symbols, "head %s" % head[:7] if head else "no commit yet",
-        preflight._escape_control_chars(store.index_dir(top))), [])
+        preflight.escape_control_chars(store.index_dir(top))), [])
 
 
 def state_line(status: Status) -> str:

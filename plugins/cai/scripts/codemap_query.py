@@ -2,7 +2,7 @@
 
 Read-only, and the order is a function of the inputs alone (ties fall to path,
 then line), so the same query on the same tree always prints the same list.
-Scores are the design's T3-7: name equals a query word 100; the name contains a
+Scores: name equals a query word 100; the name contains a
 term 30 each; the qualified name 20 each; a path 10 each; file text 1 per
 matching line, at most 5.
 """
@@ -17,7 +17,7 @@ import codemap_inventory as inventory  # noqa: E402
 import codemap_store  # noqa: E402
 import codemap_symbols  # noqa: E402
 
-MAX_TEXT_BYTES = 1048576   # the same cap as parsing: a bigger file is not scanned
+MAX_TEXT_BYTES = inventory.MAX_PARSE_BYTES   # a bigger file is not scanned
 TEXT_LINE_CAP = 5
 NAME_EQUALS, NAME_HAS, QUALIFIED_HAS, PATH_HAS = 100, 30, 20, 10
 
@@ -49,7 +49,7 @@ def tracked_texts(top: str) -> list:
     out = []
     top_real = os.path.realpath(top)
     for mode, path, utf8 in inventory.list_tracked(top):
-        if mode in ("120000", "160000") or not utf8:
+        if inventory.skip_reason(mode, utf8) is not None:
             continue
         got = inventory.read_tracked(top_real, path, MAX_TEXT_BYTES)
         if got.reason is not None or len(got.data) > MAX_TEXT_BYTES:
@@ -58,6 +58,14 @@ def tracked_texts(top: str) -> list:
             continue
         out.append((path, got.data.decode("utf-8", errors="replace")))
     return out
+
+
+def matching_lines(body: str, words: list) -> list:
+    """[(line number, line)] for every editor line of `body` holding any of
+    `words` (lower case), ignoring case. The recall benchmark's plain-Grep
+    baseline counts with this too, so the two never match lines differently."""
+    return [(n, line) for n, line in enumerate(codemap_symbols.editor_lines(body), start=1)
+            if any(w in line.lower() for w in words)]
 
 
 def _count(haystack, words):
@@ -85,8 +93,7 @@ def query(top: str, index: codemap_store.Index, text: str, limit: int) -> list:
         if score:
             hits.append(Hit(score, path, 1, "path", path))
     for path, body in tracked_texts(top):
-        matches = [(n, line) for n, line in enumerate(codemap_symbols.editor_lines(body), start=1)
-                   if any(w in line.lower() for w in words)]
+        matches = matching_lines(body, words)
         if matches:
             first_line, first = matches[0]
             hits.append(Hit(min(len(matches), TEXT_LINE_CAP), path, first_line, "text",

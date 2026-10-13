@@ -35,8 +35,7 @@ def grep_baseline(top: str, text: str) -> list:
     words = codemap_query.terms(text)
     scored = []
     for path, body in codemap_query.tracked_texts(top):
-        count = sum(1 for line in body.splitlines()
-                    if any(w in line.lower() for w in words))
+        count = len(codemap_query.matching_lines(body, words))
         if count:
             scored.append((-count, path))
     return [path for _, path in sorted(scored)]
@@ -86,7 +85,7 @@ def main(argv=None) -> int:
     top = os.path.abspath(args.project_dir)
     status = codemap_index.status(top)
     print(codemap_index.state_line(status))   # a stale or absent index still counts
-    index = codemap_store.load(top) if status.word not in ("absent", "unsupported") \
+    index = codemap_store.load(top) if status.word not in codemap_index.NO_INDEX_WORDS \
         else None
     sums = {("index", n): 0.0 for n in NS}
     sums.update({("grep", n): 0.0 for n in NS})

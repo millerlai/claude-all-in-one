@@ -39,7 +39,7 @@ def _shown(text):
     """Paths, matched lines and messages come from the repository or the index
     directory; escaped, one of them can never add a line of its own -- a forged
     `codemap: fresh` among them."""
-    return preflight._escape_control_chars(str(text))
+    return preflight.escape_control_chars(str(text))
 
 
 def _reason(exc):
@@ -79,7 +79,7 @@ QUERY_LIMIT = 10   # Recall@10 is the largest N the benchmark asks about
 def _query(top, text):
     status = codemap_index.status(top)
     print(codemap_index.state_line(status))
-    if status.word in ("absent", "unsupported"):
+    if status.word in codemap_index.NO_INDEX_WORDS:
         if status.word == "absent":
             print(ABSENT_HINT)
         return 0

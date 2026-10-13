@@ -16,7 +16,7 @@ ALLOWED_SIBLINGS = {
     "codemap_store.py": {"preflight"},
     "codemap_inventory.py": {"preflight"},
     "codemap_symbols.py": set(),
-    "codemap_repomap.py": {"preflight"},
+    "codemap_repomap.py": {"preflight", "codemap_store"},
     "codemap_index.py": {"preflight", "codemap_store", "codemap_inventory",
                          "codemap_symbols", "codemap_repomap"},
     "codemap_query.py": {"codemap_store", "codemap_inventory", "codemap_symbols"},
