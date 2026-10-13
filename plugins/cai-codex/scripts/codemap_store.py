@@ -26,7 +26,7 @@ SCHEMA_VERSION = 2
 # codemap_index.MAX_PARSE_BYTES, _facts_record and _parse, and all of
 # codemap_symbols (MAX_SIGNATURE included). Bump it when any of them changes
 # what a record says; an index written before the bump is then rebuilt.
-EXTRACTOR_VERSION = 1
+EXTRACTOR_VERSION = 2
 # A data file this large is not one this tool wrote; refusing it keeps a
 # planted device, pipe or huge file from being read into memory.
 MAX_ARTIFACT_BYTES = 1 << 28

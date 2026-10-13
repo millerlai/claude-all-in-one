@@ -56,6 +56,10 @@ def _py_signature(node):
     return text
 
 
+# ast.TryStar is `try`/`except*`, Python 3.11+.
+_TRY_NODES = (ast.Try,) + ((ast.TryStar,) if hasattr(ast, "TryStar") else ())
+
+
 def _py_walk(body, prefix, in_class, path, out):
     for node in body:
         if isinstance(node, ast.ClassDef):
@@ -67,6 +71,16 @@ def _py_walk(body, prefix, in_class, path, out):
             kind = "method" if in_class else "function"
             out.append(_record("python", path, prefix + node.name, kind, node.lineno,
                                node.end_lineno, _py_signature(node), "python-ast", "exact"))
+        elif isinstance(node, (ast.If, ast.With, ast.AsyncWith)):
+            # `if TYPE_CHECKING:`, a version check, a `with` around definitions:
+            # their declarations are still top-level names, and a file marked
+            # exact must not leave them out.
+            _py_walk(node.body, prefix, in_class, path, out)
+            _py_walk(getattr(node, "orelse", []), prefix, in_class, path, out)
+        elif isinstance(node, _TRY_NODES):
+            for block in (node.body, *(h.body for h in node.handlers), node.orelse,
+                          node.finalbody):
+                _py_walk(block, prefix, in_class, path, out)
 
 
 def _python(path, data):
@@ -94,6 +108,17 @@ def _python(path, data):
 
 
 # --- line-pattern adapters -------------------------------------------------
+
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
+
+
+def editor_lines(text):
+    """`text` split where an editor, git and the Read tool start a new line.
+    `str.splitlines` also splits at \\x0b, \\x0c, \\x1c-\\x1e, \\x85, U+2028 and
+    U+2029, and every one of those before a match would push the reported
+    line number past the one an agent opens."""
+    return _LINE_BREAK.split(text)
+
 
 def _decode(data):
     try:
@@ -123,7 +148,7 @@ def _go(path, data):
     if text is None:
         return _failed("undecodable")
     symbols, imports, in_block = [], [], False
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, line in enumerate(editor_lines(text), start=1):
         if in_block:
             if line.startswith(")"):
                 in_block = False
@@ -168,7 +193,7 @@ def _ts(path, language, data):
     if text is None:
         return _failed("undecodable")
     symbols, imports = [], []
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, line in enumerate(editor_lines(text), start=1):
         for pattern in (TS_FROM, TS_BARE):
             hit = pattern.match(line)
             if hit:

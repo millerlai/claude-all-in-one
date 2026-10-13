@@ -19,7 +19,7 @@ ALLOWED_SIBLINGS = {
     "codemap_repomap.py": {"preflight"},
     "codemap_index.py": {"preflight", "codemap_store", "codemap_inventory",
                          "codemap_symbols", "codemap_repomap"},
-    "codemap_query.py": {"codemap_store", "codemap_inventory"},
+    "codemap_query.py": {"codemap_store", "codemap_inventory", "codemap_symbols"},
     "codemap_cli.py": {"preflight", "codemap_store", "codemap_inventory", "codemap_index",
                        "codemap_query"},
 }
