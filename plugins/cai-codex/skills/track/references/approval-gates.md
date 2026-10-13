@@ -75,7 +75,7 @@ for this one — the stance approval is not Gate 1.
 | Option | What it does |
 |---|---|
 | Approve | Where the design row's document has a `## Status` of its own (a diagnosis, a legacy high-level design), write `approved <YYYY-MM-DD>` into it **first**, then append the ledger row; elsewhere, only the row. The row is `--gate human --artifact <that document>`, and its `--note` starts with `commit: yes`. `build` may start, and makes one local commit per verified unit. |
-| Approve without commits | Everything Approve does, in the same order, except that the `--note` starts with `commit: no`. `build` may start; nothing that build, or verify before Gate 2, changes is committed, as "Commit: no" under "Verify's changes, inside a track" says (a fix round after the pull request opens still commits by its own step 2). |
+| Approve without commits | Everything Approve does, in the same order, except that the `--note` starts with `commit: no`. `build` may start; nothing that build, or verify before Gate 2, changes is committed, as "Commit: no" under "Verify's changes, inside a track" says. A fix round after the pull request opens still commits, by its own step 2: its push needs a commit to carry the fixes. |
 | Changes requested | Re-dispatch `design` with what they said, quoted. Counts as a round (`pending-questions.md`, "What counts as a round"). |
 | Reject | The design stops here. Record the outcome and what was rejected; build nothing. |
 
@@ -98,10 +98,13 @@ without commits here, never the design stage deciding its own work is done.
 that Approve also lets `build` make one local commit per verified unit on this
 branch and lets the main session commit what verify changes, and that nothing
 is pushed before Gate 2's "Run them"; Approve without commits signs off the
-same design and commits nothing: the parallel lane is off, changes stay in the
-working tree, and `ship`'s `clean_tree` stops on the tracked files until the
-person commits. When the question tool has a description field per option,
-Approve's says the same about local commits.
+same design and commits nothing before the pull request opens: the parallel
+lane is off, changes stay in the working tree, and `ship`'s `clean_tree` stops
+on the tracked files until the person commits. The message says the one
+exception in the same breath: a fix round after the pull request opens still
+commits, since its push needs a commit. When the question tool has a
+description field per option, Approve's says the same about local commits, and
+Approve without commits' names that exception.
 Neither option is marked `(recommended)`. On this platform, Gate 1 always offers all four options and marks none of them (Recommended), whatever the question tool's description suggests; if `request_user_input` cannot carry all four, ask with numbered text instead.
 
 The note is exactly `commit: yes` or `commit: no`, and nothing after it. The
