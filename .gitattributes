@@ -14,6 +14,7 @@
 # leaves a stray \r on every Linux pattern, so these .txt files are pinned to LF.
 plugins/cai/hooks/reduced-check-patterns.txt text eol=lf
 plugins/cai/hooks/reduced-check-agent-patterns.txt text eol=lf
+plugins/cai/hooks/reduced-check-write-patterns.txt text eol=lf
 
 # The upgrade-axis samples are the bytes a released version wrote (#361).
 # No line-ending conversion, so every platform's checkout reads the same file.

@@ -1,0 +1,4 @@
+"agent_id".*"file_path" *: *"[^"]*[/\\][lL][eE][dD][gG][eE][rR]\.[jJ][sS][oO][nN][lL]"
+"file_path" *: *"[^"]*[/\\][lL][eE][dD][gG][eE][rR]\.[jJ][sS][oO][nN][lL]".*"agent_id"
+"agent_id".*"notebook_path" *: *"[^"]*[/\\][lL][eE][dD][gG][eE][rR]\.[jJ][sS][oO][nN][lL]"
+"notebook_path" *: *"[^"]*[/\\][lL][eE][dD][gG][eE][rR]\.[jJ][sS][oO][nN][lL]".*"agent_id"

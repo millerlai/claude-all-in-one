@@ -1,5 +1,5 @@
 """preflight's `commit_answer` line (#385): the commit answer a person gave at
-Gate 1, read back from the ledger note of the newest matching Approve.
+Gate 1, read back from the ledger notes of every matching Approve; any no wins.
 
 The line always passes. What matters is that anything but a strict
 `commit: yes` / `commit: no` at the very start of the note reads as
@@ -23,6 +23,12 @@ DOC = ("# x\n\n## Status\napproved 2026-10-12\n\n"
 NO_APPROVE = ("commit_answer (unreadable: no Approve on the ledger matches the "
               "design row's document as it stands)")
 NO_DOC = "commit_answer (unreadable: the design row names no document that exists)"
+# AC5: a row with no marker says what to do, so the person need not look it up.
+UNMARKED = ("commit_answer (unreadable: ledger line %d's note does not start with "
+            "commit: yes or commit: no. Build will not commit: commit the changes "
+            "yourself, or change the design and sign Gate 1 again)")
+MALFORMED = ("commit_answer (unreadable: ledger line %d is malformed and comes after "
+             "the Approve at line %d, so it may be a newer answer)")
 
 
 def make_track(tmp_path, artifact="d-detail.md"):
@@ -61,12 +67,12 @@ def test_yes_and_no_name_the_ledger_line(tmp_path):
     assert answer(track, tmp_path) == "commit_answer (no, ledger line 2)"
 
 
-def test_newest_matching_approve_wins(tmp_path):
+def test_a_later_yes_does_not_overrule_an_earlier_no(tmp_path):
     doc = write_doc(tmp_path)
     track = make_track(tmp_path)
     ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: no")
     ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
-    assert answer(track, tmp_path) == "commit_answer (yes, ledger line 2)"
+    assert answer(track, tmp_path) == "commit_answer (no, ledger line 1)"
 
 
 @pytest.mark.parametrize("note", [
@@ -82,9 +88,7 @@ def test_anything_but_a_strict_marker_is_unreadable(tmp_path, note):
     doc = write_doc(tmp_path)
     track = make_track(tmp_path)
     ledger.append(track, "design", "passed", artifact=doc, gate="human", note=note)
-    assert answer(track, tmp_path) == (
-        "commit_answer (unreadable: ledger line 1's note does not start with "
-        "commit: yes or commit: no)")
+    assert answer(track, tmp_path) == UNMARKED % 1
 
 
 def test_non_string_note_is_unreadable(tmp_path):
@@ -184,6 +188,35 @@ def test_an_approve_of_another_file_with_the_same_bytes_does_not_count(tmp_path)
     assert answer(track, tmp_path) == "commit_answer (no, ledger line 1)"
 
 
+def test_a_no_on_another_digest_of_the_document_is_not_an_answer(tmp_path):
+    # Any-no reads only the rows that match the document as it stands (AC3): a
+    # no the person gave to a version since replaced must not veto the new one.
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: no")
+    write_doc(tmp_path, text=DOC + "\nrevised after the first sign-off\n")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    assert answer(track, tmp_path) == "commit_answer (yes, ledger line 2)"
+
+
+def test_a_no_on_another_file_with_the_same_bytes_is_not_an_answer(tmp_path):
+    a = write_doc(tmp_path, "a.md")
+    b = write_doc(tmp_path, "b.md")
+    track = make_track(tmp_path, "a.md")
+    ledger.append(track, "design", "passed", artifact=a, gate="human", note="commit: yes")
+    ledger.append(track, "design", "passed", artifact=b, gate="human", note="commit: no")
+    assert answer(track, tmp_path) == "commit_answer (yes, ledger line 1)"
+
+
+def test_a_no_on_an_auto_or_failed_row_is_not_an_answer(tmp_path):
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    ledger.append(track, "design", "passed", artifact=doc, gate="auto", note="commit: no")
+    ledger.append(track, "design", "failed", artifact=doc, gate="human", note="commit: no")
+    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    assert answer(track, tmp_path) == "commit_answer (yes, ledger line 3)"
+
+
 def test_only_an_approve_of_another_file_is_no_approve(tmp_path):
     write_doc(tmp_path, "a.md")
     b = write_doc(tmp_path, "b.md")
@@ -228,6 +261,42 @@ def test_a_malformed_line_before_the_approve_does_not_matter(tmp_path):
     append_raw(track, CORRUPT)
     ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
     assert answer(track, tmp_path) == "commit_answer (yes, ledger line 2)"
+
+
+# --- any no wins; a corrupt line counts from the first Approve (P1-P13) -----
+
+def build_ledger(tmp_path, kinds):
+    """y: commit: yes, n: commit: no, U: a note with no marker, C: a corrupt line."""
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    notes = {"y": "commit: yes", "n": "commit: no", "U": "approved after review"}
+    for kind in kinds:
+        if kind == "C":
+            append_raw(track, CORRUPT)
+        else:
+            ledger.append(track, "design", "passed", artifact=doc, gate="human",
+                          note=notes[kind])
+    return track
+
+
+@pytest.mark.parametrize("kinds, expected", [
+    ("ny", "commit_answer (no, ledger line 1)"),                 # P1
+    ("yn", "commit_answer (no, ledger line 2)"),                 # P2
+    ("nn", "commit_answer (no, ledger line 1)"),                 # P3
+    ("yny", "commit_answer (no, ledger line 2)"),                # P4
+    ("yy", "commit_answer (yes, ledger line 2)"),                # P5
+    ("Uy", UNMARKED % 1),                                        # P6
+    ("yU", UNMARKED % 2),                                        # P7
+    ("Un", "commit_answer (no, ledger line 2)"),                 # P8
+    ("yUU", UNMARKED % 2),                                       # P9
+    ("nC", "commit_answer (no, ledger line 1)"),                 # P10
+    ("yCy", MALFORMED % (2, 1)),                                 # P11
+    ("yyC", MALFORMED % (3, 1)),                                 # P12
+    ("yCU", MALFORMED % (2, 1)),                                 # P13: corrupt before unmarked
+])
+def test_any_no_wins_then_a_corrupt_line_then_an_unmarked_row(tmp_path, kinds, expected):
+    track = build_ledger(tmp_path, kinds)
+    assert answer(track, tmp_path) == expected
 
 
 # --- ledger text cannot forge a line in this script's output ---------------

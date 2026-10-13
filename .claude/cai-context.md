@@ -76,6 +76,15 @@ or specs, and only concepts specific to this project.
 **Recall@N**: 一項任務裡應該找到的檔案，有多少比例出現在查詢結果前 N 個不同的檔案中，再對所有任務取平均。
 **純 Grep 基準（plain-Grep baseline）**: 不用索引、只靠依詞搜尋行數排序所得的檔案順序，用來和索引的查詢結果比較。
 **commit 答案**: 本人在 track 的 Gate 1 選「核准」或「核准，但不 commit」時一併給出的同意與否，決定 build 和 verify 能不能在這條分支上做本地 commit。
+**write 模式（write mode）**: 分派器處理寫檔工具呼叫時的行為：Python 失靈時放行而不是擋下，只擋子代理對 ledger 的寫入。
+**完好結局（healthy outcome）**: 記下或探測到的 Python 把守門程式跑完，分派器照它的結果放行或擋下。
+**失敗結局（failed outcome）**: Python 拿到真正的輸入後回報了放行與擋下以外的結果，輸入已被讀走、無法重來。
+**降級結局（degraded outcome）**: 找不到任何能跑守門程式的 Python，分派器改用精簡檢查掃描尚未被讀過的輸入。
+**紀錄路徑消失（record path gone）**: 啟動方式紀錄寫的是一個路徑，而那個檔已經不存在；此時輸入還沒被讀走。
+**子代理呼叫（subagent call）**: 帶有非空子代理識別的工具呼叫，用來和主 session 自己的呼叫區分開。
+**目標檔名集合（target name set）**: 一個寫檔路徑經正規化後可能指向的檔名，目標存在時連實際解析到的檔名也算進去。
+**目印（marker）**: Approve 列備註開頭那個明確的同意或不同意字樣，build 靠它讀出 commit 答案。
+**首列錨（first-row anchor）**: 判斷損毀行時，以檔案順序第一列相符 Approve 為基準，它之後出現的損毀行才算。
 **檔案紀錄（file record）**: codemap 對一個追蹤檔留下的一筆紀錄，寫明它的路徑、語言、大小、雜湊，以及它沒有被解析時的原因。
 **結果行（result line）**: codemap 建立或更新完成後印出的第一行，說明這次動了多少檔；它和狀態行是兩句不同的話。
 **partial**: 上次解析時意外失敗的那些檔；下一次更新一定會重新讀它們。

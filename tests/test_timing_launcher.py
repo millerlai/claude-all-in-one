@@ -153,7 +153,9 @@ def test_hooks_json_registers_exactly_the_five_timing_entries():
     guard = [(e, m.get("matcher"), h["command"]) for e, ms in registered.items() for m in ms
              for h in m["hooks"] if "run-timing" not in h["command"]]
     assert sorted(guard) == sorted([
-        ("PreToolUse", "Bash|PowerShell", '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd"'),
+        ("PreToolUse", "Bash|PowerShell|Monitor", '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd"'),
         ("PreToolUse", "Agent|Task", '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd" agent'),
+        ("PreToolUse", "Write|Edit|NotebookEdit",
+         '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd" write'),
         ("SessionStart", None, '"${CLAUDE_PLUGIN_ROOT}/hooks/run-models.cmd"'),
     ], key=str)

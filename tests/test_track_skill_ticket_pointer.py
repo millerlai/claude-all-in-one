@@ -193,6 +193,17 @@ def test_skill_md_body_is_136_lines():
     assert _skill_body_lines() == 144
 
 
+def test_the_gate_1_note_is_spelled_out_where_the_ledger_is_written():
+    """AC6 (#392): the main flow names the exact `--note` of Gate 1's Approve,
+    so a main session does not have to find it in approval-gates.md first.
+    One line replaced one line, so the body stays 144 lines long."""
+    with open(SKILL_MD, encoding="utf-8") as fh:
+        lines = [line for line in fh.read().splitlines()
+                 if "`--gate human` belongs" in line]
+    assert len(lines) == 1
+    assert "`commit: yes`" in lines[0] and "`commit: no`" in lines[0]
+
+
 # --- '## Human gates' still says what it has always said --------------------
 
 def test_human_gates_still_names_exactly_two_and_no_more():
