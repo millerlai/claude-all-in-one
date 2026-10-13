@@ -1,5 +1,44 @@
 # Changelog
 
+## v1.53.0 — 2026-10-13
+
+This release lets build update the project's glossary without a selection menu, protects the track ledger and commit choice, and fixes untracked-file handling, codemap reads and the final merge command.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.52.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.52.0 to 1.53.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- An in-progress track keeps its saved state and ledger. When build next reaches its glossary step, it selects and writes checked project terms automatically; it can replace an existing same-name definition, and its report lists what was written, replaced or kept out. An earlier glossary selection does not serve as the new step's completed record. (#419)
+- Any matching Gate 1 approval with `commit: no` now keeps build from committing, even if a later matching approval says yes. Commit the changes yourself, or change the design and approve it again. (#416)
+- A codemap index written by v1.52.0 is reported as `unsupported` until the next `update` or `build`, which rebuilds it. A track that already refreshes its index performs that update itself. (#412)
+
+### Build
+
+- Build no longer pauses for a glossary selection menu. It takes project terms from the Detail design's glossary, checks them, records its choices before writing `.claude/cai-context.md`, and reports each term written, definition replaced and term rejected. (#419)
+- A completed glossary record is reused when the same design resumes. A definition changed by hand since the record was written is left alone and quoted in the report. New terms use the Domain or Process heading; a same-name definition is replaced where it already stands. (#419)
+
+### Track
+
+- An explicit `commit: no` in any matching Gate 1 approval cannot be overruled by a later yes. A corrupt ledger line after the first matching approval also makes the commit answer unreadable, which build treats as no. (#416)
+- The final merge command now specifies squash and the commit that was checked: `gh pr merge <n> --squash --match-head-commit <sha>`. If the pull request head changes after the check, GitHub refuses the merge; a difference between the checked commit and the reported head is shown in the merge list. (#410)
+
+### Fix
+
+- `/cai:fix` and its Codex counterpart no longer stop just because the checkout has untracked files. They record those initial paths, leave them untouched and keep them outside fix commits; uncommitted changes to tracked files still stop the run. (#418)
+- Staging a pre-existing untracked file stops the run before it can be committed. Staging commands use literal paths, so a fix named `notes/[a].txt` cannot accidentally include an existing `notes/a.txt` on Linux. (#418)
+
+### Codemap
+
+- Damaged or incomplete indexes are refused instead of crashing their readers, and an index built by another codemap or Python version is rebuilt rather than reused. The `fresh` status line now includes how many files have symbols. (#412)
+- Inventory, parsing and query text scans refuse symbolic links, FIFOs and paths outside the repository without opening them. Parsing and text scans also respect the size cap; files that cannot be opened are marked `partial` and retried on the next update. (#412)
+
+### Guard
+
+- Claude Code now guards subagent Write, Edit and NotebookEdit calls that target `ledger.jsonl`, including recognised path aliases. Subagent commands that name the ledger or call `ledger.py append` are also refused; read commands naming the ledger are refused as well, so read it with a file-reading tool or `ledger.py show`. The main session remains responsible for recording stage results. (#416)
+- Claude Code's command checks now cover Monitor as well as Bash and PowerShell. Codex continues to register the command guard only; the new direct-write hook applies to Claude Code. These checks inspect tool paths and command text, not the contents of arbitrary scripts. (#416)
+
 ## v1.52.0 — 2026-10-12
 
 This release adds `/cai:codemap`, an optional index of a repo that intake, discover and design can start from, and moves a track's commit question from build to the design approval at Gate 1.
