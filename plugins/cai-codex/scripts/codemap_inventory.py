@@ -19,6 +19,9 @@ LANGUAGES = {".py": "python", ".go": "go", ".ts": "typescript", ".tsx": "typescr
              ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
              ".cjs": "javascript"}
 CHUNK = 1 << 16
+# Over this a file is hashed but not parsed or scanned: one generated giant
+# must not slow every dispatch. The one cap both reads share.
+MAX_PARSE_BYTES = 1048576
 ERROR_INVALID_NAME = 123    # Windows: the name's syntax is not one the filesystem accepts
 
 
@@ -80,14 +83,23 @@ def list_tracked(top: str) -> list:
     return sorted(out, key=lambda m: m[1])
 
 
+def skip_reason(mode: str, utf8: bool) -> Optional[str]:
+    """Why a listed path is never opened, or None. One rule for the inventory
+    and for the query's text scan, so a new reason reaches both."""
+    if not utf8:
+        return "path-not-utf8"
+    if mode == "120000":
+        return "symlink"
+    if mode == "160000":
+        return "submodule"
+    return None
+
+
 def facts(top_real: str, mode: str, path: str, utf8: bool = True) -> FileFacts:
     language = language_of(path)
-    if not utf8:
-        return FileFacts(path, language, None, None, "path-not-utf8")
-    if mode == "120000":
-        return FileFacts(path, language, None, None, "symlink")
-    if mode == "160000":
-        return FileFacts(path, language, None, None, "submodule")
+    skip = skip_reason(mode, utf8)
+    if skip is not None:
+        return FileFacts(path, language, None, None, skip)
     got = read_tracked(top_real, path)
     return FileFacts(path, language, got.size, got.sha256, got.reason)
 

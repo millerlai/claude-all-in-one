@@ -127,7 +127,7 @@ def test_a_slash_directory_and_a_double_dash_directory_keep_separate_shards():
         assert "## %s " % path in text, path
     shards = [n for n in out if n != "repo-map.md"]
     assert len(shards) == 3
-    assert all(rm.estimate_tokens(t) <= 440 for t in out.values())
+    assert all(len(t) <= 440 * rm.CHARS_PER_TOKEN for t in out.values())
 
 
 def test_directories_that_differ_only_in_case_do_not_share_a_shard_file():

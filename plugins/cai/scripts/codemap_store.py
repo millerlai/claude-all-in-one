@@ -20,13 +20,14 @@ sys.path.insert(0, HERE)
 import preflight  # noqa: E402
 
 INDEX_PARTS = (".cai", "codemap")
+TRACKED_REASON = ".cai/codemap holds tracked files"
 SCHEMA_VERSION = 2
 # Covers every piece of code that turns a file's path and bytes into records:
-# codemap_inventory.LANGUAGES and the reasons read_tracked returns,
-# codemap_index.MAX_PARSE_BYTES, _facts_record and _parse, and all of
+# codemap_inventory.LANGUAGES, MAX_PARSE_BYTES and the reasons read_tracked
+# returns, codemap_index._facts_record and _parse, and all of
 # codemap_symbols (MAX_SIGNATURE included). Bump it when any of them changes
 # what a record says; an index written before the bump is then rebuilt.
-EXTRACTOR_VERSION = 2
+EXTRACTOR_VERSION = 3
 # A data file this large is not one this tool wrote; refusing it keeps a
 # planted device, pipe or huge file from being read into memory.
 MAX_ARTIFACT_BYTES = 1 << 28
@@ -163,7 +164,7 @@ def _ensure_self_ignore(path: str) -> None:
 def ensure_dir(top: str) -> str:
     """Returns the index directory with its `.gitignore` guaranteed `*\\n`."""
     if tracked_inside(top):
-        raise IndexUnreadable(".cai/codemap holds tracked files")
+        raise IndexUnreadable(TRACKED_REASON)
     path = _check_inside_repository(top)
     os.makedirs(path, exist_ok=True)
     # lstat before anything opens the name: a FIFO would block an open, and a

@@ -10,27 +10,27 @@ not, is in files.jsonl.
 import hashlib
 import re
 
+import codemap_store as store
 import preflight
 
 CHARS_PER_TOKEN = 4
 BUDGET_TOKENS = 1000     # a constant: no requirement varies it
 TOLERANCE_TOKENS = 100
 
-SYMBOLS_POINTER = ".cai/codemap/symbols.jsonl"
-FILES_POINTER = ".cai/codemap/files.jsonl"
-SHARD_DIR = ".cai/codemap/packages/"
+# The map names files the store writes; built from the store's own names so a
+# rename there cannot leave the map pointing at a path that does not exist.
+_BASE = "/".join(store.INDEX_PARTS)
+SYMBOLS_POINTER = "%s/%s" % (_BASE, store.SYMBOLS_NAME)
+FILES_POINTER = "%s/%s" % (_BASE, store.FILES_NAME)
+SHARD_DIR = "%s/packages/" % _BASE
 ROOT = "(root)"
-
-
-def estimate_tokens(text: str) -> int:
-    return -(-len(text) // CHARS_PER_TOKEN)
 
 
 def _shown(text):
     """Paths, names and signatures come from the repository's own files, and an
     agent reads this map to choose what to open next; escaped, none of them can
     add a heading or a `-> <path>` row of its own."""
-    return preflight._escape_control_chars(text)
+    return preflight.escape_control_chars(text)
 
 
 def _symbol_line(sym):
@@ -50,6 +50,16 @@ def _file_blocks(files, by_path):
     return blocks
 
 
+def _more_symbols(n):
+    """The truncation line of a group, the same text whether it is measured
+    for the space it needs or written."""
+    return "… %d more symbols: Grep %s\n" % (n, SYMBOLS_POINTER)
+
+
+def _more_packages(n):
+    return "… %d more packages: Grep %s\n" % (n, FILES_POINTER)
+
+
 def _group_text(title, files, by_path, limit=None, n_files=None):
     """The Markdown for `files`. With `limit` (characters), stops adding
     symbol lines when the next one would not fit alongside the pointer line."""
@@ -60,7 +70,7 @@ def _group_text(title, files, by_path, limit=None, n_files=None):
     full = head + "".join("\n%s\n%s\n" % (h, "\n".join(ls)) for h, ls in blocks)
     if limit is None or len(full) <= limit:
         return full
-    marker = "… %d more symbols: Grep %s\n" % (total, SYMBOLS_POINTER)
+    marker = _more_symbols(total)
     out, included = head, 0
     for header, lines in blocks:
         opened = False
@@ -74,7 +84,7 @@ def _group_text(title, files, by_path, limit=None, n_files=None):
         else:
             continue
         break
-    return out + "… %d more symbols: Grep %s\n" % (total - included, SYMBOLS_POINTER)
+    return out + _more_symbols(total - included)
 
 
 def _dir_of(path, depth):
@@ -140,7 +150,6 @@ def render(files: list, symbols: list, budget: int, tolerance: int) -> dict:
         items.sort(key=lambda s: (s["start_line"], s["qualified_name"]))
     with_symbols = sorted((f for f in files if f["path"] in by_path), key=lambda f: f["path"])
     total_files = len(files)
-    total_symbols = sum(len(v) for v in by_path.values())
     # The header counts every file, not only the ones that have symbols.
     full = _group_text("# codemap repo map", with_symbols, by_path, n_files=total_files)
     if len(full) <= limit:
@@ -164,7 +173,7 @@ def render(files: list, symbols: list, budget: int, tolerance: int) -> dict:
         budget, total_files, len(rows))
     index = index_head + "\n".join(rows) + "\n"
     if len(index) > limit:
-        reserve = len("… %d more packages: Grep %s\n" % (len(rows), FILES_POINTER))
+        reserve = len(_more_packages(len(rows)))
         kept, size = [], len(index_head) + reserve
         for row in rows:
             if size + len(row) + 1 > limit:
@@ -172,7 +181,7 @@ def render(files: list, symbols: list, budget: int, tolerance: int) -> dict:
             kept.append(row)
             size += len(row) + 1
         index = index_head + "\n".join(kept) + "\n" + \
-            "… %d more packages: Grep %s\n" % (len(rows) - len(kept), FILES_POINTER)
+            _more_packages(len(rows) - len(kept))
     result = {"repo-map.md": index}
     result.update(out)
     return result

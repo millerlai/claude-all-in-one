@@ -710,6 +710,21 @@ def _codemap():
     check(f"{PREFLIGHT} does not mention codemap",
           "codemap" not in read_text(PREFLIGHT).lower())
 
+    # (g) #405: a shipped file never cites a section number of a design
+    # document (`T3-5`): those documents live under the gitignored docs/ and
+    # an installed copy has no way to look one up.
+    design_number = re.compile(r"\bT\d+-\d+\b")
+    cited = []
+    for tree in (PLUGIN, "plugins/cai-codex"):
+        for base, _, names in os.walk(tree):
+            for name in names:
+                if name.endswith((".py", ".md", ".json", ".toml", ".yaml", ".txt", ".cmd")):
+                    path = os.path.join(base, name)
+                    if design_number.search(read_text(path)):
+                        cited.append(path.replace(os.sep, "/"))
+    check(f"no shipped file cites a design section number ({len(cited)} found: "
+          f"{', '.join(cited[:3])})", not cited)
+
     # (f) #401: the sentences that keep a half-written or absent index from
     # being called fresh, and the line that sends the main session to them.
     def folded(path):

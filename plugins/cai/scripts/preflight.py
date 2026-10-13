@@ -764,6 +764,11 @@ def _escape_control_chars(name):
                    for c in name)
 
 
+# Public names for scripts beside this one: a leading underscore tells them
+# the function may change without notice, which these two do not.
+escape_control_chars = _escape_control_chars
+
+
 def _stderr_line(done):
     """The first line of a CompletedProcess's stderr, escaped, or
     `no message` when it has none."""
@@ -969,6 +974,9 @@ def _named_paths(shown, verb):
     if n > MAX_CONFLICTS_SHOWN:
         names += " and %d more" % (n - MAX_CONFLICTS_SHOWN)
     return "%d %s: %s" % (n, verb, names)
+
+
+named_paths = _named_paths
 
 
 def _untracked_paths(project_dir):

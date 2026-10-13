@@ -24,15 +24,14 @@ def _repo(dirs, per_file=1, files_per_dir=2):
     return files, symbols
 
 
+def _tokens(text):
+    # The budget's own rule (#405 dropped the production helper that only
+    # these tests used): characters over CHARS_PER_TOKEN, rounded up.
+    return -(-len(text) // rm.CHARS_PER_TOKEN)
+
+
 def _fits(texts, budget, tolerance):
-    return all(rm.estimate_tokens(t) <= budget + tolerance for t in texts.values())
-
-
-def test_estimate_tokens_is_chars_over_four_rounded_up():
-    assert rm.estimate_tokens("") == 0
-    assert rm.estimate_tokens("abcd") == 1
-    assert rm.estimate_tokens("abcde") == 2
-    assert rm.estimate_tokens("說" * 8) == 2
+    return all(_tokens(t) <= budget + tolerance for t in texts.values())
 
 
 def test_constants_are_the_decided_budget():
@@ -87,7 +86,7 @@ def test_single_file_over_budget_is_truncated_with_a_pointer():
 def test_exactly_at_the_limit_is_not_split_and_one_over_is():
     files, symbols = _repo(["alpha", "beta"], per_file=5)
     full = rm.render(files, symbols, 10 ** 6, 0)["repo-map.md"]
-    tokens = rm.estimate_tokens(full)
+    tokens = _tokens(full)
     assert list(rm.render(files, symbols, tokens - 10, 10)) == ["repo-map.md"]
     assert len(rm.render(files, symbols, tokens - 11, 10)) > 1
 

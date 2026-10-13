@@ -9,7 +9,9 @@ are not text) come back as an empty extraction with a `reason`. Anything else
 is not caught here: the caller records that file as partial.
 """
 import ast
+import io
 import re
+import tokenize
 import warnings
 from typing import NamedTuple, Optional
 
@@ -83,19 +85,31 @@ def _py_walk(body, prefix, in_class, path, out):
                 _py_walk(block, prefix, in_class, path, out)
 
 
+def _python_text(data):
+    """The source as text, by its coding declaration (UTF-8 without one), or
+    None when it is not text. Decided here, before parsing, rather than from
+    the wording of a SyntaxError, which changes between Python versions."""
+    if b"\0" in data:
+        return None
+    try:
+        encoding, _ = tokenize.detect_encoding(io.BytesIO(data).readline)
+        return data.decode(encoding)
+    except (SyntaxError, LookupError, UnicodeDecodeError):
+        return None
+
+
 def _python(path, data):
+    text = _python_text(data)
+    if text is None:
+        return _failed("undecodable")
     try:
         # A file's invalid escape sequences make `ast.parse` print a
         # SyntaxWarning to stderr, which can land ahead of the state line.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            tree = ast.parse(data, filename=path)
+            tree = ast.parse(text, filename=path)
     except SyntaxError as exc:
-        if str(exc.msg).startswith("(unicode error)") or "null bytes" in str(exc.msg):
-            return _failed("undecodable")
         return _failed("syntax-error at line %d" % (exc.lineno or 0))
-    except ValueError:      # Python before 3.12 raises this for a null byte
-        return _failed("undecodable")
     symbols = []
     _py_walk(tree.body, "", False, path, symbols)
     imports = set()
@@ -122,7 +136,7 @@ def editor_lines(text):
 
 def _decode(data):
     try:
-        return data.decode("utf-8").lstrip("﻿")
+        return data.decode("utf-8").lstrip("\ufeff")
     except UnicodeDecodeError:
         return None
 
