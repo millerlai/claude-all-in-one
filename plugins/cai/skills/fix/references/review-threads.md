@@ -98,7 +98,7 @@ Take the first row that matches:
 To add the paths:
 
 ```text
-git add --pathspec-from-file=<pathspec file> --pathspec-file-nul
+git --literal-pathspecs add --pathspec-from-file=<pathspec file> --pathspec-file-nul
 ```
 
 Write the message to a file and commit with `git commit -F <message file>`;
