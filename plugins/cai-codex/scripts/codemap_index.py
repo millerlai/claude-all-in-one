@@ -177,7 +177,9 @@ def update(top: str) -> Optional[Result]:
 
 
 def _unsupported(reason):
-    return Status("unsupported", reason, [])
+    # A reason can quote a name read from state.json, which anyone who can
+    # write the index directory controls; escaped, it stays on this one line.
+    return Status("unsupported", preflight._escape_control_chars(reason), [])
 
 
 def _named(paths, verb):

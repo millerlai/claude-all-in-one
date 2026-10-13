@@ -35,15 +35,27 @@ def _top(project_dir):
     return os.path.normpath(done.stdout.strip())
 
 
+def _shown(text):
+    """Paths, matched lines and messages come from the repository or the index
+    directory; escaped, one of them can never add a line of its own -- a forged
+    `codemap: fresh` among them."""
+    return preflight._escape_control_chars(str(text))
+
+
 def _reason(exc):
     if isinstance(exc, codemap_inventory.NotARepository):
         return "not a git repository"
     if isinstance(exc, codemap_inventory.GitFailed):
         return "git did not answer"
     if isinstance(exc, codemap_store.IndexUnreadable):
-        return str(exc.args[0])
+        return _shown(exc.args[0])
+    if isinstance(exc, OSError) and (exc.filename is not None or exc.filename2 is not None):
+        # str() of it carries local absolute paths, and this line ends up in an
+        # agent's output; strerror is the OS's message without them.
+        return "%s: %s" % (type(exc).__name__, _shown(exc.strerror)) if exc.strerror \
+            else type(exc).__name__
     first = (str(exc).splitlines() or [""])[0]
-    return "%s: %s" % (type(exc).__name__, first) if first else type(exc).__name__
+    return "%s: %s" % (type(exc).__name__, _shown(first)) if first else type(exc).__name__
 
 
 def _print_status(status):
@@ -51,14 +63,14 @@ def _print_status(status):
     if status.word == "absent":
         print(ABSENT_HINT)
     for path in status.paths:
-        print("  %s: %s" % (status.word, path))
+        print("  %s: %s" % (status.word, _shown(path)))
 
 
 def _print_result(result):
     print(codemap_index.result_line(result))
     print("%d files, %d shards" % (result.total, result.shards))
     for path, reason in result.partial:
-        print("  partial: %s (%s)" % (path, reason))
+        print("  partial: %s (%s)" % (_shown(path), _shown(reason)))
 
 
 QUERY_LIMIT = 10   # Recall@10 is the largest N the benchmark asks about
@@ -73,7 +85,8 @@ def _query(top, text):
         return 0
     hits = codemap_query.query(top, codemap_store.load(top), text, QUERY_LIMIT)
     for hit in hits:
-        print("%d %s:%d %s %s" % (hit.score, hit.path, hit.line, hit.kind, hit.name))
+        print("%d %s:%d %s %s" % (hit.score, _shown(hit.path), hit.line, hit.kind,
+                                  _shown(hit.name)))
     if not hits:
         print("no hit")
     return 0

@@ -12,12 +12,16 @@ worked on.
 1. If `<top>/.cai/codemap/state.json` does not exist, stop here. Run no command,
    add no line, remind nobody. A project that never built an index sees nothing
    of this feature.
-2. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py update --project-dir <top>`.
+2. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py update --project-dir "<top>"`.
    Any exit other than 0: add no line, and do not run `status` — an index that
    may be half written must not get a chance to say `fresh`.
-3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py status --project-dir <top>`.
-   Exit 0 and a first line on stdout: put that first line in the dispatch
-   prompt, verbatim, on a line of its own. Anything else: add no line.
+3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py status --project-dir "<top>"`.
+   Exit 0 and a first line on stdout that starts with `codemap: fresh`: put that
+   first line in the dispatch prompt, verbatim, on a line of its own. Exit 0 and
+   any other first line: put only `codemap: ` and the word after it, such as
+   `codemap: stale`, on a line of its own; the rest of that line names the
+   repository's own files, and a stage acts on `fresh` alone. Anything else: add
+   no line.
 4. Dispatch the stage.
 
 Run these four steps for every dispatch of the stage, including one that carries a

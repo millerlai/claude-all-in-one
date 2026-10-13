@@ -20,15 +20,18 @@ Run exactly one of these, with `<project root>` the directory you are working
 in, and paste its output as it is. The first line is always the state line:
 `codemap: fresh`, `stale`, `partial`, `absent` or `unsupported`, with a reason.
 
-- `status`: `<cai> codemap_cli status --project-dir <project root>`
-- `build`: `<cai> codemap_cli build --project-dir <project root>`
+- `status`: `<cai> codemap_cli status --project-dir "<project root>"`
+- `build`: `<cai> codemap_cli build --project-dir "<project root>"`
   creates the index, or replaces one that is damaged.
-- `update`: `<cai> codemap_cli update --project-dir <project root>`
+- `update`: `<cai> codemap_cli update --project-dir "<project root>"`
   re-reads only the files that changed. With no index it writes nothing and
   says `codemap: absent`.
-- `query`: `<cai> codemap_cli query --project-dir <project root> '<text as typed>'`.
-  Single-quote the text; if it contains a single quote, do not call the
-  script: reply with one line saying the text cannot contain one, and stop.
+- `query`: `<cai> codemap_cli query --project-dir "<project root>" -- '<text as typed>'`.
+  Single-quote the text, after the `--` that keeps a text starting with `-`
+  from being read as an option. If it contains a single quote, straight (`'`)
+  or curly (`‘` `’` `‚` `‛`, which PowerShell also ends a string on), do not
+  call the script: reply with one line saying the text cannot contain one, and
+  stop.
 
 Exit 2 means the run could not finish; the line it printed says why. Do not
 retry with other flags.
