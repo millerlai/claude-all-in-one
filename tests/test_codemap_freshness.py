@@ -4,6 +4,7 @@ import os
 
 import codemap_cli
 import codemap_index as idx
+import codemap_store as store
 from codemap_repo import git, make_repo, write
 
 FILES = {"a.py": "x = 1\n", "b.py": "y = 2\n", "c.py": "z = 3\n"}
@@ -33,7 +34,8 @@ def test_fresh_line_says_no_commit_yet_on_unborn_head(tmp_path):
     make_repo(tmp_path, FILES, commit=False)
     idx.build(str(tmp_path))
     assert idx.state_line(idx.status(str(tmp_path))) == \
-        "codemap: fresh (3 files, 0 with symbols, no commit yet)"
+        "codemap: fresh (3 files, 0 with symbols, no commit yet, index %s)" % \
+        store.index_dir(str(tmp_path))
 
 
 def test_changed_file_is_stale_and_named(tmp_path):
@@ -96,7 +98,8 @@ def test_empty_repository_builds_and_is_fresh(tmp_path):
     res = idx.build(str(tmp_path))
     assert (res.word, res.total) == ("fresh", 0)
     assert idx.state_line(idx.status(str(tmp_path))) == \
-        "codemap: fresh (0 files, 0 with symbols, no commit yet)"
+        "codemap: fresh (0 files, 0 with symbols, no commit yet, index %s)" % \
+        store.index_dir(str(tmp_path))
     assert os.path.exists(str(tmp_path / ".cai" / "codemap" / "files.jsonl"))
 
 
@@ -137,3 +140,20 @@ def test_status_asks_git_no_more_than_it_did(tmp_path, monkeypatch):
     assert calls == [("rev-parse", "--is-inside-work-tree"),
                      ("ls-files", "-z", "--stage"),
                      ("ls-files", "-z", "--", ".cai/codemap")]
+
+
+def test_fresh_names_the_index_of_the_top_from_a_subdirectory(tmp_path, capsys):
+    """#401: a read-only agent has no shell to find the repository's top, so the
+    line names the index directory; from a package subdirectory it is still the
+    top's, and the map is there to open."""
+    top = make_repo(tmp_path, {"pkg/a/mod.py": "def f():\n    pass\n"})
+    idx.build(top)
+
+    assert codemap_cli.main(["status", "--project-dir",
+                             os.path.join(top, "pkg", "a")]) == 0
+    line = capsys.readouterr().out.splitlines()[0]
+
+    assert line.startswith("codemap: fresh (1 files, 1 with symbols, head ")
+    named = line[line.index(", index ") + len(", index "):-1]
+    assert os.path.realpath(named) == os.path.realpath(os.path.join(top, ".cai", "codemap"))
+    assert os.path.isfile(os.path.join(named, "repo-map.md"))

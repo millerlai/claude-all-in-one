@@ -691,6 +691,32 @@ def _codemap():
     check(f"{PREFLIGHT} does not mention codemap",
           "codemap" not in read_text(PREFLIGHT).lower())
 
+    # (f) #401: the sentences that keep a half-written or absent index from
+    # being called fresh, and the line that sends the main session to them.
+    def folded(path):
+        return " ".join(read_text(path).split()) if os.path.isfile(path) else ""
+    # gen-codex.py writes a command as `$name` where Claude Code's tree has `/cai:name`.
+    for tree, cmd in ((PLUGIN, "/cai:"), ("plugins/cai-codex", "$")):
+        brief = f"{tree}/skills/track/references/codemap-brief.md"
+        for sentence in ("Any exit other than 0: add no line, and do not run `status`",
+                         "Exit 0 and a first line on stdout",
+                         f"Only a person's own `{cmd}codemap build` creates an index.",
+                         f"A standalone `{cmd}discover` skips step 2"):
+            check(f"{brief} says: {sentence}", sentence in folded(brief))
+        track_skill = f"{tree}/skills/track/SKILL.md"
+        check(f"{track_skill} sends the main session to codemap-brief.md before a dispatch",
+              "you — the main session, not a subagent — follow" in folded(track_skill)
+              and "codemap-brief.md" in folded(track_skill))
+        # The decision: discover keeps its model-facing triggers, and so its own
+        # run reads the index without writing it.
+        discover = f"{tree}/skills/discover/SKILL.md"
+        text = read_text(discover) if os.path.isfile(discover) else ""
+        front = text[3:text.find("\n---", 3)] if text.startswith("---") else ""
+        check(f"{discover} keeps model invocation and skips the brief's update step",
+              "disable-model-invocation" not in front
+              and "skipping its step 2" in folded(discover)
+              and "never runs `update`" in folded(discover))
+
 
 @section("rules")
 def _rules():

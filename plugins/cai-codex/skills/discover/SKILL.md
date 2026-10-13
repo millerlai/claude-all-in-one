@@ -12,8 +12,10 @@ The procedure lives in one place, read by whoever runs this stage — a
 track's subagent or this command:
 `<cai-root>/skills/track/references/stage-discover.md`. First, if
 `<top>/.cai/codemap/state.json` exists, follow
-`<cai-root>/skills/track/references/codemap-brief.md` yourself; you
-run this stage, so the line it yields is yours to act on. Read the stage
+`<cai-root>/skills/track/references/codemap-brief.md` yourself,
+skipping its step 2: a model may start this command on its own, so it reads
+the index with `status` and never runs `update`. You run this stage, so the
+line it yields is yours to act on. Read the stage
 reference in full and follow it.
 
 **Running this stage on its own writes nothing to any track's `state.md`.**
