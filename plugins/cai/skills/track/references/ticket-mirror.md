@@ -103,9 +103,10 @@ its body becomes the written requirement handed to the conformance lens, in
 place of the plan/issue/user-words `stage-verify.md` normally uses. When it
 fails, or the integration is off or unreachable, or intake already ran (so
 Step 0 already found a requirement from its ordinary sources), nothing
-changes here: `stage-verify.md:47-50` stands as written — say there is no
-written requirement and review the other three lenses, rather than inventing
-one from a ticket that was never confirmed reachable.
+changes here: `stage-verify.md` Step 1's rule for a missing requirement
+stands as written — conformance has no written requirement and Step 3's
+`Not covered` says so, rather than inventing one from a ticket that was never
+confirmed reachable.
 
 ## After every state.md write: project
 

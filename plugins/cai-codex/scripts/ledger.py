@@ -510,6 +510,15 @@ def last_passed(track_dir, stage):
     return found
 
 
+def human_passes(records):
+    """The records a person's gate passed: `passed`, `gate: human`, readable.
+    The one filter for "what counts as a sign-off", shared by approved() and
+    by preflight.py's design_signed_off and commit_answer (#394)."""
+    return [r for r in records
+            if not r.get("malformed") and r.get("outcome") == "passed"
+            and r.get("gate") == "human"]
+
+
 def approved(records, sha):
     """Whether any of these records is a person's Approve of the document
     whose sha256 is `sha`: `passed`, `gate: human`, that digest. A null sha
@@ -517,10 +526,7 @@ def approved(records, sha):
     what it approved (#126). preflight.py asks it about the design row's
     document as it stands; usage_report.py about design's last pass, the
     nearest the ledger alone gets to the same question (#128)."""
-    return bool(sha) and any(
-        not r.get("malformed") and r.get("outcome") == "passed"
-        and r.get("gate") == "human" and r.get("sha256") == sha
-        for r in records)
+    return bool(sha) and any(r.get("sha256") == sha for r in human_passes(records))
 
 
 def attempts(track_dir, stage):

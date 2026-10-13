@@ -75,7 +75,7 @@ or specs, and only concepts specific to this project.
 **退回句（fallback sentence）**: 讀端文字裡共用的那一句，說明沒有可用的狀態行時就照原本的方式讀檔與搜尋。
 **Recall@N**: 一項任務裡應該找到的檔案，有多少比例出現在查詢結果前 N 個不同的檔案中，再對所有任務取平均。
 **純 Grep 基準（plain-Grep baseline）**: 不用索引、只靠依詞搜尋行數排序所得的檔案順序，用來和索引的查詢結果比較。
-**commit 答案**: 本人在 track 的 Gate 1 選「核准」或「核准，但不 commit」時一併給出的同意與否，決定 build 和 verify 能不能在這條分支上做本地 commit。
+**commit 答案（commit answer）**: 本人在 track 的 Gate 1 選 `Approve` 或 `Approve without commits` 時一併給出的同意與否，決定 build 和 verify 能不能在這條分支上做本地 commit。
 **write 模式（write mode）**: 分派器處理寫檔工具呼叫時的行為：Python 失靈時放行而不是擋下，只擋子代理對 ledger 的寫入。
 **完好結局（healthy outcome）**: 記下或探測到的 Python 把守門程式跑完，分派器照它的結果放行或擋下。
 **失敗結局（failed outcome）**: Python 拿到真正的輸入後回報了放行與擋下以外的結果，輸入已被讀走、無法重來。

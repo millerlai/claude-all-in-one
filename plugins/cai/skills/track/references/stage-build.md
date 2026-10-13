@@ -115,8 +115,8 @@ person types a word back into:
   the person commits.
 - **The parallel lane itself.** Asked only when the `Alongside` column names a
   pair of units whose sides of the ownership map do not intersect, and the
-  commit answer is yes; with no
-  such pair there is no menu, and the four lines say "sequential" in one
+  commit answer is yes; otherwise — no such pair, or a commit answer that is
+  not yes — there is no menu, and the four lines say "sequential" in one
   line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
   four small units it is not worth it. Recommend, let the user decide,
   default to sequential.
@@ -165,7 +165,8 @@ on, as an `acted_on:` line; standing alone, yes or no. A re-dispatch after any l
 stop reads the lane answer from the notes and never asks Step
 0.5 again. Standing alone, a resumed session reads the commit answer from the
 notes too; under a track the commit answer is taken from this run's
-`commit_answer` line every time, and the line wins when the notes disagree. A `Test command: skipped` line is
+`commit_answer` line every time, and the line wins when the notes disagree. A
+`Test command: skipped` line is
 copied into the notes verbatim, on a line of its own: the main session reads
 it there before any later dispatch of this build or of verify, and asks no
 more. Step 6.2 keeps its glossary record in these same notes.
@@ -319,7 +320,8 @@ Only when all three hold, otherwise sequential, silently:
 1. The schedule's `Alongside` column names the other unit.
 2. Their two sides of the ownership map do not intersect — checked by
    reading both sets; the map wins over `Alongside` when they disagree.
-3. The commit answer is yes: Gate 1's, from the `commit_answer` line, under a track; Step 0.5's yes standing alone.
+3. The commit answer is yes: Gate 1's, from the `commit_answer` line, under a
+   track; Step 0.5's yes standing alone.
 
 Two lanes, never three — `model-selection.md` caps parallel work at 2–4 and
 prefers sequential; two is the conservative end of that range.
@@ -621,7 +623,8 @@ of the ledger's `--note`; you write no track file at all.
 - what was built
 - which units ran in parallel
 - every deviation
-- the `acted_on:` line for the `commit_answer` line this run acted on, or a line saying there was none
+- the `acted_on:` line for the `commit_answer` line this run acted on, or a
+  line saying there was none
 - anything skipped, the test command included when it was
 - the name and heading of every glossary term written; every glossary
   definition replaced, old text quoted; every glossary term the check kept
