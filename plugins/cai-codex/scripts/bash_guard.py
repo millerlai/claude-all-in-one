@@ -76,6 +76,22 @@ LEDGER_SEGMENT = re.compile(r"[;&|\n]")
 # Bash's backslash-newline and PowerShell's backtick-newline join two lines into
 # one command, so the newline is not a cut there (scan_command does the same).
 LEDGER_CONTINUATION = re.compile(r"[\\`]\r?\n")
+# The dispatcher (run-guard.cmd) starts this guard with the interpreter its
+# launcher record names and checks only the record's shape, so a record pointed
+# at a program that always exits 0 would switch every rule here off (#414). A
+# subagent may neither write it nor run a command naming it. A script written
+# first and run afterwards is not caught, the same residue the ledger rule has.
+LAUNCHER_RECORD = re.compile(r"guard-launcher-(?:cmd|sh)\.txt", re.I)
+LAUNCHER_WRITE_REASON = "a subagent may not write the guard's launcher record (guard-launcher-*.txt)"
+LAUNCHER_COMMAND_REASON = (
+    "a subagent may not run a command naming the guard's launcher record "
+    "(guard-launcher-*.txt)"
+)
+LAUNCHER_ADVICE = (
+    "That file names the program that runs this guard, and only the guard's own "
+    "first-call probe writes it. Nothing in a stage's work needs it: leave it "
+    "alone, and say in your report if something seemed to call for it."
+)
 LEDGER_ADVICE = (
     "Only the main session writes .claude/track/<feature>/ledger.jsonl, and a "
     "Gate 1 row only after the person picks Approve. Put what should be "
@@ -869,7 +885,8 @@ def ledger_target_names(path):
 
 def check_ledger_target(payload):
     """Exit code for a Write, Edit or NotebookEdit call: 2 when a subagent
-    names the track ledger, 0 for everyone and everything else."""
+    names the track ledger or the guard's launcher record, 0 for everyone and
+    everything else."""
     if not is_subagent(payload):
         return 0
     tool_input = payload.get("tool_input")
@@ -884,6 +901,8 @@ def check_ledger_target(payload):
         names = {fallback_target_name(path)}
     if LEDGER_NAME in names:
         return deny(LEDGER_WRITE_REASON, path, LEDGER_ADVICE)
+    if any(LAUNCHER_RECORD.fullmatch(name) for name in names):
+        return deny(LAUNCHER_WRITE_REASON, path, LAUNCHER_ADVICE)
     return 0
 
 
@@ -929,6 +948,8 @@ def main() -> int:
     # the command as typed, not with heredoc bodies removed.
     if is_subagent(payload) and names_ledger_write(command):
         return deny(LEDGER_COMMAND_REASON, command, LEDGER_ADVICE)
+    if is_subagent(payload) and LAUNCHER_RECORD.search(command):
+        return deny(LAUNCHER_COMMAND_REASON, command, LAUNCHER_ADVICE)
 
     # An unknown tool is treated as not-Bash: a wrongly blocked here-string
     # would be a false positive on valid PowerShell, and a guard that blocks

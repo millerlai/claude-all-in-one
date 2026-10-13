@@ -2,3 +2,7 @@
 "file_path" *: *"[^"]*[/\\][lL][eE][dD][gG][eE][rR]\.[jJ][sS][oO][nN][lL]".*"agent_id"
 "agent_id".*"notebook_path" *: *"[^"]*[/\\][lL][eE][dD][gG][eE][rR]\.[jJ][sS][oO][nN][lL]"
 "notebook_path" *: *"[^"]*[/\\][lL][eE][dD][gG][eE][rR]\.[jJ][sS][oO][nN][lL]".*"agent_id"
+"agent_id".*"file_path" *: *"[^"]*[/\\][gG][uU][aA][rR][dD]-[lL][aA][uU][nN][cC][hH][eE][rR]-[a-zA-Z]*\.[tT][xX][tT]"
+"file_path" *: *"[^"]*[/\\][gG][uU][aA][rR][dD]-[lL][aA][uU][nN][cC][hH][eE][rR]-[a-zA-Z]*\.[tT][xX][tT]".*"agent_id"
+"agent_id".*"notebook_path" *: *"[^"]*[/\\][gG][uU][aA][rR][dD]-[lL][aA][uU][nN][cC][hH][eE][rR]-[a-zA-Z]*\.[tT][xX][tT]"
+"notebook_path" *: *"[^"]*[/\\][gG][uU][aA][rR][dD]-[lL][aA][uU][nN][cC][hH][eE][rR]-[a-zA-Z]*\.[tT][xX][tT]".*"agent_id"

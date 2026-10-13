@@ -1584,6 +1584,17 @@ def _guard():
         ("Write", {"file_path": "/p/docs/notes.md",
                    "content": "git push --force origin main, ledger.jsonl"}, 0, WORK,
          "cai:designer", "agent-ledger-test"),
+        # The guard's launcher record, which picks the program that runs the
+        # guard, is a subagent's to leave alone too (#414): writes and commands.
+        ("Write", {"file_path": "/home/u/.claude/cai/guard-launcher-sh.txt", "content": "x"}, 2,
+         WORK, None, "agent-ledger-test"),
+        ("Edit", {"file_path": "C:\\Users\\u\\.claude\\cai\\Guard-Launcher-Cmd.txt",
+                  "content": "x"}, 2, WORK, None, "agent-ledger-test"),
+        ("Write", {"file_path": "/home/u/.claude/cai/guard-launcher-sh.txt", "content": "x"}, 0,
+         WORK),
+        ("Bash", "echo cai-launcher 1 path /bin/true end > ~/.claude/cai/guard-launcher-sh.txt",
+         2, WORK, None, "agent-ledger-test"),
+        ("Bash", "cat ~/.claude/cai/guard-launcher-sh.txt", 0, WORK),
         # The same rule on commands: a subagent's ledger.py append, or any command
         # naming ledger.jsonl, is blocked; the main session's is not (B and A
         # cases of the design; K1, the known way round, is pytest's alone).
@@ -1711,6 +1722,8 @@ def _guard():
     # a subagent's write to the ledger is blocked, nobody else's write is.
     write_dispatch = dispatch + ["write"]
     ledger_write = {"file_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}
+    launcher_write = {"file_path": "C:\\Users\\u\\.claude\\cai\\guard-launcher-cmd.txt",
+                      "content": "x"}
     notes_write = {"file_path": "/p/docs/notes.md",
                    "content": "git push --force origin main, ledger.jsonl"}
     written = run_process(write_dispatch, ledger_write, "Write", WORK, None, "agent-ledger-test",
@@ -1759,12 +1772,15 @@ def _guard():
               "with its own reduced-check line",
               bare_merge.returncode == 2 and "cai guard reduced check:" in bare_merge.stderr
               and "bash_guard blocked this command" not in bare_merge.stderr)
-        # Write mode, no interpreter: only a subagent's write to ledger.jsonl is
-        # blocked, and the other writes pass silently (exit 0, nothing on stderr).
+        # Write mode, no interpreter: only a subagent's write to ledger.jsonl or
+        # to the guard's launcher record is blocked, and the other writes pass
+        # silently (exit 0, nothing on stderr).
         # Each call has a config root of its own, for the reason given above.
         for label, tool_input, agent, agent_id, expected in [
                 ("Write ledger.jsonl as a subagent", ledger_write, None, "agent-ledger-test", 2),
                 ("Write ledger.jsonl as the main session", ledger_write, None, None, 0),
+                ("Write the launcher record as a subagent", launcher_write, None,
+                 "agent-ledger-test", 2),
                 ("Write notes.md as cai:designer", notes_write, "cai:designer", None, 0)]:
             bare_write = run_process(
                 bare_dispatch + ["write"], tool_input, "Write", WORK, agent, agent_id,
