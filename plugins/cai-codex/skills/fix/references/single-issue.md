@@ -88,6 +88,8 @@ must contain:
 - the absolute path of the `debug` skill's `SKILL.md`;
 - the test commands from `test.commands`;
 - the project root.
+- the `untracked_paths` from the saved ready file, and the words "leave these
+  pre-existing files untouched; do not include them in your reported paths".
 
 Its report ends with the block `implementer-brief.md` defines.
 
@@ -96,8 +98,12 @@ Its report ends with the block `implementer-brief.md` defines.
 Write the `paths:` lines of its report to a file in the temp directory, then run:
 
 ```text
-<cai> fix_target changes --project-dir <root> --expect-head <start_sha> --expect-branch <branch> --reported-file <reported file> --pathspec-out <pathspec file>
+<cai> fix_target changes --project-dir <root> --expect-head <start_sha> --expect-branch <branch> --reported-file <reported file> --pathspec-out <pathspec file> --ready-file <ready file>
 ```
+
+Exit 1 or 2: paste its output and stop the run without adding, committing or
+switching branches. In particular, `stopped pre-existing-untracked` means a
+pre-existing path now has tracked changes; never put it in a `wip:` commit.
 
 Take the first row that matches:
 
@@ -112,7 +118,7 @@ Take the first row that matches:
 To add the paths:
 
 ```text
-git add --pathspec-from-file=<pathspec file> --pathspec-file-nul
+git --literal-pathspecs add --pathspec-from-file=<pathspec file> --pathspec-file-nul
 ```
 
 Write each commit message to a file in the temp directory and commit with
@@ -163,4 +169,6 @@ printed, its `branch` is the branch, and its `paths` are the paths of the commit
 
 Switch back to where the run started: `git switch <start_ref>`, or
 `git switch --detach <start_ref>` when `start_detached` is true. The working
-tree must be clean and HEAD on that ref before the next item or the report.
+tree must have no uncommitted changes to tracked files and HEAD must be on
+that ref before the next item or the report. Keep the pre-existing untracked
+files untouched and outside every commit.

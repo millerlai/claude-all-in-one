@@ -7,6 +7,7 @@ call and let every other git call through.
 """
 import json
 import re
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -313,11 +314,26 @@ def test_ready_no_remote(tmp_path, capsys, gh):
     assert gh.calls() == []
 
 
-def test_ready_dirty_tree_stops_before_any_network_call(tmp_path, capsys, gh):
+@pytest.mark.parametrize("staged", [False, True])
+def test_ready_dirty_tree_stops_before_any_network_call(tmp_path, capsys, gh, staged):
     repo = make_repo(tmp_path)
-    write(repo, "untracked.txt")
+    write(repo, "a.txt", "changed\n")
+    if staged:
+        git(repo, "add", "a.txt")
     assert stopped(capsys, repo)[0] == "dirty-tree"
     assert gh.calls() == []
+
+
+def test_ready_allows_untracked_files_and_records_each_path(tmp_path, capsys, gh, no_fetch):
+    repo = make_repo(tmp_path)
+    paths = ["notes.txt", "dir with space/草稿.txt", ".github/workflows/local.yml"]
+    for path in paths:
+        write(repo, path)
+    code, out = run(capsys, "ready", "--project-dir", str(repo))
+    assert code == 0
+    assert sorted(json.loads(out)["untracked_paths"]) == sorted(paths)
+    assert len(gh.calls()) == 2
+    assert all((repo / path).read_text(encoding="utf-8") == "x\n" for path in paths)
 
 
 def test_ready_no_default_branch_names_the_fix(tmp_path, capsys, gh):
@@ -505,6 +521,32 @@ def test_changes_mismatch_lists_unreported_and_missing(tmp_path, capsys):
                                 "missing gone.txt"]
 
 
+def test_changes_snapshot_keeps_new_unreported_files_and_held_paths(tmp_path, capsys):
+    repo = make_repo(tmp_path)
+    ready_file = write(tmp_path, "ready.json", json.dumps({"untracked_paths": ["notes.txt"]}))
+    write(repo, "notes.txt")
+    write(repo, "extra.txt")
+    write(repo, ".github/workflows/new.yml")
+    code, out = run(capsys, *changes_args(repo, tmp_path, head_of(repo), "main", []),
+                    "--ready-file", str(ready_file))
+    assert code == 3
+    assert out.splitlines() == ["changes mismatch", "held .github/workflows/new.yml",
+                                "unreported .github/workflows/new.yml", "unreported extra.txt"]
+    assert set((tmp_path / "paths.bin").read_text().split("\0")) == {
+        ".github/workflows/new.yml", "extra.txt"}
+
+
+@pytest.mark.parametrize("contents", ["not json", "{}", "[]", '{"untracked_paths": "notes.txt"}',
+                                     '{"untracked_paths": [1]}'])
+def test_changes_invalid_ready_file_does_not_write_pathspec(tmp_path, capsys, contents):
+    repo = make_repo(tmp_path)
+    ready_file = write(tmp_path, "ready.json", contents)
+    code, out = run(capsys, *changes_args(repo, tmp_path, head_of(repo), "main", []),
+                    "--ready-file", str(ready_file))
+    assert code == 1
+    assert not (tmp_path / "paths.bin").exists()
+
+
 def test_changes_none_when_the_tree_is_clean(tmp_path, capsys):
     repo = make_repo(tmp_path)
     code, out = run(capsys, *changes_args(repo, tmp_path, head_of(repo), "main", ["a.txt"]))
@@ -620,11 +662,79 @@ def test_pushable_refuses_a_default_branch_with_another_name(tmp_path, capsys):
     assert pushable(capsys, repo, "origin/trunk") == (3, "not-pushable default-branch\n")
 
 
-def test_pushable_dirty_tree(tmp_path, capsys):
+@pytest.mark.parametrize("staged", [False, True])
+def test_pushable_dirty_tree(tmp_path, capsys, staged):
     repo = make_repo(tmp_path)
     branch_with(repo)
-    write(repo, "loose.txt")
+    write(repo, "a.txt", "changed\n")
+    if staged:
+        git(repo, "add", "a.txt")
     assert pushable(capsys, repo) == (3, "not-pushable dirty-tree\n")
+
+
+def test_pushable_allows_untracked_files(tmp_path, capsys):
+    repo = make_repo(tmp_path)
+    branch_with(repo)
+    write(repo, ".github/workflows/local.yml")
+    assert pushable(capsys, repo) == (0, "pushable fix/1-x 1\n")
+
+
+@pytest.mark.parametrize("existing_state", ["untracked", "staged", "reported", "staged-reported"])
+def test_fix_preserves_existing_untracked_files(tmp_path, capsys, gh, no_fetch,
+                                               existing_state):
+    repo = make_repo(tmp_path)
+    existing = "dir with space/草稿.txt"
+    write(repo, existing, "personal notes\n")
+    code, out = run(capsys, "ready", "--project-dir", str(repo))
+    assert code == 0
+    ready_file = write(tmp_path, "ready.json", out)
+    git(repo, "switch", "-q", "-c", "fix/417", "--no-track", "origin/main")
+    head = head_of(repo)
+    write(repo, "a.txt", "fixed\n")
+    write(repo, "new test.txt")
+    reported = ["a.txt", "new test.txt"]
+    if existing_state.startswith("staged"):
+        git(repo, "add", existing)
+    if "reported" in existing_state:
+        reported.append(existing)
+    code, out = run(capsys, *changes_args(repo, tmp_path, head, "fix/417", reported),
+                    "--ready-file", str(ready_file))
+    if existing_state.startswith("staged"):
+        assert code == 2 and out.startswith("stopped pre-existing-untracked: ")
+        assert not (tmp_path / "paths.bin").exists()
+        assert (repo / existing).read_text(encoding="utf-8") == "personal notes\n"
+        return
+    if existing_state == "reported":
+        assert code == 3 and out.startswith("changes mismatch\n")
+        assert "missing " + existing in out
+        return
+    assert code == 0 and out == "changes match\n"
+    assert set((tmp_path / "paths.bin").read_text(encoding="utf-8").split("\0")) == set(reported)
+    git(repo, "add", "--pathspec-from-file=" + str(tmp_path / "paths.bin"),
+        "--pathspec-file-nul")
+    git(repo, "commit", "-q", "-m", "fix")
+    assert pushable(capsys, repo) == (0, "pushable fix/417 1\n")
+    git(repo, "switch", "-q", "main")
+    assert (repo / existing).read_text(encoding="utf-8") == "personal notes\n"
+    assert git(repo, "ls-files", "--error-unmatch", existing, check=False).returncode != 0
+
+
+@pytest.mark.parametrize("procedure", ["single-issue.md", "review-threads.md"])
+def test_documented_add_does_not_match_existing_untracked_file(tmp_path, capsys, procedure):
+    repo = make_repo(tmp_path)
+    write(repo, "notes/a.txt", "personal notes\n")
+    ready_file = write(tmp_path, "ready.json", json.dumps({"untracked_paths": ["notes/a.txt"]}))
+    write(repo, "notes/[a].txt", "fix\n")
+    code, out = run(capsys, *changes_args(repo, tmp_path, head_of(repo), "main", ["notes/[a].txt"]),
+                    "--ready-file", str(ready_file))
+    assert code == 0
+    reference = REPO_ROOT / "plugins/cai/skills/fix/references" / procedure
+    command = next(line for line in reference.read_text(encoding="utf-8").splitlines()
+                   if line.startswith("git ") and "--pathspec-from-file=" in line)
+    argv = [word.replace("PATHSPEC", str(tmp_path / "paths.bin"))
+            for word in shlex.split(command.replace("<pathspec file>", "PATHSPEC"))]
+    git(repo, *argv[1:])
+    assert git(repo, "diff", "--cached", "--name-only").stdout.splitlines() == ["notes/[a].txt"]
 
 
 def test_pushable_nothing_to_push(tmp_path, capsys):

@@ -10,7 +10,7 @@ a branch may be pushed, and whether the final report is complete.
     fix_target.py classify --project-dir DIR [ARGUMENT]
     fix_target.py ready --project-dir DIR
     fix_target.py changes --project-dir DIR --expect-head SHA --expect-branch NAME
-                          --reported-file FILE --pathspec-out FILE
+                          --reported-file FILE --pathspec-out FILE [--ready-file FILE]
     fix_target.py pushable --project-dir DIR --base REF
     fix_target.py report --results-file FILE [--expect-file FILE]
 
@@ -59,8 +59,11 @@ REASONS = {
     "other-repository": "That URL belongs to a different repository than origin; run "
                         "this inside a clone of that repository.",
     "not-a-repository": "The project directory is not inside a git repository.",
-    "dirty-tree": "The working tree has uncommitted or untracked files; commit, move or "
-                  "remove them first.",
+    "dirty-tree": "The working tree has uncommitted changes to tracked files; commit "
+                  "them first.",
+    "pre-existing-untracked": "A pre-existing untracked path now has tracked changes; "
+                              "nothing was added or committed. Resolve this conflict "
+                              "before continuing.",
     "no-default-branch": "origin/HEAD is not set, so the default branch is unknown; run "
                          "`git remote set-head origin --auto`.",
     "no-github-repo": "gh cannot see this repository on GitHub.",
@@ -312,11 +315,14 @@ def cmd_ready(args):
     remote = origin_remote(root)
     if remote is None:
         return stop("no-remote")
-    status = git(["status", "--porcelain"], root)
+    status = git(["status", "--porcelain", "--untracked-files=no"], root)
     if status is None:
         return stop("git-failed")
     if status.strip():
         return stop("dirty-tree")
+    untracked = git(["ls-files", "--others", "--exclude-standard", "-z"], root)
+    if untracked is None:
+        return stop("git-failed")
     default = default_branch_name(root)
     if default is None:
         return stop("no-default-branch")
@@ -338,7 +344,7 @@ def cmd_ready(args):
     if test["status"] != "resolved":
         return stop(f"test-command-{test['status']}")
     branch = git(["symbolic-ref", "--short", "HEAD"], root)
-    facts = {"root": root}
+    facts = {"root": root, "untracked_paths": [p for p in untracked.split("\0") if p]}
     if branch is not None:
         facts["start_ref"] = branch.strip()
     else:
@@ -365,15 +371,18 @@ def is_held(path):
     return name in HELD_NAMES or fnmatch.fnmatchcase(name, "requirements*.txt")
 
 
-def parse_porcelain(raw):
+def parse_porcelain(raw, ignored_untracked=()):
     """Every path in `git status --porcelain -z --untracked-files=all` output;
-    a rename or copy counts for both its new and its old path."""
+    a rename or copy counts for both its new and its old path.
+    Only still-untracked paths from the readiness snapshot are excluded."""
     fields = raw.split("\0")
     paths, i = [], 0
     while i < len(fields):
         field = fields[i]
         i += 1
         if len(field) < 4:
+            continue
+        if field[:2] == "??" and field[3:] in ignored_untracked:
             continue
         paths.append(field[3:])
         if ("R" in field[:2] or "C" in field[:2]) and i < len(fields) and fields[i]:
@@ -413,7 +422,20 @@ def cmd_changes(args):
         reported = _reported_paths(args.reported_file)
     except OSError:
         return usage_error("cannot read --reported-file: %s" % args.reported_file)
-    actual = parse_porcelain(raw)
+    ignored_untracked = set()
+    if args.ready_file:
+        try:
+            with open(args.ready_file, encoding="utf-8-sig") as fh:
+                facts = json.load(fh)
+            paths = facts["untracked_paths"]
+            if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+                raise ValueError
+            ignored_untracked = set(paths)
+        except (OSError, ValueError, KeyError, TypeError):
+            return usage_error("cannot read untracked_paths from --ready-file")
+    actual = parse_porcelain(raw, ignored_untracked)
+    if ignored_untracked.intersection(actual):
+        return stop("pre-existing-untracked")
     result = compare_changes(actual, reported)
     try:
         with open(args.pathspec_out, "wb") as fh:
@@ -447,7 +469,7 @@ def cmd_pushable(args):
     branch = branch.strip()
     if branch in (default_branch_name(cwd), "main", "master"):
         return _not_pushable("default-branch")
-    status = git(["status", "--porcelain"], cwd)
+    status = git(["status", "--porcelain", "--untracked-files=no"], cwd)
     log = git(["log", "--format=", "--name-only", "--no-renames", "-z",
                f"{args.base}..HEAD"], cwd)
     count = git(["rev-list", "--count", f"{args.base}..HEAD"], cwd)
@@ -575,7 +597,7 @@ def main(argv=None):
     command("classify", cmd_classify).add_argument("argument", nargs="?")
     command("ready", cmd_ready)
     command("changes", cmd_changes, "--expect-head", "--expect-branch",
-            "--reported-file", "--pathspec-out")
+            "--reported-file", "--pathspec-out", optional=("--ready-file",))
     command("pushable", cmd_pushable, "--base")
     command("report", cmd_report, "--results-file", optional=("--expect-file",),
             project_dir=False)

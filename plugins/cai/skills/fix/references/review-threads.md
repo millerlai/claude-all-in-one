@@ -72,12 +72,18 @@ The dispatch text must contain:
 - the absolute path of the `debug` skill's `SKILL.md`;
 - the test commands from `test.commands`;
 - the project root.
+- the `untracked_paths` from the saved ready file, and the words "leave these
+  pre-existing files untouched; do not include them in your reported paths".
 
 Write the `paths:` lines of its report to a file, then run:
 
 ```text
-python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_target.py changes --project-dir <root> --expect-head <start_sha> --expect-branch <head> --reported-file <reported file> --pathspec-out <pathspec file>
+python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_target.py changes --project-dir <root> --expect-head <start_sha> --expect-branch <head> --reported-file <reported file> --pathspec-out <pathspec file> --ready-file <ready file>
 ```
+
+Exit 1 or 2: paste its output and stop the run without adding, committing or
+switching branches. In particular, `stopped pre-existing-untracked` means a
+pre-existing path now has tracked changes; never put it in a `wip:` commit.
 
 Take the first row that matches:
 
@@ -92,7 +98,7 @@ Take the first row that matches:
 To add the paths:
 
 ```text
-git add --pathspec-from-file=<pathspec file> --pathspec-file-nul
+git --literal-pathspecs add --pathspec-from-file=<pathspec file> --pathspec-file-nul
 ```
 
 Write the message to a file and commit with `git commit -F <message file>`;
@@ -124,7 +130,9 @@ Between them, add the paths as above. The message is the single line
 `wip: <outcome> for review thread <databaseId> on PR #<n>`; skip the add and the
 commit when nothing changed. When the row said `head-moved`, run
 `git branch -f <head> <start_sha>`. Finish with `git switch <head>`. The working
-tree is clean again and the pull request branch has only this run's `fix:` commits.
+tree has no uncommitted changes to tracked files again and the pull request
+branch has only this run's `fix:` commits. Keep pre-existing untracked files
+untouched and outside every commit.
 The thread's `branch` is `<name>`.
 
 ## 3. Push once
@@ -194,4 +202,6 @@ afterwards. Nothing was written in the exits 3, 5 and 2.
 
 Switch back to where the run started: `git switch <start_ref>`, or
 `git switch --detach <start_ref>` when `start_detached` is true. The working
-tree must be clean and HEAD on that ref before the report.
+tree must have no uncommitted changes to tracked files and HEAD must be on
+that ref before the report. Keep pre-existing untracked files untouched and
+outside every commit.

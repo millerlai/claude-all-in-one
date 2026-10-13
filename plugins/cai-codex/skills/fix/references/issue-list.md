@@ -128,7 +128,9 @@ item ends `waiting-for-pr` with the first dependency's pull request URL as its
 `detail`; otherwise it ends `dependency-not-fixed` with the number of the first
 dependency that did not.
 
-When the last item is done, the working tree is clean and HEAD is back on the
+When the last item is done, tracked files have no uncommitted changes,
+pre-existing untracked files remain untouched and outside every commit,
+and HEAD is back on the
 start ref. Every issue that was listed and not selected ends `not-selected`.
 
 Write the id `#<number>` of every issue `list` returned, one per line, to an
