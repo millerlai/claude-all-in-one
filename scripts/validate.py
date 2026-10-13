@@ -686,6 +686,11 @@ def _codemap():
     POINTER = ("The index under `.cai/codemap/` is a pointer, not evidence: a claim "
                "about current state cites the original `file:line`.")
     FALLBACK = "Any other line, or none, means Read/Grep/Glob as you would without it."
+    # `fresh` only says every tracked file matches its record; a new file not
+    # yet added is outside the index altogether, and is often the one a stage
+    # is about.
+    TRACKED_ONLY = ("It holds tracked files only: a file not yet added with `git add` "
+                    "is not in it, so Glob for new files.")
     refs = [f"skills/track/references/stage-{s}.md" for s in ("intake", "discover", "design")]
     agents = [f"agents/{a}.md" for a in ("architect", "designer", "explorer")]
     codex_agents = [f"agents/cai_{a}.toml" for a in ("architect", "designer", "explorer")]
@@ -695,6 +700,8 @@ def _codemap():
         folded = " ".join(read_text(path).split()) if os.path.isfile(path) else ""
         check(f"{path} carries the codemap pointer sentence", POINTER in folded)
         check(f"{path} carries the codemap fallback sentence", FALLBACK in folded)
+        check(f"{path} says the index holds tracked files only (#396)",
+              TRACKED_ONLY in folded)
 
     # (d) AC11: the generated Codex skill calls the launcher form and ships its
     # openai.yaml (the agent's `$codemap status` itself is run by a person).

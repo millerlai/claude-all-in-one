@@ -24,4 +24,6 @@ provide it; this agent has no shell tool.
   nothing there. If that `repo-map.md` cannot be opened, read as if the line
   were not there. The index under `.cai/codemap/` is a pointer, not
   evidence: a claim about current state cites the original `file:line`.
+  It holds tracked files only: a file not yet added with `git add` is
+  not in it, so Glob for new files.
   Any other line, or none, means Read/Grep/Glob as you would without it.
