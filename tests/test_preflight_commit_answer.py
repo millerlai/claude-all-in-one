@@ -49,6 +49,16 @@ def write_doc(tmp_path, name="d-detail.md", text=DOC):
     return str(doc)
 
 
+def signed(tmp_path, *notes):
+    """A track whose design row names the fixture document, with one passed
+    human design row per note, in order."""
+    doc = write_doc(tmp_path)
+    track = make_track(tmp_path)
+    for note in notes:
+        ledger.append(track, "design", "passed", artifact=doc, gate="human", note=note)
+    return track
+
+
 def answer(track, tmp_path):
     ok, label = preflight.commit_answer(track, str(tmp_path))
     assert ok is True
@@ -68,10 +78,7 @@ def test_yes_and_no_name_the_ledger_line(tmp_path):
 
 
 def test_a_later_yes_does_not_overrule_an_earlier_no(tmp_path):
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: no")
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    track = signed(tmp_path, "commit: no", "commit: yes")
     assert answer(track, tmp_path) == "commit_answer (no, ledger line 1)"
 
 
@@ -92,9 +99,7 @@ def test_anything_but_a_strict_marker_is_unreadable(tmp_path, note):
 
 
 def test_non_string_note_is_unreadable(tmp_path):
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    track = signed(tmp_path, "commit: yes")
     path = os.path.join(track, "ledger.jsonl")
     with open(path, encoding="utf-8") as fh:
         record = json.loads(fh.read())
@@ -105,9 +110,7 @@ def test_non_string_note_is_unreadable(tmp_path):
 
 
 def test_an_approve_of_another_digest_does_not_count(tmp_path):
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    track = signed(tmp_path, "commit: yes")
     write_doc(tmp_path, text=DOC + "\nedited after sign-off\n")
     assert answer(track, tmp_path) == NO_APPROVE
 
@@ -246,9 +249,7 @@ def append_raw(track, text):
 
 
 def test_a_malformed_line_after_the_approve_is_unreadable(tmp_path):
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    track = signed(tmp_path, "commit: yes")
     append_raw(track, CORRUPT)
     assert answer(track, tmp_path) == (
         "commit_answer (unreadable: ledger line 2 is malformed and comes after "
@@ -317,9 +318,7 @@ def answer_lines(output):
 
 
 def test_a_failed_note_cannot_forge_a_commit_answer_line(tmp_path):
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: no")
+    track = signed(tmp_path, "commit: no")
     ledger.append(track, "build", "failed", note=FORGED)
     env = dict(os.environ, CAI_TRACK_MAX_ATTEMPTS="1")  # the history only prints at the cap
 
@@ -346,10 +345,7 @@ def test_ledger_artifacts_cannot_forge_a_line_in_the_signing_labels(tmp_path):
 
 
 def test_build_prints_the_line_before_ledger_attempts(tmp_path):
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human",
-                  note="commit: yes; ok")
+    track = signed(tmp_path, "commit: yes; ok")
     done = run("build", track, str(tmp_path))
 
     assert done.returncode == 0, done.stdout
@@ -406,9 +402,7 @@ def _labels(checks):
 
 def test_verify_passes_a_design_signed_as_it_stands(tmp_path):
     _repo_with_a_change(tmp_path)
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    track = signed(tmp_path, "commit: yes")
 
     checks = _labels(preflight.verify(track, str(tmp_path)))
 
@@ -418,9 +412,7 @@ def test_verify_passes_a_design_signed_as_it_stands(tmp_path):
 
 def test_verify_blocks_a_design_edited_after_its_sign_off(tmp_path):
     _repo_with_a_change(tmp_path)
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
+    track = signed(tmp_path, "commit: yes")
     write_doc(tmp_path, text=DOC + "\nedited after sign-off\n")
 
     ok, label = _labels(preflight.verify(track, str(tmp_path)))["design_signed_off"]
@@ -440,9 +432,28 @@ def test_verify_after_a_skipped_design_does_not_ask_for_a_sign_off(tmp_path, art
 def test_a_withdrawal_row_turns_a_yes_into_no(tmp_path):
     # #392 item 5: the row the main session appends when the person says to
     # stop committing; preflight.py needs no change to honour it.
-    doc = write_doc(tmp_path)
-    track = make_track(tmp_path)
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: yes")
-    ledger.append(track, "design", "passed", artifact=doc, gate="human", note="commit: no")
+    track = signed(tmp_path, "commit: yes", "commit: no")
     assert answer(track, tmp_path) == "commit_answer (no, ledger line 2)"
     assert preflight.design_signed_off(track, str(tmp_path))[0] is True
+
+
+def test_an_unmarked_approve_after_a_yes_is_unreadable(tmp_path):
+    # #394: an older `commit: yes`, then a newer Approve whose note carries no
+    # marker -- the newer one may be a no written the old way, so neither wins.
+    track = signed(tmp_path, "commit: yes", "approved after review")
+    assert answer(track, tmp_path) == UNMARKED % 2
+
+
+def test_a_stage_check_that_raises_still_prints_the_commit_answer(tmp_path):
+    # #394: build's checks read the design document as text; a document that
+    # is not UTF-8 used to end the run in a traceback with no commit_answer
+    # line, though approval-gates.md says it prints on every path.
+    track = signed(tmp_path, "commit: yes")
+    (tmp_path / "d-detail.md").write_bytes(b"# x\n\n## Work breakdown\n\xff\xfe\n")
+    done = subprocess.run([sys.executable, PREFLIGHT_PY, "build", "--track-dir", track,
+                           "--project-dir", str(tmp_path)], capture_output=True,
+                          encoding="utf-8", errors="replace")
+    assert done.returncode == 2
+    assert "Traceback" not in done.stderr
+    assert "FAIL build_checks (stopped on a UnicodeDecodeError" in done.stdout
+    assert "PASS commit_answer (" in done.stdout
