@@ -235,7 +235,8 @@ issue, Note on the PR or Accept as is.
 Both arrive as a menu you pick from, never a prompt asking you to type
 `approved`. The design one offers four: approve it (`build` then makes one
 local commit per verified unit, and nothing is pushed), approve it without
-commits, ask for changes (which sends `design` round again with what you said,
+commits (nothing is committed before the pull request opens; a fix round after
+it still commits, so its push carries the fixes), ask for changes (which sends `design` round again with what you said,
 at most three rounds), or reject it. Ship's quotes the exact commands about to run, and offers to hand
 them back instead. Inside a track, "Run them" covers the squash, the push and
 the `gh pr create` or `gh pr edit`, with the squash message and the PR

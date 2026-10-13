@@ -63,9 +63,10 @@ git status --porcelain --untracked-files=no
 git branch --show-current
 ```
 
-Only a tracked file with uncommitted changes blocks — commit it (or stash it,
-but only when `git worktree list` shows a single worktree, since every
-worktree of a repo shares one stash) and stop. An untracked file never blocks: the squash (Step 5) neither includes
+Only a tracked file with uncommitted changes blocks: name the files and stop.
+Committing them is the person's (or stashing them, but only when `git worktree
+list` shows a single worktree, since every worktree of a repo shares one
+stash); you never commit here, whatever Gate 1's commit answer was. An untracked file never blocks: the squash (Step 5) neither includes
 nor touches it (#198). Must be on a feature branch — if on `main`/`master` or
 detached HEAD, stop.
 

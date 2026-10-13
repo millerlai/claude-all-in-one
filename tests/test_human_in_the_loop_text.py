@@ -717,3 +717,40 @@ def test_skill_md_still_names_exactly_two_gates_after_the_open_items_stop(tree):
     # The stop lives in approval-gates.md's list of other stops; naming it as
     # a gate here would be the third one.
     assert "open item" not in gates.lower()
+
+
+# --- #390: Approve without commits names the fix-round exception; ship never commits ---
+
+@pytest.mark.parametrize("tree", TREES)
+def test_approve_without_commits_names_the_fix_round_exception(tree):
+    gates = _reference(tree, "approval-gates.md")
+    assert ("commits nothing before the pull request opens" in gates)
+    assert ("a fix round after the pull request opens still commits, since its push "
+            "needs a commit" in gates)
+    assert "Approve without commits' names that exception" in gates
+    with open(os.path.join(ROOT, tree, "skills", "track", "references", "approval-gates.md"),
+              encoding="utf-8") as fh:
+        row = next(l for l in fh if l.startswith("| Approve without commits |"))
+    assert "A fix round after the pull request opens still commits" in row
+    assert "(a fix round" not in row
+
+
+def test_clean_tree_leaves_the_commit_to_the_person():
+    with open(os.path.join(ROOT, "plugins", "cai", "scripts", "preflight.py"),
+              encoding="utf-8") as fh:
+        line = next(l for l in fh if "clean_tree (%s --" in l)
+    assert "for the person to commit" in line
+    assert "-- commit them" not in line
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_ship_step_1_never_commits(tree):
+    ship = _section(_reference(tree, "stage-ship.md"), "## Step 1")
+    assert "name the files and stop" in ship
+    assert "you never commit here, whatever Gate 1's commit answer was" in ship
+    assert "commit it" not in ship
+
+
+def test_manual_names_the_fix_round_exception():
+    assert ("a fix round after it still commits, so its push carries the fixes"
+            in _flat("MANUAL.md"))
