@@ -344,7 +344,7 @@ def design_signed_off(track_dir, project_dir):
                      for r in fingerprinted), artifact, artifact))
 
 
-def git(cwd, *args, encoding=None, raw=False):
+def git(cwd, *args, encoding=None, raw=False, timeout=5):
     """Runs git and returns the CompletedProcess, or None when git could not
     be run or timed out. Output is always decoded as UTF-8 with
     errors="replace" (`encoding=None` and omitting it are the same): the
@@ -364,7 +364,7 @@ def git(cwd, *args, encoding=None, raw=False):
     try:
         # By full path from a trusted PATH entry, never a git in cwd (#294).
         return subprocess.run([tool_path.resolve("git", cwd), *args], cwd=cwd or None,
-                              capture_output=True, timeout=5, **text)
+                              capture_output=True, timeout=timeout, **text)
     except (OSError, subprocess.SubprocessError):
         return None
 

@@ -19,6 +19,10 @@ LANGUAGES = {".py": "python", ".go": "go", ".ts": "typescript", ".tsx": "typescr
              ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
              ".cjs": "javascript"}
 CHUNK = 1 << 16
+# Listing every tracked file of a large repository can take longer than the
+# five seconds other git calls get, and a timeout here makes the whole index
+# unsupported for that repository.
+LIST_TIMEOUT = 60
 # Over this a file is hashed but not parsed or scanned: one generated giant
 # must not slow every dispatch. The one cap both reads share.
 MAX_PARSE_BYTES = 1048576
@@ -65,7 +69,7 @@ def list_tracked(top: str) -> list:
         raise GitFailed("git did not answer")
     if not state:
         raise NotARepository(top)
-    done = preflight.git(top, "ls-files", "-z", "--stage", raw=True)
+    done = preflight.git(top, "ls-files", "-z", "--stage", raw=True, timeout=LIST_TIMEOUT)
     if done is None or done.returncode != 0:
         raise GitFailed("git ls-files failed")
     seen = {}

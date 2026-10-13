@@ -62,15 +62,23 @@ def _print_status(status):
     print(codemap_index.state_line(status))
     if status.word == "absent":
         print(ABSENT_HINT)
-    for path in status.paths:
+    shown = status.paths[:preflight.MAX_CONFLICTS_SHOWN]
+    for path in shown:
         print("  %s: %s" % (status.word, _shown(path)))
+    if len(status.paths) > len(shown):
+        # After a branch switch the list can run to thousands, and all of it
+        # would land in the context of whoever ran this (#403).
+        print("  … and %d more" % (len(status.paths) - len(shown)))
 
 
 def _print_result(result):
     print(codemap_index.result_line(result))
     print("%d files, %d shards" % (result.total, result.shards))
-    for path, reason in result.partial:
+    shown = result.partial[:preflight.MAX_CONFLICTS_SHOWN]
+    for path, reason in shown:
         print("  partial: %s (%s)" % (_shown(path), _shown(reason)))
+    if len(result.partial) > len(shown):
+        print("  … and %d more" % (len(result.partial) - len(shown)))
 
 
 QUERY_LIMIT = 10   # Recall@10 is the largest N the benchmark asks about

@@ -123,6 +123,12 @@ def _write(top, facts, previous):
         records.append(record)
         all_symbols.extend(syms)
     all_symbols.sort(key=lambda s: (s["path"], s["start_line"], s["qualified_name"]))
+    head = _head(top)
+    if _unchanged(previous, records, reparsed, partial, head):
+        # The usual case for a dispatch after the last one: rewriting every
+        # file would only move built_at, at a cost that grows with the repo.
+        shards = sum(1 for name in previous.state["artifacts"] if name.startswith("packages/"))
+        return Result("fresh", 0, len(records), shards, [])
     texts = repomap.render(records, all_symbols, repomap.BUDGET_TOKENS, repomap.TOLERANCE_TOKENS)
 
     store.ensure_dir(top)
@@ -141,7 +147,7 @@ def _write(top, facts, previous):
             artifacts = {item.name: item.sha256 for item in staged}
             state = {"schema_version": store.SCHEMA_VERSION,
                      "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                     "head": _head(top), "file_count": len(records), "artifacts": artifacts,
+                     "head": head, "file_count": len(records), "artifacts": artifacts,
                      "partial": [{"path": p, "reason": r} for p, r in partial],
                      **store.extractor_stamp()}
             staged.append(store.commit_state(top, state))
@@ -155,6 +161,16 @@ def _write(top, facts, previous):
     # render always returns repo-map.md and, beside it, one text per shard.
     return Result("partial" if partial else "fresh", reparsed, len(records),
                   len(texts) - 1, partial)
+
+
+def _unchanged(previous, records, reparsed, partial, head):
+    """Whether writing would reproduce `previous` byte for byte but for its
+    time stamp: every record reused, the same files, no file left partial
+    then or now, and the same HEAD for the state line to name."""
+    return (previous is not None and reparsed == 0 and not partial
+            and not previous.state.get("partial")
+            and previous.state.get("head") == head
+            and [r["path"] for r in records] == sorted(previous.files))
 
 
 def build(top: str) -> Result:
@@ -196,7 +212,15 @@ def _named(paths, verb):
 
 def status(top: str) -> Status:
     try:
-        facts = inventory.inventory(top)
+        # With no state file there is nothing to compare the tree with, so
+        # list it -- which still says whether this is a repository -- but
+        # read no file (#403). A state file appearing in between is read as
+        # usual below.
+        if os.path.lexists(os.path.join(store.index_dir(top), store.STATE_NAME)):
+            facts = inventory.inventory(top)
+        else:
+            inventory.list_tracked(top)
+            facts = None
     except inventory.NotARepository:
         return _unsupported("not a git repository")
     except inventory.GitFailed:
@@ -220,6 +244,11 @@ def status(top: str) -> Status:
         return _unsupported("git did not answer")
     if index is None:
         return Status("absent", "", [])
+    if facts is None:
+        try:
+            facts = inventory.inventory(top)
+        except (inventory.NotARepository, inventory.GitFailed, OSError):
+            return _unsupported("git did not answer")
     # Hash only: a record's `reason` is why it was not parsed, which the file
     # itself does not say, so it cannot be compared with a fresh inventory.
     known = {p: r.get("sha256") for p, r in index.files.items()}
