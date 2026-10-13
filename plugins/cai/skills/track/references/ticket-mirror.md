@@ -148,7 +148,7 @@ subcommand exits 0, so relay what a step prints and carry on.
 1. **Before the move, the final state.** `ticket.py project --track-dir
    .claude/track/<feature> --project-dir <project root> --final` rewrites
    the track's one marked comment in place: `status: done`, the six rows,
-   and the `Left open:` items as their own list. Whatever it prints,
+   and the open items and reminders as their own list. Whatever it prints,
    `SKILL.md`'s move into `done/` and its deletion of
    `.claude/track/current` run next.
 2. **After the move, the close.** The pointer moved with the directory, so

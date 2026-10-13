@@ -314,13 +314,14 @@ def test_new_probes_come_after_merge_check(tmp_path):
     repo = make_repo(tmp_path)
     track = make_track(tmp_path)
     result = preflight.ship(track, str(repo))
-    assert len(result) == 7
+    assert len(result) == 8
     assert result[1][1].startswith("clean_tree (")
     assert result[3][1].startswith("merges_cleanly (")
     assert result[4][1].startswith("untracked_since_start (")
     assert result[5][1].startswith("docs_not_in_git (")
     # #367 appends its reminder, so the positions every test above reads hold.
     assert result[6][1].startswith("skipped_stages (")
+    assert result[7][1].startswith("open_items_decided (")
 
 
 def test_stage_ship_step1_ignores_untracked():

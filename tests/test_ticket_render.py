@@ -4,6 +4,7 @@ render_comment is a pure function of state.md's six rows -- these tests
 build state.md fixtures directly, the same shape tests/test_preflight_ledger.py's
 make_track() writes, rather than driving a real track through the skill.
 """
+import open_items
 import preflight
 import ticket
 
@@ -153,9 +154,110 @@ def test_render_comment_final_true_left_open_list_matches_preflight(tmp_path):
     lines = body.splitlines()
     assert "left open:" in lines
 
+    # No record: each Left open entry is an imported item nobody decided, so
+    # its line ends with that state.
     bullet_lines = [ln for ln in lines if ln.startswith("- [")]
     assert bullet_lines == [
-        "- [%s] %s" % (stage, ticket._truncate_note(item)) for stage, item in expected]
+        "- [%s] %s (undecided)" % (stage, ticket._truncate_note(item))
+        for stage, item in expected]
+
+
+def _write_record(track_dir, items):
+    record = {"branch": "feat/fixture", "applied": [], "items": items}
+    (track_dir / open_items.FILE_NAME).write_text(open_items.render(record),
+                                                  encoding="utf-8")
+
+
+def _item(n, stage, what):
+    return {"id": "open-%d" % n, "state": "undecided", "stage": stage,
+            "kind": "unfixed-minor", "where": "a.py:1", "what": what,
+            "why": "left alone", "picked": None, "url": None, "target": None,
+            "source": "report", "quoted": None}
+
+
+def test_render_comment_final_true_renders_items_then_reminders(tmp_path):
+    make_state_md(tmp_path, ROWS_WITH_LEFT_OPEN)
+    _write_record(tmp_path, [_item(1, "verify", "Minor A"),
+                             _item(2, "build", "y" * 250)])
+
+    body = ticket.render_comment(str(tmp_path), "ticket-integration",
+                                 "2026-08-31T00:00:00Z", final=True)
+    lines = body.splitlines()
+    # Items end with their state word, cut or not; a reminder is no item and
+    # carries none.
+    assert lines[lines.index("left open:") + 1:-2] == [
+        "- [verify] Minor A (undecided)",
+        "- [build] " + "y" * 200 + ticket.ELLIPSIS + " (undecided)",
+        "- [intake] whether ship Gate 2 keeps a close item",
+        "- [intake] status-line wording and whether it names the login",
+    ]
+
+
+ISSUE = "https://github.com/o/r/issues/7"
+NOTE = "https://github.com/o/r/pull/9#issuecomment-123"
+
+
+def _decided(n, state, url=None):
+    item = _item(n, "verify", "Minor %d" % n)
+    item.update({"state": state, "url": url})
+    return item
+
+
+def test_render_comment_final_true_item_line_ends_with_state_word(tmp_path):
+    make_state_md(tmp_path, SIX_ROWS)
+    items = [_decided(1, "fixed"), _decided(2, "accepted"),
+             _decided(3, "filed", ISSUE), _decided(4, "noted", NOTE),
+             _decided(5, "fix-pending"), _decided(6, "undecided")]
+    _write_record(tmp_path, items)
+
+    body = ticket.render_comment(str(tmp_path), "ticket-integration",
+                                 "2026-08-31T00:00:00Z", final=True)
+    bullets = [ln for ln in body.splitlines() if ln.startswith("- [")]
+    # The words are `open_items.state_word`'s, the ones `left-open` prints.
+    assert bullets == ["- [verify] Minor %d (%s)" % (n, open_items.state_word(item))
+                       for n, item in enumerate(items, 1)]
+    assert bullets[2] == "- [verify] Minor 3 (filed %s)" % ISSUE
+    assert bullets[4] == "- [verify] Minor 5 (fix pending)"
+
+
+def test_render_comment_final_true_state_word_survives_a_long_item(tmp_path):
+    make_state_md(tmp_path, SIX_ROWS)
+    item = _decided(1, "filed", ISSUE)
+    item["what"] = "z" * 250
+    _write_record(tmp_path, [item])
+
+    body = ticket.render_comment(str(tmp_path), "ticket-integration",
+                                 "2026-08-31T00:00:00Z", final=True)
+    bullets = [ln for ln in body.splitlines() if ln.startswith("- [")]
+    assert bullets == ["- [verify] " + "z" * 200 + ticket.ELLIPSIS
+                       + " (filed %s)" % ISSUE]
+
+
+def test_render_comment_final_true_drops_a_url_that_is_not_an_issue_or_note(tmp_path):
+    # The record is a file a person may have edited; its url goes to a public
+    # ticket, so only the shapes `record-url` itself accepts are printed.
+    make_state_md(tmp_path, SIX_ROWS)
+    _write_record(tmp_path, [_decided(1, "filed", "C:\\Users\\x\\err.txt"),
+                             _decided(2, "noted", "fatal: could not read")])
+
+    body = ticket.render_comment(str(tmp_path), "ticket-integration",
+                                 "2026-08-31T00:00:00Z", final=True)
+    bullets = [ln for ln in body.splitlines() if ln.startswith("- [")]
+    assert bullets == ["- [verify] Minor 1 (filed)", "- [verify] Minor 2 (noted)"]
+    assert "Users" not in body and "fatal" not in body
+
+
+def test_render_comment_final_true_unreadable_record_falls_back(tmp_path, capsys):
+    make_state_md(tmp_path, ROWS_WITH_LEFT_OPEN)
+    (tmp_path / open_items.FILE_NAME).write_text("not a record\n", encoding="utf-8")
+
+    body = ticket.render_comment(str(tmp_path), "ticket-integration",
+                                 "2026-08-31T00:00:00Z", final=True)
+    printed = capsys.readouterr().out.strip().splitlines()
+    assert len(printed) == 1 and open_items.FILE_NAME in printed[0]
+    bullets = [ln for ln in body.splitlines() if ln.startswith("- [")]
+    assert bullets == ["- [intake] whether ship Gate 2 keeps a close item",
+                       "- [intake] status-line wording and whether it names the login"]
 
 
 def test_render_comment_final_true_left_open_none_when_no_items(tmp_path):

@@ -47,8 +47,8 @@ For the stage about to run:
 
 1. **Preflight.** `python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py <stage>
    --track-dir .claude/track/<feature> --project-dir <project root>`. Exit 2 means
-   stop and report every line it printed — no model work happens. Record it
-   as `blocked` first, per step 3. Exit 0 means proceed.
+   stop and report every line it printed — no model work happens. Record it as `blocked` first, per step 3,
+   unless the only FAIL is `open_items_decided`: then run the open-items stop and record nothing. Exit 0 means proceed.
 2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work
    to the subagent named in that row's `agent` field — never choose by
    judgement, the field decides, because model tier rides on it. Tell the agent to
@@ -70,11 +70,11 @@ For the stage about to run:
        [--artifact <path>] --note "<why, one line>"
    ```
 
-   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which — when a run stops before its units are finished — sets that stage's own `status` to `in-progress`, sets its `note` to `unit <N> of <total>`, and appends a `## Handoff` block. Every other `note` cell is yours, written from the fields the stage handed up under `## Report`. A build report's glossary item goes into that note as three counts — terms written, definitions replaced, terms kept out — never as the list itself: `ledger.py` cuts an over-long note from its end, which is where `Left open:` sits. Anything the stage's Report lists as left open goes last in that note, after a literal `Left open:`, items separated by `; `.
+   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which — when a run stops before its units are finished — sets that stage's own `status` to `in-progress`, sets its `note` to `unit <N> of <total>`, and appends a `## Handoff` block. Every other `note` cell is yours, written from the fields the stage handed up under `## Report`. A build report's glossary item goes into that note as three counts — terms written, definitions replaced, terms kept out — never as the list itself: `ledger.py` cuts an over-long note from its end, which is where `Left open:` sits. Write only reminders after `Left open:`, a literal marker last in that note, items separated by `; `: what the stage's Report lists as left open, never an open item; on an overwrite carry the old row's reminders into the new note unless the new report settles them. Also feed the report of every `passed` stage to `python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py add --track-dir .claude/track/<feature> --project-dir <project root> --stage <stage> --report-file -` (the report on stdin, as `references/pending-questions.md` feeds `pending.py start`), after `ledger.py` exits 0 and before the `state.md` row is overwritten. If `add` exits 2 naming an entry, fix that entry the way a `ship_draft_check.py` FAIL is fixed and run `add` again before writing the row; if `add` exits 2 naming the record itself, say so in one line and write the report's items after `Left open:` as before. Quote `track_state.py left-open` in build's, verify's and ship's briefs.
 
    - **Preflight exited 2** → `blocked`. **Unless** its output holds
      `FAIL ledger_attempts` — that stage is already at its cap and another
-     record only pushes the count further past it; report without appending.
+     record only pushes the count further past it; report without appending — or `ship`'s only FAIL is `open_items_decided`: run the open-items stop and append nothing, since five resumes would spend `ship`'s retries. When that FAIL quotes a read error the stop cannot run: report the line, append nothing, and ask the person to repair the record.
    - **The dispatch never ran: HTTP 429/500/502/503/529, or error type
      `rate_limit_error`, `overloaded_error`, `api_error`** → `unavailable`,
      with `--note` quoting the provider's error verbatim. This one does not
@@ -87,7 +87,7 @@ For the stage about to run:
      and note — never append a row; the row count must equal `stages.json`'s.
 
    `--gate human` belongs to the two human gates below and nowhere else; at the design gate it takes `--artifact`, and its `--note` is exactly `commit: yes` or `commit: no`, with nothing after it.
-   A non-zero exit stops the step: report it and leave `state.md` untouched.
+   A non-zero exit from `ledger.py` stops the step: report it and leave `state.md` untouched.
 
 When `.claude/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `/cai:track skip`.
 Before `build`'s dispatch in step 2, you — the main session, not a subagent — settle the test command as `${CLAUDE_PLUGIN_ROOT}/skills/track/references/test-command.md`'s `## Before build` says. A missing one never stops the stage, and that section also says what `verify`'s dispatch carries after a skip.
@@ -137,7 +137,7 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 
 ## `/cai:track done`
 
-First run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and relay its output verbatim, then follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/ticket-mirror.md`'s `/cai:track done` section, which says what runs after the move too — all skipped when the refusal below fires.
+First run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and relay its output verbatim; once the refusal below has passed, ask each open item still undecided, fix pending or filing its menu, as `references/approval-gates.md`'s `## Open items before ship` says for `done`; then follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/ticket-mirror.md`'s `/cai:track done` section, which says what runs after the move too — all skipped when the refusal below fires, when a pick is Fix now or Stop, and while a menu is unanswered.
 Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
 Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `/cai:git-sweep`, which shows its table before deleting anything — run none of this yourself.
@@ -145,4 +145,4 @@ Once the PR has merged, tell the person to switch to the base branch, `git pull`
 ## `/cai:track cancel --reason "<why>"`
 
 For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.claude/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/` and delete `current` as `done` does, whatever the rows say.
-Run none of `done`'s other steps: say in one line that the branch, any PR and whatever `references/ticket-mirror.md` mirrored stay as they are — what happens to them is the person's call.
+Run none of `done`'s other steps: say in one line that the branch, any PR and whatever `references/ticket-mirror.md` mirrored stay as they are, that nothing queued is posted, and how many are undecided (`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py undecided --track-dir .claude/track/<feature>`, run before the move) — what happens to them is the person's call.
