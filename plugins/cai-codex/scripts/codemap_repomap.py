@@ -10,6 +10,8 @@ not, is in files.jsonl.
 import hashlib
 import re
 
+import preflight
+
 CHARS_PER_TOKEN = 4
 BUDGET_TOKENS = 1000     # a constant: no requirement varies it
 TOLERANCE_TOKENS = 100
@@ -24,10 +26,18 @@ def estimate_tokens(text: str) -> int:
     return -(-len(text) // CHARS_PER_TOKEN)
 
 
+def _shown(text):
+    """Paths, names and signatures come from the repository's own files, and an
+    agent reads this map to choose what to open next; escaped, none of them can
+    add a heading or a `-> <path>` row of its own."""
+    return preflight._escape_control_chars(text)
+
+
 def _symbol_line(sym):
     start, end = sym["start_line"], sym.get("end_line")
     span = "L%d" % start if end in (None, start) else "L%d-%d" % (start, end)
-    return "%s %s %s%s" % (span, sym["kind"], sym["qualified_name"], sym.get("signature") or "")
+    return "%s %s %s%s" % (span, sym["kind"], _shown(sym["qualified_name"]),
+                           _shown(sym.get("signature") or ""))
 
 
 def _file_blocks(files, by_path):
@@ -35,7 +45,7 @@ def _file_blocks(files, by_path):
     blocks = []
     for f in files:
         lines = [_symbol_line(s) for s in by_path[f["path"]]]
-        header = "## %s (%s, %s)" % (f["path"], f["language"], f.get("confidence"))
+        header = "## %s (%s, %s)" % (_shown(f["path"]), f["language"], f.get("confidence"))
         blocks.append((header, lines))
     return blocks
 
@@ -76,7 +86,7 @@ def _split(files, prefix, by_path, limit, groups):
     """Appends (prefix, files, text) for each shard `files` (all under
     `prefix`) needs: the whole group when it fits, else its directly contained
     files and then each subdirectory, recursively."""
-    label = "/".join(prefix) or ROOT
+    label = _shown("/".join(prefix)) or ROOT
     title = "# codemap shard: %s" % label
     text = _group_text(title, files, by_path)
     if len(text) <= limit:
@@ -149,7 +159,7 @@ def render(files: list, symbols: list, budget: int, tolerance: int) -> dict:
         out["packages/%s.md" % name] = text
         count = sum(len(by_path[f["path"]]) for f in group_files)
         rows.append("- %s: %d files, %d symbols -> %s%s.md"
-                    % ("/".join(prefix) or ROOT, len(group_files), count, SHARD_DIR, name))
+                    % (_shown("/".join(prefix)) or ROOT, len(group_files), count, SHARD_DIR, name))
     index_head = "# codemap repo map\nbudget %d tokens, %d files, split into %d shards\n\n" % (
         budget, total_files, len(rows))
     index = index_head + "\n".join(rows) + "\n"

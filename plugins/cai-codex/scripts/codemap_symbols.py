@@ -10,6 +10,7 @@ is not caught here: the caller records that file as partial.
 """
 import ast
 import re
+import warnings
 from typing import NamedTuple, Optional
 
 
@@ -70,7 +71,11 @@ def _py_walk(body, prefix, in_class, path, out):
 
 def _python(path, data):
     try:
-        tree = ast.parse(data)
+        # A file's invalid escape sequences make `ast.parse` print a
+        # SyntaxWarning to stderr, which can land ahead of the state line.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tree = ast.parse(data, filename=path)
     except SyntaxError as exc:
         if str(exc.msg).startswith("(unicode error)") or "null bytes" in str(exc.msg):
             return _failed("undecodable")
