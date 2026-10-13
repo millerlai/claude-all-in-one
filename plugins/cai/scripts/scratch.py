@@ -43,17 +43,23 @@ def root():
     return os.path.join(tempfile.gettempdir(), ROOT_NAME)
 
 
+# `onexc` replaced `onerror`, which 3.12 deprecated. A constant, not a check at
+# the call, so a test can reach the older branch from the interpreter it runs on.
+_HAS_ONEXC = sys.version_info >= (3, 12)
+
+
+def _make_writable_then(func, target, _):
+    os.chmod(target, stat.S_IWRITE)
+    func(target)
+
+
 def _rmtree(path):
     """A read-only file (git object files, pytest's own) stops `rmtree` on
     Windows, so one that raises is made writable and tried again."""
-    def retry(func, target, _):
-        os.chmod(target, stat.S_IWRITE)
-        func(target)
-
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=retry)
+    if _HAS_ONEXC:
+        shutil.rmtree(path, onexc=_make_writable_then)
     else:
-        shutil.rmtree(path, onerror=retry)
+        shutil.rmtree(path, onerror=_make_writable_then)
 
 
 def _remove(path):

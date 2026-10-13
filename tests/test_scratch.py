@@ -101,6 +101,48 @@ def test_clean_removes_the_directory_with_a_read_only_file(temp):
     assert not os.path.exists(made)
 
 
+def test_a_read_only_file_is_made_writable_and_the_removal_retried(tmp_path):
+    # Linux deletes a read-only file without complaint, so rmtree never calls
+    # the retry there; this is the one place that runs it on every platform.
+    held = tmp_path / "object"
+    held.write_text("x")
+    os.chmod(held, stat.S_IREAD)
+
+    scratch._make_writable_then(os.unlink, str(held), None)
+
+    assert not held.exists()
+
+
+def test_the_pre_3_12_rmtree_keyword_removes_a_directory_too(tmp_path, monkeypatch):
+    monkeypatch.setattr(scratch, "_HAS_ONEXC", False)
+    target = tmp_path / "gone"
+    (target / "sub").mkdir(parents=True)
+    (target / "sub" / "a.txt").write_text("x")
+
+    scratch._rmtree(str(target))
+
+    assert not target.exists()
+
+
+def test_sweep_of_a_missing_root_is_not_an_error(tmp_path):
+    scratch.sweep(str(tmp_path / "never-made"), time.time())
+
+
+def test_sweep_goes_on_past_a_child_it_cannot_remove(temp, monkeypatch):
+    first, second = scratch.new_dir("a"), scratch.new_dir("b")
+    real = scratch._remove
+
+    def refuse_the_first(path):
+        if path == first:
+            raise PermissionError(path)
+        real(path)
+
+    monkeypatch.setattr(scratch, "_remove", refuse_the_first)
+    scratch.sweep(scratch.root(), time.time() + scratch.STALE_AFTER_S + HOURS)
+
+    assert os.path.isdir(first) and not os.path.exists(second)
+
+
 def test_clean_of_a_missing_directory_is_not_an_error(temp):
     made = scratch.new_dir("fix")
     assert scratch.main(["clean", made]) == 0
