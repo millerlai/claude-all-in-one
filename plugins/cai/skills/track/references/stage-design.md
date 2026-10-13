@@ -112,9 +112,10 @@ names after `index`, and the shard files it names, each read by its exact path,
 or Grep `symbols.jsonl` in that directory with that one file as the path — a
 Grep over the directory finds nothing there. If that `repo-map.md` cannot be
 opened, read as if the line were not there. The index under `.cai/codemap/` is a
-pointer, not evidence: a claim about current state cites the original
-`file:line`. Any other line, or none, means Read/Grep/Glob as you would
-without it.
+pointer, not evidence: a claim about current state cites the original `file:line`.
+It holds tracked files only: a file not yet added with `git add` is not in
+it, so Glob for new files. Any other line, or none, means Read/Grep/Glob as you
+would without it.
 
 **The decision rule.** Never resolve a choice silently in either direction.
 Writing your preference in is a decision the person never made; leaving
