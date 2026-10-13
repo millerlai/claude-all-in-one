@@ -8,7 +8,8 @@ description: Build, refresh, check or query a disposable index of this repositor
 ## What typing this command authorises
 
 Typing `$codemap build` or `$codemap update` authorises writing inside
-`<top>/.cai/codemap/` and nowhere else; `<top>` is what
+`<top>/.cai/codemap/` (creating `<top>/.cai/` if it is missing) and nowhere
+else; `<top>` is what
 `git rev-parse --show-toplevel` prints. The directory ignores itself, holds only
 what can be rebuilt, and may be deleted by hand at any time. `status` and
 `query` write nothing.
