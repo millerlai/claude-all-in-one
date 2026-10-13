@@ -1,5 +1,50 @@
 # Changelog
 
+## v1.54.0 — 2026-10-13
+
+This release asks what to do with each unfixed track finding before shipping, helps local fix sessions avoid working the same item, and improves commit consent, codemap safety and incremental updates.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.53.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.53.0 to 1.54.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- An in-progress track keeps its saved state and ledger. Existing `Left open:` entries become undecided open items; before ship drafts anything, each needs a decision. New reports keep unfixed findings separately from manual reminders. (#424)
+- You can withdraw an earlier yes to commits. Build and verify check the current answer again immediately before every commit; an edited design must be approved again before the affected work resumes. (#433)
+- A codemap index written by v1.53.0 is reported as `unsupported` until the next `update` or `build`, which rebuilds it. A track refreshes an existing index itself; standalone discover only reads its status. (#427, #430, #435)
+
+### Track
+
+- Before ship, each unfixed finding gets a choice: Fix now, File a GitHub issue, Note on the PR, or Accept as is. Fix-now items go through verify together; filing and notes wait for your choice. Track done also asks about items still undecided, awaiting a fix or being filed. (#424)
+- Left-open reports and the final mirrored ticket comment show each finding's state. Cancelling a track posts nothing queued and reports how many items remain undecided. (#424)
+- Gate 1 now shows the planned build's units, parallel pairs, verification commands and remaining questions above its approval menu. Build reports any sizing difference from that plan. (#439)
+- Approve without commits now states its existing exception: it prevents commits before the pull request opens, while a later fix round still commits so it can push. Ship leaves tracked changes for you to commit and stops. (#428)
+- Build and verify re-check consent before each commit, and their reports label the answer they used as `acted_on`. Withdrawing consent turns yes into no; a changed approved design stops the resume for another Gate 1 approval. (#433)
+- If a stage check cannot read a file or decode its text, preflight reports the failed check and still prints the commit answer instead of ending with a traceback. (#438)
+
+### Fix
+
+- Fix claims an item locally before working it. A second session on the same machine and configuration root skips an item held by another session; issue lists untick claimed items and show who holds them. Claude Code and Codex share the registry. Claims expire after 30 minutes, and an unavailable registry lets work proceed with a warning. (#432)
+- New `/cai:fix-unclaim` and `$fix-unclaim` release only the claim matching the supplied item, platform, session and start time. Use this for a stopped session rather than waiting for expiry. Claims do not coordinate different machines or write to GitHub or Jira. (#432)
+
+### Codemap
+
+- Build and update refuse a second writer and unsafe entries in the index directory. Files are staged before replacement, with state written last; a directory occupying a data-file name is refused before any replacement, preserving the previous index. (#422, #426)
+- Paths, source hits and map labels escape control characters so repository text cannot add forged status lines or map rows. Non-fresh status details are kept out of stage prompts, and file-related error messages omit local absolute paths. (#425)
+- Symbol and text-hit line numbers now match editor line breaks. Python declarations under top-level or class-level if, try and with blocks are included; distinct non-UTF-8 file names stay distinct. Invalid source encoding and syntax errors are classified separately. (#427, #435)
+- Standalone discover never updates the index. A fresh status line names the index directory so read-only agents can find its map; a map that cannot be opened is treated as absent. (#430)
+- An unchanged update leaves index files untouched. Status with no index reads no tracked file contents, path-detail lists stop at ten with a remaining count, and tracked-file enumeration allows 60 seconds for larger repositories. (#440)
+
+### Build
+
+- Glossary reruns skip an empty commit and keep a term beside its handwritten `_Avoid_` lines. Reports still quote replaced definitions when the checker cannot run. A new entry deleted by hand is written again on a rerun, as it would be after an interrupted write. (#434)
+
+### Guard and scratch files
+
+- Subagents cannot directly write the guard's launcher record or run commands naming it, including reads. Claude Code also applies the direct-write check without a working Python interpreter; Codex receives the command check. Arbitrary scripts that later touch the record remain outside these checks. (#429)
+- Claude Code's fix and track scratch files use a dedicated temporary root that removes siblings untouched for six hours. Codex continues to use the workspace's permitted scratch directory and leaves consumed files in place. (#431)
+
 ## v1.53.0 — 2026-10-13
 
 This release lets build update the project's glossary without a selection menu, protects the track ledger and commit choice, and fixes untracked-file handling, codemap reads and the final merge command.
