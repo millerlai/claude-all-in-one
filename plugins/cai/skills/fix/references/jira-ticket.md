@@ -27,7 +27,7 @@ Single-quote `<host>` and `<ticket URL>` on every command line below, exactly as
 If this session has a tool from an Atlassian connector, use it first: read the
 ticket by its key, save the result as a JSON object with the keys `key`,
 `summary`, `description` and `url` (the ticket's own address as the connector
-returned it) in a file in the temp directory, and pass that file:
+returned it) in a file in the scratch directory, and pass that file:
 
 ```text
 python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_jira.py read --project-dir <root> --host <host> --key <KEY> --url <ticket URL> --out <item file> --from-file <connector file>

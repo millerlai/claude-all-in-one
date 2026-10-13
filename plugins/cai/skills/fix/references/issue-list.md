@@ -12,7 +12,7 @@ asks is the one in step 5.
 
 ## 1. List the open issues
 
-Run `list` with `--out` a file in the temp directory:
+Run `list` with `--out` a file in the scratch directory:
 
 ```text
 python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_issues.py list --project-dir <root> --owner <owner> --repo <repo> --out <list file>

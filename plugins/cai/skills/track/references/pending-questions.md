@@ -47,8 +47,10 @@ takes them along. Feed the stage's whole report on stdin to
 behind a quoted heredoc delimiter the report does not contain
 (`<<'CAI_PENDING_EOF'`), so no file is written and none is left to delete
 (#345). Only a shell with no heredoc, such as PowerShell, takes a file:
-write the report to a file in the system
-temp directory — never inside the repo — and
+write the report to a file in the scratch directory — never inside the repo
+and never in a directory of your own naming; `python
+${CLAUDE_PLUGIN_ROOT}/scripts/scratch.py dir track` prints a new one, and
+`scratch.py clean <it>` deletes it once the round is over — and
 pass its path instead of `-`. The command takes each question from the report's
 `## Pending questions` section, verbatim, and writes
 `<track-dir>/pending.md` with the report beside them; it is the only thing
@@ -73,7 +75,7 @@ instead.
    reads any other draft back (#311), so it needs no file: feed it on stdin
    to `python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py -` behind a quoted
    heredoc delimiter, as for the report (#345). Under PowerShell the
-   draft goes in the system temp directory, never inside the repo:
+   draft goes in the scratch directory, never inside the repo:
    pass that path instead. Exit 0
    or fix what it names (#73). That file is where the lint (and, for a Tier 1
    entry, `preflight.py`) reads it, not where the person reads it: once the
@@ -96,7 +98,7 @@ instead.
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py answer --track-dir
    .claude/track/<feature> --question <n> --answer-file -` (#345). Under
    PowerShell, write it to a file in
-   the system temp directory and pass that path instead. The command
+   the scratch directory and pass that path instead. The command
    records it verbatim and marks that question `answered`. A menu that closes
    on its own gets no such call — nothing was answered — so its question
    stays `open`.
