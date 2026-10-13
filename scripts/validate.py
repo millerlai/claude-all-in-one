@@ -481,8 +481,12 @@ def _skills():
     # directory in the user's repository, which no model may start on its own. The
     # flag also keeps its description out of the always-on budget below. The
     # `codemap` section pins the flag and the absence of `model:` and `allowed-tools`.
+    # `fix-unclaim` is an addition because deleting another active session's
+    # exact claim requires a person's explicit invocation. The flag keeps its
+    # description out of the always-on budget; its dedicated section also pins
+    # the absence of a model and tool grants, like `codemap`.
     SKILL_NAMES = ["build", "chore", "codemap", "debug", "design", "discover", "fix",
-                   "git", "git-sweep", "goal", "intake", "models", "options",
+                   "fix-unclaim", "git", "git-sweep", "goal", "intake", "models", "options",
                    "plan-review", "quiz", "refactor", "setup", "ship", "track", "usage",
                    "verify", "viewer"]
     skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
@@ -637,6 +641,21 @@ def _fix():
     check(f"{FIX_SKILL} names a reference for each of the four target kinds",
           all("${CLAUDE_PLUGIN_ROOT}/skills/fix/references/%s.md" % r in text for r in refs)
           and "installed yet" not in text)
+
+
+@section("fix-unclaim")
+def _fix_unclaim():
+    # Clearing an exact claim can affect another active session, so only the
+    # person's invocation authorises it; the skill grants no tools of its own.
+    UNCLAIM_SKILL = f"{PLUGIN}/skills/fix-unclaim/SKILL.md"
+    text = read_text(UNCLAIM_SKILL)
+    front = text[3:text.find("\n---", 3)] if text.startswith("---") else ""
+    check(f"{UNCLAIM_SKILL} disables model invocation",
+          re.search(r"^disable-model-invocation:[ \t]*true$", front, re.MULTILINE) is not None)
+    check(f"{UNCLAIM_SKILL} declares no model",
+          not re.search(r"^model:", front, re.MULTILINE))
+    check(f"{UNCLAIM_SKILL} grants no tool",
+          not re.search(r"^allowed-tools:", front, re.MULTILINE))
 
 
 @section("codemap")

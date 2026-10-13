@@ -112,6 +112,9 @@ OUTCOMES = {
     "dependency-not-selected": "A dependency was not selected, so this item was not "
                                "worked on.",
     "local-branch-kept": "A local branch from an earlier run was kept, not overwritten.",
+    "claimed-elsewhere": "Another session on this machine is working on it; once that "
+                         "session has ended, /cai:fix-unclaim with this URL and the "
+                         "detail's values clears its claim.",
 }
 # the fields an item must carry besides id and outcome
 REQUIRED = {
@@ -131,6 +134,7 @@ REQUIRED = {
     "has-open-pr": ("url",),
     "dependency-not-selected": ("detail",),
     "local-branch-kept": ("branch",),
+    "claimed-elsewhere": ("url", "detail"),
 }
 
 # File names (any depth, any case) a fix may never push: dependency manifests

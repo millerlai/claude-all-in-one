@@ -23,6 +23,7 @@ like they fit, the more specific one is right.
 | Know where a track stopped | `/cai:track status` | Reads files, calls no model |
 | Fix something broken | `/cai:debug` | Root cause before any fix |
 | Fix an issue, a PR's review threads or a Jira ticket, end to end | `/cai:fix <url>` | Pushes, opens PRs and replies itself; never merges |
+| Clear a stuck local claim on an item `/cai:fix` skipped | `/cai:fix-unclaim <url> <platform> <session> <started>` | Deletes only the one exact local claim |
 | Index the repo so track stages re-read less | `/cai:codemap build` | Optional; writes only `.cai/codemap/`, which ignores itself |
 | Clean up code that already works | `/cai:refactor` | Behaviour unchanged, by the catalog |
 | Ask whether a branch is mergeable | `/cai:verify` | Four review lenses over the diff |
@@ -39,7 +40,7 @@ like they fit, the more specific one is right.
 
 `debug`, `refactor`, `verify`, `discover`, `plan-review`, `git` and `chore`
 also start on their own when what you say matches them, so you rarely type
-those. `quiz`, `options`, `usage`, `setup`, `fix`, the 72 named refactorings,
+those. `quiz`, `options`, `usage`, `setup`, `fix`, `fix-unclaim`, the 72 named refactorings,
 and the four stages that write things (below) only ever start when typed.
 
 `/cai:fix` pushes and opens pull requests, so it asks once at most: which
@@ -49,6 +50,16 @@ no pre-approved permissions, so Claude Code asks before each `git push` and
 `gh pr create` unless you saved allow rules such as `Bash(git push *)` and
 `Bash(gh pr create *)`; a rule matches the text of a command and is not a
 safety boundary.
+
+`/cai:fix` also claims each item before working on it, so two sessions do not
+fix the same one. The claim is local only: it lives in `config_root()/cai/`
+(`CLAUDE_CONFIG_DIR`, or `~/.claude` when unset), only sessions with the same
+`config_root()` see it, and nothing is written to the issue or ticket. Two
+sessions resumed from the same conversation share one session ID and do not
+block each other. A claim stops blocking after 30 minutes; to clear one sooner,
+copy the issue URL and the three words of the blocked item's `detail` into
+`/cai:fix-unclaim`. It deletes only the exact match, and the claim it names may
+belong to a session that is still working.
 
 ## What you see when one fires
 

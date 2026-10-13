@@ -106,6 +106,7 @@ Tools, reachable any time:
 |---|---|
 | `/cai:debug` | Find the root cause of a bug before proposing any fix. |
 | `/cai:fix` | Fix a GitHub issue, the issues you pick from a list, a pull request's review threads, or one Jira ticket, and push the result with no stop in between: it pushes, opens pull requests and replies to review threads itself, and never merges. |
+| `/cai:fix-unclaim` | Clear one named local session claim left by `/cai:fix`, without waiting for it to expire. |
 | `/cai:codemap` | Build, refresh, check or query an optional index of the repository's files and symbols under `.cai/codemap/`; once it exists, the track hands the read-side agents its state line so they start from it instead of re-reading the same files. It ignores itself in git and can be deleted at any time. |
 | `/cai:refactor` | Restructure code without changing its behaviour; every one of Fowler's 72 named refactorings is also its own `/cai:<name>`. |
 | `/cai:git` | Run git and `gh` operations on the `chore` tier instead of the main session model. |
@@ -123,6 +124,16 @@ nothing is written back to Jira. It carries no pre-approved permissions, so
 Claude Code asks before each `git push` and `gh pr create` unless you have
 saved allow rules such as `Bash(git push *)` and `Bash(gh pr create *)`; a
 rule matches the text of a command and is not a safety boundary.
+
+`/cai:fix` also records which session is working on which item, so two
+sessions do not fix the same one. That claim lives only on your machine, in
+`config_root()/cai/` (`CLAUDE_CONFIG_DIR`, or `~/.claude` when unset), and is
+visible only to sessions with the same `config_root()`; nothing is written to
+the issue or the ticket. Two sessions resumed from the same conversation share
+one session ID and do not block each other. A claim older than 30 minutes no
+longer blocks; to clear one sooner, type `/cai:fix-unclaim` with the issue URL
+and the three words the blocked item's `detail` shows (platform, session, start
+time). It starts only when typed and deletes only an exact match.
 
 What to type when: [MANUAL.md](MANUAL.md#what-to-type). Full descriptions, the
 subagents, and the guard and hooks that are always on:

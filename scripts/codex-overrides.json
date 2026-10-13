@@ -1,6 +1,26 @@
 {
   "overrides": [
     {
+      "target": "scripts/fix_claims.py",
+      "anchor": [
+        "SESSION_ID_ENV = \"CLAUDE_CODE_SESSION_ID\""
+      ],
+      "replacement": [
+        "SESSION_ID_ENV = \"CODEX_THREAD_ID\""
+      ],
+      "why": "D3 and Tier 3: Codex claims use the conversation thread identity provided by this platform."
+    },
+    {
+      "target": "scripts/fix_claims.py",
+      "anchor": [
+        "PLATFORM = \"claude\""
+      ],
+      "replacement": [
+        "PLATFORM = \"codex\""
+      ],
+      "why": "D3 and Tier 3: the registry records this platform's name alongside its session identity."
+    },
+    {
       "target": "agents/designer.md",
       "anchor": [
         "The PreToolUse hook scopes `Bash` to this plugin's `design_probe.py`,",

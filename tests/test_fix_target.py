@@ -779,7 +779,7 @@ WORDS = ["pr-opened", "replied-fixed", "replied-not-fixed", "cannot-reproduce",
          "held-path", "dependency-not-fixed", "dependency-cycle",
          "committed-not-pushed", "pushed-no-pr", "replied-not-resolved",
          "pushed-not-replied", "paths-mismatch", "not-selected", "has-open-pr",
-         "dependency-not-selected", "local-branch-kept"]
+         "dependency-not-selected", "local-branch-kept", "claimed-elsewhere"]
 FILL = {"url": "https://github.com/o/r/pull/9", "branch": "fix/1-x", "detail": "abc1234",
         "paths": ["a.py"]}
 
@@ -797,8 +797,8 @@ def results(*items, kind="issue-list"):
     return {"kind": kind, "items": list(items)}
 
 
-def test_outcomes_are_the_twenty_words_with_english_sentences():
-    assert sorted(ft.OUTCOMES) == sorted(WORDS) and len(ft.OUTCOMES) == 20
+def test_outcomes_are_the_twenty_one_words_with_english_sentences():
+    assert sorted(ft.OUTCOMES) == sorted(WORDS) and len(ft.OUTCOMES) == 21
     for sentence in ft.OUTCOMES.values():
         assert sentence.endswith(".") and sentence.isascii()
     assert "/cai:track <url>" in ft.OUTCOMES["too-large"]
@@ -809,6 +809,7 @@ def test_required_fields_match_the_design():
     assert ft.REQUIRED["held-path"] == ("branch", "paths")
     assert ft.REQUIRED["too-large"] == ("url",)
     assert ft.REQUIRED["replied-fixed"] == ("detail",)
+    assert ft.REQUIRED["claimed-elsewhere"] == ("url", "detail")
     assert ft.REQUIRED.get("cannot-reproduce", ()) == ()
 
 
@@ -909,6 +910,40 @@ def test_report_command_prints_the_report(tmp_path, capsys):
     expect.write_text("#1\n\n", encoding="utf-8")
     code, out = run(capsys, "report", "--results-file", res, "--expect-file", str(expect))
     assert code == 0 and out.splitlines()[0] == "#1 not-selected"
+
+
+@pytest.mark.parametrize("kind,url,detail", [
+    ("issue", "https://github.com/o/r/issues/1",
+     "claude 6f1c-session 2026-10-13T08:00:00.123Z"),
+    ("jira", "https://jira.example.com/browse/PROJ-12",
+     "codex thread-123 2026-10-13T08:00:00.456Z"),
+])
+def test_report_claimed_elsewhere_keeps_url_and_raw_detail(
+        tmp_path, capsys, kind, url, detail):
+    res = write_json(tmp_path / "r.json", results(
+        item("#1", "claimed-elsewhere", url=url, detail=detail), kind=kind))
+    code, out = run(capsys, "report", "--results-file", res)
+    assert code == 0
+    assert out.splitlines() == [
+        "#1 claimed-elsewhere " + url,
+        "  Another session on this machine is working on it; once that session "
+        "has ended, /cai:fix-unclaim with this URL and the detail's values clears "
+        "its claim.",
+        "  detail: " + detail,
+    ]
+
+
+@pytest.mark.parametrize("field", ["url", "detail"])
+def test_report_claimed_elsewhere_requires_url_and_detail(tmp_path, capsys, field):
+    row = item("#1", "claimed-elsewhere", url="https://github.com/o/r/issues/1",
+               detail="claude 6f1c-session 2026-10-13T08:00:00.123Z")
+    del row[field]
+    res = results(row)
+    problem = "#1: outcome claimed-elsewhere needs " + field
+    assert ft.check_results(res, None) == [problem]
+    path = write_json(tmp_path / "r.json", res)
+    code, out = run(capsys, "report", "--results-file", path)
+    assert code == 2 and out.splitlines() == ["stopped results-invalid: " + problem]
 
 
 def test_report_command_stops_on_an_invalid_results_file(tmp_path, capsys):

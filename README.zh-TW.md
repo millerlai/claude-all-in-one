@@ -83,6 +83,7 @@ flowchart TB
 |---|---|
 | `/cai:debug` | 在提出任何修正之前，先找出 bug 的根本原因。 |
 | `/cai:fix` | 修正一個 GitHub issue、從清單中挑選的多個 issue、一個 pull request 的行內留言（review thread），或一張 Jira ticket，並一路推送到底、中途不停：它會自己 push、開 pull request、回覆留言，而且從不合併。 |
+| `/cai:fix-unclaim` | 清除 `/cai:fix` 留下的一筆指定的本機工作階段（session）認領，不必等它過期。 |
 | `/cai:codemap` | 建立、更新、檢查或查詢 `.cai/codemap/` 底下一份選用的檔案與符號索引（index）；索引存在時，track 會把它的狀態行交給讀取端代理人，讓他們從索引開始，而不是每次重讀同一批檔案。索引會讓 git 忽略自己，隨時可以刪除。 |
 | `/cai:refactor` | 在不改變行為的前提下重整程式碼；Fowler 目錄裡的 72 種具名重構，也各自是一個 `/cai:<名稱>`。 |
 | `/cai:git` | 在 `chore` 等級而非主 session 的模型上執行 git 與 `gh` 操作。 |
@@ -95,6 +96,8 @@ flowchart TB
 | `/cai:viewer` | 開啟 [Agent Viewer](#agent-viewer)。 |
 
 `/cai:fix` 只在你親自輸入時才會啟動。給它 issues 的網址時，它會先問一次要修哪些；Jira ticket 需要先用官方方式登入 `acli`，而且不會寫回 Jira。它不帶任何預先放行的權限，所以 Claude Code 會在每次 `git push` 與 `gh pr create` 之前詢問，除非你已存了 allow 規則（例如 `Bash(git push *)` 與 `Bash(gh pr create *)`）；規則比對的是指令的文字，不是安全邊界。
+
+`/cai:fix` 也會記下哪個 session 正在處理哪個項目，避免兩個 session 修同一件事。這筆認領只存在你的這台機器上，位於 `config_root()/cai/`（`CLAUDE_CONFIG_DIR`，未設定時為 `~/.claude`），只有 `config_root()` 相同的 session 看得到；不會寫到 issue 或 ticket。接續同一個對話、共用同一個 session 代號的兩個 session 不會互相擋住。超過 30 分鐘的認領不再擋人；想提早清除，輸入 `/cai:fix-unclaim`，帶上 issue 網址與被擋下項目 `detail` 裡的三個詞（平台、session 代號、開始時間）。它只在你親自輸入時才會啟動，而且只刪除完全相符的那一筆。
 
 什麼時候該輸入什麼：[MANUAL.md](MANUAL.md#what-to-type)。每個指令的完整說明、子代理，以及一律常駐的 guard（守門腳本）與 hook：[REFERENCE.md](REFERENCE.md)。這兩份目前只有英文版。
 

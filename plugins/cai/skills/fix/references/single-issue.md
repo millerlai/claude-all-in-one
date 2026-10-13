@@ -26,15 +26,44 @@ then act on the `disposition` line:
   Go to step 7.
 - `local-branch-kept <branch>`: the item ends with outcome `local-branch-kept`
   and that `branch`. Go to step 7.
-- `complete-push <branch>`: an earlier run committed the fix and did not push
-  it. Run `git switch <branch>`, then `pushable` and the rest of step 6.
-- `complete-pr <branch>`: an earlier run pushed it and did not open the pull
-  request. Run `git switch <branch>`, then only the `gh pr create` part of step 6.
-- `fresh`: carry on with step 2.
+- `complete-push <branch>`: Claim the item first, as "Claim the item" below says.
+  An earlier run committed the fix and did not push it. Run `git switch <branch>`,
+  then `pushable` and the rest of step 6.
+- `complete-pr <branch>`: Claim the item first, as "Claim the item" below says.
+  An earlier run pushed it and did not open the pull request. Run
+  `git switch <branch>`, then only the `gh pr create` part of step 6.
+- `fresh`: Claim the item first, as "Claim the item" below says. Carry on with
+  step 2.
+
+### Claim the item
+
+Run this with the name on the `branch` line of step 1 or the branch in its
+`disposition`:
+
+```text
+python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_claims.py register --owner <owner> --repo <repo> --issue <N> --branch <branch>
+```
+
+Exit 3: the item ends with outcome `claimed-elsewhere`. Its `url` is the issue
+URL that `classify` printed for a single issue, or this issue's `url` in the
+list file for an issue list. Its `detail` is the three words after `elsewhere`
+on the printed line, unchanged. Go to step 7 without releasing a claim.
+
+Exit 0: if it printed `held`, remember the `held` line's start time only for
+this item, for release. Add every printed line other than `held` to this item's
+notes. If there is no `held` line, carry on without a claim and do not release.
+
+Exit 1: correct the command line as its error says and retry once. If it still
+exits 1, carry on without a claim and add the error line to this item's notes.
+
+A session claim is written only to this machine's user configuration directory:
+sessions see each other's claims only when they share that directory, and
+nothing is written to the issue or the ticket.
 
 If a `claim` line was printed, add one note to the item: the issue is claimed by
-a track, named from that line. Work on it anyway. If `claims unreadable` was
-printed, add a note saying the claims could not be read.
+a track, named from that line. This is a track's claim on the issue, not a
+session claim. Work on it anyway. If `claims unreadable` was printed, add a
+note saying the track claims could not be read.
 
 ## 2. Judge the size and the kind
 
@@ -60,7 +89,8 @@ First, unless an issue list sent this item here (its step 2 already ran this),
 run the baseline tests on the base ref: `git switch --detach <base_ref>`, then
 each entry of `test.commands` as its `command` followed by its `whole` (empty
 for most), with the Bash tool's timeout set to 600000 milliseconds. If any
-command exits non-zero, switch back to the start ref (`git switch <start_ref>`,
+command exits non-zero, first release this item's session claim as step 7 says,
+then switch back to the start ref (`git switch <start_ref>`,
 or `git switch --detach <start_ref>` when `start_detached` is true), reply with
 one line, "baseline tests fail on <base_ref>" naming the command, and stop: no
 branch is made. Otherwise switch back the same way and carry on.
@@ -99,8 +129,9 @@ Write the `paths:` lines of its report to a file in the temp directory, then run
 python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_target.py changes --project-dir <root> --expect-head <start_sha> --expect-branch <branch> --reported-file <reported file> --pathspec-out <pathspec file> --ready-file <ready file>
 ```
 
-Exit 1 or 2: paste its output and stop the run without adding, committing or
-switching branches. In particular, `stopped pre-existing-untracked` means a
+Exit 1 or 2: first release this item's session claim with step 7's release
+command only, then paste the output of `changes` and stop the run without
+adding, committing or switching branches. In particular, `stopped pre-existing-untracked` means a
 pre-existing path now has tracked changes; never put it in a `wip:` commit.
 
 Take the first row that matches:
@@ -164,6 +195,16 @@ On success the item ends with `pr-opened`; its `url` is the address that command
 printed, its `branch` is the branch, and its `paths` are the paths of the commit.
 
 ## 7. Go back
+
+If this item holds a session claim (step 1 printed `held`), release it first.
+Use the exact start time remembered for this item as `<started>`:
+
+```text
+python ${CLAUDE_PLUGIN_ROOT}/scripts/fix_claims.py release --owner <owner> --repo <repo> --issue <N> --started <started>
+```
+
+Add every printed line other than `released` to this item's notes. If this
+item did not get `held`, do not release a claim.
 
 Switch back to where the run started: `git switch <start_ref>`, or
 `git switch --detach <start_ref>` when `start_detached` is true. The working

@@ -40,6 +40,13 @@ def _no_live_session(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_config_and_codex_session(tmp_path, monkeypatch):
+    """Keeps registry writes and session identity off the developer's state."""
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _isolated_central_ledger(tmp_path, monkeypatch):
     """Keeps the suite off the developer's real central ledger.
 

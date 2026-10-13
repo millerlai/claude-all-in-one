@@ -10,6 +10,12 @@ Follow `single-issue.md` for everything this file does not change. The result of
 the item is one entry for the final report: `{"id": "<KEY>", "outcome": <word>,
 ...}`, with the fields that word needs and any `notes`.
 
+For every `fix_claims.py` `register` or `release` command in `single-issue.md`,
+replace `--owner <owner> --repo <repo> --issue <N>` with
+`--host '<host>' --key <KEY>`: claiming in step 1, releasing when baseline tests
+fail, releasing when `changes` exits 1 or 2, and releasing in step 7. When a claim
+is blocked, its `url` is the ticket URL that `classify` printed.
+
 Jira is read, never written: nothing is posted to the ticket, no status or
 assignee is changed, and nothing is commented. The pull request carries the
 ticket URL; the ticket carries nothing.
@@ -43,8 +49,8 @@ Exit 2: paste the line it printed and stop. When the reason is `jira-unreadable`
 the line names the two ways to log in; do not start either one yourself.
 Otherwise paste its output as it is, then act on the `disposition` line exactly
 as step 1 of `single-issue.md` does: the same five dispositions, the same
-outcomes, the same steps afterwards. A ticket has no claims, so there is no
-claim line.
+outcomes, the same steps afterwards. A ticket has no track claims, so there is
+no `claim` line; the session claim in step 1 still applies.
 
 ## 2. Judge, branch, dispatch
 
