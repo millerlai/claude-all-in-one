@@ -104,3 +104,49 @@ def test_listing_the_tree_waits_longer_than_other_git_calls(tmp_path, monkeypatc
     monkeypatch.setattr(inventory.preflight, "git", recording)
     inventory.list_tracked(top)
     assert seen == [inventory.LIST_TIMEOUT] and inventory.LIST_TIMEOUT > 5
+
+
+def test_the_partial_list_after_build_is_capped(tmp_path, capsys, monkeypatch):
+    files = {"m%02d.py" % i: "x = %d\n" % i for i in range(13)}
+    top = make_repo(tmp_path, files)
+
+    def crash(path, language, data):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(idx.symbols, "extract", crash)
+    assert codemap_cli.main(["build", "--project-dir", top]) == 0
+    lines = capsys.readouterr().out.splitlines()
+
+    assert len([line for line in lines if line.startswith("  partial: ")]) == \
+        preflight.MAX_CONFLICTS_SHOWN
+    assert lines[-1] == "  … and 3 more"
+
+
+def _state_seen_as_missing(monkeypatch):
+    """The state file is absent when status first looks and there when it
+    loads: another session's build finished in between."""
+    real = os.path.lexists
+    monkeypatch.setattr(idx.os.path, "lexists",
+                        lambda p: False if p.endswith(store.STATE_NAME) else real(p))
+
+
+def test_a_state_file_that_appears_mid_status_is_compared_as_usual(tmp_path, monkeypatch):
+    top = make_repo(tmp_path, FILES)
+    idx.build(top)
+    write(tmp_path, "a.py", "def gamma():\n    pass\n")
+    _state_seen_as_missing(monkeypatch)
+
+    assert idx.status(top).word == "stale"
+
+
+def test_a_state_file_that_appears_mid_status_with_git_failing(tmp_path, monkeypatch):
+    top = make_repo(tmp_path, FILES)
+    idx.build(top)
+    _state_seen_as_missing(monkeypatch)
+
+    def fail(_top):
+        raise inventory.GitFailed("x")
+
+    monkeypatch.setattr(idx.inventory, "inventory", fail)
+    st = idx.status(top)
+    assert (st.word, st.detail) == ("unsupported", "git did not answer")
