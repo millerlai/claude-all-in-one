@@ -517,7 +517,8 @@ Units all green is not done:
    say in the report that the check did not run, and skip the rest of
    this item — except that on a rerun from a finished record the report
    still names as written each `- Write:` whose `- Line:` the file already
-   holds, and the `git check-ignore` step below still runs for them. A
+   holds, quoting its `- Replaces:` line when it names one, and the
+   `git check-ignore` step below still runs for them. A
    finished record with no `- Line:` entry runs no check. With no finished
    record for this design, record the
    outcome in one edit to `implementation-notes.md` before
@@ -549,7 +550,8 @@ Units all green is not done:
    names — is replaced in place. It stays under the heading it was under,
    and the report names that heading, on a rerun too, not the one its
    `- Write:` entry says. With no such line, the new line goes
-   after the last entry under its `- Write:` heading, or directly under
+   after the last entry under its `- Write:` heading, and past any `_Avoid_`
+   lines directly under that entry, or directly under
    that heading when it has none; when the file lacks that `## Domain` or
    `## Process` heading, add it at the end of the file first; those two
    are the only headings build ever adds. Hand-written `_Avoid_` lines,
@@ -561,7 +563,10 @@ Units all green is not done:
    that name is neither the recorded line nor the line the record says it
    replaces — or the record names a line to replace and the file has no
    line of that name — it was changed by hand in between: write nothing
-   for that term and quote what the file holds in the report. On a rerun
+   for that term and quote what the file holds in the report. A `- Write:`
+   entry whose `- Replaces:` says nothing, and whose name no line in the file
+   carries, is written again: a rerun cannot tell a line deleted by hand
+   from one an interrupted run never wrote. On a rerun
    from a finished record, the report is built from the record: each
    `- Write:` entry counts as written and its `- Replaces:` line as
    replaced, whichever run wrote it, unless it was left alone as changed
@@ -578,7 +583,10 @@ Units all green is not done:
    Exit 0 means the project's `.gitignore` ignores it: add and commit
    nothing — never `git add -f`, never an edit to `.gitignore` — and say
    in the report that it was written but will not reach the PR. Exit 1:
-   when the commit answer is yes (Gate 1's under a track, Step 0.5's
+   when `git status --porcelain -- .claude/cai-context.md` prints nothing —
+   a rerun that found every line already written — there is nothing to
+   commit, so skip the commit and say nothing about it. Otherwise, when the
+   commit answer is yes (Gate 1's under a track, Step 0.5's
    standing alone), commit this write on its
    own by its path, the same way Step 3's commit does; otherwise leave it
    in the working tree. Any other exit: commit nothing, and quote git's
