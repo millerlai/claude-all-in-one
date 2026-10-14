@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.57.0 — 2026-10-14
+
+This release aligns the common status-line fields in Codex and Claude Code and adds context capacity and input/output token counts to Claude Code's status line.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.56.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.56.0 to 1.57.0. Re-running setup refreshes cai's installed status-line script. (#459)
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex. Setup keeps any existing status-line choice; use `/statusline` to select the new fields and order for an already configured footer. (#459)
+- An in-progress track keeps its saved state and ledger; this release does not change what either records.
+
+### Status lines
+
+- Codex setup's default status line now shows the model with its live reasoning effort, current directory, context window, token usage, and git branch, in that order. Existing selections, including an empty list that hides the footer, remain unchanged. (#459)
+- Claude Code's status line follows the same common field order, adds the context window's capacity and current context's input/output token counts, and keeps its five-hour and seven-day remaining-limit gauges after the git branch. Token counts describe the latest context, not cumulative session usage. Missing fields are omitted. (#459)
+
 ## v1.56.0 — 2026-10-14
 
 This release makes setup keep a timestamped backup before it changes a file and tell a hand edit from an outdated copy by hash, lets Codex setup turn on the native status line, and fixes setup's Python checks under Windows PowerShell.
