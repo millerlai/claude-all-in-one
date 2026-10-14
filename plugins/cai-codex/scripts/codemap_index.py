@@ -11,6 +11,7 @@ import datetime
 import json
 import os
 import sys
+import time
 from typing import NamedTuple, Optional
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +55,8 @@ def _jsonl(records):
 
 def _facts_record(facts, reason):
     return {"path": facts.path, "language": facts.language, "bytes": facts.bytes,
-            "sha256": facts.sha256, "parse": "facts-only", "reason": reason,
+            "sha256": facts.sha256, "mtime_ns": facts.mtime_ns,
+            "parse": "facts-only", "reason": reason,
             "backend": None, "confidence": None, "imports": []}
 
 
@@ -77,7 +79,8 @@ def _parse(top_real, facts):
     if got.reason is not None:
         # Gone, replaced or moved out since inventory looked: what inventory
         # would record for it now, so the next status finds the same thing.
-        return _facts_record(facts._replace(bytes=None, sha256=None), got.reason), [], None
+        return _facts_record(facts._replace(bytes=None, sha256=None, mtime_ns=None),
+                             got.reason), [], None
     if len(got.data) > MAX_PARSE_BYTES:
         return _facts_record(facts, "too-large"), [], None
     # The record describes the bytes parsed, not the ones inventory hashed.
@@ -95,9 +98,12 @@ def _parse(top_real, facts):
     return record, ex.symbols, None
 
 
-def _write(top, facts, previous):
+def _write(top, facts, previous, scanned_at_ns):
     """Writes the whole index for `facts`, reusing `previous` records for files
-    whose hash is unchanged and which were not partial. Returns the Result."""
+    whose hash is unchanged and which were not partial. `scanned_at_ns` is when
+    the inventory behind `facts` started; every record describes its file as of
+    then, which is what lets the next inventory trust one unread (#448).
+    Returns the Result."""
     reuse_files, reuse_symbols = {}, {}
     if previous is not None:
         retry = {entry["path"] for entry in previous.state.get("partial", [])}
@@ -109,12 +115,17 @@ def _write(top, facts, previous):
                 reuse_files[path] = rec
                 reuse_symbols[path] = by_path.get(path, [])
     top_real = os.path.realpath(top)
-    records, all_symbols, partial, reparsed = [], [], [], 0
+    records, all_symbols, partial, reparsed, touched = [], [], [], 0, 0
     for f in facts:
         old = reuse_files.get(f.path)
         if old is not None and old.get("sha256") == f.sha256 and (
                 f.sha256 is not None or old.get("reason") == f.reason):
             record, syms, crash = old, reuse_symbols[f.path], None
+            if old.get("mtime_ns") != f.mtime_ns:
+                # Same bytes, new mtime: keep the new one, or the record can
+                # never vouch for the file again and every run rereads it.
+                record = dict(old, mtime_ns=f.mtime_ns)
+                touched += 1
         else:
             record, syms, crash = _parse(top_real, f)
             reparsed += 1
@@ -124,7 +135,7 @@ def _write(top, facts, previous):
         all_symbols.extend(syms)
     all_symbols.sort(key=lambda s: (s["path"], s["start_line"], s["qualified_name"]))
     head = _head(top)
-    if _unchanged(previous, records, reparsed, partial, head):
+    if not touched and _unchanged(previous, records, reparsed, partial, head):
         # The usual case for a dispatch after the last one: rewriting every
         # file would only move built_at, at a cost that grows with the repo.
         shards = sum(1 for name in previous.state["artifacts"] if name.startswith("packages/"))
@@ -149,7 +160,7 @@ def _write(top, facts, previous):
                      "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                      "head": head, "file_count": len(records), "artifacts": artifacts,
                      "partial": [{"path": p, "reason": r} for p, r in partial],
-                     **store.extractor_stamp()}
+                     "scanned_at_ns": scanned_at_ns, **store.extractor_stamp()}
             staged.append(store.commit_state(top, state))
             store.publish(staged)
         except BaseException:
@@ -173,16 +184,27 @@ def _unchanged(previous, records, reparsed, partial, head):
             and [r["path"] for r in records] == sorted(previous.files))
 
 
+def _trusted(index):
+    """inventory's records and scanned_at_ns arguments from a loaded index."""
+    if index is None:
+        return None, None
+    return index.files, index.state.get("scanned_at_ns")
+
+
 def build(top: str) -> Result:
     # The inventory runs first so a directory that is not a repository is
     # refused before a single byte is written under it.
-    return _write(top, inventory.inventory(top), None)
+    scanned_at_ns = time.time_ns()
+    return _write(top, inventory.inventory(top), None, scanned_at_ns)
 
 
 def update(top: str) -> Optional[Result]:
     """None, with nothing written, when there is no index: only a person's
     `build` creates one. A damaged index is rebuilt in full."""
-    facts = inventory.inventory(top)
+    scanned_at_ns = time.time_ns()
+    # Listed first, so a directory that is not a repository is refused before
+    # anything under it is read.
+    listed = inventory.list_tracked(top)
     # Before load, not only in ensure_dir: a state.json that is itself tracked
     # came with the repository, and nothing in it may be parsed.
     if store.tracked_inside(top):
@@ -194,7 +216,8 @@ def update(top: str) -> Optional[Result]:
     else:
         if previous is None:
             return None
-    return _write(top, facts, previous)
+    facts = inventory.inventory(top, *_trusted(previous), listed=listed)
+    return _write(top, facts, previous, scanned_at_ns)
 
 
 def _unsupported(reason):
@@ -212,15 +235,10 @@ def _named(paths, verb):
 
 def status(top: str) -> Status:
     try:
-        # With no state file there is nothing to compare the tree with, so
-        # list it -- which still says whether this is a repository -- but
-        # read no file (#403). A state file appearing in between is read as
-        # usual below.
-        if os.path.lexists(os.path.join(store.index_dir(top), store.STATE_NAME)):
-            facts = inventory.inventory(top)
-        else:
-            inventory.list_tracked(top)
-            facts = None
+        # Listed before the index is read, which says whether this is a
+        # repository; files are read only once there is an index to compare
+        # them with, and then only those it no longer vouches for (#403, #448).
+        listed = inventory.list_tracked(top)
     except inventory.NotARepository:
         return _unsupported("not a git repository")
     except inventory.GitFailed:
@@ -244,11 +262,10 @@ def status(top: str) -> Status:
         return _unsupported("git did not answer")
     if index is None:
         return Status("absent", "", [])
-    if facts is None:
-        try:
-            facts = inventory.inventory(top)
-        except (inventory.NotARepository, inventory.GitFailed, OSError):
-            return _unsupported("git did not answer")
+    try:
+        facts = inventory.inventory(top, *_trusted(index), listed=listed)
+    except OSError as exc:
+        return _unsupported("%s while reading the tree" % type(exc).__name__)
     # Hash only: a record's `reason` is why it was not parsed, which the file
     # itself does not say, so it cannot be compared with a fresh inventory.
     known = {p: r.get("sha256") for p, r in index.files.items()}

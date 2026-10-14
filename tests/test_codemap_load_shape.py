@@ -103,6 +103,10 @@ BAD_SHAPES = {
     "symbol-name-is-null": _records_edit("symbols.jsonl", _put("name", None)),
     "symbol-kind-is-an-integer": _records_edit("symbols.jsonl", _put("kind", 7)),
     "end-line-is-a-string": _records_edit("symbols.jsonl", _put("end_line", "9")),
+    # What the stat short-cut compares before it trusts a record unread (#448).
+    "mtime-ns-is-a-string": _records_edit("files.jsonl", _put("mtime_ns", "1")),
+    "bytes-is-a-string": _records_edit("files.jsonl", _put("bytes", "23")),
+    "scanned-at-is-missing": _state_edit(lambda s: s.pop("scanned_at_ns")),
 }
 
 

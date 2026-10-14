@@ -78,17 +78,18 @@ def test_a_state_json_that_cannot_be_opened_names_the_error(tmp_path, monkeypatc
 
 # --- status's unsupported branches ----------------------------------------
 
-@pytest.mark.parametrize("raised, detail", [
-    (inventory.GitFailed("x"), "git did not answer"),
-    (PermissionError(13, "denied"), "PermissionError while reading the tree"),
+@pytest.mark.parametrize("where, raised, detail", [
+    ("list_tracked", inventory.GitFailed("x"), "git did not answer"),
+    ("list_tracked", PermissionError(13, "denied"), "PermissionError while reading the tree"),
+    ("inventory", PermissionError(13, "denied"), "PermissionError while reading the tree"),
 ])
-def test_status_when_the_inventory_fails(tmp_path, monkeypatch, raised, detail):
+def test_status_when_the_inventory_fails(tmp_path, monkeypatch, where, raised, detail):
     top = _built(tmp_path)
 
-    def fail(_top):
+    def fail(*args, **kwargs):
         raise raised
 
-    monkeypatch.setattr(idx.inventory, "inventory", fail)
+    monkeypatch.setattr(idx.inventory, where, fail)
     st = idx.status(top)
     assert (st.word, st.detail) == ("unsupported", detail)
 

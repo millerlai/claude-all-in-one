@@ -40,3 +40,17 @@ def make_repo(top, files, commit=True):
     if commit:
         git(top, "commit", "-q", "-m", "init")
     return str(top)
+
+
+def same_mtimes(src, dst):
+    """Gives every file under `dst` that also exists under `src` src's mtime.
+    File records carry mtime_ns (#448), so two trees compare byte for byte
+    only when their files were last written at the same instant too."""
+    for dirpath, dirnames, names in os.walk(str(dst)):
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".cai")]
+        for name in names:
+            rel = os.path.relpath(os.path.join(dirpath, name), str(dst))
+            other = os.path.join(str(src), rel)
+            if os.path.isfile(other):
+                ns = os.stat(other).st_mtime_ns
+                os.utime(os.path.join(dirpath, name), ns=(ns, ns))

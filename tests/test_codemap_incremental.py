@@ -3,7 +3,7 @@ import os
 
 import codemap_cli
 import codemap_index as idx
-from codemap_repo import git, make_repo, write
+from codemap_repo import git, make_repo, same_mtimes, write
 
 BASE = {
     "a.py": "def a():\n    return 1\n",
@@ -40,6 +40,7 @@ def test_update_after_one_change_reparses_one_and_equals_a_full_build(tmp_path):
 
     assert (res.word, res.reparsed, res.total) == ("fresh", 1, 5)
     make_repo(two, {**BASE, "a.py": changed})
+    same_mtimes(one, two)
     idx.build(str(two))
     assert _data(one) == _data(two)
     assert "extra" in _data(one)["symbols.jsonl"].decode("utf-8")
@@ -61,6 +62,7 @@ def test_update_picks_up_added_and_deleted_files(tmp_path):
     expected = {k: v for k, v in BASE.items() if k != "pkg/c.go"}
     expected["new.py"] = "def n():\n    pass\n"
     make_repo(two, expected)
+    same_mtimes(one, two)
     idx.build(str(two))
     assert _data(one) == _data(two)
     assert idx.status(str(one)).word == "fresh"
@@ -138,6 +140,7 @@ def test_sharded_index_round_trips_updates_and_is_swept(tmp_path):
     write(one, "pkg2/m3.py", changed)
     assert idx.update(str(one)).reparsed == 1
     make_repo(two, {**files, "pkg2/m3.py": changed})
+    same_mtimes(one, two)
     idx.build(str(two))
     assert _data(one) == _data(two)
     assert idx.status(str(one)).word == "fresh"

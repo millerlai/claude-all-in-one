@@ -8,7 +8,7 @@ import sys
 import codemap_index as idx
 import codemap_store as store
 import codemap_symbols as symbols
-from codemap_repo import make_repo
+from codemap_repo import make_repo, same_mtimes
 
 FILES = {"a.py": "def f(x):\n    return x\n", "b.py": "def g():\n    pass\n", "r.md": "# r\n"}
 PARTS = ("files.jsonl", "symbols.jsonl", "repo-map.md")
@@ -40,9 +40,10 @@ def _parts(top):
     return out
 
 
-def _full_build_elsewhere(tmp_path_factory):
+def _full_build_elsewhere(tmp_path_factory, like):
     other = tmp_path_factory.mktemp("full")
     make_repo(other, FILES)
+    same_mtimes(like, other)
     idx.build(str(other))
     return _parts(str(other))
 
@@ -52,14 +53,14 @@ def _rebuilt_in_full(top, tmp_path_factory):
     res = idx.update(top)
     assert res.reparsed == res.total
     assert idx.status(top).word == "fresh"
-    assert _parts(top) == _full_build_elsewhere(tmp_path_factory)
+    assert _parts(top) == _full_build_elsewhere(tmp_path_factory, top)
 
 
-def test_a_new_index_carries_the_stamp_and_schema_two(tmp_path):
+def test_a_new_index_carries_the_stamp_and_schema_three(tmp_path):
     top = _built(tmp_path)
     with open(_state_path(top), encoding="utf-8") as fh:
         state = json.load(fh)
-    assert state["schema_version"] == 2
+    assert state["schema_version"] == 3
     assert state["extractor_version"] == store.EXTRACTOR_VERSION
     assert state["python_version"] == "%d.%d" % sys.version_info[:2]
     assert store.extractor_stamp() == {"extractor_version": store.EXTRACTOR_VERSION,
