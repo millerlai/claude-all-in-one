@@ -22,7 +22,8 @@ import preflight  # noqa: E402
 INDEX_PARTS = (".cai", "codemap")
 TRACKED_REASON = ".cai/codemap holds tracked files"
 # 3: file records carry mtime_ns and state.json scanned_at_ns (#448).
-SCHEMA_VERSION = 3
+# 4: state.json carries files_with_symbols, so status need not parse symbols.jsonl (#449).
+SCHEMA_VERSION = 4
 # Covers every piece of code that turns a file's path and bytes into records:
 # codemap_inventory.LANGUAGES, MAX_PARSE_BYTES and the reasons read_tracked
 # returns, codemap_index._facts_record and _parse, and all of
@@ -67,7 +68,7 @@ class Staged(NamedTuple):
 class Index(NamedTuple):
     state: dict
     files: dict      # path -> file record (dict)
-    symbols: list    # symbol records, file order
+    symbols: Optional[list]   # symbol records, file order; None from load(symbols=False)
 
 
 def extractor_stamp() -> dict:
@@ -359,7 +360,9 @@ def _is_state(state: dict) -> bool:
     """The state.json fields the readers use that `load` does not already check.
     Only fields a reader takes are looked at: one nobody reads cannot hurt."""
     partial = state.get("partial", [])
+    count = state.get("files_with_symbols")
     return _str_or_none(state.get("head")) and _is_int(state.get("scanned_at_ns")) \
+        and _is_int(count) and count >= 0 \
         and isinstance(partial, list) and all(
         isinstance(entry, dict) and isinstance(entry.get("path"), str) for entry in partial)
 
@@ -393,9 +396,12 @@ def _records(blob: bytes) -> list:
     return parts
 
 
-def load(top: str) -> Optional[Index]:
+def load(top: str, symbols: bool = True) -> Optional[Index]:
     """None when there is no state file; raises IndexUnreadable when the state
-    file or any file it vouches for cannot be trusted."""
+    file or any file it vouches for cannot be trusted. symbols=False (status)
+    still checks symbols.jsonl against its sha256 but does not parse it or
+    check its records' shape -- the bulk of a large index's load, for a count
+    state.json already holds -- and leaves Index.symbols None (#449)."""
     root = _check_inside_repository(top)
     try:
         raw = _read(os.path.join(root, STATE_NAME))
@@ -440,15 +446,17 @@ def load(top: str) -> Optional[Index]:
             if not _is_file_record(record):
                 raise ValueError("not a file record")
             files[record["path"]] = record
-        symbols = []
-        for line in _records(blobs[SYMBOLS_NAME]):
-            record = json.loads(line)
-            if not _is_symbol_record(record):
-                raise ValueError("not a symbol record")
-            symbols.append(record)
+        records = None
+        if symbols:
+            records = []
+            for line in _records(blobs[SYMBOLS_NAME]):
+                record = json.loads(line)
+                if not _is_symbol_record(record):
+                    raise ValueError("not a symbol record")
+                records.append(record)
     except (ValueError, KeyError, TypeError, UnicodeDecodeError):
         raise IndexUnreadable("a data file holds a line that is not a record")
-    return Index(state, files, symbols)
+    return Index(state, files, records)
 
 
 def sweep(top: str, keep: set) -> None:

@@ -105,7 +105,7 @@ def test_status_when_the_index_directory_is_tracked(tmp_path):
 def test_status_when_git_fails_while_the_index_is_read(tmp_path, monkeypatch, where):
     top = _built(tmp_path)
 
-    def fail(*_args):
+    def fail(*_args, **_kwargs):
         raise OSError("git did not answer")
 
     monkeypatch.setattr(idx.store, where, fail)

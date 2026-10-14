@@ -63,7 +63,7 @@ def test_records_carry_mtime_and_the_state_its_scan_time(tmp_path):
     idx.build(top)
     assert {p: r["mtime_ns"] for p, r in _files(top).items()} == {p: OLD for p in FILES}
     assert isinstance(_state(top)["scanned_at_ns"], int)
-    assert _state(top)["schema_version"] == 3
+    assert _state(top)["schema_version"] == store.SCHEMA_VERSION >= 3
 
 
 # ---- the short-cut -----------------------------------------------------------
