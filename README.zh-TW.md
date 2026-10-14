@@ -135,12 +135,25 @@ Setup 會把規則檔複製到 `~/.claude/rules/`、詢問你希望 Claude 用�
 
 `cai-codex` 是給 Codex CLI 的自動產生對應版本——同樣的分級 agents、skills 與規則，自動保持同步。它需要 `codex-cli` 0.157.1 或更新版本（用 `codex --version` 確認）；更舊的版本會悄悄地丟掉這個 marketplace 項目，不會有任何錯誤訊息。
 
+在 shell 裡安裝：
+
 ```
 codex plugin marketplace add millerlai/claude-all-in-one
 codex plugin add cai-codex@claude-all-in-one
 ```
 
-用 `--enable default_mode_request_user_input` 啟動 Codex，`$setup` 的語言問題才會以選單呈現，然後在裡面執行 `$setup`。它會寫入 `~/.codex`，所以被問到時請核准它在沙箱（sandbox，限制程式可存取範圍的隔離環境）之外執行；接著執行 `/hooks`、信任 cai 那一筆，再重啟 Codex。skills 的用法相同，只是把 `/cai:` 換成 `$`——`$track <feature>`、`$design`、`$verify`。
+接著用下面的**詢問模式**啟動 Codex，在裡面執行 `$setup`。它會寫入沙箱（sandbox，限制程式可存取範圍的隔離環境）之外的 `~/.codex`，被問到時請核准；然後執行 `/hooks`、信任 cai 那一筆，再重啟 Codex。skills 的用法相同，只是把 `/cai:` 換成 `$`——`$track <feature>`、`$design`、`$verify`。
+
+#### 啟動 Codex
+
+每個 session 都要加 `--enable default_mode_request_user_input`：有了它，`$setup` 的語言問題、track 的兩個人工關卡與 open items 選單才會以選單呈現，而不是要你打字回答。核准模式則依這個 session 要做的事來選：
+
+| 模式 | 指令 | 適用 |
+|---|---|---|
+| 詢問 | `codex --sandbox workspace-write --ask-for-approval on-request --enable default_mode_request_user_input` | 安裝、更新與 `$setup`；任何會 commit、push 或開 pull request 的 session（走到 `ship` 的 `$track`、`$git`、`$fix`）；`$viewer`。 |
+| 免核准 | `codex --sandbox workspace-write --ask-for-approval never --enable default_mode_request_user_input` | 只在 repo 內進行的工作：設計、改檔、跑測試、`$verify`、雜務。 |
+
+`--sandbox workspace-write` 讓 Codex 能在目前的工作區裡改檔、執行指令，網路則是關閉的。`--ask-for-approval never` 關掉所有核准提示，所以需要離開沙箱的步驟不會詢問，而是直接失敗。依 Codex 自己的文件，這包括寫入 `~/.codex`（`$setup`）、任何需要網路的動作（push、`gh`），以及寫入 `.git`——Codex 即使在工作區內也把它設為唯讀，所以 commit 也會失敗。這類 session 請改用詢問模式啟動。（這些在 `never` 下各自如何失敗，尚未搭配 cai 實際端到端驗證過。）
 
 哪些是等價的、哪些有降級，以及人工關卡：見 [`plugins/cai-codex/README.md`](plugins/cai-codex/README.md)。完整的安裝、更新與移除步驟：[REFERENCE.md](REFERENCE.md#using-it-with-codex-cli)。
 
@@ -156,6 +169,17 @@ marketplace 是 clone 到本機的，所以要先更新它——否則更新時�
 重啟 session——執行中的 session 不會熱載入 plugin 的 agents 或 hooks。如果這次更新改了規則，執行 `/cai:setup` 把它們複製到 `~/.claude/rules/`，再重啟一次，因為規則是在啟動時讀取的。
 
 更新沒有生效、或快取看起來損壞了：見 [REFERENCE.md](REFERENCE.md#where-the-installed-copy-lives)。
+
+### Codex CLI
+
+三個步驟，順序如下——先更新 marketplace、再安裝、最後跑 `$setup`：
+
+```
+codex plugin marketplace upgrade
+codex plugin add cai-codex@claude-all-in-one
+```
+
+然後用詢問模式（見[啟動 Codex](#啟動-codex)）啟動 Codex，再執行一次 `$setup`，讓它複製到 `~/.codex` 的規則、agents 與 hooks 跟上新版本；之後重啟 Codex。第一行會更新 Codex 在本機的這個 repo 副本——少了它，`add` 裝回去的還是快取裡的舊版。中間不需要先 `remove`。
 
 ## 模型分級
 
