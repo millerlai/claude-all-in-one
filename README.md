@@ -192,16 +192,38 @@ agents, skills, and rules, kept in sync automatically. It needs `codex-cli`
 0.157.1 or later (`codex --version`); an older one drops the marketplace entry
 silently.
 
+Install it from a shell:
+
 ```
 codex plugin marketplace add millerlai/claude-all-in-one
 codex plugin add cai-codex@claude-all-in-one
 ```
 
-Start Codex with `--enable default_mode_request_user_input` so `$setup`'s
-language question renders as a menu, then run `$setup` inside it. It writes
-into `~/.codex`, so approve running it outside the sandbox when asked; then run
-`/hooks`, trust the cai entry, and restart Codex. Skills work the same way with
-`$` in place of `/cai:` — `$track <feature>`, `$design`, `$verify`.
+Then start Codex in the **asking mode** below and run `$setup` inside it. It
+writes into `~/.codex`, outside the sandbox, so approve that when asked; then
+run `/hooks`, trust the cai entry, and restart Codex. Skills work the same way
+with `$` in place of `/cai:` — `$track <feature>`, `$design`, `$verify`.
+
+#### Starting Codex
+
+Start every session with `--enable default_mode_request_user_input`: it is what
+makes `$setup`'s language question, the track's two human gates and the
+open-items menu render as menus instead of text you type an answer into. Pick
+the approval mode by what the session will do:
+
+| Mode | Command | Use it for |
+|---|---|---|
+| Asking | `codex --sandbox workspace-write --ask-for-approval on-request --enable default_mode_request_user_input` | Install, update and `$setup`; any session that commits, pushes or opens a pull request (`$track` once it reaches `ship`, `$git`, `$fix`); `$viewer`. |
+| Unattended | `codex --sandbox workspace-write --ask-for-approval never --enable default_mode_request_user_input` | Work that stays inside the repository: designing, editing, running tests, `$verify`, chores. |
+
+`--sandbox workspace-write` lets Codex edit files and run commands in the
+current workspace with the network off. `--ask-for-approval never` turns off
+every approval prompt, so a step that needs to leave the sandbox does not ask
+— it fails. Per Codex's own documentation that covers writing `~/.codex`
+(`$setup`), anything needing the network (a push, `gh`), and writes to
+`.git`, which Codex keeps read-only even inside the workspace — so a commit
+fails too. Start such a session in the asking mode instead. (How each of those
+fails under `never` has not yet been exercised end to end with cai.)
 
 What is equivalent, what is degraded, and the human gates:
 [`plugins/cai-codex/README.md`](plugins/cai-codex/README.md). The full
@@ -224,6 +246,21 @@ hooks. If the update changed the rules, run `/cai:setup` to copy them into
 
 An update that doesn't take, or a cache that looks corrupted:
 [REFERENCE.md](REFERENCE.md#where-the-installed-copy-lives).
+
+### Codex CLI
+
+Three steps, in this order — upgrade the marketplace, install, then `$setup`:
+
+```
+codex plugin marketplace upgrade
+codex plugin add cai-codex@claude-all-in-one
+```
+
+Then start Codex in the asking mode ([Starting Codex](#starting-codex)) and
+run `$setup` again, so the rules, agents and hooks it copied into `~/.codex`
+match the new version; restart Codex afterwards. The first line refreshes
+Codex's local copy of this repository — without it, `add` reinstalls the
+cached version. No `remove` is needed in between.
 
 ## Model tiers
 
