@@ -61,9 +61,9 @@ def _item(n, state="undecided", stage="verify", kind="unfixed-minor",
           where="src/a.py:3", what=None, why="left unfixed", picked=None,
           url=None, target=None, source="report", quoted=None):
     return {"id": "open-%d" % n, "state": state, "stage": stage, "kind": kind,
-            "where": where, "what": what or "Minor %d" % n, "why": why,
-            "picked": picked, "url": url, "target": target, "source": source,
-            "quoted": quoted}
+            "severity": "major", "where": where, "what": what or "Minor %d" % n,
+            "why": why, "picked": picked, "url": url, "target": target,
+            "source": source, "quoted": quoted}
 
 
 def _record(track, *items, branch="track/x"):
@@ -169,22 +169,28 @@ def test_undecided_exits_2_on_an_unreadable_record(track):
 def test_options_block_and_menu_line_format(decided, project):
     lines = _opts(decided, project, "done", pr=7, pr_state="OPEN")
     assert lines == [
+        "Major:",
         "open-1 [verify] unfixed-minor",
         "  where: src/a.py:3",
         "  what: Minor 1",
         "  why: left unfixed",
-        "open-1 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
+        "menu: Fix major | %s | %s" % (NOTE, ACCEPT),
+        "per-item menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
 
 
-def test_options_at_stop_gives_all_four_and_prints_none_where_missing(track, project):
+def test_options_at_stop_gives_one_menu_and_prints_none_where_missing(track, project):
+    # #443: the stop asks one grouped menu, not one per item; the four
+    # per-item labels stay reachable on the `per-item menu:` line.
     _state(track)
     _record(track, _item(1, where=None), _item(2, state="fix-pending"),
             _item(3, state="accepted"))
     lines = _opts(track, project, "stop")
     assert "  where: none" in lines
-    assert _menus(lines) == [
-        "open-1 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT),
-        "open-2 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
+    assert [ln for ln in lines if ln.startswith("open-")] == [
+        "open-1 [verify] unfixed-minor", "open-2 [verify] unfixed-minor"]
+    assert [ln for ln in lines if "menu: " in ln] == [
+        "menu: Fix major | %s | %s" % (NOTE, ACCEPT),
+        "per-item menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
     assert not [ln for ln in lines if ln.startswith("note:")]
 
 
@@ -192,16 +198,17 @@ def test_options_at_stop_ignores_the_pr(track, project):
     # Before ship there is no PR; the stop never reads the ledger or git.
     _state(track)
     _record(track, _item(1))
-    assert _menus(_opts(track, project, "stop")) == [
-        "open-1 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
+    assert "menu: Fix major | %s | %s" % (NOTE, ACCEPT) in _opts(track, project, "stop")
 
 
 # ---- options: the done table ------------------------------------------------
+# The PR's state decides the labels; since #443 they sit on the one
+# `per-item menu:` line, which is what _menus() picks out.
 
 def test_open_with_fewer_than_two_rounds_offers_fix_now(decided, project):
     ledger.append(str(decided), "verify", "passed")
     lines = _opts(decided, project, pr=7, pr_state="OPEN")
-    assert _menus(lines) == ["open-1 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
+    assert _menus(lines) == ["per-item menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
     assert NOTE_ROUNDS not in lines
 
 
@@ -209,7 +216,7 @@ def test_open_with_two_rounds_drops_fix_now_and_says_why(decided, project):
     ledger.append(str(decided), "verify", "passed")
     ledger.append(str(decided), "verify", "failed", note="a fix round failed")
     lines = _opts(decided, project, pr=7, pr_state="OPEN")
-    assert _menus(lines) == ["open-1 menu: %s | %s | %s" % (FILE, NOTE, ACCEPT)]
+    assert _menus(lines) == ["per-item menu: %s | %s | %s" % (FILE, NOTE, ACCEPT)]
     assert lines[-1] == NOTE_ROUNDS
     # Fix now is not offered, so the two notes about it have nothing to say.
     assert NOTE_COMMIT not in lines and NOTE_TREE not in lines
@@ -218,22 +225,22 @@ def test_open_with_two_rounds_drops_fix_now_and_says_why(decided, project):
 @pytest.mark.parametrize("state", ["MERGED", "CLOSED"])
 def test_merged_or_closed_offers_file_and_accept(decided, project, state):
     lines = _opts(decided, project, pr=7, pr_state=state)
-    assert _menus(lines) == ["open-1 menu: %s | %s" % (FILE, ACCEPT)]
+    assert _menus(lines) == ["per-item menu: %s | %s" % (FILE, ACCEPT)]
     assert not [ln for ln in lines if ln.startswith("note:")]
 
 
 def test_unknown_state_offers_file_and_accept(decided, project):
     lines = _opts(decided, project, pr=7, pr_state="unknown")
-    assert _menus(lines) == ["open-1 menu: %s | %s" % (FILE, ACCEPT)]
+    assert _menus(lines) == ["per-item menu: %s | %s" % (FILE, ACCEPT)]
 
 
 def test_no_pr_line_reads_as_unknown(decided, project):
-    assert _menus(_opts(decided, project)) == ["open-1 menu: %s | %s" % (FILE, ACCEPT)]
+    assert _menus(_opts(decided, project)) == ["per-item menu: %s | %s" % (FILE, ACCEPT)]
 
 
 def test_a_pr_number_that_differs_from_the_ledger_reads_as_unknown(decided, project):
     lines = _opts(decided, project, pr=8, pr_state="OPEN")
-    assert _menus(lines) == ["open-1 menu: %s | %s" % (FILE, ACCEPT)]
+    assert _menus(lines) == ["per-item menu: %s | %s" % (FILE, ACCEPT)]
 
 
 @needs_git
@@ -243,7 +250,7 @@ def test_no_recorded_pr_and_branch_on_origin_offers_file_and_accept(
     _record(track, _item(1))
     _push_branch(project, tmp_path)
     lines = _opts(track, project, pr=7, pr_state="OPEN")
-    assert _menus(lines) == ["open-1 menu: %s | %s" % (FILE, ACCEPT)]
+    assert _menus(lines) == ["per-item menu: %s | %s" % (FILE, ACCEPT)]
     assert not [ln for ln in lines if ln.startswith("note:")]
 
 
@@ -254,8 +261,7 @@ def test_no_recorded_pr_and_branch_not_on_origin_offers_accept_and_stop(
     _record(track, _item(1), _item(2))
     _bare_origin(project, tmp_path)
     lines = _opts(track, project)
-    assert _menus(lines) == ["open-1 menu: %s | %s" % (ACCEPT, STOP),
-                             "open-2 menu: %s | %s" % (ACCEPT, STOP)]
+    assert _menus(lines) == ["per-item menu: %s | %s" % (ACCEPT, STOP)]
     assert lines.count(NOTE_NO_PR) == 1
     # The Stop label is a menu word only, never part of a note.
     assert not any(STOP in ln for ln in lines if ln.startswith("note:"))
@@ -268,7 +274,7 @@ def test_a_ship_note_without_a_pr_number_takes_the_branch_path(track, project, t
     _record(track, _item(1))
     _bare_origin(project, tmp_path)
     assert _menus(_opts(track, project, pr=7, pr_state="OPEN")) == [
-        "open-1 menu: %s | %s" % (ACCEPT, STOP)]
+        "per-item menu: %s | %s" % (ACCEPT, STOP)]
 
 
 def test_git_is_not_asked_unless_there_is_no_recorded_pr(decided, project, monkeypatch):
@@ -404,7 +410,7 @@ def test_options_cli_prints_the_lines(decided, project):
     done = _run("options", "--track-dir", str(decided), "--project-dir", str(project),
                 "--at", "done", "--pr", "7", "--pr-state", "MERGED")
     assert done.returncode == 0, done.stderr
-    assert done.stdout.splitlines()[-1] == "open-1 menu: %s | %s" % (FILE, ACCEPT)
+    assert done.stdout.splitlines()[-1] == "per-item menu: %s | %s" % (FILE, ACCEPT)
 
 
 def test_options_writes_nothing(decided, project):

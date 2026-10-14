@@ -19,6 +19,7 @@ Usage:  open_items.py add --track-dir D --project-dir P --stage S --report-file 
         open_items.py undecided --track-dir D
         open_items.py options --track-dir D --project-dir P --at stop|done [--pr N --pr-state S]
         open_items.py decide --track-dir D --project-dir P --item I --pick K --at stop|done
+        open_items.py decide-all --track-dir D --project-dir P --pick K --at stop|done
         open_items.py record-url --track-dir D --project-dir P --item I --url U
         open_items.py brief --track-dir D --item I [--item J ...]
         open_items.py publish --track-dir D --project-dir P --at ship|done [--pr N --pr-state S] [--ticket T]
@@ -42,7 +43,10 @@ import ship_pr_findings  # noqa: E402
 import ticket_backend  # noqa: E402
 
 FILE_NAME = "open-items.md"
-FORMAT = 1
+# 2 added `severity:` (#443); load() still reads 1, whose items all read as major.
+FORMAT = 2
+READS = (1, 2)
+SEVERITIES = ("major", "minor")
 KINDS = {"build": ("deviation", "out-of-scope"),
          "verify": ("unfixed-minor", "parked-proposal")}
 STATES = ("undecided", "fix-pending", "queued-issue", "queued-note",
@@ -64,8 +68,9 @@ APPLIED = re.compile(r"[0-9a-f]{12}")
 NUMBER = re.compile(r"[0-9]+")
 WHERE = re.compile(r"[A-Za-z0-9_.@+-][^\s:\\]*(?::[0-9]+)?")
 # Item keys in file order; the record's one-line fields all read `key: value`.
-KEYS = ("state", "stage", "kind", "where", "what", "why", "picked", "url",
-        "target", "source")
+KEYS = ("state", "stage", "kind", "severity", "where", "what", "why", "picked",
+        "url", "target", "source")
+KEYS_1 = tuple(k for k in KEYS if k != "severity")
 SOURCES = ("report", "state.md")
 
 PR_UNKNOWN = object()
@@ -99,7 +104,7 @@ def render(record):
         picked = item["picked"]
         values = {
             "state": item["state"], "stage": item["stage"], "kind": item["kind"],
-            "where": _none(item["where"]), "what": item["what"], "why": item["why"],
+            "severity": item["severity"], "where": _none(item["where"]), "what": item["what"], "why": item["why"],
             "picked": ("%s %s at %s" % (picked["date"], picked["pick"], picked["at"])
                        if picked else "none"),
             "url": _none(item["url"]), "target": _none(item["target"]),
@@ -147,7 +152,7 @@ def load(track_dir):
             # int() then rejects with a ValueError load() must never raise.
             if not NUMBER.fullmatch(head[key]):
                 raise bad("has a non-numeric format")
-            if int(head[key]) != FORMAT:
+            if int(head[key]) not in READS:
                 raise UnknownFormat(int(head[key]))
     if not NUMBER.fullmatch(head["items"]):
         raise bad("has a non-numeric item count")
@@ -166,8 +171,8 @@ def load(track_dir):
         if not m or int(m.group(1)) != n:
             raise bad("line %d should be `## open-%d`" % (pos + 1, n))
         pos += 1
-        fields = {}
-        for key in KEYS:
+        fields = {} if int(head["format"]) > 1 else {"severity": "major"}
+        for key in (KEYS if int(head["format"]) > 1 else KEYS_1):
             m = re.match(r"%s: (.*)$" % key, lines[pos]) if pos < len(lines) else None
             if not m:
                 raise bad("open-%d is missing `%s:`" % (n, key))
@@ -197,6 +202,8 @@ def _item(n, fields, quoted, bad):
         raise bad("%s has an unknown source" % name)
     if not fields["stage"] or not fields["kind"] or not fields["what"]:
         raise bad("%s has an empty field" % name)
+    if fields["severity"] not in SEVERITIES:
+        raise bad("%s has an unknown severity" % name)
     picked = None
     if fields["picked"] != "none":
         m = PICKED.match(fields["picked"])
@@ -207,7 +214,7 @@ def _item(n, fields, quoted, bad):
     if target is not None and not TARGET.fullmatch(target):
         raise bad("%s has an unknown target" % name)
     return {"id": name, "state": fields["state"], "stage": fields["stage"],
-            "kind": fields["kind"],
+            "kind": fields["kind"], "severity": fields["severity"],
             "where": None if fields["where"] == "none" else fields["where"],
             "what": fields["what"], "why": fields["why"], "picked": picked,
             "url": None if fields["url"] == "none" else fields["url"],
@@ -261,7 +268,8 @@ def read_input(path):
 def _imports(state_text):
     """One undecided item per `Left open:` entry, in table order (I8)."""
     return [{"id": "open-%d" % n, "state": "undecided", "stage": stage,
-             "kind": IMPORTED_KIND, "where": None, "what": text, "why": IMPORT_WHY,
+             "kind": IMPORTED_KIND, "severity": "major", "where": None, "what": text,
+             "why": IMPORT_WHY,
              "picked": None, "url": None, "target": None, "source": "state.md",
              "quoted": None}
             for n, (stage, text) in enumerate(preflight.left_open_items(state_text), 1)]
@@ -419,7 +427,7 @@ HEADING = "## Open items"
 # carrier of build's and verify's unfixed findings.
 DRIFTED_HEADING = re.compile(r"(?im)^#{2,3}[ \t]+open[ \t]+items?\b")
 ENTRY =re.compile(r"([0-9]+)\. (?:new (\S+)|still (open-[0-9]+)|fixed (open-[0-9]+))\s*$")
-LABEL = re.compile(r"(\s+)(What|Where|Why left|Quoted):[ \t]?(.*)$")
+LABEL = re.compile(r"(\s+)(What|Where|Why left|Severity|Quoted):[ \t]?(.*)$")
 
 
 def _section(report):
@@ -471,7 +479,7 @@ def _fields(n, block):
             raise OpenItemsError("entry %d has a line that is not a field: %s"
                                  % (n, ln.strip()[:40]))
     out = {}
-    for label in ("What", "Where", "Why left"):
+    for label in ("What", "Where", "Why left", "Severity"):
         value = fields.get(label, [""])[0].strip()
         if not value:
             raise OpenItemsError("entry %d has no `%s:` line" % (n, label))
@@ -495,6 +503,8 @@ def _check_new(n, stage, kind, f):
     if kind not in KINDS[stage]:
         raise OpenItemsError("entry %d: kind %s is not one of stage %s's (%s)"
                              % (n, kind, stage, ", ".join(KINDS[stage])))
+    if f["Severity"] not in SEVERITIES:
+        raise OpenItemsError("entry %d: Severity must be major or minor" % n)
     if len(f["What"]) > WHAT_LIMIT:
         raise OpenItemsError("entry %d: What is %d characters, over %d"
                              % (n, len(f["What"]), WHAT_LIMIT))
@@ -554,7 +564,8 @@ def add(track_dir, project_dir, stage, report):
             _check_new(n, stage, kind, f)
             item_id = "open-%d" % (len(items) + 1)
             items.append({"id": item_id, "state": "undecided", "stage": stage,
-                          "kind": kind, "where": None if f["Where"] == "none" else f["Where"],
+                          "kind": kind, "severity": f["Severity"],
+                          "where": None if f["Where"] == "none" else f["Where"],
                           "what": f["What"], "why": f["Why left"], "picked": None,
                           "url": None, "target": None, "source": "report",
                           "quoted": f["Quoted"]})
@@ -600,6 +611,19 @@ FIX, FILE_ISSUE, NOTE_PR, ACCEPT = ("Fix now", "File a GitHub issue",
                                     "Note on the PR", "Accept as is")
 # A menu word, never a --pick value: the main session ends `done` on it.
 STOP = "Stop: I will push the branch first"
+# The stop's one menu for every item (#443): thirteen items used to be
+# thirteen menus in a row.
+FIX_MAJOR, FIX_ALL, FIX_MINOR = "Fix major", "Fix major + minor", "Fix minor"
+# What each batch pick records per severity. "Fix major" queues the minors as
+# a note rather than accepting them, so a reviewer still sees them
+# (maintainer decision on #443).
+BATCH_PICK = {"fix-major": {"major": "fix-now", "minor": "note"},
+              "fix-all": {"major": "fix-now", "minor": "fix-now"},
+              "note": {"major": "note", "minor": "note"},
+              "accept": {"major": "accept", "minor": "accept"}}
+# A filing item's write may already exist on GitHub, so it keeps its own
+# check-github question and menu rather than riding a batch pick.
+BATCHED = ("undecided", "fix-pending")
 MAX_FIX_ROUNDS = 2
 # One shape per `target` (publish and record-url share them). The host is a
 # bare name: an `account:token@` or a port has no place in a URL that the
@@ -646,49 +670,73 @@ def _tracked_changes(project_dir):
 
 
 def options(track_dir, project_dir, at, pr=None, pr_state=None):
-    """Lines for every item that holds ship: its fields, an optional
-    `check-github`, its `menu:`, then each applicable note once. One menu
-    serves every item, since nothing in it depends on the item."""
+    """Lines for every item that holds ship, grouped as _grouped prints them,
+    then each applicable note once. The per-item labels are the same for
+    every item, since nothing in them depends on the item: all four at the
+    stop, and at `done` what the PR's state allows."""
     record, _ = _build(track_dir, project_dir)
     asked = [i for i in record["items"] if i["state"] in HOLDS_SHIP]
     if not asked:
         return []
-    notes = []
     if at == "stop":
-        menu = [FIX, FILE_ISSUE, NOTE_PR, ACCEPT]
-    else:
-        state = _pr_state(track_dir, pr, pr_state)
-        rounds = ship_pr_findings.fix_rounds(track_dir)
-        if state == "OPEN":
-            menu = [FILE_ISSUE, NOTE_PR, ACCEPT]
-            if rounds < MAX_FIX_ROUNDS:
-                menu.insert(0, FIX)
-            else:
-                notes.append("note: both fix rounds are spent, so Fix now is not offered")
-        elif state in ("MERGED", "CLOSED", "unknown"):
-            menu = [FILE_ISSUE, ACCEPT]
-        elif branch_on_remote(project_dir, record["branch"]):
-            menu = [FILE_ISSUE, ACCEPT]
+        return _grouped(asked, [FIX, FILE_ISSUE, NOTE_PR, ACCEPT])
+    notes = []
+    state = _pr_state(track_dir, pr, pr_state)
+    rounds = ship_pr_findings.fix_rounds(track_dir)
+    if state == "OPEN":
+        menu = [FILE_ISSUE, NOTE_PR, ACCEPT]
+        if rounds < MAX_FIX_ROUNDS:
+            menu.insert(0, FIX)
         else:
-            menu = [ACCEPT, STOP]
-            notes.append("note: no PR number is on the ledger, and the branch was "
-                         "not found on origin (git ls-remote did not exit 0), so "
-                         "File is not offered")
-        if FIX in menu:
-            answer = preflight.commit_answer(track_dir, project_dir)[1]
-            if not answer.startswith("commit_answer (yes,"):
-                notes.append("note: the commit answer is no, so the fix stays in "
-                             "the working tree and will not reach the PR")
-            if _tracked_changes(project_dir):
-                notes.append("note: the working tree holds tracked changes; a fix "
-                             "round would stop on clean_tree and use a round")
+            notes.append("note: both fix rounds are spent, so Fix now is not offered")
+    elif state in ("MERGED", "CLOSED", "unknown"):
+        menu = [FILE_ISSUE, ACCEPT]
+    elif branch_on_remote(project_dir, record["branch"]):
+        menu = [FILE_ISSUE, ACCEPT]
+    else:
+        menu = [ACCEPT, STOP]
+        notes.append("note: no PR number is on the ledger, and the branch was "
+                     "not found on origin (git ls-remote did not exit 0), so "
+                     "File is not offered")
+    if FIX in menu:
+        answer = preflight.commit_answer(track_dir, project_dir)[1]
+        if not answer.startswith("commit_answer (yes,"):
+            notes.append("note: the commit answer is no, so the fix stays in "
+                         "the working tree and will not reach the PR")
+        if _tracked_changes(project_dir):
+            notes.append("note: the working tree holds tracked changes; a fix "
+                         "round would stop on clean_tree and use a round")
+    return _grouped(asked, menu) + notes
+
+
+def _grouped(asked, per_item):
+    """The items under `Major:` and `Minor:`, one batch `menu:` line, and the
+    `per-item menu:` a person who wants to go item by item is asked instead
+    (#443). The batch labels are the per-item ones but File, which writes one
+    public issue per item and so is never picked for all of them at once. A
+    filing item keeps its own `check-github` and `menu:` lines."""
+    batched = [i for i in asked if i["state"] in BATCHED]
     out = []
+    for severity, heading in (("major", "Major:"), ("minor", "Minor:")):
+        group = [i for i in batched if i["severity"] == severity]
+        if group:
+            out.append(heading)
+            for item in group:
+                out += _block(item)
+    if batched:
+        has = {i["severity"] for i in batched}
+        fixes = ([] if FIX not in per_item
+                 else [FIX_MAJOR, FIX_ALL] if has == {"major", "minor"}
+                 else [FIX_MAJOR] if has == {"major"} else [FIX_MINOR])
+        rest = [label for label in per_item if label not in (FIX, FILE_ISSUE)]
+        out.append("menu: %s" % " | ".join(fixes + rest))
+        out.append("per-item menu: %s" % " | ".join(per_item))
     for item in asked:
-        out += _block(item)
         if item["state"] == "filing":
+            out += _block(item)
             out.append("%s check-github" % item["id"])
-        out.append("%s menu: %s" % (item["id"], " | ".join(menu)))
-    return out + notes
+            out.append("%s menu: %s" % (item["id"], " | ".join(per_item)))
+    return out
 
 
 def _block(item):
@@ -717,6 +765,26 @@ def decide(track_dir, project_dir, item_id, pick, at):
     item["state"] = PICK_STATE[pick]
     _save(track_dir, dict(record, items=items))
     return ["%s %s" % (item_id, state_word(item))]
+
+
+def decide_all(track_dir, project_dir, pick, at):
+    """Record one batch pick for every undecided or fix-pending item, each by
+    its severity (BATCH_PICK); written once, after every item is set."""
+    record, _ = _build(track_dir, project_dir)
+    items = [dict(i) for i in record["items"]]
+    today = datetime.date.today().isoformat()
+    out = []
+    for item in items:
+        if item["state"] not in BATCHED:
+            continue
+        each = BATCH_PICK[pick][item["severity"]]
+        item["picked"] = {"date": today, "pick": each, "at": at}
+        item["state"] = PICK_STATE[each]
+        out.append("%s %s" % (item["id"], state_word(item)))
+    if not out:
+        raise OpenItemsError("no undecided or fix-pending item to pick for")
+    _save(track_dir, dict(record, items=items))
+    return out
 
 
 def record_url(track_dir, project_dir, item_id, url):
@@ -989,6 +1057,9 @@ def main(argv=None):
     command("decide", "record the person's pick", item="store",
             pick=dict(required=True, choices=tuple(PICK_STATE)),
             at=dict(required=True, choices=("stop", "done")))
+    command("decide-all", "record one pick for every item the stop's menu listed",
+            pick=dict(required=True, choices=tuple(BATCH_PICK)),
+            at=dict(required=True, choices=("stop", "done")))
     command("record-url", "record the URL of a filing item", item="store",
             url=dict(required=True))
     command("brief", "print the quoted block of fix-pending items", project=False,
@@ -1015,6 +1086,8 @@ def main(argv=None):
                                            args.pr, args.pr_state),
                 "decide": lambda: decide(args.track_dir, args.project_dir, args.item,
                                          args.pick, args.at),
+                "decide-all": lambda: decide_all(args.track_dir, args.project_dir,
+                                                 args.pick, args.at),
                 "record-url": lambda: record_url(args.track_dir, args.project_dir,
                                                  args.item, args.url),
                 "brief": lambda: brief(args.track_dir, args.item),
