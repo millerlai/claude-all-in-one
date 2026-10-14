@@ -21,6 +21,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -77,6 +78,107 @@ def fake_cache(chome, models, fetched_at=None):
 def run(env):
     return subprocess.run([sys.executable, str(SCRIPT)],
                           capture_output=True, encoding="utf-8", env=env)
+
+
+# Native status line -- no test writes the real Codex configuration.
+
+
+@pytest.mark.parametrize("original", [
+    b'',
+    b'# keep comments\nmodel = "example"\n[tui]\nnotifications = false\n',
+    b'model = "example"\r\n["tui"] # keep this\r\ntheme = "dark"\r\n',
+    b"['tui']\nnotifications = true",
+    b'[tui.keymap]\nmode = "example"\n',
+    b'note = """\n[tui]\nnot a real header\n"""\n[tui]\nnotifications = true\n',
+])
+def test_statusline_adds_only_native_fields_and_backs_up_original(tmp_path, original):
+    path = tmp_path / "config.toml"
+    if original:
+        path.write_bytes(original)
+    before = tomllib.loads(original.decode())
+    assert install_codex.install_status_line(tmp_path) == 0
+    updated = path.read_bytes()
+    after = tomllib.loads(updated.decode())
+    expected = ["current-dir", "git-branch", "model-with-reasoning",
+                "context-remaining", "five-hour-limit", "weekly-limit"]
+    assert after["tui"].pop("status_line") == expected
+    if "tui" not in before:
+        del after["tui"]
+    assert after == before
+    if original:
+        assert next(tmp_path.glob("config.toml.*.bak")).read_bytes() == original
+        assert b"# keep" not in original or b"# keep" in updated
+        if b"\r\n" in original:
+            assert b"\n" not in updated.replace(b"\r\n", b"")
+    else:
+        assert not list(tmp_path.glob("*.bak"))
+
+
+@pytest.mark.parametrize("value", ['[]', '["model"]', '["model-with-reasoning", "git-branch"]'])
+def test_statusline_keeps_custom_or_disabled_footer_without_backup(tmp_path, value):
+    original = f'[tui]\nstatus_line = {value}\n'.encode()
+    path = tmp_path / "config.toml"
+    path.write_bytes(original)
+    assert install_codex.install_status_line(tmp_path) == 0
+    assert path.read_bytes() == original
+    assert not list(tmp_path.glob("*.bak"))
+
+
+def test_statusline_rerun_preserves_first_backup(tmp_path):
+    path = write(tmp_path, "config.toml", 'model = "example"\n')
+    original = path.read_bytes()
+    assert install_codex.install_status_line(tmp_path) == 0
+    configured = path.read_bytes()
+    assert install_codex.install_status_line(tmp_path) == 0
+    assert path.read_bytes() == configured
+    backups = list(tmp_path.glob("config.toml.*.bak"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == original
+
+
+@pytest.mark.parametrize("original", [b'[tui\n', b'\xff', b'tui = false\n',
+                                      b'tui = { notifications = true }\n',
+                                      b'tui.notifications = true\n'])
+def test_statusline_refuses_unsafe_edit_without_writes(tmp_path, original):
+    path = tmp_path / "config.toml"
+    path.write_bytes(original)
+    assert install_codex.install_status_line(tmp_path) == 1
+    assert path.read_bytes() == original
+    assert not list(tmp_path.glob("*.bak"))
+
+
+def test_statusline_header_in_multiline_string_is_not_edited(tmp_path):
+    original = 'note = """\n[tui]\ntext\n"""\n'
+    path = write(tmp_path, "config.toml", original)
+    assert install_codex.install_status_line(tmp_path) == 0
+    assert tomllib.loads(path.read_text())["note"] == tomllib.loads(original)["note"]
+
+
+def test_statusline_preserves_symlinked_config(tmp_path):
+    target = write(tmp_path, "shared.toml", 'model = "example"\n')
+    link = tmp_path / "config.toml"
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+    assert install_codex.install_status_line(tmp_path) == 0
+    assert link.is_symlink()
+    assert tomllib.loads(target.read_text())["tui"]["status_line"]
+    assert next(tmp_path.glob("config.toml.*.bak")).read_text() == 'model = "example"\n'
+
+
+def test_statusline_cli_respects_codex_home_and_does_not_install_agents(tmp_path):
+    env = fake_env(tmp_path)
+    result = subprocess.run([sys.executable, str(SCRIPT), "--statusline"],
+                            capture_output=True, encoding="utf-8", env=env)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "model-with-reasoning" in result.stdout
+    chome = Path(env["CODEX_HOME"])
+    assert tomllib.loads((chome / "config.toml").read_text())["tui"]["status_line"]
+    assert not (chome / "agents").exists()
+    assert not (chome / "hooks.json").exists()
+    assert not (chome / "AGENTS.md").exists()
+    assert not (tmp_path / ".codex" / "cai" / "launcher.py").exists()
 
 
 # ---------------------------------------------------------------------------

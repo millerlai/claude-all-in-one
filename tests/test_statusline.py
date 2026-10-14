@@ -106,3 +106,17 @@ def test_effort_is_dropped_on_a_model_that_has_none():
     # Absent, not empty, for any model without the reasoning-effort parameter.
     line = plain(statusline.render({"model": {"display_name": "Haiku 4.5"}}))
     assert line == "Haiku 4.5"
+
+
+@pytest.mark.parametrize("level", ["low", "medium", "high", "xhigh", "max"])
+def test_effort_uses_the_live_session_value(level):
+    data = {"model": {"display_name": "Opus"}, "effort": {"level": "high"}}
+    statusline.render(data)
+    data["effort"]["level"] = level
+    assert plain(statusline.render(data)) == f"Opus [{level}]"
+
+
+@pytest.mark.parametrize("effort", [None, {}, {"level": ""}])
+def test_empty_effort_does_not_hide_the_model(effort):
+    assert plain(statusline.render({"model": {"display_name": "Opus"},
+                                   "effort": effort})) == "Opus"

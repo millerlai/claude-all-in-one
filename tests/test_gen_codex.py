@@ -566,7 +566,7 @@ def test_setup_asks_language_before_installing_or_asking_models():
     assert steps == [
         "Choose the response language", "Resolve `<cai-root>`",
         "Run the installer", "Save the response language",
-        "Trust the hooks", "Report",
+        "Offer the status line", "Trust the hooks", "Report",
     ]
     language = setup.split("## Step 1", 1)[1].split("## Step 2", 1)[0]
     assert "A. English\nB. Traditional Chinese (繁體中文)\nC. Japanese\nD. Other" in language
@@ -576,7 +576,7 @@ def test_setup_asks_language_before_installing_or_asking_models():
 def test_setup_keeps_language_and_model_menus_short():
     setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
     policy = setup.split("## Step 1", 1)[0]
-    assert "all language and model menus in this skill" in policy
+    assert "all language, model and status-line menus in this skill" in policy
     assert "overrides the option-presentation requirements" in policy
     assert "`rules/epistemics.md` and `rules/option-explainer.md`" in policy
     assert "Do not add comparison dimensions, tables, six-field explanations" in policy
