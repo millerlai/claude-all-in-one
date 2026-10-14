@@ -20,9 +20,12 @@ End the report with `## Open items`, one numbered entry per item:
    Where: <repo-relative path:line, or none>
    Why left: <one line>
    Severity: <major or minor>
+   Fixable: <yes or no>
    Quoted: <optional; see "What goes under Quoted" below>
 2. still open-3
 3. fixed open-1
+4. unfixable open-2
+   Why left: <why no code or documentation change can resolve this item>
 ```
 
 - `new <kind>` — a finding that is not among the open items your brief lists.
@@ -33,6 +36,12 @@ End the report with `## Open items`, one numbered entry per item:
   person is asked about twice.
 - `fixed open-<n>` — verify only, and only for an open item your brief quoted
   that you fixed.
+- `unfixable open-<n>` — verify only, for a `fix-pending` item you examined
+  and cannot resolve by changing code or documentation. Supply exactly one
+  `Why left` line explaining the remaining manual action, external constraint
+  or decision. It stays open, but the next menu omits its fix actions. A failed
+  attempt alone is not evidence that an item is unfixable; use `still` when a
+  concrete fix remains possible.
 
 The kinds each stage may open:
 
@@ -52,6 +61,15 @@ what the design says, or a reviewer must know about it before merging.
 change that nothing in it makes worse. An `unfixed-minor` is `minor`.
 
 ## Where it sits
+
+`Fixable` is independent of severity: `yes` means a concrete code or
+documentation change can resolve it under the current requirements; `no`
+means it needs a manual observation, external action or decision instead.
+Explain `no` in `Why left`. Include the field on new entries; older reports
+that omit it retain `yes`. Records use format 3; formats 1 and 2 still load
+with their fix choices intact. Reminders remain in `## Report`, as below;
+do not turn a manual step or an unverified observation into a new finding
+merely to offer a menu.
 
 - Placed directly before `## Pending questions` when the report hands
   questions up, so the report still ends in `## Pending questions` (`SKILL.md`

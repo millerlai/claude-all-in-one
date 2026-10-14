@@ -86,6 +86,60 @@ def _add(track, project, tmp_path, report):
                 "--stage", "verify", "--report-file", str(f))
 
 
+def test_unfixable_pending_items_offer_no_fix_action():
+    items = [dict(_item(1, "major", "fix-pending"), fixable=False),
+             dict(_item(2, "minor", "fix-pending"), fixable=False)]
+    lines = open_items._grouped(items, [open_items.FIX, open_items.FILE_ISSUE,
+                                      open_items.NOTE_PR, open_items.ACCEPT])
+    assert "menu: Note on the PR | Accept as is" in lines
+    assert not any("Fix " in line for line in lines if "menu:" in line)
+
+
+def test_report_can_mark_a_new_item_unfixable(track, project, tmp_path):
+    done = _add(track, project, tmp_path,
+                _report("Severity: major") + "   Fixable: no\n")
+    assert done.returncode == 0, done.stderr
+    assert open_items.load(str(track))["items"][0]["fixable"] is False
+
+
+def test_verify_can_mark_a_fix_pending_item_unfixable(track, project, tmp_path):
+    _record(track, _item(1, "major", "fix-pending"))
+    done = _add(track, project, tmp_path,
+                "## Open items\n1. unfixable open-1\n"
+                "   Why left: Requires a manual observation before merging\n")
+    assert done.returncode == 0, done.stderr
+    item = open_items.load(str(track))["items"][0]
+    assert item["state"] == "fix-pending" and item["fixable"] is False
+    assert item["why"] == "Requires a manual observation before merging"
+    lines = open_items.options(str(track), str(project), "stop")
+    assert "menu: Note on the PR | Accept as is" in lines
+
+
+def test_mixed_batch_fixes_only_actionable_items(track, project):
+    _record(track, _item(1, "minor"), dict(_item(2, "major"), fixable=False))
+    lines = open_items.options(str(track), str(project), "stop")
+    assert "menu: Fix minor | Note on the PR | Accept as is" in lines
+    assert "open-2 menu: File a GitHub issue | Note on the PR | Accept as is" in lines
+    open_items.decide_all(str(track), str(project), "fix-all", "stop")
+    items = open_items.load(str(track))["items"]
+    assert [i["state"] for i in items] == ["fix-pending", "queued-note"]
+
+
+def test_unfixable_item_refuses_individual_fix_without_writes(track, project):
+    _record(track, dict(_item(1, "major"), fixable=False))
+    before = (track / "open-items.md").read_bytes()
+    with pytest.raises(open_items.OpenItemsError, match="not fixable"):
+        open_items.decide(str(track), str(project), "open-1", "fix-now", "stop")
+    assert (track / "open-items.md").read_bytes() == before
+
+
+@pytest.mark.parametrize("value", ["maybe", "", "true"])
+def test_report_refuses_invalid_fixability(track, project, tmp_path, value):
+    done = _add(track, project, tmp_path,
+                _report("Severity: major") + "   Fixable: " + value + "\n")
+    assert done.returncode == 2 and not (track / "open-items.md").exists()
+
+
 # ---- the report and the record ------------------------------------------------
 
 @pytest.mark.parametrize("value", ["major", "minor"])
@@ -108,11 +162,58 @@ def test_add_refuses_a_severity_outside_major_and_minor(track, project, tmp_path
     assert "major or minor" in done.stderr
 
 
-def test_render_writes_format_2_with_a_severity_line(track):
+def test_render_writes_format_3_with_severity_and_fixability(track):
     _record(track, _item(1, "minor"))
     text = (track / "open-items.md").read_text(encoding="utf-8")
-    assert text.startswith("# open items\nformat: 2\n")
-    assert "\nkind: unfixed-minor\nseverity: minor\nwhere: " in text
+    assert text.startswith("# open items\nformat: 3\n")
+    assert "\nkind: unfixed-minor\nseverity: minor\nfixable: yes\nwhere: " in text
+
+
+def test_a_format_2_record_keeps_fix_choices(track, project):
+    _record(track, _item(1, "minor"))
+    path = track / "open-items.md"
+    path.write_text(path.read_text(encoding="utf-8").replace("format: 3", "format: 2")
+                    .replace("fixable: yes\n", ""), encoding="utf-8")
+    assert open_items.load(str(track))["items"][0]["fixable"] is True
+    assert "menu: Fix minor | Note on the PR | Accept as is" in open_items.options(
+        str(track), str(project), "stop")
+
+
+@pytest.mark.parametrize("pick", ["fix-major", "fix-all"])
+def test_unfixable_batch_refuses_fix_without_writes(track, project, pick):
+    _record(track, dict(_item(1, "major", "fix-pending"), fixable=False))
+    before = (track / "open-items.md").read_bytes()
+    with pytest.raises(open_items.OpenItemsError, match="no fixable item"):
+        open_items.decide_all(str(track), str(project), pick, "stop")
+    assert (track / "open-items.md").read_bytes() == before
+
+
+@pytest.mark.parametrize("entry", ["1. unfixable open-1",
+    "1. unfixable open-1\n   Why left: Requires a manual check\n   What: replacement"])
+def test_unfixable_report_requires_one_reason_and_preserves_record(track, project, tmp_path, entry):
+    _record(track, _item(1, "major", "fix-pending"))
+    before = (track / "open-items.md").read_bytes()
+    done = _add(track, project, tmp_path, "## Open items\n" + entry + "\n")
+    assert done.returncode == 2
+    assert (track / "open-items.md").read_bytes() == before
+
+
+def test_an_undecided_item_cannot_be_marked_unfixable_as_a_fix_result(track, project, tmp_path):
+    _record(track, _item(1, "major"))
+    before = (track / "open-items.md").read_bytes()
+    done = _add(track, project, tmp_path,
+                "## Open items\n1. unfixable open-1\n   Why left: Manual check\n")
+    assert done.returncode == 2
+    assert (track / "open-items.md").read_bytes() == before
+
+
+def test_done_menu_omits_fix_actions_and_fix_warnings_for_unfixable_items(track, project):
+    ledger.append(str(track), "ship", "passed", note="PR #7")
+    _record(track, dict(_item(1, "major", "fix-pending"), fixable=False))
+    lines = open_items.options(str(track), str(project), "done", pr=7, pr_state="OPEN")
+    assert "menu: Note on the PR | Accept as is" in lines
+    assert not any("Fix " in line for line in lines if "menu:" in line)
+    assert not any("commit answer" in line or "working tree" in line for line in lines)
 
 
 def test_a_format_1_record_still_loads_with_every_item_major(track):

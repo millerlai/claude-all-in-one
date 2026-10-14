@@ -619,6 +619,16 @@ Record the answer with
 | Note on the PR | `--pick note`. Queued: `publish` posts one comment listing every queued note while the PR is open. |
 | Accept as is | `--pick accept`. Nothing is written outside the record. |
 
+**Offer only executable fixes.** Severity and fixability are separate. Use
+the `menu:` line exactly: fix choices appear only for severities with a
+fixable item. If all remaining items are non-fixable, the batch menu is only
+Note on the PR and Accept as is (subject to the PR state at `done`). When
+fixable and non-fixable items remain together, a fix choice fixes only the
+fixable ones and queues the non-fixable ones as PR notes; quote the printed
+note explaining this before the menu. For an individual non-fixable item,
+use its `<id> menu:` override when printed, omitting Fix now. Never invent
+a fix action after saying that it cannot change anything.
+
 **Item by item, only when asked.** When the person's own words ask to decide
 the items one at a time, or to file an issue for one, ask each item as its
 own menu instead, one per turn, with its block verbatim as the question and
@@ -666,6 +676,13 @@ loop needs a fresh pick, and these verify rows come before the first `ship`
 `passed`, so the fix-round cap does not count them. `undecided 0` → the
 no-items line, and `ship` starts. The picks made here are written to GitHub
 only by `publish`, once the PR is open (`### After the PR opens`).
+
+If a passed verify report marks a requested item `unfixable open-<n>`,
+`add` records its reason and removes its fix actions from the next menu.
+It still needs a fresh Note, Accept or individual File pick. Items reported
+as `still` remain eligible for another fix attempt; never remove their fix
+actions merely because they were attempted once. Facts, manual steps and
+Gate 2 reminders belong in the report's reminders, not new open items.
 
 **At `/cai:track done`** the same items are asked again, for whatever is
 still `undecided`, `fix-pending` or `filing`: after `SKILL.md`'s refusal
