@@ -94,11 +94,21 @@ def test_no_items_is_one_line_and_no_menu(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_one_menu_per_item_one_per_turn_with_the_computed_options(tree):
+def test_one_menu_for_every_item_with_the_computed_options(tree):
+    # #443: one grouped menu at the stop, recorded by decide-all; asking item
+    # by item stays possible, with the four per-item labels and `decide`.
     text = _stop(tree)
-    assert "One menu per item, one per turn" in text
+    assert "One menu for every item, in one turn" in text
     assert _command("options", text) >= 0
+    assert _command("decide-all", text) >= 0
     assert "--at stop" in text
+    assert "`Major:` and `Minor:`" in text
+    assert "the whole list verbatim as the question" in text
+    for label, pick in (("Fix major", "fix-major"), ("Fix major + minor", "fix-all"),
+                        ("Fix minor", "fix-all")):
+        assert "| %s | `--pick %s`" % (label, pick) in text, label
+    assert "every minor one is queued as a note on the PR" in text
+    assert "**Item by item, only when asked.**" in text
     assert "its block verbatim as the question" in text
     for label in ("Fix now", "File a GitHub issue", "Note on the PR",
                   "Accept as is"):

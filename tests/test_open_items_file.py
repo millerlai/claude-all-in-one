@@ -43,9 +43,9 @@ def _item(n, state="queued-issue", stage="verify", kind="unfixed-minor",
           url=None, target=None, source="report", quoted=None):
     picked = {"date": "2026-10-13", "pick": "file", "at": at} if state.startswith("queued") else None
     return {"id": "open-%d" % n, "state": state, "stage": stage, "kind": kind,
-            "where": where, "what": what or "Minor %d" % n, "why": why,
-            "picked": picked, "url": url, "target": target, "source": source,
-            "quoted": quoted}
+            "severity": "major", "where": where, "what": what or "Minor %d" % n,
+            "why": why, "picked": picked, "url": url, "target": target,
+            "source": source, "quoted": quoted}
 
 
 def _imported(n, what, **kw):

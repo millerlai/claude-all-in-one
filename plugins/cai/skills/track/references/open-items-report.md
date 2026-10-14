@@ -19,14 +19,15 @@ End the report with `## Open items`, one numbered entry per item:
    What: <one line, at most 200 characters; it becomes an issue title>
    Where: <repo-relative path:line, or none>
    Why left: <one line>
+   Severity: <major or minor>
    Quoted: <optional; see "What goes under Quoted" below>
 2. still open-3
 3. fixed open-1
 ```
 
 - `new <kind>` — a finding that is not among the open items your brief lists.
-  `What`, `Where` and `Why left` are all required. One entry per finding,
-  never several joined into one.
+  `What`, `Where`, `Why left` and `Severity` are all required. One entry per
+  finding, never several joined into one.
 - `still open-<n>` — an open item your brief lists that you looked at and left.
   Name it by its id. Restating it in new words makes a second item, which the
   person is asked about twice.
@@ -42,6 +43,13 @@ The kinds each stage may open:
 
 A `new` entry from another stage, or of a kind its stage does not own, is
 refused.
+
+`Severity` is your judgement, not the person's: before ship they are asked
+one menu for every item, grouped by it, and "Fix major" fixes only the major
+ones. `major` — left as it is, the change does something wrong or other than
+what the design says, or a reviewer must know about it before merging.
+`minor` — wording, naming, style, a missing nicety, or a problem outside the
+change that nothing in it makes worse. An `unfixed-minor` is `minor`.
 
 ## Where it sits
 

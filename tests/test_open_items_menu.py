@@ -61,9 +61,9 @@ def _item(n, state="undecided", stage="verify", kind="unfixed-minor",
           where="src/a.py:3", what=None, why="left unfixed", picked=None,
           url=None, target=None, source="report", quoted=None):
     return {"id": "open-%d" % n, "state": state, "stage": stage, "kind": kind,
-            "where": where, "what": what or "Minor %d" % n, "why": why,
-            "picked": picked, "url": url, "target": target, "source": source,
-            "quoted": quoted}
+            "severity": "major", "where": where, "what": what or "Minor %d" % n,
+            "why": why, "picked": picked, "url": url, "target": target,
+            "source": source, "quoted": quoted}
 
 
 def _record(track, *items, branch="track/x"):
@@ -176,15 +176,19 @@ def test_options_block_and_menu_line_format(decided, project):
         "open-1 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
 
 
-def test_options_at_stop_gives_all_four_and_prints_none_where_missing(track, project):
+def test_options_at_stop_gives_one_menu_and_prints_none_where_missing(track, project):
+    # #443: the stop asks one grouped menu, not one per item; the four
+    # per-item labels stay reachable on the `per-item menu:` line.
     _state(track)
     _record(track, _item(1, where=None), _item(2, state="fix-pending"),
             _item(3, state="accepted"))
     lines = _opts(track, project, "stop")
     assert "  where: none" in lines
-    assert _menus(lines) == [
-        "open-1 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT),
-        "open-2 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
+    assert [ln for ln in lines if ln.startswith("open-")] == [
+        "open-1 [verify] unfixed-minor", "open-2 [verify] unfixed-minor"]
+    assert [ln for ln in lines if "menu: " in ln] == [
+        "menu: Fix major | %s | %s" % (NOTE, ACCEPT),
+        "per-item menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
     assert not [ln for ln in lines if ln.startswith("note:")]
 
 
@@ -192,8 +196,7 @@ def test_options_at_stop_ignores_the_pr(track, project):
     # Before ship there is no PR; the stop never reads the ledger or git.
     _state(track)
     _record(track, _item(1))
-    assert _menus(_opts(track, project, "stop")) == [
-        "open-1 menu: %s | %s | %s | %s" % (FIX, FILE, NOTE, ACCEPT)]
+    assert "menu: Fix major | %s | %s" % (NOTE, ACCEPT) in _opts(track, project, "stop")
 
 
 # ---- options: the done table ------------------------------------------------

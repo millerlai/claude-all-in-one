@@ -28,7 +28,7 @@ def make_track(tmp_path, left_open=""):
 
 def item(n, state):
     return {"id": "open-%d" % n, "state": state, "stage": "build", "kind": "deviation",
-            "where": None, "what": "thing %d" % n, "why": "because", "picked": None,
+            "severity": "major", "where": None, "what": "thing %d" % n, "why": "because", "picked": None,
             "url": None, "target": None, "source": "report", "quoted": None}
 
 

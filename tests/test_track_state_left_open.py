@@ -100,7 +100,7 @@ def make_item(n, stage="verify", what="a finding", where=None, state="undecided"
               url=None, source="report", kind=None):
     return {"id": "open-%d" % n, "state": state, "stage": stage,
             "kind": kind or ("deviation" if stage == "build" else "unfixed-minor"),
-            "where": where, "what": what, "why": "left alone", "picked": None,
+            "severity": "major", "where": where, "what": what, "why": "left alone", "picked": None,
             "url": url, "target": None, "source": source, "quoted": None}
 
 

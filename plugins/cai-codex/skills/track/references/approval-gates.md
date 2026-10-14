@@ -597,21 +597,36 @@ reminders. Then run
 
 - `undecided 0` → say one line, `No open items: ship starts now.`, ask
   nothing, and start `ship` as Gate 2 says.
-- `undecided <n>: <ids>` → one menu per id it printed, below.
+- `undecided <n>: <ids>` → the one menu below.
 - Exit 2 → the record cannot be read. Report its line, append nothing, and
   ask the person to repair `open-items.md`; deleting it is not offered,
   because `state.md` no longer holds the items. `ship` waits.
 
-**One menu per item, one per turn.** Run
+**One menu for every item, in one turn.** Run
 `<cai> open_items options --track-dir .claude/track/<feature> --project-dir <project root> --at stop`.
-For each item it prints a block (id, stage and kind, `where`, `what`, `why`)
-and then that item's `menu:` line. Ask each item as its own menu, with its
-block verbatim as the question and the labels on its `menu:` line as the
-options; at the stop that is the four below. None is marked `(recommended)`:
-an open item is something this track left behind, so a recommendation would
-be the track grading its own output, as at Gate 1.
+It lists the items still asked under `Major:` and `Minor:` — the severity
+build or verify gave each one — each as a block (id, stage and kind, `where`,
+`what`, `why`), then one `menu:` line and one `per-item menu:` line. Ask one
+menu, with the whole list verbatim as the question and the labels on the
+`menu:` line as the options. None is marked `(recommended)`: an open item is
+something this track left behind, so a recommendation would be the track
+grading its own output, as at Gate 1.
 
-Record each answer with
+Record the answer with
+`<cai> open_items decide-all --track-dir .claude/track/<feature> --project-dir <project root> --pick <pick> --at stop`:
+
+| Option | What it does |
+|---|---|
+| Fix major | `--pick fix-major`. Every major item is `fix-pending`, and the one verify dispatch below fixes it; every minor one is queued as a note on the PR. |
+| Fix major + minor | `--pick fix-all`. Every item is `fix-pending`. |
+| Fix minor | `--pick fix-all`, offered instead of the two above when every item is minor. |
+| Note on the PR | `--pick note`. Queued: `publish` posts one comment listing every queued note while the PR is open. |
+| Accept as is | `--pick accept`. Nothing is written outside the record. |
+
+**Item by item, only when asked.** When the person's own words ask to decide
+the items one at a time, or to file an issue for one, ask each item as its
+own menu instead, one per turn, with its block verbatim as the question and
+the labels on the `per-item menu:` line as the options, and record each with
 `<cai> open_items decide --track-dir .claude/track/<feature> --project-dir <project root> --item <id> --pick <pick> --at stop`:
 
 | Option | What it does |
@@ -621,11 +636,15 @@ Record each answer with
 | Note on the PR | `--pick note --at stop`. Queued: `publish` posts one comment listing every queued note while the PR is open. |
 | Accept as is | `--pick accept --at stop`. Nothing is written outside the record. |
 
-**Only a click on one of the labels answers an item's menu.** Run `decide`
-for a label verbatim. Anything else — a question, `ok`, free text — gets an
-answer and then the same menu again, and a pick is never inferred from prose.
-A menu that timed out leaves the item `undecided` and ship waits (see the
-timeout table below).
+A `filing` item prints its own `check-github` and `menu:` lines after the
+rest and is asked as at `done`, step 4 below; no batch pick reaches it.
+
+**Only a click on one of the labels answers a menu.** Run `decide-all` or
+`decide` for a label verbatim. Anything else — a question, `ok`, free text —
+gets an answer and then the same menu again, and a pick is never inferred
+from prose; asking to go item by item is the one request that changes the
+menu. A menu that timed out leaves the item `undecided` and ship waits (see
+the timeout table below).
 
 **Fix now.** Once every item has been asked, the `fix-pending` ones go into
 one verify dispatch together. Run `preflight.py verify`, then dispatch the
@@ -767,9 +786,9 @@ of them spends one of `pending-questions.md`'s three rounds: that file's
   findings, where the question states the recommendation and no option is
   marked. It sits inside Gate 2, not beside it, and is not
   counted against `pending-questions.md`'s rounds.
-- `## Open items before ship` above — one menu per open item build or verify
-  left unfixed, before `ship`'s first draft, and again at `$track done`
-  for any still undecided. No option is marked `(recommended)`. It is asked by
+- `## Open items before ship` above — one menu for every open item build or
+  verify left unfixed, grouped by severity, before `ship`'s first draft; at
+  `$track done`, one menu per item still undecided. No option is marked `(recommended)`. It is asked by
   the main session and is not counted against `pending-questions.md`'s rounds.
 - `ticket-mirror.md`'s claim menu, when `$track <ticket>` finds other cai
   claims on the ticket, before any directory exists. An ordinary choice: it
@@ -797,7 +816,7 @@ beside each file name can be found word for word in that file.
 | # | Stop | Defined in | Asked when |
 |---|---|---|---|
 | 1 | Step 0.5 parallel lane | `stage-build.md` "The parallel lane itself." | Only when the commit answer is yes and two units' sides of the ownership map do not intersect. |
-| 2 | Open items before ship, one menu per item | `approval-gates.md` "One menu per item, one per turn." | Only when build or verify left an open item undecided, which the reference run has; one menu per item, counted as one stop. |
+| 2 | Open items before ship, one menu for every item | `approval-gates.md` "One menu for every item, in one turn." | Only when build or verify left an open item undecided, which the reference run has. |
 | 3 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
 | 4 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
 | 5 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |

@@ -170,7 +170,7 @@ def _write_record(track_dir, items):
 
 def _item(n, stage, what):
     return {"id": "open-%d" % n, "state": "undecided", "stage": stage,
-            "kind": "unfixed-minor", "where": "a.py:1", "what": what,
+            "kind": "unfixed-minor", "severity": "minor", "where": "a.py:1", "what": what,
             "why": "left alone", "picked": None, "url": None, "target": None,
             "source": "report", "quoted": None}
 
