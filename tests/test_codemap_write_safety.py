@@ -384,19 +384,16 @@ def test_ac5_a_planted_fifo_inside_packages(tmp_path):
     assert (done.returncode, done.stdout.splitlines()[:1]) == (2, [ENTRY])
 
 
-@pytest.mark.parametrize("variant", ["a_wrong_body_replace_fails", "b_right_body"])
-def test_ac4_a_planted_gitignore_symlink(tmp_path, capsys, monkeypatch, variant):
+@pytest.mark.parametrize("variant", ["a_wrong_body", "b_right_body"])
+def test_ac4_a_planted_gitignore_symlink(tmp_path, capsys, variant):
+    # ensure_dir's lstat refuses the link before anything opens or replaces
+    # the name, so no os.replace stand-in is needed to keep the victim (#423 4i).
     repo, outside, index = _setup(tmp_path, {"a.py": "x = 1\n"})
     body = b"keep\n" if variant.startswith("a") else b"*\n"
     victim = outside / "ignore.txt"
     victim.write_bytes(body)
     _link("symlink", victim, index / ".gitignore")
-    if variant.startswith("a"):
-        def refuse(src, dst):
-            raise OSError("replace refused")
-        monkeypatch.setattr(os, "replace", refuse)
     code, line = _cli(capsys, "build", repo)
-    monkeypatch.undo()
     left = sorted(n for n in os.listdir(str(index)) if n != ".gitignore")
     assert (code, line, victim.read_bytes(), left) == (
         2, "codemap: unsupported (.cai/codemap/.gitignore is not a regular file)", body, [])
@@ -584,3 +581,85 @@ def test_state_json_is_renamed_after_every_data_file(tmp_path, capsys, monkeypat
 
     assert _cli(capsys, "update", repo)[0] == 2
     assert _index_bytes(repo) == before
+
+
+# ---- #423 item 4: branches that were right but that no test would catch -------
+
+def test_a_gitignore_that_only_starts_with_the_body_is_replaced(tmp_path):
+    """4a: `*\n` followed by more is not the body; reading exactly len(body)
+    bytes would call it equal and keep `extra` ignored-or-not as it pleased."""
+    make_repo(tmp_path, {"a.py": "x = 1\n"})
+    index = tmp_path / ".cai" / "codemap"
+    index.mkdir(parents=True)
+    (index / ".gitignore").write_bytes(b"*\nextra\n")
+    assert idx.build(str(tmp_path)).word == "fresh"
+    assert (index / ".gitignore").read_bytes() == b"*\n"
+
+
+def test_the_gitignore_replace_retries_a_busy_target(tmp_path, monkeypatch):
+    """4b: the .gitignore rename goes through _replace_retrying too; a bare
+    os.replace would give up on the first PermissionError."""
+    make_repo(tmp_path, {"a.py": "x = 1\n"})
+    index = tmp_path / ".cai" / "codemap"
+    index.mkdir(parents=True)
+    (index / ".gitignore").write_bytes(b"keep\n")
+    real, busy = os.replace, []
+
+    def busy_once(src, dst):
+        if os.path.basename(dst) == ".gitignore" and not busy:
+            busy.append(dst)
+            raise PermissionError("busy")
+        return real(src, dst)
+
+    monkeypatch.setattr(os, "replace", busy_once)
+    monkeypatch.setattr(store, "time", types.SimpleNamespace(sleep=lambda s: None))
+    assert idx.build(str(tmp_path)).word == "fresh"
+    monkeypatch.undo()
+    assert busy and (index / ".gitignore").read_bytes() == b"*\n"
+
+
+def test_a_planted_write_lock_symlink_is_refused(tmp_path, capsys):
+    """4c: ensure_dir's lstat covers write.lock as well as .gitignore."""
+    repo, outside, index = _setup(tmp_path, {"a.py": "x = 1\n"})
+    victim = outside / "lock.txt"
+    victim.write_bytes(b"keep\n")
+    _link("symlink", victim, index / "write.lock")
+    assert _cli(capsys, "build", repo) == (
+        2, "codemap: unsupported (.cai/codemap/write.lock is not a regular file)")
+    assert victim.read_bytes() == b"keep\n"
+
+
+def test_the_lock_is_released_after_check_entries_refuses(tmp_path, capsys):
+    """4d: a refusal from check_entries, raised with the lock held, must not
+    leave the next build busy."""
+    repo, outside, index = _setup(tmp_path, {"a.py": "x = 1\n"})
+    assert _cli(capsys, "build", repo)[0] == 0
+    target = outside / "t.txt"
+    target.write_bytes(b"t\n")
+    _link("symlink", target, index / "planted")
+    assert _cli(capsys, "build", repo) == (2, "codemap: unsupported (%s)" % (
+        ".cai/codemap holds an entry that is not a regular file or directory"))
+    os.remove(str(index / "planted"))
+    code, line = _cli(capsys, "build", repo)
+    assert code == 0 and line.startswith("codemap: fresh")
+
+
+def test_an_entry_that_vanishes_mid_walk_is_skipped(tmp_path, monkeypatch):
+    """4f: a name listed and then gone before its lstat is neither refused by
+    check_entries nor a crash in sweep."""
+    make_repo(tmp_path, {"a.py": "x = 1\n"})
+    idx.build(str(tmp_path))
+    index = tmp_path / ".cai" / "codemap"
+    (index / "gone.tmp").write_bytes(b"")
+    real = os.lstat
+
+    def vanishing(path, *args, **kwargs):
+        if os.path.basename(str(path)) == "gone.tmp":
+            raise FileNotFoundError(path)
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "lstat", vanishing)
+    store.check_entries(str(tmp_path))
+    store.sweep(str(tmp_path), set())
+    monkeypatch.undo()
+    assert (index / "gone.tmp").exists()

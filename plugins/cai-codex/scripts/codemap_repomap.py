@@ -92,6 +92,20 @@ def _dir_of(path, depth):
     return parts[depth] if len(parts) > depth + 1 else None
 
 
+def _bucket(files, depth):
+    """(files directly at `depth`, {subdirectory: its files}) in one pass, each
+    list in input order. Filtering the whole list once per subdirectory made a
+    split O(files x subdirectories) at every level (#403)."""
+    direct, by_dir = [], {}
+    for f in files:
+        name = _dir_of(f["path"], depth)
+        if name is None:
+            direct.append(f)
+        else:
+            by_dir.setdefault(name, []).append(f)
+    return direct, by_dir
+
+
 def _split(files, prefix, by_path, limit, groups):
     """Appends (prefix, files, text) for each shard `files` (all under
     `prefix`) needs: the whole group when it fits, else its directly contained
@@ -102,17 +116,14 @@ def _split(files, prefix, by_path, limit, groups):
     if len(text) <= limit:
         groups.append((prefix, files, text))
         return
-    depth = len(prefix)
-    direct = [f for f in files if _dir_of(f["path"], depth) is None]
-    subdirs = sorted({_dir_of(f["path"], depth) for f in files} - {None})
-    if not subdirs:
+    direct, by_dir = _bucket(files, len(prefix))
+    if not by_dir:
         groups.append((prefix, files, _group_text(title, files, by_path, limit)))
         return
     if direct:
         groups.append((prefix, direct, _group_text(title, direct, by_path, limit)))
-    for name in subdirs:
-        inside = [f for f in files if _dir_of(f["path"], depth) == name]
-        _split(inside, prefix + [name], by_path, limit, groups)
+    for name in sorted(by_dir):
+        _split(by_dir[name], prefix + [name], by_path, limit, groups)
 
 
 _UNSAFE_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
@@ -156,12 +167,11 @@ def render(files: list, symbols: list, budget: int, tolerance: int) -> dict:
         return {"repo-map.md": full}
 
     groups = []
-    root_direct = [f for f in with_symbols if _dir_of(f["path"], 0) is None]
+    root_direct, by_dir = _bucket(with_symbols, 0)
     if root_direct:
         _split(root_direct, [], by_path, limit, groups)
-    for name in sorted({_dir_of(f["path"], 0) for f in with_symbols} - {None}):
-        _split([f for f in with_symbols if _dir_of(f["path"], 0) == name], [name],
-               by_path, limit, groups)
+    for name in sorted(by_dir):
+        _split(by_dir[name], [name], by_path, limit, groups)
 
     out, rows = {}, []
     for (prefix, group_files, text), name in zip(groups, _shard_names(groups)):
