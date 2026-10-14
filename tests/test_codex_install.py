@@ -99,8 +99,8 @@ def test_statusline_adds_only_native_fields_and_backs_up_original(tmp_path, orig
     assert install_codex.install_status_line(tmp_path) == 0
     updated = path.read_bytes()
     after = tomllib.loads(updated.decode())
-    expected = ["current-dir", "git-branch", "model-with-reasoning",
-                "context-remaining", "five-hour-limit", "weekly-limit"]
+    expected = ["model-with-reasoning", "current-dir", "context-window",
+                "token-usage", "git-branch"]
     assert after["tui"].pop("status_line") == expected
     if "tui" not in before:
         del after["tui"]

@@ -556,12 +556,15 @@ plugin's settings, so a status line can only reach you through your own
 `~/.claude/settings.json`.
 
 ```
-claude-all-in-one · main · Opus 5 [max] · ctx 92% · 5h 75% · 7d 60%
+Opus 5 [max] · claude-all-in-one · ctx 92% / 200,000 tokens · tokens 15,500 in / 1,200 out · main · 5h 75% · 7d 60%
 ```
 
-Project name in bright cyan, git branch, the model with its live `/effort`
-level, then three gauges that all read the same way — how much is **left**, not
-how much is spent. Green at 50% or more, amber down to 21%, red at 20% or below,
+The model with its live `/effort` level, project name in bright cyan, context
+window's remaining percentage and capacity, current context's input/output token
+counts, then git branch — matching Codex's common field order. The token counts
+come from the latest response, not cumulative session totals. Missing fields are
+omitted. The 5-hour and 7-day limit gauges follow. All three gauges show how much
+is **left**, not how much is spent. Green at 50% or more, amber down to 21%, red at 20% or below,
 so a colour means the same thing whichever number you look at. The two
 rate-limit gauges appear only for Claude.ai subscribers, and only after the
 session's first API response.
