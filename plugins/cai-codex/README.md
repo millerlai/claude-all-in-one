@@ -32,6 +32,18 @@ Usage's Windows notes below for what you'll be asked to approve. It ends by
 telling you to run `/hooks` and trust the cai guard — until you do, the
 guard is installed but **inactive**, and nothing stops a dangerous command.
 
+Setup also offers a native status line showing the current directory/project,
+git branch, model and live reasoning effort, remaining context, and 5-hour and
+weekly rate limits. Accepting writes `tui.status_line` in
+`$CODEX_HOME/config.toml` (or `~/.codex/config.toml`) only when it is absent,
+with a timestamped backup of an existing configuration. Existing choices,
+including an empty list that hides the footer, are kept. Restart Codex after
+the write; use `/statusline` to customize the fields and their order.
+This optional configuration step needs Python 3.11 or later; with an older
+interpreter, use `/statusline` manually. Codex owns the formatting and omits
+unavailable fields, so the information matches cai's Claude Code status line
+while its appearance can differ.
+
 ## Usage
 
 Invoke a skill with `$name` — the Claude Code form `/cai:name` becomes `$name`
@@ -175,6 +187,7 @@ as observed; it may change with a Codex update).
 | Per-agent model pin (`chore`/`build`/`think`) | A user-level `~/.codex/agents/*.toml` per agent, with `model` set | verified | observed with codex-cli 0.155.0 on Windows 11, 2026-09-18: dispatching a personal agent TOML by name applied its `model` override. |
 | Choosing a model per role (chore/build/think) | `$setup`, or `$models`, which does only this part, reads the model list Codex keeps for your account in `$CODEX_HOME/models_cache.json`, offers only the models it lists, and saves your per-role choice in `$CODEX_HOME/cai-model-choice.json`, which every later `$setup` re-applies | unverified | observed with codex-cli 0.155.1 on Windows 11, 2026-09-22: the file lists each model's slug, whether it is shown or hidden, and its supported reasoning efforts. It is not described in Codex's documentation, so a Codex update may move or reshape it; setup then says it could not read the list and offers to keep the current models or type a name, rather than guessing. Whether the list leaves out models a restricted account cannot use was not checked. |
 | Per-agent reasoning effort | The same TOML sets `model_reasoning_effort`; `$models` can save an effort override for an entire role | documented, not tested | the field is documented for agent TOML configuration. Automated tests cover saving, restoring, validating and writing effort choices, but whether Codex applies the field at runtime was not exercised in this build — only `model` was observed. |
+| Status line: project, branch, model with live effort, context and limits | `$setup` offers the native `tui.status_line` fields, keeping any existing selection; `/statusline` customizes them | documented, not tested | https://learn.chatgpt.com/docs/developer-commands?surface=cli documents the native picker and fields. Automated tests cover configuration preservation, backups and the selected item order; the footer has not been observed in an interactive Codex session in this build. |
 | `/cai:x` skill invocation | `$x` | verified | observed with codex-cli 0.155.0 on Windows 11, 2026-09-18: the bare `$name` form invoked a plugin skill on the first try, with no plugin-qualified form needed. |
 | `${CLAUDE_PLUGIN_ROOT}`-relative paths to this plugin's own scripts | A small launcher installed at the fixed path `$HOME/.codex/cai/launcher.py` (always under the real home directory, never `$CODEX_HOME`), invoked through the interpreter `$setup` recorded rather than a literal `python`, that finds the newest installed cai-codex version and runs the named script | verified | observed with codex-cli 0.155.0 on Windows 11, 2026-09-18: `${CLAUDE_PLUGIN_ROOT}` and `${PLUGIN_ROOT}` come back literal and unsubstituted in a skill body, so this plugin never relies on substitution. Generated commands now call the launcher through the interpreter `$setup` recorded (its own `sys.executable`) rather than a hard-coded `python`. On Windows the recorded command additionally pipes the launcher's output through PowerShell (`ForEach-Object`), because a Python script's own output did not reach the tool output on Windows with codex-cli 0.155.x on Windows 11, 2026-09-19, and piping it through PowerShell did. In Codex's Windows sandbox, git reports "dubious ownership" for your own repository; cai's scripts handle this for the folder you opened, but your own git commands may still need `-c safe.directory=<path>` (observed with codex-cli 0.155.1 on Windows 11, 2026-09-19). cai's scripts ran through the recorded command for a whole `$track` run, intake through ship, on Windows (observed with codex-cli 0.155.1 on Windows 11, 2026-09-19). |
 | `tools:` allowlist per agent | Codex `sandbox_mode`, declared on each agent but not enforced | degraded | observed with codex-cli 0.155.0 on Windows 11, 2026-09-18: a dispatched subagent declared `sandbox_mode = "read-only"` in its TOML, but ran with `workspace-write` inherited from the parent, and a file write it should not have been able to make succeeded. |
@@ -193,9 +206,8 @@ as observed; it may change with a Codex update).
 
 ## Not included on Codex
 
-The status line, the usage report, and the plugin evals have no Codex
-counterpart and are not part of this package. They read Claude-only data or
-need `claude plugin eval`.
+The usage report and the plugin evals have no Codex counterpart and are not
+part of this package. They read Claude-only data or need `claude plugin eval`.
 
 ## Uninstall
 
@@ -217,5 +229,8 @@ Then remove what `$setup` wrote, since removing the plugin does not touch it:
 - `$CODEX_HOME/AGENTS.md.<YYYY-MM-DD-HHMMSS>.bak` — the copy `$setup` keeps
   each time before it changes `AGENTS.md`; delete the ones you don't need.
 - `$CODEX_HOME/cai-model-choice.json` — your saved per-role model choice.
+- Optionally remove `tui.status_line` from `$CODEX_HOME/config.toml` to restore
+  Codex's default footer, or keep/customize it with `/statusline`. Setup's
+  `config.toml.<YYYY-MM-DD-HHMMSS>.bak` keeps the pre-change configuration.
 
 There is no uninstall command for these; remove them by hand.

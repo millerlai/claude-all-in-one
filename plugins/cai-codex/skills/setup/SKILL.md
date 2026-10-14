@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Finish installing cai-codex - choose your response language, run the installer, and trust the cai hooks. Run once after adding the plugin, and again after each update.
+description: Finish installing cai-codex - choose your response language, run the installer, optionally configure the status line, and trust the cai hooks. Run once after adding the plugin, and again after each update.
 ---
 
 Install cai-codex for this user and finish the setup the installer cannot do
@@ -9,7 +9,7 @@ step fails.
 
 ## Menu policy — short, waiting menus
 
-For all language and model menus in this skill, show a short question and
+For all language, model and status-line menus in this skill, show a short question and
 the labelled choices only, plus any installer warning required below.
 This overrides the option-presentation requirements in
 `rules/epistemics.md` and `rules/option-explainer.md` for these setup menus.
@@ -117,7 +117,7 @@ Follow the `ask:` line exactly:
   after `keep-or-type`: keep (first option, the default) or type a model
   name. Every one of these questions must carry this warning: "setup
   cannot check a typed name against your account".
-- `ask: nothing` — ask no question at all. (Step 6's report says the saved
+- `ask: nothing` — ask no question at all. (Step 7's report says the saved
   choice was reused, and why.)
 
 Menus for these questions follow the short, waiting menu policy above. The
@@ -193,7 +193,31 @@ Substitute the language name and nothing else:
 
 If the line already names the chosen language, leave it as-is.
 
-## Step 5 — Trust the hooks
+## Step 5 — Offer the status line
+
+Ask whether to configure the native Codex status line, with short choices:
+configure it, or skip. It shows the current directory/project, git branch,
+model with its live reasoning effort, remaining context, and the 5-hour and
+weekly rate limits. Codex controls the formatting and hides unavailable data;
+this does not install Claude Code's external status-line script.
+
+If they skip, continue. If they accept, run the same interpreter as Step 3
+with `--statusline`, using the same Windows output pipeline when applicable:
+
+```
+<interpreter> "<cai-root>/scripts/install_codex.py" --statusline
+```
+
+This writes `$CODEX_HOME/config.toml`, outside the workspace, so use the
+system's approval mechanism for that write. The command needs Python 3.11
+or later. It keeps any existing `tui.status_line`, including an empty list,
+and backs up the configuration before adding a missing setting. Do not edit
+the configuration yourself or silently replace an existing choice. Quote
+any failure; `/statusline` is the built-in way to configure it manually.
+Tell the user to restart Codex after a write, and that `/statusline` can
+customize the fields and their order.
+
+## Step 6 — Trust the hooks
 
 The installer wrote cai's hook entries into `$CODEX_HOME/hooks.json`: the
 guard on PreToolUse, and the stage timing hook on SubagentStart, PreToolUse,
@@ -201,7 +225,7 @@ PostToolUse and SubagentStop. A hook Codex has not been told to trust does
 not fire. Tell the user to run `/hooks`, review the cai entries, and trust
 them. Until they do, the guard and stage timing are installed but inactive.
 
-## Step 6 — Report
+## Step 7 — Report
 
 Report concisely:
 
@@ -213,6 +237,9 @@ Report concisely:
   backup.
 - Which interpreter succeeded.
 - The response language that was set.
+- Whether the status line was configured, kept, skipped, or failed, and any
+  configuration backup path printed by the command. After a write, say that
+  restarting Codex loads the setting. It includes the live reasoning effort.
 - Whether the user still needs to run `/hooks` to activate the guard and stage timing.
 - The `models:` line, quoted verbatim.
 - Every `not offered <role>:` line, quoted verbatim.

@@ -8,6 +8,7 @@ grandparent directory rather than anything the launcher resolves.
     python install_codex.py            # run 1: install, then print the mapping
     python install_codex.py --models   # print the mapping only; write nothing
     python install_codex.py --apply    # write the answers a skill collected
+    python install_codex.py --statusline  # opt in to the native footer only
 
 Writes, in order (design: docs/design/2026-09-18-codex-support-detail.md,
 "### install_codex.py"):
@@ -163,6 +164,70 @@ def fallback_effort(own: str, levels: tuple[str, ...] | None) -> str:
 def codex_home() -> Path:
     home = os.environ.get("CODEX_HOME")
     return Path(home) if home else Path.home() / ".codex"
+
+
+STATUS_LINE = ("current-dir", "git-branch", "model-with-reasoning",
+               "context-remaining", "five-hour-limit", "weekly-limit")
+
+
+def install_status_line(home: Path) -> int:
+    """Add the native footer without reserializing the user's whole TOML.
+
+    Existing choices, including an empty list that hides the footer, belong
+    to the user. Validate both the original and the proposed edit, so a table
+    header inside a multiline string cannot direct a write into that string.
+    """
+    try:
+        import tomllib
+    except ImportError:
+        print("statusline: requires Python 3.11 or later; use /statusline instead")
+        return 1
+
+    path = home / "config.toml"
+    try:
+        original = path.read_bytes() if path.exists() else b""
+        text = original.decode("utf-8")
+        config = tomllib.loads(text)
+        tui = config.get("tui", {})
+        if not isinstance(tui, dict):
+            raise ValueError("tui is not a table")
+        if "status_line" in tui:
+            print("statusline: kept existing tui.status_line; customize with /statusline")
+            return 0
+
+        desired = dict(config)
+        desired["tui"] = {**tui, "status_line": list(STATUS_LINE)}
+        newline = "\r\n" if "\r\n" in text else "\n"
+        setting = "status_line = " + json.dumps(STATUS_LINE) + newline
+        # Quoted table names are valid TOML too. Parsing the candidate below
+        # is the authority; this expression only locates possible insertions.
+        headers = re.finditer(r"^\s*\[\s*(?:tui|\"tui\"|'tui')\s*\][^\r\n]*(?:\r?\n|\Z)",
+                              text, re.MULTILINE)
+        candidates = [text[:m.end()] + ("" if text[:m.end()].endswith("\n") else newline)
+                      + setting + text[m.end():] for m in headers]
+        candidates.append(text + ("" if not text or text.endswith("\n") else newline)
+                          + "[tui]" + newline + setting)
+        updated = None
+        for candidate in candidates:
+            try:
+                if tomllib.loads(candidate) == desired:
+                    updated = candidate
+                    break
+            except tomllib.TOMLDecodeError:
+                continue
+        if updated is None:
+            print("statusline: config uses an inline or dotted tui table; use /statusline instead")
+            return 1
+        if path.exists():
+            print(f"backup {setup_files.backup(path)}")
+        setup_files.atomic_write(path, updated.encode("utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"statusline: cannot update {path}: {exc}")
+        return 1
+
+    print(f"statusline: wrote {path}: {', '.join(STATUS_LINE)}")
+    print("statusline: restart Codex to load it; customize with /statusline")
+    return 0
 
 
 def _atomic_write_bytes(path: Path, data: bytes):
@@ -967,12 +1032,15 @@ def main(argv: list[str] | None = None) -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true")
     mode.add_argument("--models", action="store_true")
+    mode.add_argument("--statusline", action="store_true")
     args = parser.parse_args(argv)
 
     root = CAI_ROOT
     home_dir = Path.home()
     chome = codex_home()
 
+    if args.statusline:
+        return install_status_line(chome)
     if args.apply:
         return apply_answers(root, chome)
     if args.models:
