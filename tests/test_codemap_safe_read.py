@@ -36,7 +36,8 @@ def test_read_to_the_end_keeps_the_hash_and_not_the_bytes(tmp_path):
     body = b"x = 1\n" * 20000   # more than one CHUNK
     write(tmp_path, "a.py", body, binary=True)
     got = inv.read_tracked(_top(tmp_path), "a.py")
-    assert got == inv.TrackedRead(None, len(body), _sha(body), None)
+    mtime = os.stat(os.path.join(str(tmp_path), "a.py")).st_mtime_ns
+    assert got == inv.TrackedRead(None, len(body), _sha(body), None, mtime)
 
 
 def test_bytes_come_back_untranslated(tmp_path):
@@ -44,7 +45,9 @@ def test_bytes_come_back_untranslated(tmp_path):
     body = b"a\r\nb\x1a c\r\n"
     write(tmp_path, "a.txt", body, binary=True)
     top = _top(tmp_path)
-    assert inv.read_tracked(top, "a.txt") == inv.TrackedRead(None, len(body), _sha(body), None)
+    mtime = os.stat(os.path.join(str(tmp_path), "a.txt")).st_mtime_ns
+    assert inv.read_tracked(top, "a.txt") == inv.TrackedRead(None, len(body), _sha(body), None,
+                                                             mtime)
     assert inv.read_tracked(top, "a.txt", 100).data == body
 
 

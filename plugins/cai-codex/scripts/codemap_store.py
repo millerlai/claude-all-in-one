@@ -21,7 +21,8 @@ import preflight  # noqa: E402
 
 INDEX_PARTS = (".cai", "codemap")
 TRACKED_REASON = ".cai/codemap holds tracked files"
-SCHEMA_VERSION = 2
+# 3: file records carry mtime_ns and state.json scanned_at_ns (#448).
+SCHEMA_VERSION = 3
 # Covers every piece of code that turns a file's path and bytes into records:
 # codemap_inventory.LANGUAGES, MAX_PARSE_BYTES and the reasons read_tracked
 # returns, codemap_index._facts_record and _parse, and all of
@@ -358,7 +359,8 @@ def _is_state(state: dict) -> bool:
     """The state.json fields the readers use that `load` does not already check.
     Only fields a reader takes are looked at: one nobody reads cannot hurt."""
     partial = state.get("partial", [])
-    return _str_or_none(state.get("head")) and isinstance(partial, list) and all(
+    return _str_or_none(state.get("head")) and _is_int(state.get("scanned_at_ns")) \
+        and isinstance(partial, list) and all(
         isinstance(entry, dict) and isinstance(entry.get("path"), str) for entry in partial)
 
 
@@ -367,7 +369,9 @@ def _is_file_record(record) -> bool:
     the tool itself writes as null (`sha256`, `reason`, `confidence`) stays null."""
     return (isinstance(record, dict) and isinstance(record.get("path"), str)
             and isinstance(record.get("language"), str)
-            and all(_str_or_none(record.get(k)) for k in ("sha256", "reason", "confidence")))
+            and all(_str_or_none(record.get(k)) for k in ("sha256", "reason", "confidence"))
+            and all(record.get(k) is None or _is_int(record.get(k))
+                    for k in ("bytes", "mtime_ns")))
 
 
 def _is_symbol_record(record) -> bool:
