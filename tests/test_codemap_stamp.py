@@ -56,11 +56,11 @@ def _rebuilt_in_full(top, tmp_path_factory):
     assert _parts(top) == _full_build_elsewhere(tmp_path_factory, top)
 
 
-def test_a_new_index_carries_the_stamp_and_schema_three(tmp_path):
+def test_a_new_index_carries_the_stamp_and_the_current_schema(tmp_path):
     top = _built(tmp_path)
     with open(_state_path(top), encoding="utf-8") as fh:
         state = json.load(fh)
-    assert state["schema_version"] == 3
+    assert state["schema_version"] == 4
     assert state["extractor_version"] == store.EXTRACTOR_VERSION
     assert state["python_version"] == "%d.%d" % sys.version_info[:2]
     assert store.extractor_stamp() == {"extractor_version": store.EXTRACTOR_VERSION,

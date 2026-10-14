@@ -160,7 +160,9 @@ def _write(top, facts, previous, scanned_at_ns):
                      "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                      "head": head, "file_count": len(records), "artifacts": artifacts,
                      "partial": [{"path": p, "reason": r} for p, r in partial],
-                     "scanned_at_ns": scanned_at_ns, **store.extractor_stamp()}
+                     "scanned_at_ns": scanned_at_ns,
+                     "files_with_symbols": len({s["path"] for s in all_symbols}),
+                     **store.extractor_stamp()}
             staged.append(store.commit_state(top, state))
             store.publish(staged)
         except BaseException:
@@ -255,7 +257,7 @@ def status(top: str) -> Status:
     except OSError:
         return _unsupported("git did not answer")
     try:
-        index = store.load(top)
+        index = store.load(top, symbols=False)
     except store.IndexUnreadable as exc:
         return _unsupported("index unreadable: %s; run build" % exc.args[0])
     except OSError:
@@ -280,7 +282,7 @@ def status(top: str) -> Status:
     head = index.state.get("head")
     # Says whether the map has anything in it: a repo of a language with no
     # adapter is "fresh" and empty, which the file count alone hides.
-    with_symbols = len({s["path"] for s in index.symbols})
+    with_symbols = index.state["files_with_symbols"]
     # The absolute index directory: a read-only agent has no shell to find the
     # repository's top itself, and a guess from a subdirectory or another
     # worktree would read some other index (#401).

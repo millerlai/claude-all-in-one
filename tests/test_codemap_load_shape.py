@@ -110,6 +110,16 @@ BAD_SHAPES = {
 }
 
 
+# status checks symbols.jsonl against its sha256 but no longer parses it (#449),
+# so a symbol record of the wrong shape under a matching digest is caught by
+# update's and query's full load, not by status.
+SYMBOL_RECORD_SHAPES = {
+    "symbol-is-a-string", "symbol-without-path", "start-line-is-a-string",
+    "start-line-is-a-bool", "symbol-path-is-an-integer",
+    "symbol-qualified-name-is-an-integer", "symbol-name-is-null",
+    "symbol-kind-is-an-integer", "end-line-is-a-string"}
+
+
 @pytest.mark.parametrize("shape", sorted(BAD_SHAPES))
 def test_a_record_the_readers_cannot_use_is_unreadable_and_rebuilt(tmp_path, capsys, shape):
     top = _built(tmp_path)
@@ -117,7 +127,7 @@ def test_a_record_the_readers_cannot_use_is_unreadable_and_rebuilt(tmp_path, cap
 
     with pytest.raises(store.IndexUnreadable):
         store.load(top)
-    assert idx.status(top).word == "unsupported"
+    assert idx.status(top).word == ("fresh" if shape in SYMBOL_RECORD_SHAPES else "unsupported")
     assert codemap_cli.main(["status", "--project-dir", top]) == 0
     assert codemap_cli.main(["update", "--project-dir", top]) == 0
     out = capsys.readouterr()
