@@ -173,13 +173,13 @@ default`.
 
 ## Step 4 — Save the response language
 
-Use the language chosen in Step 1; do not ask again. Save it only after all
-installer runs, including any `--apply` run, because each run rewrites the
-cai rules block with its shipped English default.
+Use the language chosen in Step 1; do not ask again. Save it after all
+installer runs, including any `--apply` run. The installer keeps the language
+an earlier setup saved, so the line may already name one.
 
 Edit the language line inside the `<!-- cai-codex:begin -->` /
 `<!-- cai-codex:end -->` block the installer just wrote into
-`$CODEX_HOME/AGENTS.md`. The line currently reads:
+`$CODEX_HOME/AGENTS.md`. With the shipped default, the line reads:
 
 ```
 - Respond in English; keep technical terms in their original form.
@@ -191,7 +191,7 @@ Substitute the language name and nothing else:
 - Respond in <language>; keep technical terms in their original form.
 ```
 
-If the user picks English, leave the line as-is.
+If the line already names the chosen language, leave it as-is.
 
 ## Step 5 — Trust the hooks
 
@@ -206,6 +206,11 @@ them. Until they do, the guard and stage timing are installed but inactive.
 Report concisely:
 
 - The installer's own output, quoted.
+- The full path on each `backup` line the installer printed — the copy of
+  `AGENTS.md` it kept before changing it — or that it printed none. If it
+  printed the line saying the cai block differed from what cai last wrote,
+  say that the user's edits inside the block were replaced and are in that
+  backup.
 - Which interpreter succeeded.
 - The response language that was set.
 - Whether the user still needs to run `/hooks` to activate the guard and stage timing.

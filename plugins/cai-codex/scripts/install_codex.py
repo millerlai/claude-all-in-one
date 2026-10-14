@@ -24,7 +24,9 @@ Writes, in order (design: docs/design/2026-09-18-codex-support-detail.md,
        `<!-- cai-codex:end -->` region (or appends it) with the cai command
        line (this installer's own recorded interpreter, `sys.executable`,
        plus the launcher path) followed by the rules from
-       `<cai-root>/rules/*.md`.
+       `<cai-root>/rules/*.md`. An existing file is first copied to
+       `AGENTS.md.<YYYY-MM-DD-HHMMSS>.bak`, an unchanged block is not
+       rewritten, and the block's language line is kept (#455).
 
 Run 1 (no `--apply`) additionally validates the model detection cache, the
 saved model choice, and every role's TOML header before writing anything
@@ -60,6 +62,8 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import NamedTuple
+
+import setup_files
 
 CAI_ROOT = Path(__file__).resolve().parent.parent
 LAUNCHER_MARKER = ".codex/cai/launcher.py"
@@ -386,9 +390,19 @@ def cai_command_block(cai_line: str) -> str:
     )
 
 
-def install_agents_md(home: Path, block_body: str) -> Path:
+class AgentsMdResult(NamedTuple):
+    path: Path
+    state: str               # setup_files.state()'s words, for the block alone
+    backup: Path | None      # the copy kept before an existing file changed
+
+
+def install_agents_md(home: Path, block_body: str, now=None) -> AgentsMdResult:
+    """Write the cai block; whatever an existing file held is first copied to
+    a timestamped `.bak`, and a block whose text already matches is left
+    alone (#455). Hand edits inside the block are still replaced, but the
+    manifest's hash tells them apart so the caller can say so."""
     dest = home / "AGENTS.md"
-    block = f"{AGENTS_BEGIN}\n{block_body}\n{AGENTS_END}"
+    recorded = setup_files.load_manifest(home).get("AGENTS.md")
 
     if dest.is_file():
         text = dest.read_text(encoding="utf-8")
@@ -397,16 +411,35 @@ def install_agents_md(home: Path, block_body: str) -> Path:
 
     begin_at = text.find(AGENTS_BEGIN)
     if begin_at == -1:
+        st = "absent"
         sep = "" if text == "" or text.endswith("\n") else "\n"
-        new_text = text + sep + block + "\n"
+        new_text = text + sep + f"{AGENTS_BEGIN}\n{block_body}\n{AGENTS_END}" + "\n"
     else:
-        end_at = text.find(AGENTS_END)
+        # An end marker above the begin marker (#455) would make the slice
+        # below duplicate or drop the user's text, so refuse as for a
+        # missing one.
+        if -1 < text.find(AGENTS_END) < begin_at:
+            raise MarkerError(f"{dest}: end marker before begin marker")
+        end_at = text.find(AGENTS_END, begin_at)
         if end_at == -1:
             raise MarkerError(f"{dest}: begin marker without end marker")
-        new_text = text[:begin_at] + block + text[end_at + len(AGENTS_END):]
+        old_body = text[begin_at + len(AGENTS_BEGIN):end_at]
+        old_body = old_body[1:] if old_body.startswith("\n") else old_body
+        old_body = old_body[:-1] if old_body.endswith("\n") else old_body
+        st = setup_files.state(old_body, block_body, recorded)
+        block_body = setup_files.carry_language(block_body, old_body)
+        new_text = (text[:begin_at] + f"{AGENTS_BEGIN}\n{block_body}\n{AGENTS_END}"
+                    + text[end_at + len(AGENTS_END):])
 
-    _atomic_write_bytes(dest, new_text.encode("utf-8"))
-    return dest
+    saved = None
+    if st != "identical":
+        if dest.is_file():
+            saved = setup_files.backup(dest, now)
+        _atomic_write_bytes(dest, new_text.encode("utf-8"))
+    if recorded != setup_files.digest(block_body):
+        setup_files.save_manifest(home, {**setup_files.load_manifest(home),
+                                         "AGENTS.md": setup_files.digest(block_body)})
+    return AgentsMdResult(dest, st, saved)
 
 
 # ---------------------------------------------------------------------------
@@ -1012,14 +1045,19 @@ def main(argv: list[str] | None = None) -> int:
     rules_text = rules_block(root)
     block_body = cai_command_block(cai_line) + "\n" + rules_text
     try:
-        agents_md_path = install_agents_md(chome, block_body)
+        agents_md = install_agents_md(chome, block_body)
     except MarkerError as e:
         print(f"invalid AGENTS.md, not overwritten: {e}")
         return 1
     except OSError as e:
         print(f"write failed: {chome / 'AGENTS.md'}: {e}")
         return 1
-    print(f"wrote {agents_md_path}")
+    if agents_md.backup:
+        print(f"backup {agents_md.backup}")
+    if agents_md.state == "user-modified":
+        print(f"AGENTS.md: the cai block differed from what cai last wrote; "
+              f"replaced, the previous file is the backup above")
+    print(f"{'unchanged' if agents_md.state == 'identical' else 'wrote'} {agents_md.path}")
 
     print(f"rules: {len(rules_text.encode('utf-8'))} bytes "
           "(Codex's AGENTS.md cap is unverified)")

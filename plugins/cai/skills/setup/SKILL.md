@@ -24,16 +24,39 @@ cai@claude-all-in-one` first.
 
 ## Step 2 — Copy the rules to user scope
 
-Create `~/.claude/rules/` if absent, then copy every `.md` file from
-`<plugin-root>/rules/` into it.
+A script, not your own reading, decides which installed rules are safe to
+replace. Run it with whichever interpreter name this machine has — `py -3` or
+`python` on Windows, `python3` on macOS/Linux — and with `<home>` replaced by
+the user's home directory:
 
-These files are overwritten wholesale on each run — that is intended, it is how
-updates propagate. Before overwriting, check whether any destination file
-already differs from the source in ways that look hand-edited (rules the user
-added themselves, not just the language line from Step 3). If so, list those
-files, ask the user whether to overwrite or skip them, and respect the answer.
+```
+python "<plugin-root>/scripts/setup_files.py" status --dest "<home>/.claude/rules" --diff
+```
 
-Use the platform's native copy — `cp` on macOS/Linux, `Copy-Item` on Windows.
+It prints one `<state> <file>` line per shipped rule, and after each
+`user-modified` line the diff between the installed and the shipped copy:
+
+- `absent`, `identical`, `stale-unmodified` — nothing to ask. An outdated
+  copy that cai wrote and nobody edited is how updates propagate.
+- `user-modified` — the file differs from what cai last wrote there, or cai
+  has no record of writing it (an install from before this check). Show the
+  user that file's diff and ask, with the AskUserQuestion tool, one question
+  per such file: overwrite it (the current copy is kept as a backup) or skip
+  it. Respect each answer.
+
+Then install, adding `--overwrite <file>` once for each file the user chose
+to overwrite:
+
+```
+python "<plugin-root>/scripts/setup_files.py" install --dest "<home>/.claude/rules"
+```
+
+It writes the absent and outdated rules, leaves identical ones alone, and
+skips every unlisted `user-modified` one. Before changing an existing file it
+copies it to `<file>.<YYYY-MM-DD-HHMMSS>.bak` beside it and prints a
+`backup <full path>` line. Keep those lines for the report. Do not copy rules
+any other way: the script also records what it wrote, which is what tells an
+outdated copy from an edited one next time.
 
 ## Step 3 — Set the response language
 
@@ -43,8 +66,8 @@ Traditional Chinese (繁體中文), and Japanese (日本語) as options — the 
 always adds a free-text "Other" choice for anything else.
 
 Then rewrite that single bullet in the **installed** copy
-(`~/.claude/rules/communication.md`, not the plugin's copy) to match. The line
-currently reads:
+(`~/.claude/rules/communication.md`, not the plugin's copy) to match. Step 2
+keeps the language an earlier run set, so the line may already name one:
 
 ```
 - Respond in English; keep technical terms in their original form.
@@ -57,7 +80,7 @@ language-neutral and stays verbatim:
 - Respond in <language>; keep technical terms in their original form.
 ```
 
-If the user picks English, leave the line as-is.
+If the line already names the chosen language, leave it as-is.
 
 ## Step 4 — Bootstrap or review the user's global CLAUDE.md
 
@@ -86,6 +109,16 @@ you just installed in `~/.claude/rules/`, and report:
 Then ask whether to slim their file down to what the rules don't cover —
 usually the preamble plus `## Environment`. Show the proposed result and only
 write it if they agree. If they decline, leave the file untouched and move on.
+
+If they agree, first keep a copy, and write only after it printed a
+`backup <full path>` line:
+
+```
+python "<plugin-root>/scripts/setup_files.py" backup "<home>/.claude/CLAUDE.md"
+```
+
+Tell the user that path, and that copying it back over `~/.claude/CLAUDE.md`
+undoes the change.
 
 ## Step 5 — Bootstrap or review the current project's CLAUDE.md
 
@@ -228,6 +261,8 @@ say so: a status line that cannot run shows up as an empty bar, not an error.
 Report concisely:
 
 - Which rules files were written to `~/.claude/rules/`, and any that were skipped.
+- The full path of every backup made this run — each `backup` line Steps 2
+  and 4 printed — or that none was needed.
 - The response language that was set.
 - What happened to `~/.claude/CLAUDE.md` — created, slimmed, or left alone with
   duplication still present.
