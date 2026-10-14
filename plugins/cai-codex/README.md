@@ -212,6 +212,10 @@ Then remove what `$setup` wrote, since removing the plugin does not touch it:
   contains `.codex/cai/launcher.py`.
 - In `$CODEX_HOME/AGENTS.md`, the block between `<!-- cai-codex:begin -->`
   and `<!-- cai-codex:end -->`.
+- `$CODEX_HOME/.cai-manifest.json` — the hash of that block as `$setup`
+  last wrote it, which is how it tells your own edits inside the block apart.
+- `$CODEX_HOME/AGENTS.md.<YYYY-MM-DD-HHMMSS>.bak` — the copy `$setup` keeps
+  each time before it changes `AGENTS.md`; delete the ones you don't need.
 - `$CODEX_HOME/cai-model-choice.json` — your saved per-role model choice.
 
 There is no uninstall command for these; remove them by hand.

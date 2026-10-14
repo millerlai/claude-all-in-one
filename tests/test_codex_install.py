@@ -319,7 +319,7 @@ def test_install_hooks_invalid_json_raises_and_never_overwrites(tmp_path):
 def test_install_agents_md_creates_when_absent(tmp_path):
     home = tmp_path / "codex_home"
 
-    dest = install_codex.install_agents_md(home, "some rules text")
+    dest = install_codex.install_agents_md(home, "some rules text").path
 
     text = dest.read_text(encoding="utf-8")
     assert text == "<!-- cai-codex:begin -->\nsome rules text\n<!-- cai-codex:end -->\n"
@@ -331,7 +331,7 @@ def test_install_agents_md_replaces_block_leaves_outside_text_untouched(tmp_path
           "# My project\n\nBefore text.\n\n"
           "<!-- cai-codex:begin -->\nold rules\n<!-- cai-codex:end -->\n\nAfter text.\n")
 
-    dest = install_codex.install_agents_md(home, "new rules")
+    dest = install_codex.install_agents_md(home, "new rules").path
 
     text = dest.read_text(encoding="utf-8")
     assert text == ("# My project\n\nBefore text.\n\n"
@@ -342,7 +342,7 @@ def test_install_agents_md_appends_when_no_markers_present(tmp_path):
     home = tmp_path / "codex_home"
     write(home, "AGENTS.md", "# My project\n\nsome existing content\n")
 
-    dest = install_codex.install_agents_md(home, "the rules")
+    dest = install_codex.install_agents_md(home, "the rules").path
 
     text = dest.read_text(encoding="utf-8")
     assert text == ("# My project\n\nsome existing content\n"
@@ -361,6 +361,114 @@ def test_install_agents_md_begin_without_end_raises_and_never_overwrites(tmp_pat
         pass
 
     assert dest_path.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.parametrize("original", [
+    "mine\n<!-- cai-codex:end -->\nkeep\n<!-- cai-codex:begin -->\nold\n",
+    "mine\n<!-- cai-codex:end -->\nkeep\n<!-- cai-codex:begin -->\nold\n<!-- cai-codex:end -->\n",
+])
+def test_install_agents_md_end_before_begin_raises_and_never_overwrites(tmp_path, original):
+    """#455: an end marker above the begin marker used to make the slice
+    duplicate the text between them."""
+    home = tmp_path / "codex_home"
+    dest_path = write(home, "AGENTS.md", original)
+
+    with pytest.raises(install_codex.MarkerError, match="end marker before begin marker"):
+        install_codex.install_agents_md(home, "new rules")
+
+    assert dest_path.read_text(encoding="utf-8") == original
+    assert sorted(p.name for p in home.iterdir()) == ["AGENTS.md"]
+
+
+NOW = __import__("datetime").datetime(2026, 10, 14, 15, 30, 42)
+LANG = "- Respond in English; keep technical terms in their original form."
+
+
+def _backups(home):
+    return sorted(p.name for p in home.iterdir() if p.name.endswith(".bak"))
+
+
+def test_install_agents_md_backs_up_an_existing_file_before_changing_it(tmp_path):
+    home = tmp_path / "codex_home"
+    write(home, "AGENTS.md", "# Mine\n")
+
+    first = install_codex.install_agents_md(home, "rules v1", NOW)
+    assert first.state == "absent"
+    assert first.backup == home / "AGENTS.md.2026-10-14-153042.bak"
+    assert first.backup.read_text(encoding="utf-8") == "# Mine\n"
+
+    second = install_codex.install_agents_md(home, "rules v2", NOW)
+    assert second.state == "stale-unmodified"
+    assert second.backup.name == "AGENTS.md.2026-10-14-153042-1.bak"
+    assert "rules v1" in second.backup.read_text(encoding="utf-8")
+    assert "rules v2" in (home / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_install_agents_md_a_new_file_needs_no_backup(tmp_path):
+    home = tmp_path / "codex_home"
+    result = install_codex.install_agents_md(home, "rules", NOW)
+    assert result.backup is None and _backups(home) == []
+
+
+def test_install_agents_md_identical_block_is_neither_rewritten_nor_backed_up(tmp_path):
+    home = tmp_path / "codex_home"
+    install_codex.install_agents_md(home, "rules", NOW)
+    before = (home / "AGENTS.md").stat().st_mtime_ns
+
+    result = install_codex.install_agents_md(home, "rules", NOW)
+
+    assert result.state == "identical" and result.backup is None
+    assert (home / "AGENTS.md").stat().st_mtime_ns == before
+    assert _backups(home) == []
+
+
+def test_install_agents_md_a_hand_edited_block_is_reported_and_backed_up(tmp_path):
+    home = tmp_path / "codex_home"
+    install_codex.install_agents_md(home, "rules v1", NOW)
+    dest = home / "AGENTS.md"
+    dest.write_text(dest.read_text(encoding="utf-8").replace("rules v1", "rules v1 + mine"),
+                    encoding="utf-8")
+
+    result = install_codex.install_agents_md(home, "rules v2", NOW)
+
+    assert result.state == "user-modified"
+    assert "rules v1 + mine" in result.backup.read_text(encoding="utf-8")
+    assert "rules v2" in dest.read_text(encoding="utf-8")
+
+
+def test_install_agents_md_with_no_manifest_an_old_block_counts_as_user_modified(tmp_path):
+    home = tmp_path / "codex_home"
+    write(home, "AGENTS.md", "<!-- cai-codex:begin -->\nold\n<!-- cai-codex:end -->\n")
+    assert install_codex.install_agents_md(home, "new", NOW).state == "user-modified"
+
+
+def test_install_agents_md_keeps_the_chosen_language(tmp_path):
+    """#455: each run used to reset the block's language line to English."""
+    home = tmp_path / "codex_home"
+    install_codex.install_agents_md(home, f"rules v1\n{LANG}", NOW)
+    dest = home / "AGENTS.md"
+    dest.write_text(dest.read_text(encoding="utf-8").replace("English", "Japanese"),
+                    encoding="utf-8")
+
+    same = install_codex.install_agents_md(home, f"rules v1\n{LANG}", NOW)
+    assert same.state == "identical"
+    newer = install_codex.install_agents_md(home, f"rules v2\n{LANG}", NOW)
+    assert newer.state == "stale-unmodified"
+    assert dest.read_text(encoding="utf-8") == (
+        f"<!-- cai-codex:begin -->\nrules v2\n{LANG.replace('English', 'Japanese')}\n"
+        "<!-- cai-codex:end -->\n")
+
+
+def test_cli_reports_the_agents_md_backup(tmp_path):
+    env = fake_env(tmp_path)
+    write(tmp_path / ".codex", "AGENTS.md", "# Mine\n")
+    result = run(env)
+    assert result.returncode == 0, result.stdout + result.stderr
+    (line,) = [ln for ln in result.stdout.splitlines() if ln.startswith("backup ")]
+    saved = Path(line.split(" ", 1)[1])
+    assert saved.parent == tmp_path / ".codex" and saved.name.endswith(".bak")
+    assert saved.read_text(encoding="utf-8") == "# Mine\n"
+    assert "unchanged " + str(tmp_path / ".codex" / "AGENTS.md") in run(env).stdout
 
 
 # ---------------------------------------------------------------------------

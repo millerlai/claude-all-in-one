@@ -489,8 +489,12 @@ retried this way — lasts for the current turn only, and isn't shown in
 ## The rules
 
 `/cai:setup` writes these to `~/.claude/rules/`. They are ordinary
-Markdown — edit your copies freely; setup flags files that look hand-edited and
-asks before overwriting them.
+Markdown — edit your copies freely. Setup records a hash of each file it
+writes in `~/.claude/rules/.cai-manifest.json`; a file that no longer matches
+it is one you edited, and setup shows you the diff and asks before
+overwriting it. Every file setup changes is first copied to
+`<file>.<YYYY-MM-DD-HHMMSS>.bak` beside it — not loaded as a rule, since only
+`.md` files are — and the report lists each copy's path.
 
 | File | What it governs |
 |---|---|
@@ -504,7 +508,7 @@ asks before overwriting them.
 | `option-explainer.md` | How to lay out two or more ways forward: shared dimensions, six fields per option including an everyday-life analogy, a real sample of each when the options differ in something you will see, and a pick with the condition that voids it. |
 
 `communication.md` ships defaulting to English; `/cai:setup` rewrites
-that line to whatever language you pick.
+that line to whatever language you pick, and a later update keeps it.
 
 ## Your global CLAUDE.md
 
@@ -515,7 +519,8 @@ repeated. Setup writes a thin starter there if you don't have one.
 If you already have a CLAUDE.md, setup never overwrites it. It reports which of
 your sections are now covered by a rules file and offers to slim the file down,
 because a rule kept in both places is sent to the model twice in every session
-and the two copies drift apart as soon as one is edited. `validate.py` enforces
+and the two copies drift apart as soon as one is edited. Before slimming it,
+setup copies it to `~/.claude/CLAUDE.md.<YYYY-MM-DD-HHMMSS>.bak`. `validate.py` enforces
 the same invariant on the shipped template.
 
 ## Your project CLAUDE.md
