@@ -250,11 +250,16 @@ def tool_versions() -> dict:
     return result
 
 
-def local_gate(repo: Path) -> list:
+def local_gate(repo: Path, run_tests: bool = True) -> list:
     failures = []
     validate_done = run([sys.executable, "scripts/validate.py"], cwd=repo, timeout=None)
     if validate_done.returncode != 0:
         failures.append("FAIL validate.py:\n" + _tail(validate_done))
+    # `cut` passes False: the release commit differs from the main commit CI
+    # already tested only in the paths `cut` allows, and validate.py covers
+    # those. The Actions gate keeps the default and runs the suite on Linux.
+    if not run_tests:
+        return failures
     # No -n here: pyproject.toml's addopts already runs the suite on one
     # worker per CPU, and without pytest-xdist this fails like any other test.
     pytest_done = run([sys.executable, "-m", "pytest"], cwd=repo, timeout=None)
@@ -623,13 +628,12 @@ def cut(version: str, repo: Path = ROOT) -> int:
         print("PASS product manifest, marketplaces and CHANGELOG.md are consistent")
 
         before = set(porcelain)
-        failures = local_gate(repo)
+        failures = local_gate(repo, run_tests=False)
         if failures:
             for f in failures:
                 print(f)
             return 1
         print("PASS local gate: validate.py")
-        print("PASS local gate: pytest")
         after = set(_git_status_paths(repo))
         if after != before:
             print("FAIL working tree changed during the local gate")
