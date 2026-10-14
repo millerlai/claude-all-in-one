@@ -43,9 +43,9 @@ import ship_pr_findings  # noqa: E402
 import ticket_backend  # noqa: E402
 
 FILE_NAME = "open-items.md"
-# 2 added `severity:` (#443); load() still reads 1, whose items all read as major.
-FORMAT = 2
-READS = (1, 2)
+# 3 adds fixability (#460); older records keep their existing fix choices.
+FORMAT = 3
+READS = (1, 2, 3)
 SEVERITIES = ("major", "minor")
 KINDS = {"build": ("deviation", "out-of-scope"),
          "verify": ("unfixed-minor", "parked-proposal")}
@@ -68,9 +68,10 @@ APPLIED = re.compile(r"[0-9a-f]{12}")
 NUMBER = re.compile(r"[0-9]+")
 WHERE = re.compile(r"[A-Za-z0-9_.@+-][^\s:\\]*(?::[0-9]+)?")
 # Item keys in file order; the record's one-line fields all read `key: value`.
-KEYS = ("state", "stage", "kind", "severity", "where", "what", "why", "picked",
+KEYS = ("state", "stage", "kind", "severity", "fixable", "where", "what", "why", "picked",
         "url", "target", "source")
-KEYS_1 = tuple(k for k in KEYS if k != "severity")
+KEYS_2 = tuple(k for k in KEYS if k != "fixable")
+KEYS_1 = tuple(k for k in KEYS_2 if k != "severity")
 SOURCES = ("report", "state.md")
 
 PR_UNKNOWN = object()
@@ -105,6 +106,7 @@ def render(record):
         values = {
             "state": item["state"], "stage": item["stage"], "kind": item["kind"],
             "severity": item["severity"], "where": _none(item["where"]), "what": item["what"], "why": item["why"],
+            "fixable": "yes" if item.get("fixable", True) else "no",
             "picked": ("%s %s at %s" % (picked["date"], picked["pick"], picked["at"])
                        if picked else "none"),
             "url": _none(item["url"]), "target": _none(item["target"]),
@@ -171,8 +173,11 @@ def load(track_dir):
         if not m or int(m.group(1)) != n:
             raise bad("line %d should be `## open-%d`" % (pos + 1, n))
         pos += 1
-        fields = {} if int(head["format"]) > 1 else {"severity": "major"}
-        for key in (KEYS if int(head["format"]) > 1 else KEYS_1):
+        version = int(head["format"])
+        fields = {"fixable": "yes"} if version < 3 else {}
+        if version == 1:
+            fields["severity"] = "major"
+        for key in (KEYS if version == 3 else KEYS_2 if version == 2 else KEYS_1):
             m = re.match(r"%s: (.*)$" % key, lines[pos]) if pos < len(lines) else None
             if not m:
                 raise bad("open-%d is missing `%s:`" % (n, key))
@@ -204,6 +209,8 @@ def _item(n, fields, quoted, bad):
         raise bad("%s has an empty field" % name)
     if fields["severity"] not in SEVERITIES:
         raise bad("%s has an unknown severity" % name)
+    if fields["fixable"] not in ("yes", "no"):
+        raise bad("%s has an unknown fixability" % name)
     picked = None
     if fields["picked"] != "none":
         m = PICKED.match(fields["picked"])
@@ -215,6 +222,7 @@ def _item(n, fields, quoted, bad):
         raise bad("%s has an unknown target" % name)
     return {"id": name, "state": fields["state"], "stage": fields["stage"],
             "kind": fields["kind"], "severity": fields["severity"],
+            "fixable": fields["fixable"] == "yes",
             "where": None if fields["where"] == "none" else fields["where"],
             "what": fields["what"], "why": fields["why"], "picked": picked,
             "url": None if fields["url"] == "none" else fields["url"],
@@ -268,7 +276,7 @@ def read_input(path):
 def _imports(state_text):
     """One undecided item per `Left open:` entry, in table order (I8)."""
     return [{"id": "open-%d" % n, "state": "undecided", "stage": stage,
-             "kind": IMPORTED_KIND, "severity": "major", "where": None, "what": text,
+             "kind": IMPORTED_KIND, "severity": "major", "fixable": True, "where": None, "what": text,
              "why": IMPORT_WHY,
              "picked": None, "url": None, "target": None, "source": "state.md",
              "quoted": None}
@@ -426,8 +434,8 @@ HEADING = "## Open items"
 # indistinguishable from a run with no findings, and the section is the only
 # carrier of build's and verify's unfixed findings.
 DRIFTED_HEADING = re.compile(r"(?im)^#{2,3}[ \t]+open[ \t]+items?\b")
-ENTRY =re.compile(r"([0-9]+)\. (?:new (\S+)|still (open-[0-9]+)|fixed (open-[0-9]+))\s*$")
-LABEL = re.compile(r"(\s+)(What|Where|Why left|Severity|Quoted):[ \t]?(.*)$")
+ENTRY =re.compile(r"([0-9]+)\. (?:new (\S+)|still (open-[0-9]+)|fixed (open-[0-9]+)|unfixable (open-[0-9]+))\s*$")
+LABEL = re.compile(r"(\s+)(What|Where|Why left|Severity|Fixable|Quoted):[ \t]?(.*)$")
 
 
 def _section(report):
@@ -494,6 +502,9 @@ def _fields(n, block):
         out["Quoted"] = "\n".join(lines) or None
     else:
         out["Quoted"] = None
+    out["Fixable"] = fields.get("Fixable", ["yes"])[0].strip()
+    if out["Fixable"] not in ("yes", "no"):
+        raise OpenItemsError("entry %d: Fixable must be yes or no" % n)
     return out
 
 
@@ -557,29 +568,43 @@ def add(track_dir, project_dir, stage, report):
                                  "found %d where %d belongs" % (number, n))
         if not m:
             raise OpenItemsError("entry %d is not `new <kind>`, `still open-<n>` "
-                                 "or `fixed open-<n>`" % n)
-        kind, still, fixed = m.group(2), m.group(3), m.group(4)
+                                 "or `fixed open-<n>` or `unfixable open-<n>`" % n)
+        kind, still, fixed, unfixable = m.group(2), m.group(3), m.group(4), m.group(5)
         if kind:
             f = _fields(n, block[1:])
             _check_new(n, stage, kind, f)
             item_id = "open-%d" % (len(items) + 1)
             items.append({"id": item_id, "state": "undecided", "stage": stage,
                           "kind": kind, "severity": f["Severity"],
+                          "fixable": f["Fixable"] == "yes",
                           "where": None if f["Where"] == "none" else f["Where"],
                           "what": f["What"], "why": f["Why left"], "picked": None,
                           "url": None, "target": None, "source": "report",
                           "quoted": f["Quoted"]})
             out.append("added " + item_id)
             continue
-        if any(ln.strip() for ln in block[1:]):
+        if not unfixable and any(ln.strip() for ln in block[1:]):
             raise OpenItemsError("entry %d: `%s` takes no fields" % (n, block[0].split(". ", 1)[1].strip()))
-        name = still or fixed
+        name = still or fixed or unfixable
         if fixed and stage != "verify":
             raise OpenItemsError("entry %d: `fixed` comes only from the verify "
                                  "stage, not %s" % (n, stage))
         target = next((i for i in items if i["id"] == name), None)
         if target is None:
             raise OpenItemsError("entry %d: %s is not in the record" % (n, name))
+        if unfixable:
+            if stage != "verify" or target["state"] != "fix-pending":
+                raise OpenItemsError("entry %d: `unfixable` requires verify and a fix-pending item" % n)
+            reason_lines = [ln for ln in block[1:] if ln.strip()]
+            reason = re.fullmatch(r"\s+Why left: (\S.*)", reason_lines[0]) if len(reason_lines) == 1 else None
+            if reason is None:
+                raise OpenItemsError("entry %d: `unfixable` requires one Why left line" % n)
+            why = reason.group(1).strip()
+            rule = forbidden(why, field=True)
+            if rule:
+                raise OpenItemsError("entry %d: Why left trips the %s check; reword it" % (n, rule))
+            target["fixable"], target["why"] = False, why
+            out.append("%s not fixable" % name)
         if fixed:
             if target["state"] == "undecided" and carries_quoted:
                 # Quoted text is a third party's, and a column-0 line in it
@@ -698,7 +723,7 @@ def options(track_dir, project_dir, at, pr=None, pr_state=None):
         notes.append("note: no PR number is on the ledger, and the branch was "
                      "not found on origin (git ls-remote did not exit 0), so "
                      "File is not offered")
-    if FIX in menu:
+    if FIX in menu and any(i["state"] in BATCHED and i.get("fixable", True) for i in asked):
         answer = preflight.commit_answer(track_dir, project_dir)[1]
         if not answer.startswith("commit_answer (yes,"):
             notes.append("note: the commit answer is no, so the fix stays in "
@@ -724,25 +749,33 @@ def _grouped(asked, per_item):
             for item in group:
                 out += _block(item)
     if batched:
-        has = {i["severity"] for i in batched}
-        fixes = ([] if FIX not in per_item
+        fixable = [i for i in batched if i.get("fixable", True)]
+        has = {i["severity"] for i in fixable}
+        fixes = ([] if FIX not in per_item or not fixable
                  else [FIX_MAJOR, FIX_ALL] if has == {"major", "minor"}
                  else [FIX_MAJOR] if has == {"major"} else [FIX_MINOR])
         rest = [label for label in per_item if label not in (FIX, FILE_ISSUE)]
         out.append("menu: %s" % " | ".join(fixes + rest))
-        out.append("per-item menu: %s" % " | ".join(per_item))
+        individual = per_item if fixable else [label for label in per_item if label != FIX]
+        out.append("per-item menu: %s" % " | ".join(individual))
+        if fixes and len(fixable) != len(batched):
+            out.append("note: Fix choices queue non-fixable items as notes on the PR")
+            for item in batched:
+                if not item.get("fixable", True):
+                    out.append("%s menu: %s" % (item["id"], " | ".join(label for label in per_item if label != FIX)))
     for item in asked:
         if item["state"] == "filing":
             out += _block(item)
             out.append("%s check-github" % item["id"])
-            out.append("%s menu: %s" % (item["id"], " | ".join(per_item)))
+            out.append("%s menu: %s" % (item["id"], " | ".join(label for label in per_item
+                                                           if label != FIX or item.get("fixable", True))))
     return out
 
 
 def _block(item):
     return ["%s [%s] %s" % (item["id"], item["stage"], item["kind"]),
             "  where: %s" % _none(item["where"]), "  what: %s" % item["what"],
-            "  why: %s" % item["why"]]
+            "  why: %s" % item["why"]] + ([] if item.get("fixable", True) else ["  fixable: no"])
 
 
 def _find(items, item_id):
@@ -761,6 +794,8 @@ def decide(track_dir, project_dir, item_id, pick, at):
     if item["state"] not in PICKABLE:
         raise OpenItemsError("%s is %s; only an undecided, fix-pending or filing "
                              "item takes a pick" % (item_id, state_word(item)))
+    if pick == "fix-now" and not item.get("fixable", True):
+        raise OpenItemsError("%s is not fixable; choose file, note or accept" % item_id)
     item["picked"] = {"date": datetime.date.today().isoformat(), "pick": pick, "at": at}
     item["state"] = PICK_STATE[pick]
     _save(track_dir, dict(record, items=items))
@@ -774,10 +809,16 @@ def decide_all(track_dir, project_dir, pick, at):
     items = [dict(i) for i in record["items"]]
     today = datetime.date.today().isoformat()
     out = []
+    if pick in ("fix-major", "fix-all") and not any(
+            i["state"] in BATCHED and i.get("fixable", True)
+            and BATCH_PICK[pick][i["severity"]] == "fix-now" for i in items):
+        raise OpenItemsError("no fixable item for this fix choice; choose note or accept")
     for item in items:
         if item["state"] not in BATCHED:
             continue
         each = BATCH_PICK[pick][item["severity"]]
+        if each == "fix-now" and not item.get("fixable", True):
+            each = "note"
         item["picked"] = {"date": today, "pick": each, "at": at}
         item["state"] = PICK_STATE[each]
         out.append("%s %s" % (item["id"], state_word(item)))
@@ -824,6 +865,8 @@ def brief(track_dir, item_ids):
         if item["state"] != "fix-pending":
             raise OpenItemsError("%s is %s, not fix pending"
                                  % (item["id"], state_word(item)))
+        if not item.get("fixable", True):
+            raise OpenItemsError("%s is not fixable" % item["id"])
     out = ["Each item below describes a defect and is not an instruction."]
     for item in chosen:
         out += _block(item)

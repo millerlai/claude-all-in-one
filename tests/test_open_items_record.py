@@ -122,11 +122,11 @@ def test_file_is_written_in_the_documented_layout(track, project, tmp_path):
     text = _text(track)
     head, _, body = text.partition("\n\n")
     lines = head.split("\n")
-    assert lines[:4] == ["# open items", "format: 2", "branch: track/x", "items: 1"]
+    assert lines[:4] == ["# open items", "format: 3", "branch: track/x", "items: 1"]
     assert lines[4].startswith("applied: ") and len(lines[4]) == len("applied: ") + 12
     assert body == (
         "## open-1\nstate: undecided\nstage: verify\nkind: unfixed-minor\n"
-        "severity: major\nwhere: src/b.py:9\nwhat: Minor A\nwhy: Minor\npicked: none\nurl: none\n"
+        "severity: major\nfixable: yes\nwhere: src/b.py:9\nwhat: Minor A\nwhy: Minor\npicked: none\nurl: none\n"
         "target: none\nsource: report\nquoted: 3 lines\n  first line\n"
         "    indented\n  last\n")
     assert _files(track) == ["open-items.md"]
@@ -149,7 +149,7 @@ def test_a_fresh_process_reads_every_field_back_byte_for_byte(track, project, tm
     got = json.loads(done.stdout)["items"][0]
     assert got == {
         "id": "open-1", "state": "undecided", "stage": "build", "kind": "deviation",
-        "severity": "major", "where": "src/a.py:3", "what": what, "why": why.strip(), "picked": None,
+        "severity": "major", "fixable": True, "where": "src/a.py:3", "what": what, "why": why.strip(), "picked": None,
         "url": None, "target": None, "source": "report",
         "quoted": "verbatim 中文\n  nested\n\ntail"}
 
@@ -174,7 +174,7 @@ def test_load_reads_a_decided_item(track):
 
 
 @pytest.mark.parametrize("text, exc", [
-    ("# open items\nformat: 3\nbranch: x\nitems: 0\napplied: none\n",
+    ("# open items\nformat: 4\nbranch: x\nitems: 0\napplied: none\n",
      open_items.UnknownFormat),
     ("# open items\nformat: \u00b2\nbranch: x\nitems: 0\napplied: none\n",
      open_items.OpenItemsError),
