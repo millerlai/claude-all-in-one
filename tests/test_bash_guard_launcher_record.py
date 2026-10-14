@@ -93,7 +93,7 @@ def test_the_reduced_write_patterns_name_the_record():
                             "reduced-check-write-patterns.txt")
     with open(patterns, encoding="utf-8") as fh:
         text = fh.read()
-    assert text.count("[lL][aA][uU][nN][cC][hH][eE][rR]") == 4
+    assert text.count("guard-launcher-") == 4
 
 
 def test_the_name_rule_matches_both_records_only():
