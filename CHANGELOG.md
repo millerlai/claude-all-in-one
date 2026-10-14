@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.56.0 — 2026-10-14
+
+This release makes setup keep a timestamped backup before it changes a file and tell a hand edit from an outdated copy by hash, lets Codex setup turn on the native status line, and fixes setup's Python checks under Windows PowerShell.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.55.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.55.0 to 1.56.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- An in-progress track keeps its saved state and ledger; this release does not change what either records.
+- The first setup after updating asks about more files than usual. Installs from earlier versions have no hash record, so every installed rule that differs from the shipped copy is listed as `user-modified` with its diff, even if you never edited it. Choose overwrite or skip per file; an overwritten file is kept as a backup. Setup records the hashes on that run, so later updates overwrite an outdated copy without asking and ask only about files you changed. (#456)
+
+### Setup
+
+- `/cai:setup` and `$setup` now decide whether a rule file was hand-edited by comparing hashes recorded in `.cai-manifest.json` (in `~/.claude/rules/` and in `$CODEX_HOME`), not by a model's reading. Identical files are left alone; only files you changed are put to you, with their diff. (#456)
+- Before changing an existing file, setup copies it next to the original as `<name>.<YYYY-MM-DD-HHMMSS>.bak` and prints a `backup <full path>` line, and the final report lists every backup made. This covers rule files, `~/.claude/CLAUDE.md` before it is slimmed, and Codex's `AGENTS.md`. The project's `CLAUDE.md` is still appended to without a backup. (#456)
+- Rule comparison ignores line endings and the language named on the `- Respond in ...` line, and a rewrite keeps the language you installed, so an update no longer resets it. (#456)
+- Codex setup refuses an `AGENTS.md` whose end marker sits above its begin marker, instead of duplicating the text between them. A cai block you edited by hand is reported as edited and still replaced, with the old text in the backup. (#456)
+
+### Codex status line
+
+- Codex setup now offers to turn on Codex's native status line: current directory and git branch, model with its live reasoning effort, remaining context, and the five-hour and weekly limits. Codex formats the line and hides data it does not have. (#458)
+- Choosing it writes `$CODEX_HOME/config.toml` after a timestamped backup, keeps an existing status-line choice (including a disabled footer), comments and other settings, and leaves a symlinked config a symlink. Writing needs Python 3.11 or later; `/statusline` stays the built-in way to customize or to configure it by hand. (#458)
+
+### Windows
+
+- Setup's Python checks no longer fail under Windows PowerShell, which stripped the quotes inside `python -c`. The check is now sent through stdin from a single-quoted here-string. (#457)
+
 ## v1.55.0 — 2026-10-14
 
 This release groups unfixed track findings into one menu, makes codemap updates and status cheaper, reduces query memory use, and fixes the Windows write fallback when Python is unavailable.
