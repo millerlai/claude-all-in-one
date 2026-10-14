@@ -342,7 +342,7 @@ def test_the_text_scan_reads_at_most_the_cap_plus_one_byte(tmp_path, monkeypatch
     monkeypatch.setattr(os, "open", opening)
     monkeypatch.setattr(os, "read", reading)
 
-    assert codemap_query.tracked_texts(str(tmp_path)) == []
+    assert list(codemap_query.tracked_texts(str(tmp_path))) == []
     assert sum(reads) == 101
 
 

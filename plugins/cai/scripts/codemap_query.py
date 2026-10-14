@@ -42,11 +42,11 @@ def terms(text: str) -> list:
     return seen
 
 
-def tracked_texts(top: str) -> list:
-    """[(path, text)] for every tracked file git lists that can be read as
+def tracked_texts(top: str):
+    """Yields (path, text) for every tracked file git lists that can be read as
     text now: not a symlink, not a submodule, a regular file inside the
-    repository, under the size cap, no NUL."""
-    out = []
+    repository, under the size cap, no NUL. One file at a time, so a scan never
+    holds more than one file's text however large the tree (#450)."""
     top_real = os.path.realpath(top)
     for mode, path, utf8 in inventory.list_tracked(top):
         if inventory.skip_reason(mode, utf8) is not None:
@@ -56,16 +56,19 @@ def tracked_texts(top: str) -> list:
             continue
         if b"\0" in got.data:
             continue
-        out.append((path, got.data.decode("utf-8", errors="replace")))
-    return out
+        yield path, got.data.decode("utf-8", errors="replace")
 
 
 def matching_lines(body: str, words: list) -> list:
     """[(line number, line)] for every editor line of `body` holding any of
     `words` (lower case), ignoring case. The recall benchmark's plain-Grep
     baseline counts with this too, so the two never match lines differently."""
-    return [(n, line) for n, line in enumerate(codemap_symbols.editor_lines(body), start=1)
-            if any(w in line.lower() for w in words)]
+    out = []
+    for n, line in enumerate(codemap_symbols.editor_lines(body), start=1):
+        lowered = line.lower()      # once per line, not once per word (#450)
+        if any(w in lowered for w in words):
+            out.append((n, line))
+    return out
 
 
 def _count(haystack, words):
