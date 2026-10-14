@@ -82,6 +82,25 @@ try the next one in the list for your OS. If every interpreter in the list
 fails, stop here and quote the last failure to the user rather than guessing
 what went wrong.
 
+### Additional Python checks on Windows
+
+Do not use `python -c` (or another interpreter's `-c`) for additional setup
+checks in PowerShell. Windows PowerShell can strip embedded double quotes
+when passing native command arguments, turning valid Python strings into
+invalid syntax. Prefer reading files with the file-read tool. If Python is
+needed, send a single-quoted here-string to standard input instead, using
+the interpreter that succeeded above:
+
+```powershell
+@'
+print("Python strings keep their quotes.")
+'@ | & <interpreter> -
+```
+
+Replace the example body with the check; keep the opening and closing
+here-string markers on their own lines as shown. Do not change user
+configuration to work around a command quoting error.
+
 ### Read the mapping block
 
 The installer's own stdout ends with a mapping block: a `models:` line

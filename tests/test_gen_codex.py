@@ -546,6 +546,20 @@ def test_hand_written_setup_uses_the_same_waiting_menu_policy():
     assert "no answer or cancellation is never consent" in setup
 
 
+def test_setup_powershell_python_probe_preserves_quotes():
+    setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
+    section = setup.split("### Additional Python checks on Windows", 1)[1].split("### Read the mapping block", 1)[0]
+    command = re.search(r"```powershell\n(.*?)\n```", section, re.S).group(1)
+    shell = shutil.which("powershell") or shutil.which("pwsh")
+    if shell is None:
+        pytest.skip("PowerShell is not installed")
+    command = command.replace("<interpreter>", "'" + sys.executable.replace("'", "''") + "'")
+    result = subprocess.run([shell, "-NoProfile", "-Command", command],
+                            capture_output=True, encoding="utf-8")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "Python strings keep their quotes."
+
+
 def test_setup_asks_language_before_installing_or_asking_models():
     setup = (REPO_ROOT / "plugins/cai-codex/skills/setup/SKILL.md").read_text(encoding="utf-8")
     steps = re.findall(r"^## Step \d+ — (.+)$", setup, re.M)
