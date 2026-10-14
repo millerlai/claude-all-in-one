@@ -19,7 +19,7 @@ Usage:  open_items.py add --track-dir D --project-dir P --stage S --report-file 
         open_items.py undecided --track-dir D
         open_items.py options --track-dir D --project-dir P --at stop|done [--pr N --pr-state S]
         open_items.py decide --track-dir D --project-dir P --item I --pick K --at stop|done
-        open_items.py decide-all --track-dir D --project-dir P --pick K --at stop
+        open_items.py decide-all --track-dir D --project-dir P --pick K --at stop|done
         open_items.py record-url --track-dir D --project-dir P --item I --url U
         open_items.py brief --track-dir D --item I [--item J ...]
         open_items.py publish --track-dir D --project-dir P --at ship|done [--pr N --pr-state S] [--ticket T]
@@ -670,16 +670,16 @@ def _tracked_changes(project_dir):
 
 
 def options(track_dir, project_dir, at, pr=None, pr_state=None):
-    """At `done`, lines for every item that holds ship: its fields, an
-    optional `check-github`, its `menu:`, then each applicable note once. One
-    menu serves every item, since nothing in it depends on the item. At the
-    stop, _stop_options' one grouped menu instead (#443)."""
+    """Lines for every item that holds ship, grouped as _grouped prints them,
+    then each applicable note once. The per-item labels are the same for
+    every item, since nothing in them depends on the item: all four at the
+    stop, and at `done` what the PR's state allows."""
     record, _ = _build(track_dir, project_dir)
     asked = [i for i in record["items"] if i["state"] in HOLDS_SHIP]
     if not asked:
         return []
     if at == "stop":
-        return _stop_options(asked)
+        return _grouped(asked, [FIX, FILE_ISSUE, NOTE_PR, ACCEPT])
     notes = []
     state = _pr_state(track_dir, pr, pr_state)
     rounds = ship_pr_findings.fix_rounds(track_dir)
@@ -706,20 +706,15 @@ def options(track_dir, project_dir, at, pr=None, pr_state=None):
         if _tracked_changes(project_dir):
             notes.append("note: the working tree holds tracked changes; a fix "
                          "round would stop on clean_tree and use a round")
-    out = []
-    for item in asked:
-        out += _block(item)
-        if item["state"] == "filing":
-            out.append("%s check-github" % item["id"])
-        out.append("%s menu: %s" % (item["id"], " | ".join(menu)))
-    return out + notes
+    return _grouped(asked, menu) + notes
 
 
-def _stop_options(asked):
+def _grouped(asked, per_item):
     """The items under `Major:` and `Minor:`, one batch `menu:` line, and the
-    `per-item menu:` a person who wants to go item by item is asked instead.
-    A filing item keeps its own `check-github` and `menu:` lines."""
-    per_item = [FIX, FILE_ISSUE, NOTE_PR, ACCEPT]
+    `per-item menu:` a person who wants to go item by item is asked instead
+    (#443). The batch labels are the per-item ones but File, which writes one
+    public issue per item and so is never picked for all of them at once. A
+    filing item keeps its own `check-github` and `menu:` lines."""
     batched = [i for i in asked if i["state"] in BATCHED]
     out = []
     for severity, heading in (("major", "Major:"), ("minor", "Minor:")):
@@ -730,9 +725,11 @@ def _stop_options(asked):
                 out += _block(item)
     if batched:
         has = {i["severity"] for i in batched}
-        fixes = ([FIX_MAJOR, FIX_ALL] if has == {"major", "minor"}
+        fixes = ([] if FIX not in per_item
+                 else [FIX_MAJOR, FIX_ALL] if has == {"major", "minor"}
                  else [FIX_MAJOR] if has == {"major"} else [FIX_MINOR])
-        out.append("menu: %s" % " | ".join(fixes + [NOTE_PR, ACCEPT]))
+        rest = [label for label in per_item if label not in (FIX, FILE_ISSUE)]
+        out.append("menu: %s" % " | ".join(fixes + rest))
         out.append("per-item menu: %s" % " | ".join(per_item))
     for item in asked:
         if item["state"] == "filing":
@@ -770,7 +767,7 @@ def decide(track_dir, project_dir, item_id, pick, at):
     return ["%s %s" % (item_id, state_word(item))]
 
 
-def decide_all(track_dir, project_dir, pick):
+def decide_all(track_dir, project_dir, pick, at):
     """Record one batch pick for every undecided or fix-pending item, each by
     its severity (BATCH_PICK); written once, after every item is set."""
     record, _ = _build(track_dir, project_dir)
@@ -781,7 +778,7 @@ def decide_all(track_dir, project_dir, pick):
         if item["state"] not in BATCHED:
             continue
         each = BATCH_PICK[pick][item["severity"]]
-        item["picked"] = {"date": today, "pick": each, "at": "stop"}
+        item["picked"] = {"date": today, "pick": each, "at": at}
         item["state"] = PICK_STATE[each]
         out.append("%s %s" % (item["id"], state_word(item)))
     if not out:
@@ -1062,7 +1059,7 @@ def main(argv=None):
             at=dict(required=True, choices=("stop", "done")))
     command("decide-all", "record one pick for every item the stop's menu listed",
             pick=dict(required=True, choices=tuple(BATCH_PICK)),
-            at=dict(required=True, choices=("stop",)))
+            at=dict(required=True, choices=("stop", "done")))
     command("record-url", "record the URL of a filing item", item="store",
             url=dict(required=True))
     command("brief", "print the quoted block of fix-pending items", project=False,
@@ -1090,7 +1087,7 @@ def main(argv=None):
                 "decide": lambda: decide(args.track_dir, args.project_dir, args.item,
                                          args.pick, args.at),
                 "decide-all": lambda: decide_all(args.track_dir, args.project_dir,
-                                                 args.pick),
+                                                 args.pick, args.at),
                 "record-url": lambda: record_url(args.track_dir, args.project_dir,
                                                  args.item, args.url),
                 "brief": lambda: brief(args.track_dir, args.item),

@@ -149,7 +149,7 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 
 ## `$track done`
 
-First run `<cai> track_state left-open` and relay its output verbatim; once the refusal below has passed, ask each open item still undecided, fix pending or filing its menu, as `references/approval-gates.md`'s `## Open items before ship` says for `done`; then follow `<cai-root>/skills/track/references/ticket-mirror.md`'s `$track done` section, which says what runs after the move too — all skipped when the refusal below fires, when a pick is Fix now or Stop, and while a menu is unanswered.
+First run `<cai> track_state left-open` and relay its output verbatim; once the refusal below has passed, ask the open items still undecided, fix pending or filing their one menu, as `references/approval-gates.md`'s `## Open items before ship` says for `done`; then follow `<cai-root>/skills/track/references/ticket-mirror.md`'s `$track done` section, which says what runs after the move too — all skipped when the refusal below fires, when a pick fixes an item or is Stop, and while a menu is unanswered.
 Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
 Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `$git-sweep`, which shows its table before deleting anything — run none of this yourself.

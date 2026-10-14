@@ -5,8 +5,9 @@ Thirteen items meant thirteen menus in a row. Build and verify now mark each
 `new` entry `Severity: major|minor`; `options --at stop` lists the items under
 `Major:` and `Minor:` and prints one `menu:` line; `decide-all` records that one
 pick for every item still asked. "Fix major" fixes the majors and queues the
-minors as a note on the PR (maintainer decision, 2026-10-14). `done` keeps
-asking item by item.
+minors as a note on the PR (maintainer decision, 2026-10-14). `done` asks
+the same one menu, its labels cut to what the PR's state allows; only a
+`filing` item is still asked on its own (maintainer decision, 2026-10-14).
 """
 import os
 import subprocess
@@ -14,6 +15,7 @@ import sys
 
 import pytest
 
+import ledger
 import open_items
 
 SCRIPT = os.path.join(os.path.dirname(open_items.__file__), "open_items.py")
@@ -160,11 +162,63 @@ def test_stop_menu_with_one_severity_has_one_fix_option(track, project, severiti
     assert "menu: %s | %s | %s" % (first, NOTE, ACCEPT) in lines
 
 
-def test_done_still_asks_item_by_item(track, project):
+# ---- options at done: the same one menu, cut by the PR's state ------------------
+
+def _menus(lines):
+    return [ln for ln in lines if "menu: " in ln]
+
+
+def _shipped(track, rounds=0):
+    ledger.append(str(track), "ship", "passed", note="PR #7")
+    for _ in range(rounds):
+        ledger.append(str(track), "verify", "passed")
+
+
+def test_done_with_an_open_pr_groups_and_offers_the_fixes(track, project):
+    _shipped(track)
     _record(track, _item(1, "major"), _item(2, "minor"))
+    lines = open_items.options(str(track), str(project), "done", pr=7, pr_state="OPEN")
+    assert lines[0] == "Major:" and "Minor:" in lines
+    assert _menus(lines) == [
+        "menu: %s | %s | %s | %s" % (FIX_MAJOR, FIX_ALL, NOTE, ACCEPT),
+        "per-item menu: " + PER_ITEM]
+
+
+def test_done_with_both_rounds_spent_offers_no_fix(track, project):
+    _shipped(track, rounds=2)
+    _record(track, _item(1, "major"))
+    lines = open_items.options(str(track), str(project), "done", pr=7, pr_state="OPEN")
+    assert _menus(lines) == [
+        "menu: %s | %s" % (NOTE, ACCEPT),
+        "per-item menu: File a GitHub issue | %s | %s" % (NOTE, ACCEPT)]
+
+
+def test_done_with_a_merged_pr_batches_only_accept(track, project):
+    # File writes one public issue per item, so it is never a batch pick.
+    _shipped(track)
+    _record(track, _item(1, "major"), _item(2, "minor"))
+    lines = open_items.options(str(track), str(project), "done", pr=7, pr_state="MERGED")
+    assert _menus(lines) == ["menu: " + ACCEPT,
+                             "per-item menu: File a GitHub issue | " + ACCEPT]
+
+
+def test_done_with_no_pr_and_no_branch_batches_accept_and_stop(track, project):
+    _record(track, _item(1, "major"))
     lines = open_items.options(str(track), str(project), "done")
-    assert "Major:" not in lines
-    assert [ln for ln in lines if " menu: " in ln][0].startswith("open-1 menu: ")
+    stop = "Stop: I will push the branch first"
+    assert _menus(lines) == ["menu: %s | %s" % (ACCEPT, stop),
+                             "per-item menu: %s | %s" % (ACCEPT, stop)]
+
+
+def test_done_asks_a_filing_item_on_its_own(track, project):
+    _shipped(track)
+    filing = dict(_item(2, "minor", state="filing"), target="issue")
+    _record(track, _item(1, "major"), filing)
+    lines = open_items.options(str(track), str(project), "done", pr=7, pr_state="MERGED")
+    minor_or_end = lines.index("open-2 [verify] unfixed-minor")
+    assert "Minor:" not in lines
+    assert lines[minor_or_end + 4:minor_or_end + 6] == [
+        "open-2 check-github", "open-2 menu: File a GitHub issue | " + ACCEPT]
 
 
 # ---- decide-all ---------------------------------------------------------------
@@ -209,9 +263,11 @@ def test_decide_all_leaves_a_filing_item_to_its_own_menu(track, project):
     assert _states(track) == {"open-1": "accepted", "open-2": "filing"}
 
 
-def test_decide_all_refuses_done(track, project):
-    _record(track, _item(1, "major"))
+def test_decide_all_at_done_records_done(track, project):
+    _record(track, _item(1, "major"), _item(2, "minor"))
     done = _run("decide-all", "--track-dir", str(track), "--project-dir", str(project),
                 "--pick", "accept", "--at", "done")
-    assert done.returncode == 1
-    assert _states(track) == {"open-1": "undecided"}
+    assert done.returncode == 0, done.stderr
+    items = open_items.load(str(track))["items"]
+    assert [(i["state"], i["picked"]["at"]) for i in items] == [
+        ("accepted", "done"), ("accepted", "done")]

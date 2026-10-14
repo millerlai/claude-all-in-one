@@ -690,9 +690,11 @@ ticket mirroring and the move. In order:
    `--ticket <number>` when ticket mirroring resolved one. Relay each line it
    prints; an `undecided again:` line says why that item is asked again.
 3. **Ask.** `open_items.py options` with the same `--pr` and `--pr-state` and
-   `--at done`. Relay its `note:` lines above the menus, then ask each item as
-   at the stop, with the options on its `menu:` line, which the PR's state
-   decides:
+   `--at done`. Relay its `note:` lines above the menu, then ask the one menu
+   as at the stop — the whole list verbatim as the question, the labels on
+   its `menu:` line as the options — and record the answer with `decide-all
+   --pick <pick> --at done`. The PR's state decides the labels on the
+   `per-item menu:` line:
 
    | The track's PR | Options |
    |---|---|
@@ -702,14 +704,20 @@ ticket mirroring and the move. In order:
    | none recorded, branch found on `origin` | File a GitHub issue, Accept as is |
    | none recorded, branch not found on `origin` | Accept as is, `Stop: I will push the branch first` |
 
-   Record each pick but Stop with `decide` as at the stop, with `--at done`.
+   The one menu offers the same labels less File, which writes one public
+   issue per item and so is picked item by item only, and with Fix now
+   turned into the stop's Fix major / Fix major + minor (or Fix minor).
+   Going item by item happens only when the person asks for it, as at the
+   stop: each item its own menu with the `per-item menu:` labels, recorded
+   with `decide --item <id> --pick <pick> --at done`; that is also the way to
+   File. Stop is never recorded.
 4. **A `filing` item** prints `check-github` before its `menu:` line, because
    its write's result was unknown. Ask that first, with two labels:
    `It exists: I will paste the URL` or `It was not created: ask me again`.
    On the first, take the URL the person pastes and run `record-url --item
    <id> --url <url>`. On the second, ask the item's `menu:` line and run
    `decide`, which accepts a `filing` item.
-5. **Stop is not a pick.** `decide` is never run for it, no further menu is
+5. **Stop is not a pick.** Neither `decide-all` nor `decide` is run for it, no further menu is
    asked in this `done`, and there is no second `publish`, no ticket mirroring
    and no move. Say in one line to push the branch and run `$track done`
    again, which offers File once the branch is found. Stop writes nothing;
@@ -787,8 +795,9 @@ of them spends one of `pending-questions.md`'s three rounds: that file's
   marked. It sits inside Gate 2, not beside it, and is not
   counted against `pending-questions.md`'s rounds.
 - `## Open items before ship` above — one menu for every open item build or
-  verify left unfixed, grouped by severity, before `ship`'s first draft; at
-  `$track done`, one menu per item still undecided. No option is marked `(recommended)`. It is asked by
+  verify left unfixed, grouped by severity, before `ship`'s first draft, and
+  again at `$track done` for any still undecided; a `filing` item is
+  asked on its own. No option is marked `(recommended)`. It is asked by
   the main session and is not counted against `pending-questions.md`'s rounds.
 - `ticket-mirror.md`'s claim menu, when `$track <ticket>` finds other cai
   claims on the ticket, before any directory exists. An ordinary choice: it

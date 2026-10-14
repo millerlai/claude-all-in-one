@@ -190,6 +190,16 @@ def test_done_options_table_and_stop(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
+def test_done_asks_one_menu_and_a_filing_item_on_its_own(tree):
+    # #443: `done` asks the same one menu; only a filing item is its own.
+    stop = " ".join(_stop(tree).split())
+    assert "decide-all --pick <pick> --at done" in stop
+    assert "less File" in stop
+    whole = " ".join(_reference(tree, "approval-gates.md").split())
+    assert "a `filing` item is asked on its own" in whole
+
+
+@pytest.mark.parametrize("tree", TREES)
 def test_check_github_question_has_its_two_labels(tree):
     text = _stop(tree)
     assert "`check-github`" in text
@@ -432,7 +442,9 @@ def test_skill_done_line_puts_the_menu_between_left_open_and_mirroring(tree):
     line = lines[0]
     menu = line.index("`## Open items before ship`")
     assert line.index("left-open") < menu < line.index("ticket-mirror.md")
-    assert "Fix now or Stop" in line
+    # #443: the pick that ends `done` early is any that fixes an item
+    # (Fix major, Fix major + minor, Fix minor, or a per-item Fix now).
+    assert "a pick fixes an item or is Stop" in line
     assert "unanswered" in line
     assert "clos" not in line.lower()
 
