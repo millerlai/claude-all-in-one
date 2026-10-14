@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.55.0 — 2026-10-14
+
+This release groups unfixed track findings into one menu, makes codemap updates and status cheaper, reduces query memory use, and fixes the Windows write fallback when Python is unavailable.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.54.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, re-run `/cai:setup`, and restart the session. The version moves from 1.54.0 to 1.55.0.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then run `$setup` inside Codex.
+- An in-progress track keeps its saved state and ledger. Existing format-1 open-item records still load, with their items treated as major; imported `Left open:` entries are also major. New records use format 2 with a severity field. Before ship or track done, remaining items use the grouped menu. (#444)
+- A codemap index written by v1.54.0 is reported as `unsupported` until the next `update` or `build`, which rebuilds it once. A track refreshes an existing index itself. (#451, #452)
+
+### Track
+
+- Before ship and at track done, unfixed findings appear under Major and Minor in one menu. Choose to fix major findings, fix all findings, note them on the pull request, or accept them as is; when every finding is minor, the fix choice is Fix minor. Available choices at track done still depend on the pull request's state and remaining fix rounds. (#444)
+- Choosing Fix major queues minor findings as a note on the pull request so reviewers still see them. Choosing to fix all sends the findings through verify together. (#444)
+- Ask to decide items individually when you want separate choices or to file a GitHub issue for an item. An item whose earlier filing result is unknown keeps its own confirmation question. (#444)
+- Build and verify reports now assign each new open item a major or minor severity. A missing or invalid severity is rejected when the report is recorded. (#444)
+
+### Codemap
+
+- Update and status reuse a file's saved content hash when its size and modification time are unchanged and its timestamp is safely older than the previous scan. Recently modified files are still read again. A tool that restores both size and an old modification time can hide a change from this shortcut; run `build` to force a full rescan in that case. (#451)
+- Status reads the count of files with symbols from saved metadata instead of parsing every symbol record. It still checks the symbol file's digest; update and query retain full record validation. (#452)
+- Query scans text one file at a time, reducing memory use while returning the same hits. Splitting large repository maps into shards groups files in one pass, preserving the output. (#447, #453)
+
+### Guard
+
+- On Windows, Claude Code's write fallback now reads its protected-name rules successfully when Python is unavailable. Subagent writes to the track ledger and guard launcher records are blocked; main-session writes and unrelated files still pass. Mixed-case protected filenames remain covered. (#446)
+
 ## v1.54.0 — 2026-10-13
 
 This release asks what to do with each unfixed track finding before shipping, helps local fix sessions avoid working the same item, and improves commit consent, codemap safety and incremental updates.
