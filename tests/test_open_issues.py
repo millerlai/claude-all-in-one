@@ -457,7 +457,7 @@ def _write_call(argv, env, path, agent_id=None, agent_type=None, tool="Write",
 
 @pytest.mark.parametrize("compact", [True, False])
 def test_write_mode_without_python_blocks_only_a_subagents_ledger_write(tmp_path, compact):
-    # O1: findstr /R /G: and grep -f read the same four-line pattern file.
+    # O1: both readers fold case without expanding each filename letter.
     argv, env = _wrapper_without_python(tmp_path)
     sub = "agent-ledger-test"
     for kwargs in [
@@ -488,6 +488,26 @@ def test_write_mode_lets_a_call_through_when_the_pattern_file_cannot_be_read(tmp
         result = _write_call(argv, env, path, agent_id=agent_id)
         assert result.returncode == 1, (path, result.stderr)
         assert "could not be read" in result.stderr
+
+
+@pytest.mark.parametrize("compact", [True, False])
+@pytest.mark.parametrize("agent_id_last", [True, False])
+def test_write_mode_without_python_protects_mixed_case_launcher_records(
+        tmp_path, compact, agent_id_last):
+    argv, env = _wrapper_without_python(tmp_path)
+    for tool, field in [("Write", "file_path"), ("NotebookEdit", "notebook_path")]:
+        for path in ["C:\\p\\cai\\GuArD-LaUnChEr-CmD.TxT",
+                     "/p/cai/GuArD-LaUnChEr-Sh.TxT"]:
+            result = _write_call(argv, env, path, agent_id="agent-test",
+                                 agent_id_last=agent_id_last, tool=tool, field=field,
+                                 compact=compact)
+            assert result.returncode == 2, (path, result.stderr)
+            assert "cai guard reduced check:" in result.stderr
+            for allowed, agent in [(path, None), (path + ".bak", "agent-test")]:
+                result = _write_call(argv, env, allowed, agent_id=agent,
+                                     agent_id_last=agent_id_last, tool=tool, field=field,
+                                     compact=compact)
+                assert (result.returncode, result.stderr) == (0, ""), allowed
 
 
 def test_write_mode_lets_a_failed_launcher_through_and_keeps_the_record_rules(tmp_path):

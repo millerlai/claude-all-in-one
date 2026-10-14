@@ -39,7 +39,10 @@ REM interpreter must not stop every file write of a session, so write mode lets
 REM a failed call through (exit 1, hook error), and its pattern file knows only
 REM a subagent's write to ledger.jsonl or to the guard's launcher record.
 set "WRITEMODE="
+REM Case folding avoids FINDSTR's compiled-pattern limit on long record names.
+set "SCANCASE="
 if "%~1"=="write" set "WRITEMODE=1"
+if "%~1"=="write" set "SCANCASE=/I"
 if "%~1"=="write" set "PATTERNS=%~dp0reduced-check-write-patterns.txt"
 if not defined CLAUDE_CONFIG_DIR goto defaultroot
 set "REC=%CLAUDE_CONFIG_DIR%\cai\guard-launcher-cmd.txt"
@@ -148,7 +151,7 @@ exit /b 1
 :scanwait
 ping -n 2 127.0.0.1 >nul 2>nul
 :scan
-findstr /R /G:"%PATTERNS%" >nul 2>nul
+findstr /R %SCANCASE% /G:"%PATTERNS%" >nul 2>nul
 set "RC=%ERRORLEVEL%"
 goto :eof
 
@@ -235,7 +238,7 @@ run_launcher() {
 # match is a silent pass, a match blocks, and a grep that failed (a missing
 # pattern file) lets the call through with a hook error. Never returns.
 write_scan() {
-    grep -q -f "$PATTERNS"
+    grep -i -q -f "$PATTERNS"
     RC=$?
     [ "$RC" -eq 1 ] && exit 0
     if [ "$RC" -eq 0 ]; then
