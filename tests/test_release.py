@@ -553,6 +553,22 @@ def test_local_gate_leaves_parallelism_to_pyproject(monkeypatch, tmp_path):
     assert [sys.executable, "-m", "pytest"] in seen
 
 
+def test_local_gate_can_skip_the_test_suite(monkeypatch, tmp_path):
+    """The release commit differs from the main CI already ran only in the
+    files `cut` allows, so a local `cut` re-runs validate.py alone."""
+    seen = []
+
+    def fake_run(argv, *, cwd, env=None, timeout=None):
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(release, "run", fake_run)
+    assert release.local_gate(tmp_path, run_tests=False) == []
+
+    assert [sys.executable, "scripts/validate.py"] in seen
+    assert [sys.executable, "-m", "pytest"] not in seen
+
+
 # ---------------------------------------------------------------------------
 # prepare() -- real local origin (bare) + working clone
 # ---------------------------------------------------------------------------
@@ -763,9 +779,20 @@ def test_cut_rejects_changes_outside_the_allowed_set(repo_pair):
     assert rc == 2
 
 
+def test_cut_runs_the_local_gate_without_the_test_suite(monkeypatch, repo_pair):
+    origin, work = _prepared_repo(repo_pair)
+    kwargs_seen = []
+    monkeypatch.setattr(release, "local_gate",
+                        lambda repo, **kw: kwargs_seen.append(kw) or ["FAIL stop here"])
+
+    release.cut(NEXT_VERSION, repo=work)
+
+    assert kwargs_seen == [{"run_tests": False}]
+
+
 def test_cut_does_not_commit_when_the_local_gate_fails(monkeypatch, repo_pair):
     origin, work = _prepared_repo(repo_pair)
-    monkeypatch.setattr(release, "local_gate", lambda repo: ["FAIL validate.py: boom"])
+    monkeypatch.setattr(release, "local_gate", lambda repo, **kw: ["FAIL validate.py: boom"])
     before_head = _run_git(["rev-parse", "HEAD"], cwd=work).stdout
 
     rc = release.cut(NEXT_VERSION, repo=work)
@@ -776,7 +803,7 @@ def test_cut_does_not_commit_when_the_local_gate_fails(monkeypatch, repo_pair):
 
 def test_cut_exits_when_remote_already_has_the_tag(monkeypatch, repo_pair):
     origin, work = _prepared_repo(repo_pair)
-    monkeypatch.setattr(release, "local_gate", lambda repo: [])
+    monkeypatch.setattr(release, "local_gate", lambda repo, **kw: [])
 
     # Simulate another clone having already pushed this tag.
     other = work.parent / "other_clone2"
@@ -793,7 +820,7 @@ def test_cut_exits_when_remote_already_has_the_tag(monkeypatch, repo_pair):
 
 def test_cut_pushes_only_the_one_tag_ref(monkeypatch, repo_pair):
     origin, work = _prepared_repo(repo_pair)
-    monkeypatch.setattr(release, "local_gate", lambda repo: [])
+    monkeypatch.setattr(release, "local_gate", lambda repo, **kw: [])
     pushed_refs = []
     real_git = release._git
 
@@ -1033,7 +1060,7 @@ def test_fast_forward_main_never_forces(monkeypatch, repo_pair):
 
 def test_cut_rerun_after_failed_push_does_not_duplicate_the_commit(monkeypatch, repo_pair):
     origin, work = _prepared_repo(repo_pair)
-    monkeypatch.setattr(release, "local_gate", lambda repo: [])
+    monkeypatch.setattr(release, "local_gate", lambda repo, **kw: [])
     monkeypatch.setattr(release, "verify", lambda version, repo=None, temp_root=None: 0)
 
     # First attempt: make the push fail by pointing "origin" nowhere.

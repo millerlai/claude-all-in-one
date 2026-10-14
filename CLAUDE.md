@@ -102,7 +102,7 @@ A healthy run prints every line `PASS`, no `FAIL`, and exits 0.
 
 Run `python -m pytest` too — the tests under `tests/`, which exercise
 what the scripts in `plugins/cai/scripts/` actually do. `pyproject.toml`'s
-`addopts` adds `-n auto`, which is what CI and `scripts/release.py`'s local
+`addopts` adds `-n auto`, which is what CI and the `cut-release` workflow's
 gate run too. It needs `pytest` and `pytest-xdist` installed
 (`pip install pytest pytest-xdist`); without `pytest-xdist` pytest stops at once with
 `error: unrecognized arguments: -n`. `--pdb` and `-s` need a single process:
