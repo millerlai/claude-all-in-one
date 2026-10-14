@@ -166,8 +166,8 @@ def codex_home() -> Path:
     return Path(home) if home else Path.home() / ".codex"
 
 
-STATUS_LINE = ("current-dir", "git-branch", "model-with-reasoning",
-               "context-remaining", "five-hour-limit", "weekly-limit")
+STATUS_LINE = ("model-with-reasoning", "current-dir", "context-window",
+               "token-usage", "git-branch")
 
 
 def install_status_line(home: Path) -> int:

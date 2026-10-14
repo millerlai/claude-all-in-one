@@ -215,9 +215,9 @@ If the line already names the chosen language, leave it as-is.
 ## Step 5 — Offer the status line
 
 Ask whether to configure the native Codex status line, with short choices:
-configure it, or skip. It shows the current directory/project, git branch,
-model with its live reasoning effort, remaining context, and the 5-hour and
-weekly rate limits. Codex controls the formatting and hides unavailable data;
+configure it, or skip. It shows the model with its live reasoning effort,
+current directory/project, context window, token usage, and git branch,
+in that order. Codex controls the formatting and hides unavailable data;
 this does not install Claude Code's external status-line script.
 
 If they skip, continue. If they accept, run the same interpreter as Step 3

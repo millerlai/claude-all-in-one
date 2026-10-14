@@ -223,9 +223,11 @@ one is to write the user's `~/.claude/settings.json`, which is why this step
 lives here rather than in the plugin manifest.
 
 Ask with the AskUserQuestion tool whether to install it. Say what they get: the
-project name, the git branch, the model with its current `/effort` level, and
-three remaining-capacity gauges — context window, 5-hour and 7-day limits —
-coloured green at 50% left or more, amber down to 21%, red at 20% or below.
+model with its current `/effort` level, project name, context window's remaining
+percentage and capacity, current context's input/output token counts, then git
+branch — matching Codex's common field order. The 5-hour and 7-day limits follow.
+The remaining-capacity gauges are coloured green at 50% left or more, amber
+down to 21%, red at 20% or below. Missing fields are omitted.
 
 If they decline, move on without further comment.
 

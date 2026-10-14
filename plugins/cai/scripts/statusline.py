@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Claude Code status line: project, branch, model + effort, and three
-remaining-capacity gauges.
+"""Claude Code status line: model + effort, project, context, tokens, branch,
+and remaining rate-limit capacity.
 
 `/cai:setup` copies this file to ~/.claude/cai-statusline.py and points
 `statusLine.command` in ~/.claude/settings.json at the copy, so it must stay
@@ -93,27 +93,6 @@ def render(data):
     a session's life, and a status line that raises just disappears."""
     parts: list[str] = []
 
-    # repo.name only exists with an origin remote; current_dir's basename is
-    # the fallback for a repo (or non-repo dir) that has none.
-    current_dir = ""
-    try:
-        workspace = data.get("workspace", {})
-        current_dir = workspace.get("current_dir", "")
-        repo_name = (workspace.get("repo") or {}).get("name", "")
-        project = repo_name or (Path(current_dir).name if current_dir else "")
-        if project:
-            parts.append(f"{BRIGHT_CYAN}{project}{RESET}")
-    except Exception:
-        pass
-
-    try:
-        if current_dir:
-            branch = git_branch(current_dir)
-            if branch:
-                parts.append(branch)
-    except Exception:
-        pass
-
     # effort is absent on models without the reasoning-effort parameter, and
     # rides along with the model rather than as its own segment -- bracketed
     # so "Sonnet 5 [high]" cannot be misread as a model variant.
@@ -127,12 +106,48 @@ def render(data):
     except Exception:
         pass
 
+    # repo.name only exists with an origin remote; current_dir's basename is
+    # the fallback for a repo (or non-repo dir) that has none.
+    current_dir = ""
+    try:
+        workspace = data.get("workspace", {})
+        current_dir = workspace.get("current_dir", "")
+        repo_name = (workspace.get("repo") or {}).get("name", "")
+        project = repo_name or (Path(current_dir).name if current_dir else "")
+        if project:
+            parts.append(f"{BRIGHT_CYAN}{project}{RESET}")
+    except Exception:
+        pass
+
     # None (not just absent) early in a session, before the first API reply
     # or right after /compact — a present-but-null field, so check is not None.
     try:
-        remaining = data.get("context_window", {}).get("remaining_percentage")
+        context = data.get("context_window") or {}
+        remaining = context.get("remaining_percentage")
+        size = context.get("context_window_size")
         if remaining is not None:
-            parts.append(gauge("ctx", remaining))
+            capacity = f" / {size:,} tokens" if size is not None else ""
+            parts.append(gauge("ctx", remaining) + capacity)
+        elif size is not None:
+            parts.append(f"ctx {size:,} tokens")
+    except Exception:
+        pass
+
+    # These totals describe the latest context, not cumulative session usage.
+    try:
+        context = data.get("context_window") or {}
+        input_tokens = context.get("total_input_tokens")
+        output_tokens = context.get("total_output_tokens")
+        if input_tokens is not None and output_tokens is not None:
+            parts.append(f"tokens {input_tokens:,} in / {output_tokens:,} out")
+    except Exception:
+        pass
+
+    try:
+        if current_dir:
+            branch = git_branch(current_dir)
+            if branch:
+                parts.append(branch)
     except Exception:
         pass
 

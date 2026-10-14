@@ -110,7 +110,7 @@ def test_tools_allowlist_row_is_degraded():
 def test_usage_row_is_degraded():
     text = README.read_text(encoding="utf-8")
     rows = _table_rows(text)
-    row = next(r for r in rows if "usage" in r[0].lower())
+    row = next(r for r in rows if r[0] == "Usage accounting in the ledger")
     assert row[2] == "degraded"
 
 
