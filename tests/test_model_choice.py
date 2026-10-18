@@ -1,22 +1,30 @@
 """model_choice.py -- a person's own tier -> model choice, applied to an
 installed copy of the cai plugin.
 
-Every test runs the script from a COPY of the plugin under tmp_path, with
+Every test points the script at a COPY of the plugin under tmp_path, with
 CLAUDE_CONFIG_DIR inside tmp_path too. The script rewrites the plugin root it
 sits in, so running it in place would rewrite this repo's own frontmatter,
-and its choice file would land in the real ~/.claude.
+and its choice file would land in the real ~/.claude. `run` calls the real
+module's main() with ROOT set to the copy, so coverage measures it; one test
+runs the copy as a child, as the hook does, for the root it finds itself.
 """
+import contextlib
+import io
 import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REAL_PLUGIN = REPO_ROOT / "plugins" / "cai"
+sys.path.insert(0, str(REAL_PLUGIN / "scripts"))
+import model_choice  # noqa: E402
 
 
 def installed_copy(tmp_path):
@@ -39,6 +47,17 @@ def source_copy(tmp_path):
 
 
 def run(root, tmp_path, *args):
+    out = io.StringIO()
+    with mock.patch.dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "config")), \
+            mock.patch.object(model_choice, "ROOT", root), contextlib.redirect_stdout(out):
+        try:
+            code = model_choice.main(list(args))
+        except SystemExit as e:  # argparse's own refusals
+            code = e.code
+    return SimpleNamespace(returncode=code, stdout=out.getvalue(), stderr="")
+
+
+def run_child(root, tmp_path, *args):
     env = dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "config"))
     return subprocess.run([sys.executable, str(root / "scripts" / "model_choice.py"), *args],
                           capture_output=True, encoding="utf-8", env=env)
@@ -355,6 +374,18 @@ def test_a_malformed_effort_is_refused_before_any_write(tmp_path, bad):
     assert done.returncode == 2, done.stdout + done.stderr
     assert not (tmp_path / "config").exists()
     assert assigned_bytes(root) == before
+
+
+def test_run_as_a_child_the_script_rewrites_the_copy_it_sits_in(tmp_path):
+    """The hook runs the installed copy's own script, which must find that
+    copy from its own location -- the one thing `run` patches over."""
+    root = installed_copy(tmp_path)
+
+    done = run_child(root, tmp_path, "set", "think=fable", "think.effort=low")
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    for rel in members("think"):
+        assert (model_of(root / rel), effort_of(root / rel)) == ("fable", "low"), rel
 
 
 def test_a_plugin_source_tree_is_never_rewritten(tmp_path):
