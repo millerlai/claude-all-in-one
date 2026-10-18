@@ -1,22 +1,30 @@
 """model_choice.py -- a person's own tier -> model choice, applied to an
 installed copy of the cai plugin.
 
-Every test runs the script from a COPY of the plugin under tmp_path, with
+Every test points the script at a COPY of the plugin under tmp_path, with
 CLAUDE_CONFIG_DIR inside tmp_path too. The script rewrites the plugin root it
 sits in, so running it in place would rewrite this repo's own frontmatter,
-and its choice file would land in the real ~/.claude.
+and its choice file would land in the real ~/.claude. `run` calls the real
+module's main() with ROOT set to the copy, so coverage measures it; one test
+runs the copy as a child, as the hook does, for the root it finds itself.
 """
+import contextlib
+import io
 import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REAL_PLUGIN = REPO_ROOT / "plugins" / "cai"
+sys.path.insert(0, str(REAL_PLUGIN / "scripts"))
+import model_choice  # noqa: E402
 
 
 def installed_copy(tmp_path):
@@ -39,6 +47,17 @@ def source_copy(tmp_path):
 
 
 def run(root, tmp_path, *args):
+    out = io.StringIO()
+    with mock.patch.dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "config")), \
+            mock.patch.object(model_choice, "ROOT", root), contextlib.redirect_stdout(out):
+        try:
+            code = model_choice.main(list(args))
+        except SystemExit as e:  # argparse's own refusals
+            code = e.code
+    return SimpleNamespace(returncode=code, stdout=out.getvalue(), stderr="")
+
+
+def run_child(root, tmp_path, *args):
     env = dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "config"))
     return subprocess.run([sys.executable, str(root / "scripts" / "model_choice.py"), *args],
                           capture_output=True, encoding="utf-8", env=env)
@@ -59,6 +78,16 @@ def members(tier):
 def model_of(path):
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("model:"):
+            return line.split(":", 1)[1].strip()
+    return None
+
+
+def effort_of(path):
+    """The frontmatter's effort, or None when it declares none."""
+    text = path.read_text(encoding="utf-8")
+    front = text[:text.find("\n---", 3)]
+    for line in front.splitlines():
+        if line.startswith("effort:"):
             return line.split(":", 1)[1].strip()
     return None
 
@@ -221,6 +250,142 @@ def test_a_model_line_outside_the_frontmatter_is_left_alone(tmp_path):
 
     assert path.read_bytes().endswith(b"\nmodel: quoted-in-prose\n")
     assert model_of(path) == "fable"
+
+
+def test_show_lists_each_tiers_shipped_efforts_and_an_effort_offer(tmp_path):
+    root = installed_copy(tmp_path)
+
+    done = run(root, tmp_path, "show")
+
+    lines = done.stdout.splitlines()
+    think = next(l for l in lines if l.startswith("effort think: "))
+    assert think.startswith("effort think: cai default -- ")
+    assert "architect high" in think
+    chore = next(l for l in lines if l.startswith("effort chore: "))
+    assert "explorer session" in chore  # explorer ships no effort: line
+    offer = next(l for l in lines if l.startswith("effort offer think: "))
+    assert offer == "effort offer think: default (in effect, cai default), low, medium, high"
+
+
+def test_an_effort_is_written_into_every_component_of_its_tier_only(tmp_path):
+    root = installed_copy(tmp_path)
+    before = assigned_bytes(root)
+
+    done = run(root, tmp_path, "set", "build.effort=low")
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert saved(tmp_path) == {"format": 1, "roles": {}, "efforts": {"build": "low"}}
+    for rel, data in before.items():
+        if rel in members("build"):
+            assert effort_of(root / rel) == "low", rel  # shipped or inserted
+            assert model_of(root / rel) == default("build"), rel
+        else:
+            assert (root / rel).read_bytes() == data, rel
+    assert "effort build: low (saved) -- " in done.stdout
+
+
+def test_a_model_answer_keeps_the_saved_effort_and_vice_versa(tmp_path):
+    root = installed_copy(tmp_path)
+    assert run(root, tmp_path, "set", "think=fable", "think.effort=max").returncode == 0
+
+    assert run(root, tmp_path, "set", "think=claude-x").returncode == 0
+    assert saved(tmp_path) == {"format": 1, "roles": {"think": "claude-x"},
+                               "efforts": {"think": "max"}}
+    assert run(root, tmp_path, "set", "think.effort=low").returncode == 0
+    assert saved(tmp_path)["roles"] == {"think": "claude-x"}
+    for rel in members("think"):
+        assert (model_of(root / rel), effort_of(root / rel)) == ("claude-x", "low"), rel
+
+
+def test_default_effort_and_reset_restore_each_components_shipped_effort(tmp_path):
+    """A tier's shipped efforts differ per component, and some components ship
+    none: going back must restore each one's own value, line absence included."""
+    root = installed_copy(tmp_path)
+    shipped = assigned_bytes(root)
+    assert run(root, tmp_path, "set", "build.effort=max", "chore.effort=high",
+               "chore=claude-x").returncode == 0
+
+    assert run(root, tmp_path, "set", "build.effort=default").returncode == 0
+    for rel in members("build"):
+        assert (root / rel).read_bytes() == shipped[rel], rel
+    assert saved(tmp_path)["efforts"] == {"chore": "high"}
+
+    assert run(root, tmp_path, "reset", "chore").returncode == 0
+    assert assigned_bytes(root) == shipped
+    assert saved(tmp_path) == {"format": 1, "roles": {}}
+
+
+def test_apply_puts_a_saved_effort_back_after_an_update(tmp_path):
+    root = installed_copy(tmp_path)
+    assert run(root, tmp_path, "set", "chore.effort=low").returncode == 0
+    for rel in members("chore"):  # what /plugin update leaves behind
+        shutil.copy(REAL_PLUGIN / rel, root / rel)
+    (root / ".cai-shipped-effort.json").unlink()  # a fresh copy has no snapshot
+
+    first = run(root, tmp_path, "apply", "--hook")
+
+    assert first.returncode == 0
+    for rel in members("chore"):
+        assert effort_of(root / rel) == "low", rel
+    assert run(root, tmp_path, "reset").returncode == 0
+    for rel in members("chore"):
+        assert (root / rel).read_bytes() == (REAL_PLUGIN / rel).read_bytes(), rel
+
+
+def test_an_inserted_effort_line_follows_crlf(tmp_path):
+    root = installed_copy(tmp_path)
+    path = root / "agents" / "explorer.md"  # ships no effort: line
+    assert effort_of(REAL_PLUGIN / "agents" / "explorer.md") is None
+    path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+
+    assert run(root, tmp_path, "set", "chore.effort=low").returncode == 0
+
+    assert b"\r\neffort: low\r\n" in path.read_bytes()
+    assert b"\n" not in path.read_bytes().replace(b"\r\n", b"")
+
+
+def test_a_damaged_snapshot_is_reported_not_guessed_from(tmp_path):
+    """Once efforts are rewritten the files no longer show what shipped, so a
+    snapshot that lost entries must stop the run rather than become the default."""
+    root = installed_copy(tmp_path)
+    assert run(root, tmp_path, "set", "build.effort=low").returncode == 0
+    (root / ".cai-shipped-effort.json").write_text("{}", encoding="utf-8")
+    before = assigned_bytes(root)
+
+    shown = run(root, tmp_path, "show")
+    refused = run(root, tmp_path, "set", "build.effort=default")
+    hooked = run(root, tmp_path, "apply", "--hook")
+
+    assert shown.returncode == 1 and "reinstall cai" in shown.stdout
+    assert refused.returncode == 1 and "reinstall cai" in refused.stdout
+    assert hooked.returncode == 0
+    assert "/cai:models" in json.loads(hooked.stdout)["systemMessage"]
+    assert assigned_bytes(root) == before
+
+
+@pytest.mark.parametrize("bad", ["think.effort=","think.effort=auto", "think.effort=High",
+                                 "nosuch.effort=low", "think.size=low"])
+def test_a_malformed_effort_is_refused_before_any_write(tmp_path, bad):
+    root = installed_copy(tmp_path)
+    before = assigned_bytes(root)
+
+    done = run(root, tmp_path, "set", bad)
+
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert not (tmp_path / "config").exists()
+    assert assigned_bytes(root) == before
+
+
+def test_run_as_a_child_the_script_rewrites_the_copy_it_sits_in(tmp_path):
+    """The hook runs the installed copy's own script, which must find that
+    copy from its own location -- the one thing `run` patches over."""
+    root = installed_copy(tmp_path)
+
+    done = run_child(root, tmp_path, "set", "think=fable", "think.effort=low")
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    for rel in members("think"):
+        assert (model_of(root / rel), effort_of(root / rel)) == ("fable", "low"), rel
 
 
 def test_a_plugin_source_tree_is_never_rewritten(tmp_path):

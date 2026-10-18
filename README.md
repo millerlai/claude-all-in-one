@@ -115,7 +115,7 @@ Tools, reachable any time:
 | `/cai:plan-review` | Read a plan, design doc, or spec the way a senior architect would. |
 | `/cai:options` | Lay out two or more ways forward so a person can actually choose between them. |
 | `/cai:usage` | Token usage and equivalent API spend for one track, or across projects. |
-| `/cai:models` | Put each model tier on the model you choose, for you alone. |
+| `/cai:models` | Put each model tier on the model and reasoning effort you choose, for you alone. |
 | `/cai:viewer` | Open the [Agent Viewer](#agent-viewer). |
 
 `/cai:fix` starts only when you type it. Given an issues URL it asks once which
@@ -268,7 +268,7 @@ No component names a model. They name a **tier**, and one file says what each
 tier currently resolves to: `chore` (`haiku`) for work that needs no judgement
 on any given run, `build` (`sonnet`) for engineering judgement inside a fixed
 contract, `think` (`opus`) for design trade-offs and repair. `/cai:models` puts
-a tier on another model for you alone, and the choice survives
+a tier on another model or reasoning effort for you alone, and the choice survives
 `/plugin update`. The full table, how re-tiering works, and what happens when
 your account cannot run a tier's model:
 [REFERENCE.md](REFERENCE.md#model-tiers).
