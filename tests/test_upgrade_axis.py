@@ -112,9 +112,10 @@ def test_an_old_model_choice_loads_from_where_it_was_saved(version, tmp_path, mo
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "config"))
     roles, _ = model_choice.load_spec(model_choice.ROOT)
 
-    choice = model_choice.load_choice(model_choice.choice_path(), roles)
+    choice, efforts = model_choice.load_choice(model_choice.choice_path(), roles)
 
     assert choice == {"chore": "sonnet", "think": "fable"}
+    assert efforts == {}
 
 
 @pytest.mark.parametrize("version", VERSIONS)

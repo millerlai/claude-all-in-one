@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""A person's own tier -> model choice, applied to this installed cai plugin.
+"""A person's own tier -> model and effort choice, applied to this installed
+cai plugin.
 
 models.json says which tier (chore/build/think) each component plays and which
 model each tier defaults to; gen-models.py writes those defaults into the
 source tree. This is the per-user half. The choice lives outside the plugin, at
 `<config root>/cai/model-choice.json` (CLAUDE_CONFIG_DIR, else ~/.claude), so
 `/plugin update` never touches it, and every assigned component's frontmatter
-`model:` line in the plugin root this script sits in is rewritten to match.
-`/cai:models` runs `show` and `set`/`reset`; the SessionStart hook runs
-`apply --hook`, which puts the choice back into a copy an update just
-installed with cai's defaults.
+`model:` and `effort:` lines in the plugin root this script sits in are
+rewritten to match. `/cai:models` runs `show` and `set`/`reset`; the
+SessionStart hook runs `apply --hook`, which puts the choice back into a copy
+an update just installed with cai's defaults.
 
     model_choice.py show
-    model_choice.py set <tier>=<model> [<tier>=<model> ...]
+    model_choice.py set <tier>=<model> | <tier>.effort=<effort|default> ...
     model_choice.py reset [<tier> ...]       # every tier when none is named
     model_choice.py apply [--hook]
+
+An effort applies to every component of its tier. A tier's components ship
+different efforts, some none at all, and models.json does not record them, so
+before the first effort rewrite each component's shipped `effort:` is kept in
+SNAPSHOT inside the installed copy; `default` and `reset` restore from it. An
+update installs a new copy without one, taken afresh from its unrewritten files.
 
 Claude Code reads a component's `model:` when a session starts, so a rewrite
 takes effect after a restart. A plugin's source tree -- a checkout or a
@@ -46,8 +53,13 @@ MODEL_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{0,63}\Z")
 # reachable by typing its name, so a new family needs no cai release first.
 KNOWN_ALIASES = ("haiku", "sonnet", "opus", "fable")
 MENU_MAX = 4  # options per question the menu tool accepts
+# The frontmatter values Claude Code documents; it runs a level the model lacks
+# at the highest one it has below it, so no per-model check is needed here.
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+SNAPSHOT = ".cai-shipped-effort.json"
 # Bytes, not text: an installed copy may be CRLF, and only the value may move.
 MODEL_LINE = re.compile(rb"^model:[ \t]*(\S+)[ \t]*\r?$", re.MULTILINE)
+EFFORT_LINE = re.compile(rb"^effort:[ \t]*(\S+)[ \t]*\r?$", re.MULTILINE)
 
 
 def choice_path():
@@ -60,17 +72,21 @@ def load_spec(root):
 
 
 def load_choice(path, roles):
-    """The saved tier -> model map, {} when there is no file. A tier
-    models.json no longer has, or a value that is not a model name, is left
-    out rather than failing the whole choice."""
+    """The saved (tier -> model, tier -> effort) maps, both {} when there is
+    no file. A tier models.json no longer has, or a value that is not a model
+    name or an effort, is left out rather than failing the whole choice."""
     if not path.is_file():
-        return {}
+        return {}, {}
     data = json.loads(path.read_text(encoding="utf-8"))
     if not (isinstance(data, dict) and data.get("format") == FORMAT
-            and isinstance(data.get("roles"), dict)):
+            and isinstance(data.get("roles"), dict)
+            and isinstance(data.get("efforts", {}), dict)):
         raise ValueError(f"{path} is not a format-{FORMAT} model choice")
-    return {tier: model for tier, model in data["roles"].items()
-            if tier in roles and isinstance(model, str) and MODEL_RE.match(model)}
+    models = {tier: model for tier, model in data["roles"].items()
+              if tier in roles and isinstance(model, str) and MODEL_RE.match(model)}
+    efforts = {tier: effort for tier, effort in data.get("efforts", {}).items()
+               if tier in roles and effort in EFFORTS}
+    return models, efforts
 
 
 def write_atomic(path, data):
@@ -87,10 +103,12 @@ def write_atomic(path, data):
         raise
 
 
-def save_choice(path, choice):
+def save_choice(path, choice, efforts):
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps({"format": FORMAT, "roles": choice}, indent=2) + "\n"
-    write_atomic(path, text.encode("utf-8"))
+    data = {"format": FORMAT, "roles": choice}
+    if efforts:  # absent when unused, so a model-only file reads as it always has
+        data["efforts"] = efforts
+    write_atomic(path, (json.dumps(data, indent=2) + "\n").encode("utf-8"))
 
 
 def is_source_tree(root):
@@ -101,20 +119,76 @@ def in_effect(roles, choice):
     return {tier: choice.get(tier, role["alias"]) for tier, role in roles.items()}
 
 
-def rewrite(root, assignments, models):
-    """Set each assigned component's frontmatter `model:` value to its tier's
-    model; every other byte, line endings included, stays as it was. Returns
-    the relative paths it changed."""
+def frontmatter_end(data):
+    return data.find(b"\n---", 3) if data.startswith(b"---") else -1
+
+
+def file_effort(path):
+    data = path.read_bytes()
+    end = frontmatter_end(data)
+    match = EFFORT_LINE.search(data, 0, end) if end != -1 else None
+    return match.group(1).decode("ascii") if match else None
+
+
+def shipped_efforts(root, assignments, keep):
+    """Each assigned component's shipped effort (None: it ships no `effort:`
+    line), from the snapshot, else from the files as they stand. With `keep`
+    a missing snapshot is written first, before anything rewrites them."""
+    path = root / SNAPSHOT
+    if path.is_file():
+        snap = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(snap, dict) and all(rel in snap for rel in assignments):
+            return snap
+        raise ValueError(f"{path} does not list every component; reinstall cai to restore it")
+    snap = {rel: file_effort(root / rel) for rel in sorted(assignments)}
+    if keep:
+        write_atomic(path, (json.dumps(snap, indent=2) + "\n").encode("utf-8"))
+    return snap
+
+
+def with_model(data, end, model):
+    match = MODEL_LINE.search(data, 0, end)
+    if match is None:
+        return data
+    return data[:match.start(1)] + model + data[match.end(1):]
+
+
+def with_effort(data, end, effort):
+    """`data` with its frontmatter `effort:` set to `effort`, or the line
+    removed for None. A new line goes after `model:`, in that line's ending."""
+    match = EFFORT_LINE.search(data, 0, end)
+    if match is not None:
+        if effort is None:
+            return data[:match.start()] + data[match.end() + 1:]
+        return data[:match.start(1)] + effort + data[match.end(1):]
+    model = MODEL_LINE.search(data, 0, end)
+    if effort is None or model is None:
+        return data
+    eol = b"\r\n" if model.group(0).endswith(b"\r") else b"\n"
+    at = model.end() + 1
+    return data[:at] + b"effort: " + effort + eol + data[at:]
+
+
+def rewrite(root, assignments, models, efforts):
+    """Set each assigned component's frontmatter `model:` to its tier's model
+    and its `effort:` to the tier's saved effort, else its shipped one; every
+    other byte, line endings included, stays as it was. Returns the relative
+    paths it changed."""
+    shipped = shipped_efforts(root, assignments, keep=bool(efforts))
     changed = []
     for rel, tier in sorted(assignments.items()):
         path = root / rel
         data = path.read_bytes()
-        end = data.find(b"\n---", 3) if data.startswith(b"---") else -1
-        match = MODEL_LINE.search(data, 0, end) if end != -1 else None
-        want = models[tier].encode("ascii")
-        if match is None or match.group(1) == want:
+        end = frontmatter_end(data)
+        if end == -1:
             continue
-        write_atomic(path, data[:match.start(1)] + want + data[match.end(1):])
+        effort = efforts.get(tier, shipped[rel])
+        new = with_model(data, end, models[tier].encode("ascii"))
+        new = with_effort(new, frontmatter_end(new),
+                          effort.encode("ascii") if effort else None)
+        if new == data:
+            continue
+        write_atomic(path, new)
         changed.append(rel)
     return changed
 
@@ -151,26 +225,65 @@ def offer_lines(roles, choice):
     return lines
 
 
+def effort_lines(roles, assignments, efforts, shipped):
+    """One line per tier: its saved effort, or each component's shipped one
+    (`session` for a component that ships none and so runs at the session's)."""
+    lines = []
+    for tier in roles:
+        rels = [rel for rel, t in sorted(assignments.items()) if t == tier]
+        if tier in efforts:
+            names = ", ".join(component(rel) for rel in rels)
+            lines.append(f"effort {tier}: {efforts[tier]} (saved) -- {names}")
+        else:
+            names = ", ".join(f"{component(rel)} {shipped[rel] or 'session'}" for rel in rels)
+            lines.append(f"effort {tier}: cai default -- {names}")
+    return lines
+
+
+def effort_offer_lines(roles, efforts):
+    lines = []
+    for tier in roles:
+        current = efforts.get(tier, "default")
+        order = list(dict.fromkeys((current, "default") + EFFORTS))[:MENU_MAX]
+        entries = []
+        for effort in order:
+            marks = [mark for mark, hit in (("in effect", effort == current),
+                                            ("cai default", effort == "default")) if hit]
+            entries.append(f"{effort} ({', '.join(marks)})" if marks else effort)
+        lines.append(f"effort offer {tier}: {', '.join(entries)}")
+    return lines
+
+
 def parse_answers(answers, roles):
-    """[(tier, model)] from `tier=model` words, or a ValueError naming the
-    first bad one -- checked before anything is written."""
+    """[(tier, field, value)] from `tier=model` and `tier.effort=effort`
+    words, field "model" or "effort" and a `default` effort as None, or a
+    ValueError naming the first bad word -- checked before anything is written."""
     parsed = []
     for word in answers:
-        tier, sep, model = word.partition("=")
-        if not sep or tier not in roles:
-            raise ValueError(f"{word!r}: expected <tier>=<model>, tier one of {', '.join(roles)}")
-        if not MODEL_RE.match(model):
-            raise ValueError(f"{word!r}: {model!r} is not a model name "
+        key, sep, value = word.partition("=")
+        tier, dot, field = key.partition(".")
+        if not sep or tier not in roles or (dot and field != "effort"):
+            raise ValueError(f"{word!r}: expected <tier>=<model> or <tier>.effort=<effort>, "
+                             f"tier one of {', '.join(roles)}")
+        if dot:
+            if value != "default" and value not in EFFORTS:
+                raise ValueError(f"{word!r}: {value!r} is not an effort "
+                                 f"(one of {', '.join(EFFORTS)}, or default)")
+            parsed.append((tier, "effort", None if value == "default" else value))
+        elif not MODEL_RE.match(value):
+            raise ValueError(f"{word!r}: {value!r} is not a model name "
                              f"(allowed: {MODEL_RE.pattern})")
-        parsed.append((tier, model))
+        else:
+            parsed.append((tier, "model", value))
     return parsed
 
 
-def report(roles, assignments, choice, changed):
-    for line in mapping_lines(roles, assignments, choice):
+def report(roles, assignments, choice, efforts, shipped, changed):
+    for line in (mapping_lines(roles, assignments, choice)
+                 + effort_lines(roles, assignments, efforts, shipped)):
         print(line)
     if changed:
-        print(f"rewrote {len(changed)} file(s); restart Claude Code to use the new models")
+        print(f"rewrote {len(changed)} file(s); restart Claude Code to use the new choice")
     else:
         print("no file needed rewriting")
 
@@ -179,7 +292,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("show")
-    sub.add_parser("set").add_argument("answers", nargs="+", metavar="TIER=MODEL")
+    sub.add_parser("set").add_argument("answers", nargs="+",
+                                       metavar="TIER=MODEL|TIER.effort=EFFORT")
     sub.add_parser("reset").add_argument("tiers", nargs="*", metavar="TIER")
     sub.add_parser("apply").add_argument("--hook", action="store_true")
     args = ap.parse_args(argv)
@@ -207,13 +321,20 @@ def main(argv=None):
 
     path = choice_path()
     try:
-        choice = load_choice(path, roles)
+        choice, efforts = load_choice(path, roles)
     except (OSError, ValueError) as e:
         print(f"cannot read the saved choice, not overwritten: {e}")
         return 1
 
     if args.command == "show":
-        for line in mapping_lines(roles, assignments, choice) + offer_lines(roles, choice):
+        try:
+            shipped = shipped_efforts(ROOT, assignments, keep=False)
+        except (OSError, ValueError) as e:
+            print(f"cannot read the shipped efforts: {e}")
+            return 1
+        for line in (mapping_lines(roles, assignments, choice) + offer_lines(roles, choice)
+                     + effort_lines(roles, assignments, efforts, shipped)
+                     + effort_offer_lines(roles, efforts)):
             print(line)
         print(f"choice file: {path}")
         return 0
@@ -224,23 +345,30 @@ def main(argv=None):
         return 1
 
     if args.command == "set":
-        for tier, model in answers:
-            if model == roles[tier]["alias"]:
+        for tier, field, value in answers:
+            if field == "effort":
+                if value is None:
+                    efforts.pop(tier, None)
+                else:
+                    efforts[tier] = value
+            elif value == roles[tier]["alias"]:
                 choice.pop(tier, None)
             else:
-                choice[tier] = model
+                choice[tier] = value
     elif args.command == "reset":
-        for tier in args.tiers or list(choice):
+        for tier in args.tiers or list(roles):
             choice.pop(tier, None)
+            efforts.pop(tier, None)
 
     try:
         if args.command in ("set", "reset"):
-            save_choice(path, choice)
-        changed = rewrite(ROOT, assignments, in_effect(roles, choice))
-    except OSError as e:
+            save_choice(path, choice, efforts)
+        changed = rewrite(ROOT, assignments, in_effect(roles, choice), efforts)
+        shipped = shipped_efforts(ROOT, assignments, keep=False)
+    except (OSError, ValueError) as e:
         print(f"cannot update the saved choice or the installed copy: {e}")
         return 1
-    report(roles, assignments, choice, changed)
+    report(roles, assignments, choice, efforts, shipped, changed)
     return 0
 
 
@@ -251,8 +379,8 @@ def apply_hook():
         if is_source_tree(ROOT):
             return 0
         roles, assignments = load_spec(ROOT)
-        choice = load_choice(choice_path(), roles)
-        changed = rewrite(ROOT, assignments, in_effect(roles, choice))
+        choice, efforts = load_choice(choice_path(), roles)
+        changed = rewrite(ROOT, assignments, in_effect(roles, choice), efforts)
         message = (f"cai: re-applied your model choice to {len(changed)} file(s); "
                    "restart Claude Code for it to take effect." if changed else None)
     except Exception as e:  # noqa: BLE001 -- never block a session start

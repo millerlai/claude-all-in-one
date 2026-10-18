@@ -90,7 +90,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:plan-review` | Reads an implementation plan, design doc, or spec the way a senior architect would: traces every design element back to a requirement, then eight lenses — over-engineering, boundaries, data and state, failure modes, testability, delivery, sequencing, and precision. Ships a skeleton for each kind of design document. Runs on Claude's own plans too, before they reach you. |
 | `/cai:options` | Lays out two or more ways forward so a person can actually choose between them: shared comparison dimensions, six fields per option including an everyday-life ELI5 analogy, a recommendation, and the condition that voids it. Use before a list of options goes out, or after one already did and the reader could not act on it. |
 | `/cai:usage` | Token usage and equivalent API spend for one track, or across every project over the last N days — plus per-stage process metrics: whether the first attempt passed, cycle time, rework, and how often a person actually signed off. Every number comes from `usage_report.py`; the model restates none of them. On the `chore` tier. |
-| `/cai:models` | Puts each tier — `chore`, `build`, `think` — on the model you choose, for you alone, all three in one pass: run it when a new model comes out. The choice survives `/plugin update`; restart Claude Code for it to take effect. |
+| `/cai:models` | Puts each tier — `chore`, `build`, `think` — on the model and reasoning effort you choose, for you alone, all three in one pass: run it when a new model comes out. The choice survives `/plugin update`; restart Claude Code for it to take effect. |
 | `/cai:viewer` | Opens a local-only web page listing every running Claude Code and Codex main session, which ones need you, and cai track progress. `/cai:viewer stop` closes it. |
 
 `/cai:fix` carries no `allowed-tools` grant. A grant on a skill also reaches the
@@ -443,9 +443,12 @@ Two things follow, and both are enforced rather than remembered:
   frontmatter disagrees with the table, if a component declaring a model isn't
   in it, or if any component names a model family in its prose.
 - **Your own tiers, without waiting for a release.** `/cai:models` puts any
-  tier on another model, an alias or a full model id, for you alone. It saves
-  the choice in `~/.claude/cai/model-choice.json` and rewrites the `model:`
-  lines of your installed copy (never a source tree), and a SessionStart hook
+  tier on another model, an alias or a full model id, for you alone, and
+  `/cai:models <tier> effort <effort>` sets every component of a tier to one
+  reasoning effort (`low` to `max`; `default` restores each component's
+  shipped effort). It saves the choice in `~/.claude/cai/model-choice.json`
+  and rewrites the `model:` and `effort:` lines of your installed copy (never
+  a source tree), and a SessionStart hook
   re-applies it to each copy `/plugin update` installs. Claude Code reads
   those lines when it starts, so restart it after a change.
 
