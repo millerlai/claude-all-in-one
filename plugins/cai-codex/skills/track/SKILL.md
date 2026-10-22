@@ -50,7 +50,7 @@ For the stage about to run:
 1. **Preflight.** `<cai> preflight <stage>
    --track-dir .cai/track/<feature> --project-dir <project root>`. Exit 2 means
    stop and report every line it printed — no model work happens. Record it as `blocked` first, per step 3,
-   unless the only FAIL is `open_items_decided`: then run the open-items stop and record nothing. Exit 0 means proceed.
+   unless the only FAIL is `open_items_decided`: then run the open-items stop and record nothing. Exit 0 means proceed; first tell the person any `worktree_overlap (WARN: …)` line, word for word.
 2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work
    to the subagent named in that row's `agent` field — never choose by
    judgement, the field decides, because model tier rides on it. Tell the agent to
