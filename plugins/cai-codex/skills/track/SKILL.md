@@ -9,7 +9,7 @@ argument-hint: "[<feature> [--here]|status|skip <stage> --reason \"<why>\"|done|
 ```
 $track <feature> [--here]   create (in its own worktree; --here: in this checkout) or resume; not `current`/`done`
 $track               resume whatever .cai/track/current names
-$track status        list tracks, where this one stopped, next step, what was skipped
+$track status [--all]   list tracks, where this one stopped, next step, what was skipped; --all: one row per worktree
 $track skip <stage> --reason "<why>"   record the reason, then advance
 $track done          print what was left open, then move into done/, clear `current`
 $track cancel --reason "<why>"   end it unfinished: record why, move into done/, clear `current`
@@ -130,9 +130,9 @@ passes: `approval-gates.md`'s Gate 2 says why and how (#316).
 
 ## `$track status`
 
-Run `track_state.py status` and relay its output verbatim: current track,
-every stage's status, the next unfinished stage, and the reason on every
-`skipped` row.
+Run `track_state.py status` and relay its output verbatim: current track, every stage's status,
+the next unfinished stage, and the reason on every `skipped` row. With `--all`, run `track_state.py
+status --all` instead: one row per git worktree, naming its track, next stage and unanswered questions.
 
 ## `$track skip <stage> --reason "<why>"`
 
