@@ -11,7 +11,7 @@ import resolve_test_command as rtc
 
 
 def cfg(tmp_path):
-    return tmp_path / ".claude" / "cai.json"
+    return tmp_path / ".cai" / "cai.json"
 
 
 def write_cfg(tmp_path, text):
@@ -129,7 +129,7 @@ def test_write_failure_exits_5_and_leaves_no_temp_file(tmp_path, monkeypatch, ca
     monkeypatch.setattr(rec.os, "replace", boom)
     assert rec.main(["--project-dir", str(tmp_path), "x"]) == 5
     assert cfg(tmp_path).read_text(encoding="utf-8") == original
-    assert os.listdir(cfg(tmp_path).parent) == ["cai.json"]
+    assert sorted(os.listdir(cfg(tmp_path).parent)) == [".gitignore", "cai.json"]
     capsys.readouterr()
 
 
@@ -138,7 +138,7 @@ def test_main_finds_the_git_root_from_a_subdirectory(tmp_path):
     sub = tmp_path / "pkg"
     sub.mkdir()
     assert rec.main(["--project-dir", str(sub), "make test"]) == 0
-    assert cfg(tmp_path).exists() and not (sub / ".claude").exists()
+    assert cfg(tmp_path).exists() and not (sub / ".cai").exists()
 
 
 def test_script_runs_from_the_command_line(tmp_path):

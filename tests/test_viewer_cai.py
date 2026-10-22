@@ -46,7 +46,7 @@ def _ledger_record(stage, session_id, outcome="passed"):
 
 def _setup_project(tmp_path):
     project_root = tmp_path / "project"
-    track_root = project_root / ".claude" / "track"
+    track_root = project_root / ".cai" / "track"
     track_root.mkdir(parents=True)
     return project_root, track_root
 
@@ -256,7 +256,7 @@ def test_no_track_dir_within_reach_returns_none(tmp_path):
 
 
 def test_no_track_dir_anywhere_up_to_root_returns_none(tmp_path):
-    # A deep chain with no .claude/track anywhere in it.
+    # A deep chain with no .cai/track anywhere in it.
     deep = tmp_path
     for i in range(25):
         deep = deep / ("d%d" % i)

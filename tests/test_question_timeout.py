@@ -112,7 +112,7 @@ def test_claim_menu_grants_nothing_on_timeout(plugin_root):
     section = _section(plugin_root)
     assert "The claim menu (`ticket-mirror.md`)" in section
     assert "Nothing is created, pointed or resumed" in section
-    assert ".claude/track/current` is not written" in section
+    assert ".cai/track/current` is not written" in section
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])

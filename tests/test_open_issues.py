@@ -436,7 +436,7 @@ def test_unwritable_config_root_still_runs_the_guard_by_name(tmp_path):
     assert (cfg / "cai").is_file()  # nothing replaced it
 
 
-LEDGER_PATH = "/p/.claude/track/t/ledger.jsonl"
+LEDGER_PATH = "/p/.cai/track/t/ledger.jsonl"
 
 
 def _write_call(argv, env, path, agent_id=None, agent_type=None, tool="Write",

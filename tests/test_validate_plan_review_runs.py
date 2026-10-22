@@ -29,7 +29,7 @@ def _copy_repo(tmp_path):
 
     def ignore(src, names):
         skipped = set(common(src, names))
-        if Path(src) == REPO_ROOT / ".claude" and "track" in names:
+        if Path(src) == REPO_ROOT / ".cai" and "track" in names:
             skipped.add("track")
         return skipped
 

@@ -14,15 +14,10 @@ the files it writes may hold a credential.
 """
 import json
 import os
-import subprocess
-
-import pytest
 
 import ledger
 import ticket
 import usage_collector
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # A plain case-insensitive substring grep, matching the design's own AC8
 # wording -- a false positive (one of these words turning up in ordinary
@@ -61,7 +56,7 @@ def _run_a_track(track_dir, project_dir):
     the network."""
     track_dir.mkdir()
     _make_state_md(track_dir)
-    claude_dir = project_dir / ".claude"
+    claude_dir = project_dir / ".cai"
     claude_dir.mkdir(parents=True, exist_ok=True)
     (claude_dir / "cai.json").write_text(
         json.dumps({"ticket": {"enabled": True, "backend": "local-stub"}}),
@@ -89,7 +84,7 @@ def test_ac8_no_file_a_track_writes_holds_a_credential(tmp_path):
     paths = {
         "ledger.jsonl": track_dir / "ledger.jsonl",
         "central ledger": usage_collector.central_ledger_path(),
-        ".claude/cai.json": project_dir / ".claude" / "cai.json",
+        ".cai/cai.json": project_dir / ".cai" / "cai.json",
         "ticket.json": track_dir / "ticket.json",
         "state.md": track_dir / "state.md",
     }
@@ -100,24 +95,3 @@ def test_ac8_no_file_a_track_writes_holds_a_credential(tmp_path):
             text = fh.read()
         hits = _grep_forbidden(text)
         assert hits == [], "%s contains %r" % (label, hits)
-
-
-def test_ac8_committed_cai_json_has_no_credential_markers():
-    """The other half of AC8: the version-controlled copy, checked against
-    its committed content rather than the working tree the test above
-    already covers. Skipped while the file is still untracked, so the
-    suite does not need the very commit that adds this test in order to
-    pass -- otherwise this assertion is a trap for whoever runs it next."""
-    rel = ".claude/cai.json"
-    tracked = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", rel],
-        cwd=REPO_ROOT, capture_output=True, text=True)
-    if tracked.returncode != 0:
-        pytest.skip("%s is not tracked yet" % rel)
-
-    shown = subprocess.run(
-        ["git", "show", "HEAD:%s" % rel],
-        cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8")
-    assert shown.returncode == 0, shown.stderr
-    hits = _grep_forbidden(shown.stdout)
-    assert hits == []

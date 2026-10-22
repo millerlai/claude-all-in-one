@@ -10,10 +10,17 @@ __pycache__/
 .coverage.*
 coverage.xml
 
-# Per-feature track state: state.md and the attempt ledger beside it. Local
-# working state for whoever is driving a track, not something to share -- and
-# the ledger is append-only, so a tracked one would conflict on every merge.
+# What cai writes into a project. `.cai/` carries its own `.gitignore` of `*`,
+# but a fresh clone has none until cai first runs, so it is listed here too.
+.cai/
+
+# Where cai kept the same things before it moved them into `.cai/`: track
+# state, the glossary, the review policy and the config. An installed cai older
+# than that move still writes here, and the next one moves them out.
 .claude/track/
+.claude/cai-context.md
+.claude/cai-review.md
+.claude/cai.json
 
 # Worktrees left over from other work: an untracked `.claude/worktrees/`
 # would otherwise dirty ship's clean_tree check (#202).

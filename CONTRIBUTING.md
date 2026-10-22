@@ -283,7 +283,11 @@ the same failure.
 
 After a release is published, add a directory for its tag in a follow-up pull
 request, so the newest release is always covered. From Git Bash at the repo
-root, with `PREV` the newest directory already there:
+root, with `PREV` the newest directory already there. Every release so far
+keeps its tracks under `.claude/track`, which is what the commands below and
+`install()` in `tests/test_upgrade_axis.py` assume; the first release that
+keeps them under `.cai/track` needs both changed to that path, and its status
+test no longer expects a move:
 
 ```bash
 TAG=vX.Y.Z; PREV=vA.B.C
@@ -347,6 +351,6 @@ None of these is run by a shipped component:
   `.agents/skills/cut-release/`, which reads the same workflow and adds
   PowerShell execution guidance. Both entries are repository-only maintainer
   tools, not shipped plugin skills.
-- `python plugins/cai/scripts/context_peak.py --track-dir .claude/track/<feature>`
+- `python plugins/cai/scripts/context_peak.py --track-dir .cai/track/<feature>`
   — a track's peak main-session context occupancy, read from local
   transcripts; it writes nothing.

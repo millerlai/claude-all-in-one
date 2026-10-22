@@ -48,7 +48,7 @@ def test_reason_is_required():
 
 def test_records_the_reason_before_archiving():
     section = _flat(_section())
-    assert "`.claude/track/<feature>/cancelled.md`" in section
+    assert "`.cai/track/<feature>/cancelled.md`" in section
     record_at = section.index("cancelled.md")
     move_at = section.index("move")
     assert record_at < move_at

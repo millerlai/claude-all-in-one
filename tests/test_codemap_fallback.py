@@ -45,7 +45,7 @@ def _repo(root, variant):
     repo.mkdir()
     make_repo(repo, {"a.py": "x = 1\n"})
     git(repo, "switch", "-q", "-c", "track/feature")
-    track = repo / ".claude" / "track" / "feature"
+    track = repo / ".cai" / "track" / "feature"
     track.mkdir(parents=True)
     if variant != "none":
         idx.build(str(repo))

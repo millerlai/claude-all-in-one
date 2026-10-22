@@ -93,7 +93,7 @@ LAUNCHER_ADVICE = (
     "alone, and say in your report if something seemed to call for it."
 )
 LEDGER_ADVICE = (
-    "Only the main session writes .claude/track/<feature>/ledger.jsonl, and a "
+    "Only the main session writes .cai/track/<feature>/ledger.jsonl, and a "
     "Gate 1 row only after the person picks Approve. Put what should be "
     "recorded in your report and let the main session write it. To read the "
     "ledger, run ledger.py show, or open the file with a file-reading tool if "

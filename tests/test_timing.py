@@ -19,7 +19,7 @@ def event(kind, event_id="event", **fields):
 
 
 def track(tmp_path):
-    path = tmp_path / ".claude" / "track" / "feature"
+    path = tmp_path / ".cai" / "track" / "feature"
     timing.begin_run(str(path), "build", "run", "codex")
     timing.bind_actor(str(path), "run", "actor", "session", "source:v1", "dispatch-1")
     return path
@@ -176,7 +176,7 @@ def test_no_actor_hint_only_resolves_unique_session_binding(tmp_path):
 
 def test_source_run_id_routes_reused_session_to_exact_dispatch(tmp_path, monkeypatch):
     first = track(tmp_path)
-    second = tmp_path / ".claude" / "track" / "second"
+    second = tmp_path / ".cai" / "track" / "second"
     timing.begin_run(str(second), "build", "second-run", "codex")
     timing.bind_actor(str(second), "second-run", "actor", "session", "source:v1",
                       source_run_id="dispatch-2")
@@ -345,7 +345,7 @@ for index in range(50):
 
 
 def project_track(tmp_path, name="feature"):
-    return tmp_path / ".claude" / "track" / name
+    return tmp_path / ".cai" / "track" / name
 
 
 def begin(tmp_path, capsys, name="feature", stage="build", platform="claude"):
@@ -360,12 +360,12 @@ def test_begin_prints_one_marker_line_and_opens_a_marker_file(tmp_path, capsys):
     lines = out.out.splitlines()
     assert len(lines) == 1 and lines[0].startswith("cai-timing-run: ")
     run_id = lines[0].split(": ", 1)[1]
-    assert (tmp_path / ".claude" / "track" / ("timing-open." + run_id)).is_file()
+    assert (tmp_path / ".cai" / "track" / ("timing-open." + run_id)).is_file()
     events, problems = timing.read_events(str(project_track(tmp_path)))
     assert not problems and [(e["kind"], e["run_id"], e["stage"], e["platform"]) for e in events] == [
         ("run_begin", run_id, "build", "claude")]
     # the marker is a file, so preflight's count of track directories is unchanged
-    assert [p.name for p in (tmp_path / ".claude" / "track").iterdir() if p.is_dir()] == ["feature"]
+    assert [p.name for p in (tmp_path / ".cai" / "track").iterdir() if p.is_dir()] == ["feature"]
 
 
 def test_begin_on_codex_opens_a_codex_run(tmp_path, capsys):
@@ -381,7 +381,7 @@ def test_begin_failure_prints_no_marker_and_exits_2(tmp_path, capsys, stage, pla
     code, out = begin(tmp_path, capsys, stage=stage, platform=platform)
     assert code == 2 and out.out == ""
     assert len(out.err.strip().splitlines()) == 1
-    assert not list((tmp_path / ".claude" / "track").glob("timing-open.*")) if (tmp_path / ".claude").exists() else True
+    assert not list((tmp_path / ".cai" / "track").glob("timing-open.*")) if (tmp_path / ".cai").exists() else True
 
 
 def test_end_writes_run_end_removes_marker_and_is_repeatable(tmp_path, capsys):
@@ -393,7 +393,7 @@ def test_end_writes_run_end_removes_marker_and_is_repeatable(tmp_path, capsys):
     events, _ = timing.read_events(str(project_track(tmp_path)))
     assert [e["kind"] for e in events] == ["run_begin", "run_end"]
     assert events[1]["stage"] == "build" and events[1]["platform"] == "claude"
-    assert not list((tmp_path / ".claude" / "track").glob("timing-open.*"))
+    assert not list((tmp_path / ".cai" / "track").glob("timing-open.*"))
 
 
 def test_end_of_unknown_run_exits_2(tmp_path, capsys):
@@ -407,12 +407,12 @@ def test_begin_and_end_sweep_markers_of_closed_runs(tmp_path, capsys):
     _, first = begin(tmp_path, capsys)
     first_id = first.out.split(": ", 1)[1].strip()
     timing.end_run(str(project_track(tmp_path)), first_id)  # closed without the CLI: marker left behind
-    stale = tmp_path / ".claude" / "track" / ("timing-open." + first_id)
+    stale = tmp_path / ".cai" / "track" / ("timing-open." + first_id)
     assert stale.exists()
     _, second = begin(tmp_path, capsys, "second")
     assert not stale.exists()
     second_id = second.out.split(": ", 1)[1].strip()
-    assert (tmp_path / ".claude" / "track" / ("timing-open." + second_id)).exists()
+    assert (tmp_path / ".cai" / "track" / ("timing-open." + second_id)).exists()
 
 
 def test_find_run_needs_exactly_one_track_and_reports_closed(tmp_path):

@@ -94,7 +94,7 @@ def test_gate2_says_what_free_text_does_on_a_menu_nobody_asked_for(plugin_root):
     # Clearing the saved round is what keeps a later resume from re-asking
     # with drafts of an older commit. Codex spells the call `<cai> pending`.
     assert re.search(r"pending(\.py)? clear --track-dir "
-                     r"\.claude/track/<feature> --stage ship", gate)
+                     r"\.cai/track/<feature> --stage ship", gate)
     assert "drafts again from the branch as it then stands" in gate
 
 

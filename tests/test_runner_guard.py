@@ -99,7 +99,7 @@ def test_resolver_by_its_real_path(empty):
 
 
 def test_declared_commands_all_pass_and_take_arguments(tmp_path):
-    cwd = project(tmp_path, {".claude/cai.json": json.dumps(
+    cwd = project(tmp_path, {".cai/cai.json": json.dumps(
         {"test": {"commands": ["python -m pytest", "npm test"]}})})
     for command in ("python -m pytest", "python -m pytest tests/a.py -x", "npm test"):
         assert runner_guard.allowed(command, cwd, RUNNER) is True, command
@@ -174,14 +174,14 @@ def test_hooks_json_sends_agent_calls_to_the_dispatcher_in_agent_mode():
 
 
 def test_declared_string_with_shell_symbols_is_authorised_by_the_person(tmp_path):
-    cwd = project(tmp_path, {".claude/cai.json": json.dumps(
+    cwd = project(tmp_path, {".cai/cai.json": json.dumps(
         {"test": {"commands": ["make a && make b"]}})})
     assert runner_guard.allowed("make a && make b", cwd, RUNNER) is True
     assert runner_guard.allowed("make a && make b && rm x", cwd, RUNNER) is False
 
 
 def test_invalid_declaration_resolves_nothing(tmp_path):
-    cwd = project(tmp_path, {"Cargo.toml": "", ".claude/cai.json": "not json"})
+    cwd = project(tmp_path, {"Cargo.toml": "", ".cai/cai.json": "not json"})
     assert runner_guard.allowed("cargo test", cwd, RUNNER) is False
 
 
@@ -345,18 +345,22 @@ def test_designer_guard_main_blocks_unreadable_stdin(stdin):
 
 
 def test_declared_command_with_repeated_blanks(tmp_path):
-    cwd = project(tmp_path, {".claude/cai.json": json.dumps(
+    cwd = project(tmp_path, {".cai/cai.json": json.dumps(
         {"test": {"commands": ["cargo  test"]}})})
     assert runner_guard.allowed("cargo test", cwd, RUNNER) is True
     assert runner_guard.allowed("cargo  test", cwd, RUNNER) is True
     assert runner_guard.allowed("cargo test; x", cwd, RUNNER) is False
 
 
-def test_this_repos_declared_regenerate_and_test_command_is_the_only_extra():
+def test_this_repos_declared_regenerate_and_test_command_is_the_only_extra(tmp_path):
     # #371: the verifier must be able to run the regeneration + pytest chain
     # this repo declares, and still nothing else (acceptance condition 3).
-    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # The declaration lives in .cai/, outside git, so it is written here.
     declared = "python scripts/gen-codex.py && python -m pytest"
+    (tmp_path / ".cai").mkdir()
+    (tmp_path / ".cai" / "cai.json").write_text(
+        json.dumps({"test": {"commands": [declared]}}), encoding="utf-8")
+    repo = str(tmp_path)
     assert runner_guard.allowed(declared, repo, VERIFIER) is True
     assert runner_guard.allowed(declared + " tests/a.py -x", repo, VERIFIER) is True
     for blocked in ("python scripts/gen-codex.py",

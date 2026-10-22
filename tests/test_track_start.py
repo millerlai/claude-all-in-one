@@ -52,7 +52,7 @@ def init_repo_with_remote(path, remote):
 
 
 def track_dir_for(tmp_path, feature):
-    return str(tmp_path / ".claude" / "track" / feature)
+    return str(tmp_path / ".cai" / "track" / feature)
 
 
 def test_on_main_without_upstream_creates_track_branch_and_skips_pull(tmp_path):
@@ -298,4 +298,4 @@ def test_skill_md_runs_track_start_before_creating_state_md():
     section = text[section_start:section_end]
     assert "scripts/track_start.py" in section
     assert section.index("scripts/track_start.py") < \
-        section.index("Create `.claude/track/<feature>/state.md`")
+        section.index("Create `.cai/track/<feature>/state.md`")

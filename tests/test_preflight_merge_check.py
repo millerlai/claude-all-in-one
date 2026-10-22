@@ -658,7 +658,7 @@ def test_gate2_fetches_then_reruns_preflight_inside_a_track():
 
     assert ("git fetch origin\n"
             "python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py ship "
-            "--track-dir .claude/track/<feature> --project-dir <project root>") in text
+            "--track-dir .cai/track/<feature> --project-dir <project root>") in text
     assert "**Exit 0** → the quoted commands run." in text
     assert "**Exit 2** → none of the quoted commands runs." in text
     assert "record `ship` as `blocked` (`--gate auto`)" in text

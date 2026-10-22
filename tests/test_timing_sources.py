@@ -97,7 +97,7 @@ def test_output_shape_has_no_source_coverage_and_is_deterministic():
 
 
 def test_events_pass_the_journal_validation(tmp_path):
-    track = tmp_path / ".claude" / "track" / "feature"
+    track = tmp_path / ".cai" / "track" / "feature"
     timing.begin_run(str(track), "build", "run", "claude")
     timing.bind_actor(str(track), "run", "agent-a", "sess", "claude-hooks-1", "agent-a")
     binding = dict(BINDING)
@@ -175,7 +175,7 @@ def test_each_missing_pre_batch_writes_its_own_stable_gap():
 
 
 def test_missing_pre_batch_still_writes_later_work_to_the_journal(tmp_path):
-    track = tmp_path / ".claude" / "track" / "feature"
+    track = tmp_path / ".cai" / "track" / "feature"
     timing.begin_run(str(track), "build", "run", "claude")
     timing.bind_actor(str(track), "run", "agent-a", "sess", "claude-hooks-1", "agent-a")
     payload = {"observations": [obs(0, "start", 0), obs(1, "pre", 10, "t1"),
@@ -340,7 +340,7 @@ def test_codex_post_without_its_pre_is_missing():
 
 
 def test_codex_events_pass_the_journal_validation(tmp_path):
-    track = tmp_path / ".claude" / "track" / "feature"
+    track = tmp_path / ".cai" / "track" / "feature"
     timing.begin_run(str(track), "build", "run", "codex")
     timing.bind_actor(str(track), "run", "agent-a", "sess", "codex-hooks-1", "agent-a")
     rows = [obs(0, "start", 0), obs(1, "pre", 30, "t1"), obs(2, "post", 40, "t1"), obs(3, "stop", 70)]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resolve how this project starts its app (the `run` object), read-only.
 
-Reads `run` from `.claude/cai.json` and checks its shape; with no declaration it
+Reads `run` from `.cai/cai.json` and checks its shape; with no declaration it
 lists candidates from `package.json` and never runs anything. Prints one JSON
 object. Exit 0 declared, 3 candidates, 4 unknown, 5 invalid declaration; 1 and 2
 are left to uncaught exceptions and argparse. Zero deps beyond the standard

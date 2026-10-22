@@ -125,7 +125,7 @@ def test_after_the_pr_opens_records_then_runs_the_script_in_slices():
     assert "Left open: merge not confirmed (PR #<n>)" in sec
     assert "--gate human" in sec
     assert sec.index("--gate human") < sec.index("ship_pr_findings.py")
-    assert "--track-dir .claude/track/<feature>" in sec
+    assert "--track-dir .cai/track/<feature>" in sec
     assert "Exit 8" in sec and "--started-at" in sec and "wait_started_at" in sec
     assert "finding-severity.md" in sec
     assert "fix_rounds" in sec

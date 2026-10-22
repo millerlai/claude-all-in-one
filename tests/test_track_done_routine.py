@@ -48,7 +48,7 @@ def test_routine_is_not_run_by_the_session():
 
 def test_routine_line_comes_after_the_move():
     section = _done_section()
-    move_at = section.index("Then move `.claude/track/<feature>/`")
+    move_at = section.index("Then move `.cai/track/<feature>/`")
     routine_at = section.index("/cai:git-sweep")
     assert routine_at > move_at
 

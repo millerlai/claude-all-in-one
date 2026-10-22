@@ -101,7 +101,7 @@ Step 3 lists it with the plan's reason.
   one more, `{port}` — the start command with the port argument that tool
   accepts, appended — and free text is always there. When the first answer is
   to keep it Not covered, the second question is not asked. The main session
-  writes the answer into `.claude/cai.json` with `record_start_command.py` and
+  writes the answer into `.cai/cai.json` with `record_start_command.py` and
   re-dispatches this stage; the opening paragraph says what runs then. The main
   session never reads this file, so the first question's recording option
   carries the command it is to run, written out whole:
@@ -143,8 +143,8 @@ convention files. With both, compare against both.
 
 When the dispatch brief names a requirement, that is the requirement. When it
 names none, under a track it is the documents the design row of the track's
-state table (`.claude/track/<feature>/`) names, plus the numbered acceptance
-criteria in `.claude/track/<feature>/intake.md` (`.claude/track/current`
+state table (`.cai/track/<feature>/`) names, plus the numbered acceptance
+criteria in `.cai/track/<feature>/intake.md` (`.cai/track/current`
 holds the feature name). Read them yourself; the dispatch brief does not have
 to carry them. When none can be read, conformance has no requirement and Step
 3's `Not covered` says so.

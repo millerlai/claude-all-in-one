@@ -278,7 +278,7 @@ CSP = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline
 
 # PAGE_HTML is a static, self-contained page (no external requests except
 # its own /api/rows) adapted from the user-approved mockup at
-# .claude/track/agent-viewer-web-portal/mockup.html. See
+# .cai/track/agent-viewer-web-portal/mockup.html. See
 # implementation-notes.md's Unit 5 deviations for what was cut (the mockup's
 # demo simulator, the free-text tdetail/timeline lines neither has a real
 # field for) and why.
@@ -2466,11 +2466,11 @@ TRACK_ROOT_SEARCH_LEVELS = 20
 def _find_track_root(cwd):
     """Walk upward from `cwd` (itself included) up to
     TRACK_ROOT_SEARCH_LEVELS parents, looking for a directory that contains
-    a `.claude/track` subdirectory. Returns that `.claude/track` path, or
+    a `.cai/track` subdirectory. Returns that `.cai/track` path, or
     None if not found within the budget."""
     candidate = cwd
     for _ in range(TRACK_ROOT_SEARCH_LEVELS):
-        track_root = os.path.join(candidate, ".claude", "track")
+        track_root = os.path.join(candidate, ".cai", "track")
         if os.path.isdir(track_root):
             return track_root
         parent = os.path.dirname(candidate)

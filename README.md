@@ -14,7 +14,7 @@ new session can resume it where the last one stopped.
 Four layers, plus one underneath all of them.
 
 - **The track.** `/cai:track <feature>` carries one feature through six SDLC
-  stages, keeping state in `.claude/track/<feature>/state.md` so a new session
+  stages, keeping state in `.cai/track/<feature>/state.md` so a new session
   with no memory of this conversation can resume it.
 - **The six stages.** `intake`, `discover`, `design`, `build`, `verify`,
   `ship` — each also runs alone, track or no track. Exactly two stop for a
@@ -286,7 +286,7 @@ save format, and the two platform floors below.
 | Change | Bump | Example |
 |---|---|---|
 | Removing or renaming a skill; an old save file no longer loading; raising a platform floor | MAJOR | Dropping `/cai:quiz` |
-| Adding a skill; adding an omittable field to an old save file; a track-format change | MINOR | Adding a new tool, or changing what `.claude/track/<feature>/state.md` records (called out on that release's GitHub Release page) |
+| Adding a skill; adding an omittable field to an old save file; a track-format change | MINOR | Adding a new tool, or changing what `.cai/track/<feature>/state.md` records (called out on that release's GitHub Release page) |
 | A script bug fix that doesn't change format; rewording a rule | PATCH | Fixing a guard regex |
 
 Platform floors: Claude Code 2.1.283 or later, codex-cli 0.157.1 or later.

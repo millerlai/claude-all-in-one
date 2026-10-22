@@ -1,6 +1,6 @@
 ---
 name: track
-description: "One feature carried through every SDLC stage — intake, discover, design, build, verify, ship — with its state kept in .claude/track/ so a later session can resume where it stopped. Usage: $track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
+description: "One feature carried through every SDLC stage — intake, discover, design, build, verify, ship — with its state kept in .cai/track/ so a later session can resume where it stopped. Usage: $track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
 argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done|cancel --reason \"<why>\"]"
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
@@ -8,7 +8,7 @@ argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done|cancel --
 
 ```
 $track <feature>     create or resume; <feature> may not be `current` or `done`
-$track               resume whatever .claude/track/current names
+$track               resume whatever .cai/track/current names
 $track status        list tracks, where this one stopped, next step, what was skipped
 $track skip <stage> --reason "<why>"   record the reason, then advance
 $track done          print what was left open, then move into done/, clear `current`
@@ -34,12 +34,12 @@ nothing: no active track, or a `state.md` that is missing, disagrees with
 ## `$track <feature>`
 
 Reject `current` and `done` as names; an argument with `://` or only digits is
-a ticket, not a name — `references/ticket-mirror.md`. If `.claude/track/<feature>/`
+a ticket, not a name — `references/ticket-mirror.md`. If `.cai/track/<feature>/`
 already exists, this is a resume: skip straight to the next unfinished
 stage `track_state.py status` names. Otherwise this is a new track. Before creating
-anything, run `<cai> track_start --track-dir .claude/track/<feature> --project-dir <project root>` and relay what it prints; on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 2 means stop, create nothing, and report exactly what it printed.
+anything, run `<cai> track_start --track-dir .cai/track/<feature> --project-dir <project root>` and relay what it prints; on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 2 means stop, create nothing, and report exactly what it printed.
 
-Create `.claude/track/<feature>/state.md`, then `.claude/track/current`, then
+Create `.cai/track/<feature>/state.md`, then `.cai/track/current`, then
 start the first stage below. The table: `| stage | status | artifact | note |`,
 a `|---|---|---|---|` rule, one row naming each `stages.json` stage, rest empty.
 
@@ -48,7 +48,7 @@ a `|---|---|---|---|` rule, one row naming each `stages.json` stage, rest empty.
 For the stage about to run:
 
 1. **Preflight.** `<cai> preflight <stage>
-   --track-dir .claude/track/<feature> --project-dir <project root>`. Exit 2 means
+   --track-dir .cai/track/<feature> --project-dir <project root>`. Exit 2 means
    stop and report every line it printed — no model work happens. Record it as `blocked` first, per step 3,
    unless the only FAIL is `open_items_decided`: then run the open-items stop and record nothing. Exit 0 means proceed.
 2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work
@@ -60,22 +60,22 @@ For the stage about to run:
    yourself instead of handing over the whole procedure — follow what it says
    there before dispatching the stage's own agent, if any.
    Before handing the work over, run `<cai> timing begin
-   --track-dir .claude/track/<feature> --stage <stage> --platform codex` and put the line
+   --track-dir .cai/track/<feature> --stage <stage> --platform codex` and put the line
    it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first.
 3. **Record.** Once the report is back — a `## Pending questions` one too — first run
-   `<cai> timing end --track-dir .claude/track/<feature> --run <run_id>`
+   `<cai> timing end --track-dir .cai/track/<feature> --run <run_id>`
    (the value from step 2's line; a failure changes nothing). Then every attempt goes in the ledger, not only the ones that
    worked — a stage whose failures leave no trace cannot say how many times
    it has been tried, or why it failed last time:
 
    ```
    <cai> ledger append
-       --track-dir .claude/track/<feature> --stage <stage>
+       --track-dir .cai/track/<feature> --stage <stage>
        --outcome passed|failed|blocked|skipped|unavailable --gate auto|human
        [--artifact <path>] --note "<why, one line>"
    ```
 
-   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which — when a run stops before its units are finished — sets that stage's own `status` to `in-progress`, sets its `note` to `unit <N> of <total>`, and appends a `## Handoff` block. Every other `note` cell is yours, written from the fields the stage handed up under `## Report`. A build report's glossary item goes into that note as three counts — terms written, definitions replaced, terms kept out — never as the list itself: `ledger.py` cuts an over-long note from its end, which is where `Left open:` sits. Write only reminders after `Left open:`, a literal marker last in that note, items separated by `; `: what the stage's Report lists as left open, never an open item; on an overwrite carry the old row's reminders into the new note unless the new report settles them. Also feed the report of every `passed` stage to `<cai> open_items add --track-dir .claude/track/<feature> --project-dir <project root> --stage <stage> --report-file -` (the report on stdin, as `references/pending-questions.md` feeds `pending.py start`), after `ledger.py` exits 0 and before the `state.md` row is overwritten. If `add` exits 2 naming an entry, fix that entry the way a `ship_draft_check.py` FAIL is fixed and run `add` again before writing the row; if `add` exits 2 naming the record itself, say so in one line and write the report's items after `Left open:` as before. Quote `track_state.py left-open` in build's, verify's and ship's briefs.
+   Only the passing path overwrites a row from here; the rest append and stop. The one other writer anywhere is `stage-build.md`'s Step 5.5, which — when a run stops before its units are finished — sets that stage's own `status` to `in-progress`, sets its `note` to `unit <N> of <total>`, and appends a `## Handoff` block. Every other `note` cell is yours, written from the fields the stage handed up under `## Report`. A build report's glossary item goes into that note as three counts — terms written, definitions replaced, terms kept out — never as the list itself: `ledger.py` cuts an over-long note from its end, which is where `Left open:` sits. Write only reminders after `Left open:`, a literal marker last in that note, items separated by `; `: what the stage's Report lists as left open, never an open item; on an overwrite carry the old row's reminders into the new note unless the new report settles them. Also feed the report of every `passed` stage to `<cai> open_items add --track-dir .cai/track/<feature> --project-dir <project root> --stage <stage> --report-file -` (the report on stdin, as `references/pending-questions.md` feeds `pending.py start`), after `ledger.py` exits 0 and before the `state.md` row is overwritten. If `add` exits 2 naming an entry, fix that entry the way a `ship_draft_check.py` FAIL is fixed and run `add` again before writing the row; if `add` exits 2 naming the record itself, say so in one line and write the report's items after `Left open:` as before. Quote `track_state.py left-open` in build's, verify's and ship's briefs.
 
    - **Preflight exited 2** → `blocked`. **Unless** its output holds
      `FAIL ledger_attempts` — that stage is already at its cap and another
@@ -94,13 +94,13 @@ For the stage about to run:
    `--gate human` belongs to the two human gates below, and to a withdrawal of the commit answer (`approval-gates.md`, "Withdrawing"), and nowhere else; at the design gate it takes `--artifact`, and its `--note` is exactly `commit: yes` or `commit: no`, with nothing after it.
    A non-zero exit from `ledger.py` stops the step: report it and leave `state.md` untouched.
 
-When `.claude/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `$track skip`.
+When `.cai/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `$track skip`.
 Before `build`'s dispatch in step 2, you — the main session, not a subagent — settle the test command as `<cai-root>/skills/track/references/test-command.md`'s `## Before build` says. A missing one never stops the stage, and that section also says what `verify`'s dispatch carries after a skip.
 Before `build`'s and `verify`'s dispatch, you — the main session, not a subagent — quote in the brief the `commit_answer` line `preflight.py` printed; whoever commits, you included for what `verify` changed, runs `preflight.py` again right before every commit and acts on the line that run prints, as `<cai-root>/skills/track/references/approval-gates.md`'s Gate 1 and "Verify's changes, inside a track" say; under a track no menu asks whether to commit.
 Before `intake`, `discover` or `design`'s dispatch in step 2, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/codemap-brief.md`, which adds at most one line to the dispatch prompt and never stops the stage.
-When `intake` reports, you — the main session, not the read-only `cai_architect` — write the body of its `## Intake document` section, verbatim, to `.claude/track/<feature>/intake.md` before the approval menu, then record that path as the stage's `--artifact` and in its `state.md` row; `verify` plans from that file and `preflight.py` (`discover`, `design`) blocks without it.
+When `intake` reports, you — the main session, not the read-only `cai_architect` — write the body of its `## Intake document` section, verbatim, to `.cai/track/<feature>/intake.md` before the approval menu, then record that path as the stage's `--artifact` and in its `state.md` row; `verify` plans from that file and `preflight.py` (`discover`, `design`) blocks without it.
 A report ending in `## Pending questions` is not an outcome: before step 3, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/pending-questions.md`, because no subagent can ask the person directly here either.
-A `pending:` section in `track_state.py status` means an earlier round of questions was never finished: ask its first `open` question as `references/pending-questions.md` says, then re-dispatch with its saved report, instead of running the stage again. After step 3 records `passed`, `failed` or `skipped`, run `<cai> pending clear --track-dir .claude/track/<feature> --stage <stage>`.
+A `pending:` section in `track_state.py status` means an earlier round of questions was never finished: ask its first `open` question as `references/pending-questions.md` says, then re-dispatch with its saved report, instead of running the stage again. After step 3 records `passed`, `failed` or `skipped`, run `<cai> pending clear --track-dir .cai/track/<feature> --stage <stage>`.
 ## Human gates
 
 Exactly two stages stop for a person, never more:
@@ -150,11 +150,11 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 ## `$track done`
 
 First run `<cai> track_state left-open` and relay its output verbatim; once the refusal below has passed, ask the open items still undecided, fix pending or filing their one menu, as `references/approval-gates.md`'s `## Open items before ship` says for `done`; then follow `<cai-root>/skills/track/references/ticket-mirror.md`'s `$track done` section, which says what runs after the move too — all skipped when the refusal below fires, when a pick fixes an item or is Stop, and while a menu is unanswered.
-Then move `.claude/track/<feature>/` to `.claude/track/done/<feature>/` and delete `.claude/track/current`. Refuse if any stage's row is empty
+Then move `.cai/track/<feature>/` to `.cai/track/done/<feature>/` and delete `.cai/track/current`. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
 Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `$git-sweep`, which shows its table before deleting anything — run none of this yourself.
 
 ## `$track cancel --reason "<why>"`
 
-For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.claude/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/` and delete `current` as `done` does, whatever the rows say.
-Run none of `done`'s other steps: say in one line that the branch, any PR and whatever `references/ticket-mirror.md` mirrored stay as they are, that nothing queued is posted, and how many are undecided (`<cai> open_items undecided --track-dir .claude/track/<feature>`, run before the move) — what happens to them is the person's call.
+For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.cai/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/` and delete `current` as `done` does, whatever the rows say.
+Run none of `done`'s other steps: say in one line that the branch, any PR and whatever `references/ticket-mirror.md` mirrored stay as they are, that nothing queued is posted, and how many are undecided (`<cai> open_items undecided --track-dir .cai/track/<feature>`, run before the move) — what happens to them is the person's call.

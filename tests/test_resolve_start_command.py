@@ -24,7 +24,7 @@ def put(root, rel, text):
 
 
 def cfg(root, obj):
-    put(root, ".claude/cai.json", obj if isinstance(obj, str) else json.dumps(obj))
+    put(root, ".cai/cai.json", obj if isinstance(obj, str) else json.dumps(obj))
 
 
 def pkg(root, scripts):

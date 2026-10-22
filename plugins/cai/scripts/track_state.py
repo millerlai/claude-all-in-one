@@ -18,7 +18,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STAGES_JSON = os.path.join(HERE, "..", "skills", "track", "stages.json")
-DEFAULT_TRACK_ROOT = os.path.join(".claude", "track")
+DEFAULT_TRACK_ROOT = os.path.join(".cai", "track")
 
 # preflight.py already implements "find this stage's row in state.md"; reuse
 # it rather than writing that lookup a second time. (Its own inline loop is
@@ -26,6 +26,7 @@ DEFAULT_TRACK_ROOT = os.path.join(".claude", "track")
 # shared implementation -- preflight.py is out of scope for this change. See
 # table_stage_ids() below, and the report, for why.)
 sys.path.insert(0, HERE)
+import cai_paths  # noqa: E402
 import preflight  # noqa: E402
 import ledger  # noqa: E402
 import pending  # noqa: E402
@@ -323,6 +324,13 @@ def main():
     ap.add_argument("command", choices=["status", "resolve", "left-open"])
     ap.add_argument("--track-root", default=DEFAULT_TRACK_ROOT)
     args = ap.parse_args()
+
+    # Resuming is where a track an earlier cai kept under .claude/ is first
+    # read again. Only with the default root does this know the project root;
+    # on stderr, so what status prints to stdout keeps its shape.
+    if args.track_root == DEFAULT_TRACK_ROOT:
+        for line in cai_paths.migrate(os.getcwd()):
+            print("track_state: %s" % line, file=sys.stderr)
 
     if args.command == "status":
         return status(args.track_root)

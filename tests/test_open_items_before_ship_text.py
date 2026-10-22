@@ -477,7 +477,7 @@ def test_git_sweep_line_still_names_no_ticket_or_close():
     assert len(line) == 1
     assert "ticket" not in line[0].lower()
     assert "clos" not in line[0].lower()
-    assert done.index("Then move `.claude/track/<feature>/`") < \
+    assert done.index("Then move `.cai/track/<feature>/`") < \
         done.index("/cai:git-sweep")
 
 

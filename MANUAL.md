@@ -164,14 +164,19 @@ begins. The rest are each skill's own.
 Started on `main`/`master`, this first pulls (fast-forward only) and switches
 to `track/billing-export`, so `intake`'s preflight never blocks on the branch;
 on any other branch it leaves things alone. That then creates
-`.claude/track/billing-export/state.md` with one row per stage, writes
-`.claude/track/current`, and begins at `intake`.
+`.cai/track/billing-export/state.md` with one row per stage, writes
+`.cai/track/current`, and begins at `intake`.
 
-Do one thing once per repo: add `.claude/track/` to `.gitignore`. A track's
-files are working state, and while an untracked one never blocks `ship`
-(#198), committing them and then changing them does — `ship` refuses a dirty
-working tree over a *tracked* change. `intake`'s preflight says so when
-they aren't ignored, without blocking.
+Everything cai writes into your project — tracks, the glossary, the review
+policy, `cai.json` — lives under `.cai/`, which carries its own `.gitignore`
+of `*`, so none of it reaches git unless you add it yourself
+(`git add -f`). A track's files are working state, and while an untracked one
+never blocks `ship` (#198), committing them and then changing them does —
+`ship` refuses a dirty working tree over a *tracked* change. `intake`'s
+preflight says so when they aren't ignored, without blocking. An earlier cai
+kept the same things under `.claude/`; the first `/cai:track` after you
+update moves them, and copies instead anything git tracks there, leaving that
+for you to remove.
 
 Each stage runs the same shape. A free check first, then the paid work, then
 the outcome is recorded — every attempt, not only the ones that worked:
@@ -305,7 +310,7 @@ lane stays off for that run (that question exists only when `/cai:build` or
 `/cai:goal` runs with no track; under a track the commit answer is the one you
 gave at the design gate) — it falls back to that fixed answer and the run keeps going
 rather than asking again later. `build` no longer asks anything about the
-glossary: it adds the design's terms to `.claude/cai-context.md` itself and
+glossary: it adds the design's terms to `.cai/cai-context.md` itself and
 lists them in its report. There are exactly two
 further exceptions, both low-stakes: the question about running lanes in
 parallel, and the question asking what to name the track directory. At
@@ -353,7 +358,7 @@ refuses and says to skip `build` too, or fill the design row in.
 
 First prints what the track left open — the `Left open:` items from each
 stage's note, as a list you can paste straight into `/cai:intake` to start the
-next track. Then moves the track to `.claude/track/done/<feature>/` and clears
+next track. Then moves the track to `.cai/track/done/<feature>/` and clears
 `current`. Refused while any stage row is still empty or `in-progress`, and it
 names which.
 
@@ -394,7 +399,7 @@ names one of these:
 | Names | Meaning | Do this |
 |---|---|---|
 | `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | A new track branches for you; seeing this means it could not (git unreachable, or the branch already exists) — branch by hand. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
-| `reserved_name` | You named a feature `current` or `done` | Pick another; both already mean something under `.claude/track/` |
+| `reserved_name` | You named a feature `current` or `done` | Pick another; both already mean something under `.cai/track/` |
 | `state_md` | No `state.md`, or no row for the stage this one reads | Open the track with `/cai:track <name>` first |
 | `intake_status` | `discover` asked to run before `intake` was `done` or `skipped` | Finish intake, or skip it with a reason |
 | `artifact_named` | `build` asked to run, and the design row names no document | Run `design`, or record the document you're reusing. If you skipped `design`, skip `build` too |
@@ -406,7 +411,7 @@ names one of these:
 | `work_breakdown` | A *detail* design has no `## Work breakdown` | `build` consumes that table as its schedule. The other kinds need none — `build` cuts the units itself |
 | `has_changes` | Nothing to review — clean tree, no diff from base, or git could not be asked whether the tree is clean | Commit something first. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
 | `verify_status` | `ship` asked to run before `verify` finished | Run verify, or skip it with a reason you'd be willing to read back |
-| `clean_tree` | A *tracked* file has an uncommitted change at ship time, or git could not be asked. Untracked files never trip this — the squash neither includes nor touches them | Commit or stash the file(s) the line names. If the dirty files are the track's own, ignore `.claude/track/`. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
+| `clean_tree` | A *tracked* file has an uncommitted change at ship time, or git could not be asked. Untracked files never trip this — the squash neither includes nor touches them | Commit or stash the file(s) the line names. If the dirty files are the track's own, ignore `.cai/track/`. If the line says `git status failed` or `did not answer`, run `git status` yourself and fix what it prints — not knowing is a reason to stop |
 | `merges_cleanly` | `verify` and `ship`: your branch conflicts with the remote's default branch — `origin/HEAD`, else `origin/main`, else `origin/master` — as this clone last fetched it. Only the committed HEAD is tried, so uncommitted changes in your working tree are not part of the check. Checked when `verify` starts (without a fetch) and when `ship` starts, and again when you pick "Run them", right after a `git fetch origin`. `/cai:ship` on its own does not check it | `git fetch origin`, merge that branch into yours, resolve the files the line names, and run verify again. When it cannot tell — no such branch, git older than 2.38, a shallow clone with no common history, any other git error — it prints `PASS` with `not checked: <why>` and never blocks |
 | `ledger_attempts` | Any stage: five failed or blocked attempts since it last passed or was skipped | The message lists every attempt's note and the three ways out: `/cai:track skip <stage> --reason "<why>"`, `CAI_TRACK_MAX_ATTEMPTS` set higher (or `0` for no cap), or deleting the track's `ledger.jsonl` |
 | `open_items_decided` | `ship`: an open item in `open-items.md` is still undecided, fix pending or filing, or the record cannot be read. Not held once `ship` has a passed record, so a fix round is not stopped by it | The track stops and asks what to do with each item (Fix now, File a GitHub issue, Note on the PR, Accept as is); answer, then `ship` starts. If the line says the record cannot be read, repair `open-items.md` by hand |
@@ -438,7 +443,7 @@ for it.
 You can run the same check by hand:
 
 ```bash
-python <plugin-root>/scripts/preflight.py <stage> --track-dir .claude/track/<feature>
+python <plugin-root>/scripts/preflight.py <stage> --track-dir .cai/track/<feature>
 ```
 
 `<plugin-root>` is the installed copy, under
@@ -449,7 +454,7 @@ the same way.
 ## State, and what survives a new session
 
 ```
-.claude/track/
+.cai/track/
   current                    one line — which track /cai:track resumes
   billing-export/
     state.md                 one row per stage, overwritten in place
@@ -471,14 +476,14 @@ note. The status column takes exactly four values: empty (not reached yet),
 `in-progress` (a `build` that stopped between units), `done`, and `skipped`;
 anything else makes `/cai:track status` stop and say so rather than guess.
 **Where a track sits on disk is its status**: active ones are directories
-under `.claude/track/`, finished ones live under `done/`. No field duplicates
+under `.cai/track/`, finished ones live under `done/`. No field duplicates
 that, because two sources of truth drift apart.
 
 `ledger.jsonl` is the part `state.md` cannot be: a stage run twice leaves one
 row but two records. Each carries the outcome, whether a person or the
 pipeline let it through, the artifact's SHA-256, and the tokens spent since
 the record before. `python <plugin-root>/scripts/ledger.py show --track-dir
-.claude/track/<feature>` prints it.
+.cai/track/<feature>` prints it.
 
 None of it is version-controlled, and that is deliberate — a stage pointer is
 not a deliverable, the ledger is append-only and would conflict on every
@@ -515,7 +520,7 @@ it, is not saved, and one left unanswered goes with the conversation. `build` al
 stops mid-way on purpose, and the `in-progress` status above is its handoff.
 
 The number to decide by is your own peak, not a threshold from somewhere
-else: `python <plugin-root>/scripts/context_peak.py --track-dir .claude/track/<feature>`
+else: `python <plugin-root>/scripts/context_peak.py --track-dir .cai/track/<feature>`
 prints, for each session the ledger names, its peak context occupancy in
 tokens and as a share of a 1M window (`--window` for a smaller one). Run it
 at each boundary, and break at the one where the climb
@@ -560,7 +565,7 @@ When `verify` runs it first prints the **verify plan**
 (`verify_plan.py plan --track-dir <dir>`): for each AC, where it goes, or why
 it is already Not covered. Only a `local-run` AC with a declared start is
 run: put `run.start` (an argument array), `run.ready` (a loopback URL) and
-optionally `run.e2e` in `.claude/cai.json`, using `{port}` where the program
+optionally `run.e2e` in `.cai/cai.json`, using `{port}` where the program
 takes its port. If you have not declared one and `package.json` has a `dev` or
 `start` script, `verify` asks whether to record it (and the ready URL); the
 main session writes your answer, never the verifier.
@@ -581,7 +586,7 @@ runner's own time limit.
 ## Mirroring a track into a GitHub issue
 
 Off unless the project says otherwise. To turn it on, add
-`.claude/cai.json`:
+`.cai/cai.json`:
 
 ```json
 { "ticket": { "enabled": true, "backend": "github" } }
@@ -596,7 +601,7 @@ Then start the track from the issue, which points it for you:
 Or point an existing track at one, in the same repository:
 
 ```bash
-python <plugin-root>/scripts/ticket.py point --track-dir .claude/track/<feature> --ref 123
+python <plugin-root>/scripts/ticket.py point --track-dir .cai/track/<feature> --ref 123
 ```
 
 ### Worked example: from an issue link to a merged PR
@@ -630,7 +635,7 @@ be something the title would not give you:
 
 ```bash
 /cai:track retry-on-timeout
-python <plugin-root>/scripts/ticket.py point --track-dir .claude/track/retry-on-timeout --ref 241
+python <plugin-root>/scripts/ticket.py point --track-dir .cai/track/retry-on-timeout --ref 241
 ```
 
 `--ref` takes the number or the whole URL either way: it is handed to `gh`
@@ -700,7 +705,7 @@ the six stage rows. Local paths are left out of it.
   with neither recommended. Only "Close #<number>" closes it. A close that
   fails says the issue is still open and is not retried.
 
-`ticket.py show --track-dir .claude/track/<feature>` prints the pointer, the
+`ticket.py show --track-dir .cai/track/<feature>` prints the pointer, the
 GitHub login it cached, and how the last update went, without calling GitHub;
 `--dry-run` adds the comment it would write. Each update ends in one word —
 `ok`, `auth-failed`, `unreachable` and so on — recorded in `ticket.json`; a
@@ -716,7 +721,7 @@ nothing else has been asked more than once yet.
 fields.** Fixed in cai 1.27.1 and cai-codex 0.1.1: the linted text is now sent
 in full as the message that asks. The file the lint reads is not a substitute
 for the message. Only a decisions document's Tier 1 entry keeps its draft in
-`.claude/track/<feature>/options-<id>.md`, where `preflight.py` reads it
+`.cai/track/<feature>/options-<id>.md`, where `preflight.py` reads it
 before build; every other draft goes to a temp directory (#311). Seeing the old shape means an older
 installed copy — update ([README's Updating](README.md#updating)) and restart.
 

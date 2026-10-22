@@ -16,8 +16,8 @@ def check_ignore(path):
 
 
 def test_git_ignores_a_tracks_state_and_ledger():
-    assert check_ignore(".claude/track/billing-export/ledger.jsonl") == 0
-    assert check_ignore(".claude/track/billing-export/state.md") == 0
+    assert check_ignore(".cai/track/billing-export/ledger.jsonl") == 0
+    assert check_ignore(".cai/track/billing-export/state.md") == 0
 
 
 def test_git_ignores_claude_code_worktrees():

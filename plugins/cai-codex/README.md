@@ -74,12 +74,12 @@ operations in `ship` — merging, tagging, publishing. Answer with the menu
 when one is available, or the numbered text options otherwise.
 
 **Where a track keeps its state.** `$track` writes each feature's state to
-your project's `.claude/track/<feature>/` and reads ticket-mirroring
-settings from `.claude/cai.json` — the same files the Claude Code plugin
+your project's `.cai/track/<feature>/` and reads ticket-mirroring
+settings from `.cai/cai.json` — the same files the Claude Code plugin
 uses. That is deliberate: both run the same scripts over the same files, so
 one repository's track can be resumed from either tool, although switching
 tools in the middle of a track has not been exercised end to end. Keep
-`.claude/track/` out of git: `$track`'s intake stage reminds you when it is
+`.cai/track/` out of git: `$track`'s intake stage reminds you when it is
 not ignored, because `ship` refuses to start on a working tree with
 uncommitted changes.
 

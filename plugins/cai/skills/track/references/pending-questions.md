@@ -42,7 +42,7 @@ and got nothing back", which is a different and much worse claim.
 questions exist only in this conversation, and a session that ends first
 takes them along. Feed the stage's whole report on stdin to
 `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py start --track-dir
-.claude/track/<feature> --stage <stage> --round <n> [--stop] --report-file -`
+.cai/track/<feature> --stage <stage> --round <n> [--stop] --report-file -`
 (`<n>` and `--stop` are set by "What counts as a round" below),
 behind a quoted heredoc delimiter the report does not contain
 (`<<'CAI_PENDING_EOF'`), so no file is written and none is left to delete
@@ -96,7 +96,7 @@ instead.
    Save each answer before asking the next question: feed it on stdin,
    behind a quoted heredoc delimiter as for the report, to
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py answer --track-dir
-   .claude/track/<feature> --question <n> --answer-file -` (#345). Under
+   .cai/track/<feature> --question <n> --answer-file -` (#345). Under
    PowerShell, write it to a file in
    the scratch directory and pass that path instead. The command
    records it verbatim and marks that question `answered`. A menu that closes
@@ -111,7 +111,7 @@ instead.
    the report and every question and answer are in `pending.md`, so a
    resumed session quotes them from there. Before that dispatch, when the
    option the person chose carries a command written for the main session to
-   run (`verify` hands one up to record a start command in `.claude/cai.json`
+   run (`verify` hands one up to record a start command in `.cai/cai.json`
    with `record_start_command.py`), run exactly that command, the person's
    answers filled in: the stage cannot run it, and without it the same
    question is handed up again.
@@ -169,7 +169,7 @@ from it and run the stage as usual.
 Once `ledger.py append` exits 0 for the stage with `passed`, `failed` or
 `skipped`, run
 `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py clear --track-dir
-.claude/track/<feature> --stage <stage>`. It removes the file only when it
+.cai/track/<feature> --stage <stage>`. It removes the file only when it
 is that stage's own. After `blocked` or `unavailable` make no such call: the
 questions are still open, so the file stays.
 

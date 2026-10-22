@@ -24,7 +24,7 @@ def layout(tmp_path):
     shutil.copyfile(os.path.join(HOOKS, "run-timing.cmd"), launcher)
     (plugin / "scripts" / "timing_hook.py").write_text(STUB)
     project = tmp_path / "project"
-    (project / ".claude" / "track").mkdir(parents=True)
+    (project / ".cai" / "track").mkdir(parents=True)
     config = tmp_path / "config"
     (config / "cai").mkdir(parents=True)
     return {"launcher": str(launcher), "project": project, "config": config,
@@ -49,7 +49,7 @@ def call(layout, stdin="{}", project=True, extra=None):
 
 
 def open_run(layout):
-    (layout["project"] / ".claude" / "track" / "timing-open.abc").write_text("")
+    (layout["project"] / ".cai" / "track" / "timing-open.abc").write_text("")
 
 
 def test_no_open_marker_exits_before_any_interpreter(layout):
@@ -69,7 +69,7 @@ def test_open_marker_runs_the_hook_with_the_input_and_ignores_its_exit_code(layo
 
 def test_marker_in_a_different_project_does_not_trigger(layout):
     record(layout)
-    other = layout["tmp"] / "other" / ".claude" / "track"
+    other = layout["tmp"] / "other" / ".cai" / "track"
     other.mkdir(parents=True)
     (other / "timing-open.abc").write_text("")
     assert call(layout).returncode == 0
@@ -78,8 +78,8 @@ def test_marker_in_a_different_project_does_not_trigger(layout):
 
 def test_a_marker_that_is_a_directory_name_without_prefix_does_not_trigger(layout):
     record(layout)
-    (layout["project"] / ".claude" / "track" / "feature").mkdir()
-    (layout["project"] / ".claude" / "track" / "timing.open").write_text("")
+    (layout["project"] / ".cai" / "track" / "feature").mkdir()
+    (layout["project"] / ".cai" / "track" / "timing.open").write_text("")
     assert call(layout).returncode == 0 and not layout["sentinel"].exists()
 
 

@@ -24,6 +24,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import cai_paths  # noqa: E402
 import preflight  # noqa: E402
 import tool_path  # noqa: E402
 
@@ -177,6 +178,18 @@ def main():
     ap.add_argument("--track-dir", required=True)
     ap.add_argument("--project-dir", default=".")
     args = ap.parse_args()
+
+    # Before the new track's directory exists: what an earlier cai kept under
+    # .claude/ moves first, and .cai/ gets the .gitignore that keeps it out of git.
+    project = os.path.abspath(args.project_dir)
+    for line in cai_paths.migrate(project):
+        print("track_start: %s" % line, file=sys.stderr)
+    try:
+        cai_paths.ensure_dir(project)
+    except OSError as exc:
+        print("track_start: could not make %s (%s)" % (os.path.join(project, cai_paths.CAI_DIR), exc),
+              file=sys.stderr)
+        return 2
 
     code, message = start(args.track_dir, args.project_dir)
     print(message, file=sys.stderr if code else sys.stdout)

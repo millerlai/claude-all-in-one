@@ -258,7 +258,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(bindir))
     monkeypatch.setenv("PATHEXT", ".COM;.EXE;.BAT;.CMD")
     proj = tmp_path / "proj"
-    (proj / ".claude").mkdir(parents=True)
+    (proj / ".cai").mkdir(parents=True)
     track = tmp_path / "track"
     track.mkdir()
     return proj, track, bindir
@@ -270,7 +270,8 @@ def put_config(proj, run=None, test=None):
         data["run"] = run
     if test is not None:
         data["test"] = test
-    (proj / ".claude" / "cai.json").write_text(json.dumps(data), encoding="utf-8")
+    (proj / ".cai").mkdir(parents=True, exist_ok=True)
+    (proj / ".cai" / "cai.json").write_text(json.dumps(data), encoding="utf-8")
 
 
 def put_intake(track, rows, body=None):
@@ -316,7 +317,7 @@ def test_ac13_a_cli_prints_the_table(env, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert lines[0] == "verify plan -- 5 AC (source: %s)" % os.path.join(str(track), "intake.md")
     assert lines[1] == "AC1 test       -> tests: python -m pytest (verifier maps the tests)"
-    assert lines[2] == ("AC2 local-run  -> start: faketool serve (declared in .claude/cai.json); "
+    assert lines[2] == ("AC2 local-run  -> start: faketool serve (declared in .cai/cai.json); "
                         "GET /health expect 200")
     assert lines[3] == "AC3 deployed   -> The merge: open /login after deploy"
     assert lines[4] == "AC4 manual     -> The merge: read the page"

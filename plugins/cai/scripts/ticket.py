@@ -30,10 +30,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import cai_paths  # noqa: E402
 import preflight  # noqa: E402
 import ticket_backend  # noqa: E402
 
-CONFIG_REL = os.path.join(".claude", "cai.json")
+CONFIG_REL = cai_paths.CONFIG
 POINTER_NAME = "ticket.json"
 
 # Claim listing (`read --ref`): a claim is a comment whose first line is
@@ -224,7 +225,7 @@ def render_comment(track_dir, feature, now, final=False):
 def _feature_from_track_dir(track_dir):
     """The feature name a marker line and `render_comment` need, taken from
     the directory name rather than passed in separately -- every caller
-    already has `track_dir` as `.claude/track/<feature>` (see
+    already has `track_dir` as `.cai/track/<feature>` (see
     `track_state.resolve()`), so this avoids a second
     argument that could disagree with the first."""
     return os.path.basename(os.path.normpath(track_dir))
@@ -447,7 +448,7 @@ def local_claim_state(project_dir, name, login, number):
     if TRACK_NAME_RE.fullmatch(name) is None or name in RESERVED_NAMES:
         return ""
 
-    root = os.path.join(project_dir, ".claude", "track")
+    root = os.path.join(project_dir, ".cai", "track")
 
     def matches(track_dir):
         if not os.path.isdir(track_dir):

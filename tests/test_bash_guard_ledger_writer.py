@@ -1,6 +1,6 @@
 """bash_guard.py keeps a subagent out of the track ledger (#392).
 
-Gate 1's Approve row in `.claude/track/<feature>/ledger.jsonl` decides whether
+Gate 1's Approve row in `.cai/track/<feature>/ledger.jsonl` decides whether
 build may commit, so only the main session writes it. This file pins the write
 tools (Write, Edit, NotebookEdit: the path a call names, however it is
 spelled), the bytes-in read of the hook input, and what is left alone: the main
@@ -20,7 +20,7 @@ GUARD = os.path.join(
     "plugins", "cai", "scripts", "bash_guard.py")
 
 SUB = "agent-ledger-test"
-N1 = "/p/.claude/track/t/ledger.jsonl"
+N1 = "/p/.cai/track/t/ledger.jsonl"
 
 
 def payload(path, tool="Write", field=None, agent_id=SUB, agent_type=None, content="x"):
@@ -219,8 +219,8 @@ def bash(command, tool="Bash", agent_id=SUB, agent_type=None):
 
 
 DESIGN_PROBE = ("python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail "
-                ".claude/track/t/ledger.jsonl")
-B1 = ('python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t '
+                ".cai/track/t/ledger.jsonl")
+B1 = ('python /p/plugins/cai/scripts/ledger.py append --track-dir .cai/track/t '
       '--stage design --outcome passed --gate human --note "commit: yes"')
 
 BLOCKED_COMMANDS = [
@@ -228,10 +228,10 @@ BLOCKED_COMMANDS = [
     ("B2", "Bash", r'py -3 "C:\x\scripts\LEDGER.PY" append --track-dir t'),
     ("B3", "Bash", "cd plugins/cai/scripts && python ledger.py append --track-dir t"),
     ("B4", "Bash", "python ledger.py --track-dir t --gate human append"),
-    ("B5", "Bash", """echo '{"stage":"design"}' >> .claude/track/t/ledger.jsonl"""),
-    ("B6", "PowerShell", r"Add-Content .claude\track\t\Ledger.JSONL '{}'"),
-    ("B7", "Bash", "python - <<'EOF'\nopen('.claude/track/t/ledger.jsonl','a').write('x')\nEOF"),
-    ("B8", "Bash", "cat .claude/track/t/ledger.jsonl"),
+    ("B5", "Bash", """echo '{"stage":"design"}' >> .cai/track/t/ledger.jsonl"""),
+    ("B6", "PowerShell", r"Add-Content .cai\track\t\Ledger.JSONL '{}'"),
+    ("B7", "Bash", "python - <<'EOF'\nopen('.cai/track/t/ledger.jsonl','a').write('x')\nEOF"),
+    ("B8", "Bash", "cat .cai/track/t/ledger.jsonl"),
     ("B9", "Bash", 'git commit -m "fix ledger.jsonl reader"'),  # accepted over-block
     ("B10", "Bash", 'python ledger.py show --note "append later"'),  # accepted over-block
     ("B11", "Monitor", "python ledger.py append --track-dir t"),
@@ -246,7 +246,7 @@ BLOCKED_COMMANDS = [
 ALLOWED_COMMANDS = [
     ("A3", "python -m pytest tests/test_ledger.py"),
     ("A4", "git add plugins/cai/scripts/ledger.py"),
-    ("A5", "python plugins/cai/scripts/ledger.py show --track-dir .claude/track/fix-append-x"),
+    ("A5", "python plugins/cai/scripts/ledger.py show --track-dir .cai/track/fix-append-x"),
     ("A6", "git log -S append -- plugins/cai/scripts/ledger.py"),
     ("A7", "grep -n append plugins/cai/scripts/ledger.py"),
     ("A8", "git diff plugins/cai/scripts/ledger.py | grep append"),

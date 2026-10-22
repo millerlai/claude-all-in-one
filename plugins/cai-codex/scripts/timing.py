@@ -302,7 +302,7 @@ def end_run(track_dir, run_id):
 
 
 def find_run(project_dir, run_id):
-    root = os.path.join(project_dir, ".claude", "track")
+    root = os.path.join(project_dir, ".cai", "track")
     try:
         entries = sorted(os.listdir(root))
     except OSError:
@@ -321,7 +321,7 @@ def find_run(project_dir, run_id):
 
 
 def _marker(track_dir, run_id):
-    # In .claude/track/ as a file: preflight counts only directories there.
+    # In .cai/track/ as a file: preflight counts only directories there.
     return os.path.join(os.path.dirname(os.path.abspath(track_dir)), "timing-open." + run_id)
 
 
@@ -385,7 +385,7 @@ def main(argv=None):
 
 
 def _binding_candidates(project_dir, platform, session_id, actor_id, source_run_id):
-    root = os.path.join(project_dir, ".claude", "track")
+    root = os.path.join(project_dir, ".cai", "track")
     try:
         entries = sorted(os.listdir(root))
     except OSError:

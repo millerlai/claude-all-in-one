@@ -42,7 +42,7 @@ every element left is load-bearing: dropping any one stops the failure.
 
 ## Step 2 — Read what's already there
 
-- If `<top>/.claude/cai-context.md` exists — `<top>` being the path your
+- If `<top>/.cai/cai-context.md` exists — `<top>` being the path your
   brief names or, if it names none, what `git rev-parse --show-toplevel`
   prints — read it first and use its terms. If it does not exist, or
   neither gives you `<top>`, say nothing about it and do not suggest

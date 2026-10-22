@@ -24,7 +24,7 @@ disable-model-invocation: true
 
 1. **釘基準。** `git rev-parse --short HEAD`、`plugins/cai/.claude-plugin/plugin.json`
    的 `version`、`python -m pytest --collect-only -q | tail -1`、
-   `ls -1 .claude/track/done/ | wc -l`（一個子目錄一條）。全部寫進「比較基準」。
+   `ls -1 .cai/track/done/ | wc -l`（一個子目錄一條）。全部寫進「比較基準」。
 2. **先讀前幾份** `docs/design/*-gap-analysis.md`。沿用它們的 task ID 前綴與
    S／M／L／XL 規模；其中每一個「未做」都重新驗證一次——上次的未做可能已經做了。
    驗證結果填進 template 的「與前幾份的關係」表，一項一列，附證據。
