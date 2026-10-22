@@ -27,7 +27,10 @@ Four layers, plus one underneath all of them.
   [`.worktreeinclude`](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees).
   `/cai:track done` and `cancel` copy the archived track and any new glossary
   terms back into the main checkout's `.cai/`, since removing a worktree
-  deletes the ignored files in it.
+  deletes the ignored files in it. Before `build` and `ship`, preflight
+  names any file this track and another worktree's track both change, as a
+  warning that blocks nothing; in Claude Code, the other track's session can
+  be told through [cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging).
 - **The six stages.** `intake`, `discover`, `design`, `build`, `verify`,
   `ship`. Each stage's procedure is a reference file under
   `skills/track/references/stage-*.md`, read two ways: by the subagent the

@@ -23,6 +23,8 @@ STAGES_JSON = os.path.join(HERE, "..", "skills", "track", "stages.json")
 DESIGN_PROBE = os.path.join(HERE, "design_probe.py")
 # Asked through a subprocess, never imported: open_items imports this module.
 OPEN_ITEMS = os.path.join(HERE, "open_items.py")
+# The same, for the same reason: track_overlap imports this module.
+TRACK_OVERLAP = os.path.join(HERE, "track_overlap.py")
 
 # The attempt ledger is read here, not shelled out to: this script already
 # opens state.md itself, and counting integers does not need a process
@@ -1242,6 +1244,29 @@ def commit_answer(track_dir, project_dir):
                       "ledger cannot be read)")
 
 
+def worktree_overlap(project_dir):
+    """Files this worktree and another worktree's track both change (#470).
+    Always passes: an overlap is for the person to know about before a
+    merge, not a reason to stop, so the label carries a WARN instead."""
+    try:
+        done = subprocess.run(
+            [sys.executable, TRACK_OVERLAP, "--project-dir", project_dir],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=60)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return True, "worktree_overlap (not checked: %s)" % exc
+    lines = done.stdout.strip().splitlines()
+    if done.returncode != 0:
+        return True, "worktree_overlap (not checked: %s)" % (lines[0] if lines else "no answer")
+    found = [line[len("overlap "):] for line in lines if line.startswith("overlap ")]
+    if not found:
+        return True, "worktree_overlap (no other worktree's track changes the same files)"
+    shown = "; ".join(found[:MAX_CONFLICTS_SHOWN])
+    more = " and %d more" % (len(found) - MAX_CONFLICTS_SHOWN) if len(found) > MAX_CONFLICTS_SHOWN else ""
+    return True, ("worktree_overlap (WARN: %d file(s) also changed by another worktree's "
+                  "track -- %s%s; tell the person before going on)" % (len(found), shown, more))
+
+
 def open_items_decided(track_dir):
     """Nothing the open-items record holds is still undecided, fix-pending or
     filing. Not knowing is a reason to block, as at current_branch -- unlike
@@ -1370,6 +1395,8 @@ def main():
         checks.append(commit_answer(args.track_dir, args.project_dir))
     checks.append(ledger_attempts(args.track_dir, args.stage))
     checks.append(ledger_intact(args.track_dir))
+    if args.stage in ("build", "ship"):
+        checks.append(worktree_overlap(args.project_dir))
 
     failed = 0
     for ok, label in checks:
