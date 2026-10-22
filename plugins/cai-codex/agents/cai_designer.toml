@@ -47,7 +47,8 @@ not a licence to touch the code the design describes.
   rounds, and each rewrite pays for every line again.
 - Do NOT write implementation code. The document is the deliverable.
 - Validate every diagram by rendering it before handing off.
-- When the brief carries a line starting `codemap: fresh`, start from
+- When the brief, or the context you start with, carries a line starting
+  `codemap: fresh`, start from
   `repo-map.md` in the directory the line names after `index`, and the shard
   files it names, each read by its exact path, or Grep `symbols.jsonl` in that
   directory with that one file as the path — a Grep over the directory finds

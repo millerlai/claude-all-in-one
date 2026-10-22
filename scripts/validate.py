@@ -1183,7 +1183,7 @@ def _encoding():
     # later edit shifted a few bytes. Measured on Windows 11 with goto and call, a
     # 1- and a 13-character name: it fails for exactly those distances. Only forward
     # jumps are modelled, so a backward one counts as a failure too.
-    for launcher in (DISPATCHER, f"{PLUGIN}/hooks/run-timing.cmd"):
+    for launcher in (DISPATCHER, f"{PLUGIN}/hooks/run-timing.cmd", f"{PLUGIN}/hooks/run-codemap.cmd"):
         with open(launcher, "rb") as fh:
             cmd_block = fh.read().split(b"\nCMDBLOCK\n")[0]
         cmd_labels = {m.group(1).lower(): m.start() for m in re.finditer(rb"^:(\w+)", cmd_block, re.M)}
