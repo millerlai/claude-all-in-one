@@ -33,10 +33,10 @@ def _copy_repo(tmp_path):
     common = shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", ".coverage*")
 
     def ignore(src, names):
-        # .claude/track holds live per-track state, among it a timing.jsonl a hook
+        # .cai/track holds live per-track state, among it a timing.jsonl a hook
         # keeps open (WinError 33 on Windows); this section reads none of it.
         skipped = set(common(src, names))
-        if Path(src) == REPO_ROOT / ".claude" and "track" in names:
+        if Path(src) == REPO_ROOT / ".cai" and "track" in names:
             skipped.add("track")
         return skipped
 

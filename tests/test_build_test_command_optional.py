@@ -87,7 +87,7 @@ def test_exit_3_menu_stays_within_four_options(tree):
 def test_a_chosen_command_is_recorded_and_a_skip_is_not(tree):
     section = _before_build(tree)
     assert "`record_test_command.py`" in section
-    assert "write nothing to `.claude/cai.json`" in section
+    assert "write nothing to `.cai/cai.json`" in section
     assert "`Test command: skipped by the person before build`" in section
 
 
@@ -103,7 +103,7 @@ def test_a_refused_recording_returns_to_the_menu(tree):
 @pytest.mark.parametrize("tree", TREES)
 def test_a_skip_already_in_the_notes_is_not_asked_again(tree):
     section = _before_build(tree)
-    assert "`.claude/track/<feature>/implementation-notes.md`" in section
+    assert "`.cai/track/<feature>/implementation-notes.md`" in section
     assert "a line starting `Test command: skipped`" in section
 
 
@@ -112,7 +112,7 @@ def test_a_timed_out_menu_counts_as_skip(tree):
     assert "`Test command: skipped (the menu timed out)`" in _before_build(tree)
     timeout = _section(_reference(tree, "approval-gates.md"), "## A menu that closes on its own")
     assert ("| The test command before build (`test-command.md`) | Treated as Skip: nothing is "
-            "written to `.claude/cai.json`, no detected command is used") in timeout
+            "written to `.cai/cai.json`, no detected command is used") in timeout
 
 
 @pytest.mark.parametrize("tree", TREES)

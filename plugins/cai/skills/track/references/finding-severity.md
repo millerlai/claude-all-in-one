@@ -49,7 +49,7 @@ subject to think about.
 
 ## When the repo under review keeps its own review policy
 
-Read `.claude/cai-review.md` in the repo being reviewed, if it is there. It
+Read `.cai/cai-review.md` in the repo being reviewed, if it is there. It
 supplies where each of the four items lands in that repo and an example of
 each, and nothing else: it adds no fifth item and it does not change what the
 three severities mean.

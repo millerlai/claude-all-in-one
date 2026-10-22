@@ -400,7 +400,7 @@ def test_timing_end_to_end_records_a_subagent_into_the_track(tmp_path):
     _cache_with_timing(home)
     stamp_agents(home, "9.9.9")  # a version mismatch must not stop a hook
     project = tmp_path / "project"
-    track = project / ".claude" / "track" / "feature"
+    track = project / ".cai" / "track" / "feature"
     sys.path.insert(0, str(REPO_ROOT / "plugins" / "cai" / "scripts"))
     try:
         import timing
@@ -442,7 +442,7 @@ def test_timing_begin_and_end_through_the_launcher_reach_timing_py(tmp_path):
     home = tmp_path / "codex-home"
     _cache_with_timing(home)
     project = tmp_path / "project"
-    track = project / ".claude" / "track" / "feature"
+    track = project / ".cai" / "track" / "feature"
     env = {**_env_without_codex_home(), "CODEX_HOME": str(home)}
     begin = run(["timing", "begin", "--track-dir", str(track), "--stage", "build", "--platform", "codex"],
                 env=env, cwd=str(project.parent))

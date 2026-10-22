@@ -56,7 +56,7 @@ def make_repo(tmp_path, files=None, origin=True, name="repo"):
     repo.mkdir()
     git(repo, "init", "-q")
     git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
-    for rel, text in (files or {".claude/cai.json": DECLARED, "a.txt": "a\n"}).items():
+    for rel, text in (files or {".cai/cai.json": DECLARED, "a.txt": "a\n"}).items():
         write(repo, rel, text)
     commit_all(repo, "init")
     if origin:
@@ -406,7 +406,7 @@ def test_ready_test_command_several_names_the_recorder(tmp_path, capsys, gh, no_
 
 
 def test_ready_test_command_invalid(tmp_path, capsys, gh, no_fetch):
-    repo = make_repo(tmp_path, files={".claude/cai.json": json.dumps(
+    repo = make_repo(tmp_path, files={".cai/cai.json": json.dumps(
         {"test": {"commands": []}}), "a.txt": "a\n"})
     assert stopped(capsys, repo)[0] == "test-command-invalid"
 

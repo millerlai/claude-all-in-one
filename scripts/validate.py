@@ -896,13 +896,15 @@ def _templates():
 
 @section("glossary")
 def _glossary():
-    GLOSSARY = ".claude/cai-context.md"
+    GLOSSARY = ".cai/cai-context.md"
 
     # An earlier cai wrote its glossary at the top level; a copy of it coming
-    # back means a stale build wrote the old path (#326).
-    check("no top-level CONTEXT.md (the glossary is .claude/cai-context.md)",
+    # back means a stale build wrote the old path (#326). The later
+    # .claude/cai-context.md is not checked the same way: every maintainer
+    # keeps one until an installed cai moves it into .cai/.
+    check("no top-level CONTEXT.md (the glossary is .cai/cai-context.md)",
           not os.path.exists("CONTEXT.md"))
-    check(f"{GLOSSARY} exists", os.path.isfile(GLOSSARY))
+    # Outside git, so a fresh clone (CI) has none: checked only where it exists.
     if not os.path.isfile(GLOSSARY):
         return
 
@@ -1558,7 +1560,7 @@ def _guard():
         ("Bash", "gh pr create --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
         # --- ship-pr-inline-comments: the fix round's update and the findings script ---
         ("Bash", "gh pr edit 12 --title 'fix: x' --body-file - <<'EOF'\nuses `foo()` now\nEOF", 0, WORK),
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py --track-dir .claude/track/x --project-dir .", 0, WORK),
+        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py --track-dir .cai/track/x --project-dir .", 0, WORK),
         # --- #130: a $(...) a stray apostrophe left outside its single quotes ---
         # Two apostrophes close the quote early and re-open it later, and Bash
         # runs the $(...) between them before the command. A contraction glues the
@@ -1641,12 +1643,12 @@ def _guard():
         # The track ledger is the main session's alone (#392). Write, Edit and
         # NotebookEdit carry a path, so `cmd` is the whole tool_input here; the
         # trailing fields are agent_type and agent_id. N1, N2, N13, N14, N16.
-        ("Write", {"file_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}, 2, WORK,
+        ("Write", {"file_path": "/p/.cai/track/t/ledger.jsonl", "content": "x"}, 2, WORK,
          None, "agent-ledger-test"),
         ("Edit", {"file_path": "C:\\p\\.claude\\track\\t\\LEDGER.JSONL", "content": "x"}, 2, WORK,
          None, "agent-ledger-test"),
-        ("Write", {"file_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}, 0, WORK),
-        ("NotebookEdit", {"notebook_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}, 2, WORK,
+        ("Write", {"file_path": "/p/.cai/track/t/ledger.jsonl", "content": "x"}, 0, WORK),
+        ("NotebookEdit", {"notebook_path": "/p/.cai/track/t/ledger.jsonl", "content": "x"}, 2, WORK,
          None, "agent-ledger-test"),
         ("Write", {"file_path": "/p/docs/notes.md",
                    "content": "git push --force origin main, ledger.jsonl"}, 0, WORK,
@@ -1665,15 +1667,15 @@ def _guard():
         # The same rule on commands: a subagent's ledger.py append, or any command
         # naming ledger.jsonl, is blocked; the main session's is not (B and A
         # cases of the design; K1, the known way round, is pytest's alone).
-        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .cai/track/t "
                  "--stage design --outcome passed --gate human --note \"commit: yes\"", 2, WORK,
          None, "agent-ledger-test"),
-        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .cai/track/t "
                  "--stage design --outcome passed --gate human --note \"commit: yes\"", 0, WORK),
-        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .cai/track/t "
                  "--stage design --outcome passed --gate human --note \"commit: yes\"", 0, WORK,
          "cai:implementer"),
-        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .claude/track/t "
+        ("Bash", "python /p/plugins/cai/scripts/ledger.py append --track-dir .cai/track/t "
                  "--stage design --outcome passed --gate human --note \"commit: yes\"", 0, WORK,
          None, ""),
         ("Bash", "cd plugins/cai/scripts && python -m ledger append --track-dir t", 2, WORK,
@@ -1687,9 +1689,9 @@ def _guard():
          None, "agent-ledger-test"),
         ("Bash", "python ledger.py --track-dir t --gate human append", 2, WORK,
          None, "agent-ledger-test"),
-        ("Bash", """echo '{"stage":"design"}' >> .claude/track/t/ledger.jsonl""", 2, WORK,
+        ("Bash", """echo '{"stage":"design"}' >> .cai/track/t/ledger.jsonl""", 2, WORK,
          None, "agent-ledger-test"),
-        ("Bash", "python - <<'EOF'\nopen('.claude/track/t/ledger.jsonl','a').write('x')\nEOF",
+        ("Bash", "python - <<'EOF'\nopen('.cai/track/t/ledger.jsonl','a').write('x')\nEOF",
          2, WORK, None, "agent-ledger-test"),
         ("Bash", 'git commit -m "fix ledger.jsonl reader"', 2, WORK, None, "agent-ledger-test"),
         ("Bash", 'python ledger.py show --note "append later"', 2, WORK,
@@ -1700,7 +1702,7 @@ def _guard():
         ("PowerShell", "python /p/plugins/cai/scripts/ledger.py `\n    append --track-dir t",
          2, WORK, None, "agent-ledger-test"),
         ("Bash", "git add plugins/cai/scripts/ledger.py", 0, WORK, None, "agent-ledger-test"),
-        ("Bash", "python plugins/cai/scripts/ledger.py show --track-dir .claude/track/fix-append-x",
+        ("Bash", "python plugins/cai/scripts/ledger.py show --track-dir .cai/track/fix-append-x",
          0, WORK, None, "agent-ledger-test"),
         ("Bash", "git log -S append -- plugins/cai/scripts/ledger.py", 0, WORK,
          None, "agent-ledger-test"),
@@ -1708,16 +1710,16 @@ def _guard():
          None, "agent-ledger-test"),
         ("PowerShell", "Add-Content .claude\\track\\t\\Ledger.JSONL '{}'", 2, WORK,
          None, "agent-ledger-test"),
-        ("Bash", "cat .claude/track/t/ledger.jsonl", 2, WORK, None, "agent-ledger-test"),
+        ("Bash", "cat .cai/track/t/ledger.jsonl", 2, WORK, None, "agent-ledger-test"),
         ("Monitor", "python ledger.py append --track-dir t", 2, WORK, None, "agent-ledger-test"),
         ("Bash", "python -m pytest tests/test_ledger.py", 0, WORK, None, "agent-ledger-test"),
         ("Bash", "git diff plugins/cai/scripts/ledger.py | grep append", 0, WORK,
          None, "agent-ledger-test"),
         # B14: the designer guard allows this one, and the ledger rule still holds.
         ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail "
-                 ".claude/track/t/ledger.jsonl", 2, WORK, "cai:designer", "agent-ledger-test"),
+                 ".cai/track/t/ledger.jsonl", 2, WORK, "cai:designer", "agent-ledger-test"),
         ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail "
-                 ".claude/track/t/ledger.jsonl", 0, WORK, "cai:designer"),
+                 ".cai/track/t/ledger.jsonl", 0, WORK, "cai:designer"),
         # D2: a Monitor command meets the Bash rules.
         ("Monitor", "git push --force origin main", 2, WORK),
         ("Monitor", "echo `date`", 2, WORK),
@@ -1788,7 +1790,7 @@ def _guard():
     # Write, Edit and NotebookEdit reach the same dispatcher with `write` (hooks.json):
     # a subagent's write to the ledger is blocked, nobody else's write is.
     write_dispatch = dispatch + ["write"]
-    ledger_write = {"file_path": "/p/.claude/track/t/ledger.jsonl", "content": "x"}
+    ledger_write = {"file_path": "/p/.cai/track/t/ledger.jsonl", "content": "x"}
     launcher_write = {"file_path": "C:\\Users\\u\\.claude\\cai\\guard-launcher-cmd.txt",
                       "content": "x"}
     notes_write = {"file_path": "/p/docs/notes.md",
@@ -3217,7 +3219,7 @@ def _track_references():
     for doc in ("REFERENCE.md", "MANUAL.md"):
         doc_text = " ".join(read_text(doc).split()) if os.path.isfile(doc) else ""
         missing = [p for p in ("`test`", "`local-run`", "`deployed`", "`manual`",
-                               ".claude/cai.json", "verify plan",
+                               ".cai/cai.json", "verify plan",
                                "deploys nothing", "no browser", "Not covered")
                    if p not in doc_text]
         check("AC11: %s states the levels, the declaration file, the plan-first rule and "
@@ -3382,7 +3384,7 @@ def _track_skill():
         # only useful where the session is told to build the table, and a header
         # quoted anywhere else would satisfy a file-wide search while that
         # instruction had gone back to saying nothing.
-        CREATE_MARKER = "Create `.claude/track/<feature>/state.md`"
+        CREATE_MARKER = "Create `.cai/track/<feature>/state.md`"
         create_para = (track_text.split(CREATE_MARKER, 1)[1].split("\n\n", 1)[0]
                        if CREATE_MARKER in track_text else "")
         for shape in ("| stage | status | artifact | note |", "|---|---|---|---|",
@@ -3420,7 +3422,7 @@ def _track_skill():
 
 @section("track-state")
 def _track_state():
-    # track_state.py resolves .claude/track/current -> state.md from files alone,
+    # track_state.py resolves .cai/track/current -> state.md from files alone,
     # with no model call -- UC1's acceptance test ("a fresh session resumes from
     # files alone") is this loop. Every fixture lives under one temp_repo() (git
     # is irrelevant to the script, but the helper is the repo's existing way to

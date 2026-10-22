@@ -75,9 +75,10 @@ on every turn and must be about their work. A path into this repo's own
 tooling, or an instruction only a maintainer could act on, is a defect there
 even though nothing fails.
 
-Not everything belongs in git. `docs/` and `.claude/track/` are ignored on
-purpose; a document worth keeping is added deliberately with `git add -f`,
-and working notes, scratch output and per-track state are not.
+Not everything belongs in git. `docs/` and `.cai/` (with the `.claude/`
+paths cai wrote before it moved into `.cai/`) are ignored on purpose; a
+document worth keeping is added deliberately with `git add -f`, and working
+notes, scratch output and per-track state are not.
 
 ## Environment
 - Windows, I usually work in Python.

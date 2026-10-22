@@ -1,7 +1,7 @@
 # address-rate — hand-transcribed verify-row disposition, per done track
 
 One row per `done` track that carries a verify row (AC8). `source` is
-`<track>/state.md:<line>`; `.claude/track/` is ignored (`.gitignore:11`), so
+`<track>/state.md:<line>`; `.cai/track/` is ignored (`.gitignore:11`), so
 that citation cannot be dereferenced from a fresh clone -- a limitation, not
 a bug, and it belongs in the measurement doc too.
 

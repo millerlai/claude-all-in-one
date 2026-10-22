@@ -2,7 +2,7 @@
 
 ## 比較基準
 
-- **cai**：`main` `<sha>`（plugin <version>，<YYYY-MM-DD>）。`python -m pytest --collect-only -q` 收到 <N> 個測試；`.claude/track/done/` 有 <N> 條走完的 track，<N> 條進行中。
+- **cai**：`main` `<sha>`（plugin <version>，<YYYY-MM-DD>）。`python -m pytest --collect-only -q` 收到 <N> 個測試；`.cai/track/done/` 有 <N> 條走完的 track，<N> 條進行中。
 - **外部**：<來源清單與日期>。二手數字都標「二手」。
 
 ## 定位差異先講清楚

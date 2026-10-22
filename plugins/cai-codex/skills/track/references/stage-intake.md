@@ -38,7 +38,7 @@ on there is a lookup nobody does (#335). If one fails — the tool is refused or
 the page will not load — name the query or URL among the Report's deviations,
 so the person can see it was not done.
 
-If `<top>/.claude/cai-context.md` exists — `<top>` being the path your brief
+If `<top>/.cai/cai-context.md` exists — `<top>` being the path your brief
 names or, if it names none, what `git rev-parse --show-toplevel` prints —
 read it first and use its terms. If it does not exist, or neither gives you
 `<top>`, say nothing about it and do not suggest creating one. Read only
@@ -163,7 +163,7 @@ statement, the numbered acceptance criteria, the recommended approach and the
 `## Verification levels` table above, in that order, the table last. The
 section runs to the end of the reply, or to a `## Pending questions` section
 if there is one. Inside a track the main session writes its body, verbatim,
-to `.claude/track/<feature>/intake.md` before it asks for approval, so the
+to `.cai/track/<feature>/intake.md` before it asks for approval, so the
 person can open the full text; `verify` and `preflight.py` read it from there
 (`verify_plan.py`'s `INTAKE_NAME`). You write no file yourself.
 

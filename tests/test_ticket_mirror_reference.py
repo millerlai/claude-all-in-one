@@ -180,7 +180,7 @@ def test_states_resume_offer_and_naming_of_further_claims():
 
 def test_states_resume_writes_current_and_carries_on():
     text = _flat()
-    assert "Resume writes `<name>` alone into `.claude/track/current`" in text
+    assert "Resume writes `<name>` alone into `.cai/track/current`" in text
     assert "carries on exactly as `/cai:track <name>` does" in text
 
 

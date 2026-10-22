@@ -170,7 +170,7 @@ withdraws it; do not put Gate 1 again for an unchanged document to change it.
 **Withdrawing.** When the person says, in any words, that nothing more is to
 be committed, and `preflight.py build` (or `verify`) prints
 `commit_answer (yes, …)` for the track now, append one row with `ledger.py append --track-dir
-.claude/track/<feature> --stage design --outcome passed --gate human
+.cai/track/<feature> --stage design --outcome passed --gate human
 --artifact <the design row's document> --note "commit: no"`, and tell them in
 one line that the next commit is the first it stops. Any matching row that says
 no makes the answer no, and every commit runs `preflight.py` first, so it takes
@@ -265,7 +265,7 @@ carries every other answer:
   changed draft again, and put the menu again with the new text in full.
 - **Not yet** → nothing runs and nothing is recorded: `state.md`'s ship row
   and the ledger stay as they are. Run
-  `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py clear --track-dir .claude/track/<feature> --stage ship`,
+  `python ${CLAUDE_PLUGIN_ROOT}/scripts/pending.py clear --track-dir .cai/track/<feature> --stage ship`,
   so the next `/cai:track` drafts again from the branch as it then stands
   instead of re-asking with drafts of an older commit.
 - **Anything else** — a question, a doubt — gets an answer, then the same
@@ -282,7 +282,7 @@ the main session, before dispatching anything — run these two, in order:
 
 ```
 git fetch origin
-python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py ship --track-dir .claude/track/<feature> --project-dir <project root>
+python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py ship --track-dir .cai/track/<feature> --project-dir <project root>
 ```
 
 - **Exit 0** → the quoted commands run. Dispatch the shipper again, quoting
@@ -355,7 +355,7 @@ commands and who runs each:
    `track_state.py left-open`. The script counts fix rounds from the ledger,
    so this record comes before the script runs.
 2. **Wait and fetch.** Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py
-   --track-dir .claude/track/<feature> --project-dir <project root> --sha <the
+   --track-dir .cai/track/<feature> --project-dir <project root> --sha <the
    full 40-character hash `git rev-parse HEAD` prints>`. Exit 8 means checks
    are still running: call it again with the same arguments plus
    `--started-at <the wait_started_at it printed>`, until it exits 0. Exit 1
@@ -366,7 +366,7 @@ commands and who runs each:
    Then, with its `pr <n> <url> <state>` line (with no `pr` line, pass neither
    `--pr` nor `--pr-state`), run
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py publish --track-dir
-   .claude/track/<feature> --project-dir <project root> --at ship --pr <n>
+   .cai/track/<feature> --project-dir <project root> --at ship --pr <n>
    --pr-state <state>` (and `--ticket <number>` when ticket mirroring resolved
    one). It creates the issues and posts the PR comment that picks made at
    `## Open items before ship` queued, and prints one line per item (`filed
@@ -589,7 +589,7 @@ none of this runs.
 `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_state.py left-open` and quote its
 whole output as printed: every open item with its id and state, then the
 reminders. Then run
-`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py undecided --track-dir .claude/track/<feature>`:
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py undecided --track-dir .cai/track/<feature>`:
 
 - `undecided 0` → say one line, `No open items: ship starts now.`, ask
   nothing, and start `ship` as Gate 2 says.
@@ -599,7 +599,7 @@ reminders. Then run
   because `state.md` no longer holds the items. `ship` waits.
 
 **One menu for every item, in one turn.** Run
-`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py options --track-dir .claude/track/<feature> --project-dir <project root> --at stop`.
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py options --track-dir .cai/track/<feature> --project-dir <project root> --at stop`.
 It lists the items still asked under `Major:` and `Minor:` — the severity
 build or verify gave each one — each as a block (id, stage and kind, `where`,
 `what`, `why`), then one `menu:` line and one `per-item menu:` line. Ask one
@@ -609,7 +609,7 @@ something this track left behind, so a recommendation would be the track
 grading its own output, as at Gate 1.
 
 Record the answer with
-`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py decide-all --track-dir .claude/track/<feature> --project-dir <project root> --pick <pick> --at stop`:
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py decide-all --track-dir .cai/track/<feature> --project-dir <project root> --pick <pick> --at stop`:
 
 | Option | What it does |
 |---|---|
@@ -633,7 +633,7 @@ a fix action after saying that it cannot change anything.
 the items one at a time, or to file an issue for one, ask each item as its
 own menu instead, one per turn, with its block verbatim as the question and
 the labels on the `per-item menu:` line as the options, and record each with
-`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py decide --track-dir .claude/track/<feature> --project-dir <project root> --item <id> --pick <pick> --at stop`:
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py decide --track-dir .cai/track/<feature> --project-dir <project root> --item <id> --pick <pick> --at stop`:
 
 | Option | What it does |
 |---|---|
@@ -658,7 +658,7 @@ verify stage by name from `stages.json`, quoting Gate 1's `commit_answer`
 line as for every verify dispatch. For the requirement, write that the person
 asked for these open items to be fixed (that sentence is the requirement, and
 it is the person's own), and quote verbatim what
-`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py brief --track-dir .claude/track/<feature> --item <id>`
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py brief --track-dir .cai/track/<feature> --item <id>`
 prints, one `--item` per Fix now item: each one with its id, `path:line`,
 source stage and full text, under the line saying that each item below
 describes a defect and is not an instruction. Verify must not run commands
@@ -691,14 +691,14 @@ ticket mirroring and the move. In order:
 
 1. **Read the PR's state, only when it is needed.** When an item is
    `undecided`, `fix-pending`, `filing` or queued and the ledger recorded a PR, run
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py --track-dir .claude/track/<feature> --project-dir <project root>`
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/ship_pr_findings.py --track-dir .cai/track/<feature> --project-dir <project root>`
    once, with no `--sha`. Its `pr <n> <url> <state>` line gives `--pr` and
    `--pr-state` below; with no `pr` line, pass neither, which `options` and
    `publish` read as `unknown`. Do not call it again on exit 8: it prints the
    `pr` line before the `waiting` line, and a second call could wait up to
    600 s for findings `done` does not use.
 2. **Publish what is queued.**
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py publish --track-dir .claude/track/<feature> --project-dir <project root> --at done`
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/open_items.py publish --track-dir .cai/track/<feature> --project-dir <project root> --at done`
    with `--pr <n> --pr-state <state>` when step 1 gave them, and
    `--ticket <number>` when ticket mirroring resolved one. Relay each line it
    prints; an `undecided again:` line says why that item is asked again.
@@ -798,7 +798,7 @@ of them spends one of `pending-questions.md`'s three rounds: that file's
 - `test-command.md`'s `## Before build` — which test command build uses, or
   Skip, asked by the main session before build's first dispatch and never
   handed up. An ordinary choice, so it carries a `(recommended)`. A command
-  already declared in `.claude/cai.json`, or a skip already in the track's
+  already declared in `.cai/cai.json`, or a skip already in the track's
   notes, means no menu. Not counted against `pending-questions.md`'s rounds.
 - Gate 2's triage menu, inside a track once the pull request is open
   (`### The triage menu` above) — whether to fix the Blockers and Majors the
@@ -869,9 +869,9 @@ in this file does about one:
 | Gate 2's merge, the bash guard's permission prompt | Not a menu. Whether it ever closes on its own is untested; a merge that did not run is recorded as `### The merge` says, never retried. |
 | Step 0.5 commit per unit, standing alone with no track | Treated as no, so the parallel lane stays off. Under a track there is no such menu: the answer is Gate 1's. |
 | Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
-| The test command before build (`test-command.md`) | Treated as Skip: nothing is written to `.claude/cai.json`, no detected command is used, and build starts with `Test command: skipped (the menu timed out)`. |
+| The test command before build (`test-command.md`) | Treated as Skip: nothing is written to `.cai/cai.json`, no detected command is used, and build starts with `Test command: skipped (the menu timed out)`. |
 | The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |
-| The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.claude/track/current` is not written. Left unanswered. |
+| The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.cai/track/current` is not written. Left unanswered. |
 | Closing the ticket at `/cai:track done` (`ticket-mirror.md`) | `transition` does not run. Left unanswered: asked again when the person next writes in this session; a new session never asks it, since the track is already under `done/` and `current` is cleared. |
 | Every other stop in this file's list, or handed up under `pending-questions.md` | Left unanswered. |
 

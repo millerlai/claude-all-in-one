@@ -15,7 +15,9 @@ import re
 import subprocess
 import sys
 
-CONFIG_REL = os.path.join(".claude", "cai.json")
+import cai_paths
+
+CONFIG_REL = cai_paths.CONFIG
 NPM_PLACEHOLDER = 'echo "Error: no test specified" && exit 1'
 EXIT_RESOLVED, EXIT_SEVERAL, EXIT_UNKNOWN, EXIT_INVALID = 0, 3, 4, 5
 READ_LIMIT = 1048576

@@ -51,7 +51,7 @@ def test_ticket_py_imports_only_stdlib_and_siblings():
     # imports ship_draft_check (which imports ticket) only inside publish(), so
     # no cycle forms at import time.
     allowed = set(sys.stdlib_module_names) | {"preflight", "ticket_backend",
-                                               "open_items"}
+                                               "open_items", "cai_paths"}
     found = _top_level_imports(os.path.join(SCRIPTS_DIR, "ticket.py"))
     assert found <= allowed, found - allowed
 
@@ -130,7 +130,7 @@ def test_read_config_missing_file_is_disabled_and_silent():
 
 
 def _write_cai_json(project_dir, content):
-    claude_dir = project_dir / ".claude"
+    claude_dir = project_dir / ".cai"
     claude_dir.mkdir(parents=True, exist_ok=True)
     (claude_dir / "cai.json").write_text(content, encoding="utf-8")
 
@@ -146,7 +146,7 @@ def test_read_config_malformed_json_is_disabled_with_a_problem(tmp_path):
 
 def test_read_config_accepts_a_utf8_bom(tmp_path):
     # The resolver reads this same file as bytes and accepts a BOM; so must this.
-    claude_dir = tmp_path / ".claude"
+    claude_dir = tmp_path / ".cai"
     claude_dir.mkdir()
     body = json.dumps({"ticket": {"enabled": True, "backend": "github"}})
     (claude_dir / "cai.json").write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
@@ -210,7 +210,7 @@ def test_ac21_two_projects_dont_affect_each_other(tmp_path, capsys):
     project_a = tmp_path / "a"
     project_b = tmp_path / "b"
     _write_cai_json(project_a, json.dumps({"ticket": {"enabled": True, "backend": "github"}}))
-    project_b.mkdir()  # no .claude/cai.json at all -- disabled
+    project_b.mkdir()  # no .cai/cai.json at all -- disabled
 
     result_a = ticket.read_config(str(project_a))
     assert result_a["enabled"] is True

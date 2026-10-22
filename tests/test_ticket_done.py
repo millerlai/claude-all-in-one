@@ -76,7 +76,7 @@ def test_done_section_names_final_projection():
 def test_done_section_resolves_the_number_via_read_track_dir_done():
     section = _done_section()
     assert "ticket.py read --track-dir" in section
-    assert ".claude/track/done/<feature>" in section
+    assert ".cai/track/done/<feature>" in section
 
 
 def test_done_section_close_menu_has_no_recommendation():

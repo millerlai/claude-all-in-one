@@ -23,7 +23,7 @@ import ticket_backend as tb
 
 
 def enable_ticket(project_dir, backend="recording-transition"):
-    claude_dir = project_dir / ".claude"
+    claude_dir = project_dir / ".cai"
     claude_dir.mkdir(parents=True, exist_ok=True)
     (claude_dir / "cai.json").write_text(
         json.dumps({"ticket": {"enabled": True, "backend": backend}}), encoding="utf-8")
@@ -188,7 +188,7 @@ def test_disabled_prints_nothing_once_flag_is_present(tmp_path, monkeypatch, cap
     track = tmp_path / "track"
     track.mkdir()
     project_dir = tmp_path / "proj"
-    project_dir.mkdir()  # no .claude/cai.json -- disabled
+    project_dir.mkdir()  # no .cai/cai.json -- disabled
     backend = RecordingBackend()
     register(monkeypatch, backend)
     set_pointer(track, "recording-transition", "48")

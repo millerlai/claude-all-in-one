@@ -20,7 +20,7 @@ def init_repo(path):
 
 def test_intake_passes_with_many_active_tracks(tmp_path):
     repo = init_repo(tmp_path / "repo")
-    root = repo / ".claude" / "track"
+    root = repo / ".cai" / "track"
     for i in range(10):
         (root / ("f%d" % i)).mkdir(parents=True)
 

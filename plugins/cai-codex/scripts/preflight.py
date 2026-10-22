@@ -462,11 +462,11 @@ def track_ignored(track_dir, project_dir):
     # check-ignore: 1 is "none of the paths are ignored", 128 a fatal error.
     if done.returncode != 1:
         return True, "track_ignored (git check-ignore failed: %s)" % _stderr_line(done)
-    return True, ("track_ignored (%s is NOT ignored -- add `.claude/track/` to "
-                  ".gitignore; an untracked track file does not block ship "
-                  "(#198), but committing one and then changing it does, "
-                  "and ship's clean_tree will name it without saying why "
-                  "it's there)" % track_dir)
+    return True, ("track_ignored (%s is NOT ignored -- `.cai/.gitignore` is "
+                  "missing or no longer holds `*`; an untracked track file "
+                  "does not block ship (#198), but committing one and then "
+                  "changing it does, and ship's clean_tree will name it "
+                  "without saying why it's there)" % track_dir)
 
 
 def discover(track_dir, project_dir):

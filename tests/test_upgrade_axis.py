@@ -78,6 +78,10 @@ def test_status_takes_an_old_track_to_its_next_stage(version, tmp_path):
 
     assert done.returncode == 0, done.stdout + done.stderr
     assert "next: design" in done.stdout.splitlines()
+    # Every release so far kept its tracks under .claude/; status moves them.
+    assert "track_state: moved .claude/track to .cai/track" in done.stderr.splitlines()
+    assert (project / ".cai" / "track" / FEATURE / "state.md").is_file()
+    assert not (project / ".claude" / "track").exists()
 
 
 @pytest.mark.parametrize("version", releases("ledger"))

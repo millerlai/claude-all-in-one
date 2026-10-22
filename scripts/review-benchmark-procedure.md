@@ -25,7 +25,7 @@ record, not part of the collection, and lives in the scratchpad.
    exist this round) would add an apply step after checkout. If the working
    tree is dirty, stop here rather than checkout over it -- this repo's bash
    guard has refused a `git checkout` against a dirty tree before
-   (`.claude/track/done/pb04-security-lens/implementation-notes.md:74-83`).
+   (`.cai/track/done/pb04-security-lens/implementation-notes.md:74-83`).
 
 3. In one message, dispatch four subagents: three `reviewer` agents, one
    lens each (`correctness`, `conformance`, `coverage`), plus one
@@ -61,7 +61,7 @@ record, not part of the collection, and lives in the scratchpad.
 7. Restore the working tree. This repo has a recorded precedent for the
    same shape of operation, including why it used `git stash` rather than
    `git checkout` to restore
-   (`.claude/track/done/pb04-security-lens/implementation-notes.md:74-83`):
+   (`.cai/track/done/pb04-security-lens/implementation-notes.md:74-83`):
    the bash guard refuses a `git checkout` against a dirty tree.
 
 8. Repeat steps 2-7 a second time, on the same case (the benchmark scores

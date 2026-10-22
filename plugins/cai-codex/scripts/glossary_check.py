@@ -23,7 +23,7 @@ from typing import NamedTuple
 ENTRY = re.compile(r"^\*\*(?P<term>[^*\n]+?)\*\*:[ \t]*(?P<definition>\S.*?)\s*$")
 DECISION_ID = re.compile(r"(?<![A-Za-z0-9_-])(?:AC|UC|[CDGIRSU])\d{1,3}(?![A-Za-z0-9_-])")
 TRACK_PATH = re.compile(
-    r"(?:\.claude/track/|docs/design/)[^\s`'\")）]*?\.md(?![A-Za-z0-9_-])"
+    r"(?:\.(?:cai|claude)/track/|docs/design/)[^\s`'\")）]*?\.md(?![A-Za-z0-9_-])"
     r"|(?<![A-Za-z0-9_./-])(?:intake|discover|decisions|stance|implementation-notes|state|pending)\.md(?![A-Za-z0-9_-])"
     r"|-(?:stance|decisions|detail|diagnosis|delta|high-level)\.md(?![A-Za-z0-9_-])")
 # A number then a unit, with no letter after the unit so `5 more` and `2 ftp`

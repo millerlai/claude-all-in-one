@@ -124,8 +124,8 @@ def _write_intake(track, rows):
 
 
 def _write_run(proj, decl):
-    os.makedirs(os.path.join(proj, ".claude"), exist_ok=True)
-    with open(os.path.join(proj, ".claude", "cai.json"), "w", encoding="utf-8") as f:
+    os.makedirs(os.path.join(proj, ".cai"), exist_ok=True)
+    with open(os.path.join(proj, ".cai", "cai.json"), "w", encoding="utf-8") as f:
         json.dump({"run": decl}, f)
 
 

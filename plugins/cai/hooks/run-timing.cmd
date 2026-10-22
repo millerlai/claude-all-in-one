@@ -6,14 +6,14 @@ REM heredoc and fall through to the sh section below.
 REM
 REM It runs on every tool call in every session, so the common case has to cost
 REM almost nothing: with no timing-open.* marker file in the project's
-REM .claude/track it exits before any interpreter starts. With one, it runs
+REM .cai/track it exits before any interpreter starts. With one, it runs
 REM timing_hook.py through the interpreter run-guard.cmd already recorded
 REM (read only; it never probes and never writes). No record, a bad record or a
 REM missing interpreter all mean exit 0. Always exit 0, print nothing: a
 REM PreToolUse hook's output is parsed as a decision.
 
 if not defined CLAUDE_PROJECT_DIR exit /b 0
-if not exist "%CLAUDE_PROJECT_DIR%\.claude\track\timing-open.*" exit /b 0
+if not exist "%CLAUDE_PROJECT_DIR%\.cai\track\timing-open.*" exit /b 0
 set "SCRIPT=%~dp0..\scripts\timing_hook.py"
 if not defined CLAUDE_CONFIG_DIR goto defaultroot
 set "REC=%CLAUDE_CONFIG_DIR%\cai\guard-launcher-cmd.txt"
@@ -44,7 +44,7 @@ exit /b 0
 CMDBLOCK
 
 [ -n "$CLAUDE_PROJECT_DIR" ] || exit 0
-set -- "$CLAUDE_PROJECT_DIR"/.claude/track/timing-open.*
+set -- "$CLAUDE_PROJECT_DIR"/.cai/track/timing-open.*
 [ -e "$1" ] || exit 0
 
 DIR="$(cd "$(dirname "$0")" && pwd)"

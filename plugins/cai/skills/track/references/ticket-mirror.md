@@ -5,10 +5,10 @@ dispatched subagent — `SKILL.md`'s "Running a stage" step 3 says so, and
 this file assumes it: a subagent has no interactive tools, and the menus
 below need one. Every command below is
 `python ${CLAUDE_PLUGIN_ROOT}/scripts/ticket.py`, run with `--track-dir
-.claude/track/<feature>` and `--project-dir <project root>`, the same way
+.cai/track/<feature>` and `--project-dir <project root>`, the same way
 `preflight.py`/`ledger.py` are run in "Running a stage".
 
-Nothing here does anything unless `.claude/cai.json`'s `ticket.enabled` is
+Nothing here does anything unless `.cai/cai.json`'s `ticket.enabled` is
 true — `ticket.py` checks that itself and prints nothing when it is off
 (AC1). The steps below describe what happens on top of that, once it is on.
 
@@ -17,7 +17,7 @@ true — `ticket.py` checks that itself and prints nothing when it is off
 `SKILL.md`'s `/cai:track <feature>` sends you here when its argument contains
 `://` or is only digits. That is a ticket reference, and a ticket reference is
 not a directory name — a URL cannot be one on Windows at all. So do not create
-`.claude/track/<that>/`.
+`.cai/track/<that>/`.
 
 1. **Read it without committing to anything.**
    `ticket.py read --ref <the argument> --project-dir <project root>` — note
@@ -35,7 +35,7 @@ not a directory name — a URL cannot be one on Windows at all. So do not create
    track in this working tree, pointed at this ticket: offer "Resume <name>"
    for each of the first two such lines, the first of them recommended in
    place of Stop, and name any further one in the message for `/cai:track
-   <name>`. Resume writes `<name>` alone into `.claude/track/current`, as
+   <name>`. Resume writes `<name>` alone into `.cai/track/current`, as
    creating a track does, says which track `current` named before, if any
    (still resumable by name), creates and points nothing, then carries on
    exactly as `/cai:track <name>` does. Stop creates and points nothing. A
@@ -69,7 +69,7 @@ nothing, asking again only after the person next writes.
    first stage runs.**
    Create it the way SKILL.md's new-track paragraph does, including its
    `track_start.py` run, then
-   `ticket.py point --track-dir .claude/track/<name> --ref <the argument>`.
+   `ticket.py point --track-dir .cai/track/<name> --ref <the argument>`.
 
    The order matters and nothing enforces it: pointing after `intake` has
    already run means intake never read the ticket, and no later stage says so
@@ -147,19 +147,19 @@ left-open` has printed. Nothing here can hold `done` up: every `ticket.py`
 subcommand exits 0, so relay what a step prints and carry on.
 
 1. **Before the move, the final state.** `ticket.py project --track-dir
-   .claude/track/<feature> --project-dir <project root> --final` rewrites
+   .cai/track/<feature> --project-dir <project root> --final` rewrites
    the track's one marked comment in place: `status: done`, the six rows,
    and the open items and reminders as their own list. Whatever it prints,
    `SKILL.md`'s move into `done/` and its deletion of
-   `.claude/track/current` run next.
+   `.cai/track/current` run next.
 2. **After the move, the close.** The pointer moved with the directory, so
-   every call from here takes `--track-dir .claude/track/done/<feature>`.
+   every call from here takes `--track-dir .cai/track/done/<feature>`.
    Resolve the number the way ship does: `ticket.py read --track-dir
-   .claude/track/done/<feature> --project-dir <project root>`. Only when
+   .cai/track/done/<feature> --project-dir <project root>`. Only when
    that prints a `number:` line, ask, as a menu
    (`references/approval-gates.md`): "Close #<number>" and "Leave it open",
    with no `(recommended)`. On "Close #<number>", run `ticket.py transition
-   --track-dir .claude/track/done/<feature> --project-dir <project root>
+   --track-dir .cai/track/done/<feature> --project-dir <project root>
    --confirmed-by-user`, once. On anything else, run nothing. When the read
    prints nothing (mirroring off) or says there is no ticket pointer, ask
    nothing; when it prints `read: <category>`, ask nothing and say in one

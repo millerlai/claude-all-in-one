@@ -52,7 +52,7 @@ def init_repo_with_remote(path, remote):
 
 
 def track_dir_for(tmp_path, feature):
-    return str(tmp_path / ".claude" / "track" / feature)
+    return str(tmp_path / ".cai" / "track" / feature)
 
 
 def test_on_main_without_upstream_creates_track_branch_and_skips_pull(tmp_path):
@@ -298,4 +298,29 @@ def test_skill_md_runs_track_start_before_creating_state_md():
     section = text[section_start:section_end]
     assert "scripts/track_start.py" in section
     assert section.index("scripts/track_start.py") < \
-        section.index("Create `.claude/track/<feature>/state.md`")
+        section.index("Create `.cai/track/<feature>/state.md`")
+
+
+def test_main_moves_an_old_track_and_makes_the_self_ignore(tmp_path, monkeypatch, capsys):
+    project = tmp_path / "proj"
+    (project / ".claude" / "track" / "old").mkdir(parents=True)
+    (project / ".claude" / "track" / "current").write_text("old\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["track_start.py", "--track-dir",
+                                      str(project / ".cai" / "track" / "new"),
+                                      "--project-dir", str(project)])
+    assert track_start.main() == 0
+    err = capsys.readouterr().err.splitlines()
+    assert "track_start: moved .claude/track to .cai/track" in err
+    assert (project / ".cai" / "track" / "current").read_text(encoding="utf-8") == "old\n"
+    assert (project / ".cai" / ".gitignore").read_text(encoding="ascii") == "*\n"
+
+
+def test_main_stops_when_cai_cannot_be_made(tmp_path, monkeypatch, capsys):
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / ".cai").write_text("a file where the directory should be\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["track_start.py", "--track-dir",
+                                      str(project / ".cai" / "track" / "new"),
+                                      "--project-dir", str(project)])
+    assert track_start.main() == 2
+    assert capsys.readouterr().err.startswith("track_start: could not make ")

@@ -16,7 +16,7 @@ Run it from the project; add `--project-dir <dir>` from anywhere else. It
 only reads files and prints one JSON object: `status`, `source`, `root`,
 `commands`, `candidates`, `problem` and `notes`. Each entry of `commands` and
 `candidates` has `command`, `whole`, `narrow` and `origin`. A person's
-`test.commands` list in `.claude/cai.json` wins; without one, the program
+`test.commands` list in `.cai/cai.json` wins; without one, the program
 derives candidates from the root's own files and never runs anything it finds.
 
 ## What each exit code means
@@ -46,13 +46,13 @@ in the text above it. Who asks depends on who you are:
   python ${CLAUDE_PLUGIN_ROOT}/scripts/record_test_command.py "<command>" ["<command>" ...]
   ```
 
-  It keeps every other key in `.claude/cai.json`. Run the resolver again and
+  It keeps every other key in `.cai/cai.json`. Run the resolver again and
   expect exit 0 with `source` `declared`.
 
 **Exit 4.** A subagent only reports. The main session may ask the person to
 type the command (the menu's free-text entry) and record it the same way.
 
-Only the main session writes `.claude/cai.json`, and only through
+Only the main session writes `.cai/cai.json`, and only through
 `record_test_command.py` — never by editing the file. Nothing enforces that
 for the verifier, which has Write and Edit: the guard treats the declaration
 as trusted input, as it does the `Makefile` or `conftest.py` a resolved
@@ -67,7 +67,7 @@ session, run the resolver and settle the command with the person in one menu
 replaces the exit table above for this one moment only; everything that runs
 the resolver later still follows that table.
 
-Ask nothing when `.claude/track/<feature>/implementation-notes.md` already has
+Ask nothing when `.cai/track/<feature>/implementation-notes.md` already has
 a line starting `Test command: skipped`: an earlier start of this build took
 that answer, and you carry the line on as the last paragraph says.
 
@@ -85,10 +85,10 @@ What each answer does:
   `record_test_command.py` as exit 3's main-session bullet above says, run the
   resolver again, and expect exit 0 with `source` `declared`. Nothing asks
   again after that, in this stage or a later one. When the recorder refuses
-  (it changes nothing when `.claude/cai.json` cannot be read), say what it
+  (it changes nothing when `.cai/cai.json` cannot be read), say what it
   printed and start this section again, so the menu, Skip included, comes back.
 - **Check again** — start this section again from the resolver.
-- **Skip** — write nothing to `.claude/cai.json`, so the next track asks
+- **Skip** — write nothing to `.cai/cai.json`, so the next track asks
   again. The line `Test command: skipped by the person before build` goes in
   build's dispatch prompt.
 

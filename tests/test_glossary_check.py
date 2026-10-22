@@ -106,8 +106,10 @@ def test_ordinary_prose_next_to_a_number_is_not_a_unit(clean):
 
 
 def test_the_repos_own_glossary_passes_the_widened_unit_list(capsys):
-    # Every added unit is one more way for ordinary prose to be refused.
-    assert gc.main([os.path.join(REPO, ".claude", "cai-context.md")]) == 0
+    # Every added unit is one more way for ordinary prose to be refused. The
+    # live glossary is in .cai/, outside git, so this reads a copy of it.
+    assert gc.main([os.path.join(REPO, "tests", "fixtures", "glossary",
+                                 "repo-glossary-2026-10-22.md")]) == 0
     assert capsys.readouterr().out.strip().endswith(" 0 flagged")
 
 
@@ -127,10 +129,10 @@ def test_an_entry_with_no_definition_is_flagged():
 
 
 def test_flags_a_track_document_path():
-    for bad in ("kept in decisions.md", "kept in .claude/track/x/intake.md",
+    for bad in ("kept in decisions.md", "kept in .cai/track/x/intake.md",
                 "kept in docs/design/a-detail.md", "named x-stance.md"):
         assert any(r.startswith("track-document path") for r in flagged(bad)), bad
-    for clean in ("under .claude/track/ only", "see README.md"):
+    for clean in ("under .cai/track/ only", "see README.md"):
         assert flagged(clean) == [], clean
 
 
@@ -220,7 +222,8 @@ def test_validate_fails_on_a_planted_glossary(tmp_path):
     repo = os.path.join(str(tmp_path), "repo")
     shutil.copytree(REPO, repo, ignore=shutil.ignore_patterns(
         ".git", "__pycache__", ".pytest_cache", ".coverage*"))
-    with open(os.path.join(repo, ".claude", "cai-context.md"), "w", encoding="utf-8") as fh:
+    os.makedirs(os.path.join(repo, ".cai"), exist_ok=True)
+    with open(os.path.join(repo, ".cai", "cai-context.md"), "w", encoding="utf-8") as fh:
         fh.write("# Glossary\n\n## Domain\n\n**Planted**: decided in D12.\n")
     with open(os.path.join(repo, "CONTEXT.md"), "w", encoding="utf-8") as fh:
         fh.write("# Glossary\n")

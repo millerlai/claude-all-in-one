@@ -152,8 +152,8 @@ def test_untracked_since_start_lists_only_new_paths(tmp_path):
 
 def test_track_dir_and_artifacts_are_not_listed_as_code(tmp_path):
     repo = make_repo(tmp_path)
-    track_dir = os.path.join(str(repo), ".claude", "track", "feat")
-    track = make_track(repo / ".claude" / "track", "feat")
+    track_dir = os.path.join(str(repo), ".cai", "track", "feat")
+    track = make_track(repo / ".cai" / "track", "feat")
     assert track == track_dir
     with open(os.path.join(track, preflight.UNTRACKED_BASELINE_NAME), "w",
               encoding="utf-8") as fh:
@@ -176,8 +176,8 @@ def test_detail_doc_with_undecodable_bytes_does_not_crash_ship(tmp_path):
     in that file -- a pasted smart quote, say -- must not crash the whole
     `ship` probe; the artifact is just skipped."""
     repo = make_repo(tmp_path)
-    track_dir = os.path.join(str(repo), ".claude", "track", "feat")
-    track = make_track(repo / ".claude" / "track", "feat")
+    track_dir = os.path.join(str(repo), ".cai", "track", "feat")
+    track = make_track(repo / ".cai" / "track", "feat")
     assert track == track_dir
     doc = repo / "docs" / "design" / "y-detail.md"
     doc.parent.mkdir(parents=True)
@@ -195,8 +195,8 @@ def test_detail_reference_and_ledger_artifact_both_reported(tmp_path):
     produced both a stance/decisions pair (via the ledger) and a later detail
     design referencing a *different* decisions doc must have both named."""
     repo = make_repo(tmp_path)
-    track_dir = os.path.join(str(repo), ".claude", "track", "feat")
-    track = make_track(repo / ".claude" / "track", "feat")
+    track_dir = os.path.join(str(repo), ".cai", "track", "feat")
+    track = make_track(repo / ".cai" / "track", "feat")
     assert track == track_dir
 
     stance_doc = repo / "stray-decisions.md"
@@ -257,7 +257,7 @@ def test_docs_not_in_git_skips_artifacts_inside_the_track_dir(tmp_path):
     """verify's evidence manifest lives under the track directory and is the
     verify row's `--artifact`; it is track state, not a document to `git add`."""
     repo = make_repo(tmp_path)
-    track = make_track(repo / ".claude" / "track", "feat")
+    track = make_track(repo / ".cai" / "track", "feat")
     manifest = os.path.join(track, "evidence", "verify", "20261006T000000Z", "manifest.json")
     os.makedirs(os.path.dirname(manifest))
     with open(manifest, "w", encoding="utf-8") as fh:

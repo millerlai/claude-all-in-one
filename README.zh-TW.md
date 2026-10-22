@@ -8,7 +8,7 @@
 
 四層，外加墊在所有層底下的一層。
 
-- **軌道（track）。** `/cai:track <feature>` 帶著一個 feature 走完六個 SDLC 階段，狀態存在 `.claude/track/<feature>/state.md`，所以一個完全不記得這段對話的新 session 也能接手繼續。
+- **軌道（track）。** `/cai:track <feature>` 帶著一個 feature 走完六個 SDLC 階段，狀態存在 `.cai/track/<feature>/state.md`，所以一個完全不記得這段對話的新 session 也能接手繼續。
 - **六個階段（stage）。** `intake`、`discover`、`design`、`build`、`verify`、`ship`——每一個也能單獨執行，有沒有軌道都可以。恰好有兩處會停下來等人簽核，而且都以選單呈現讓你點選：`design` 之後、任何程式碼存在之前；以及 `ship` 內部那些不可逆的步驟（merge、打 tag、發佈）之前。
 - **工具。** 不需要跑軌道、隨時可用——見[指令](#指令)。
 - **知識。** 在被讀取之前完全不花成本的參考檔：72 張具名重構（refactoring）卡、smell（程式碼壞味道）到重構手法的對照表、六份階段程序，以及每一種設計文件各一份範本。
@@ -194,7 +194,7 @@ codex plugin add cai-codex@claude-all-in-one
 | 變更 | 升哪一段 | 例子 |
 |---|---|---|
 | 移除或改名某個 skill；舊的儲存檔再也載不進來；提高平台下限 | MAJOR | 移除 `/cai:quiz` |
-| 新增 skill；在舊儲存檔上新增可省略的欄位；軌道格式變更 | MINOR | 新增一個工具，或改變 `.claude/track/<feature>/state.md` 記錄的內容（會在該版的 GitHub Release 頁面註明） |
+| 新增 skill；在舊儲存檔上新增可省略的欄位；軌道格式變更 | MINOR | 新增一個工具，或改變 `.cai/track/<feature>/state.md` 記錄的內容（會在該版的 GitHub Release 頁面註明） |
 | 不改變格式的腳本 bug 修正；改寫規則的措辭 | PATCH | 修正 guard 的正規表示式（regex） |
 
 平台下限：Claude Code 2.1.283 或更新、codex-cli 0.157.1 或更新。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record the test commands a person confirmed into `.claude/cai.json`.
+"""Record the test commands a person confirmed into `.cai/cai.json`.
 
 Writes `test.commands` and leaves every other key (the `ticket` object, other
 `test` subkeys) as it was. Exit 0 written, 2 bad commands, 5 the existing file
@@ -14,6 +14,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import cai_paths  # noqa: E402
 import resolve_test_command as resolver  # noqa: E402
 
 
@@ -64,6 +65,7 @@ def record(project_dir, commands):
     path = os.path.join(project_dir, resolver.CONFIG_REL)
     data = _load(path)
     data.setdefault("test", {})["commands"] = cleaned
+    cai_paths.ensure_dir(project_dir)
     write_config(path, data)
     return path
 
@@ -76,6 +78,9 @@ def main(argv=None):
                     help="one test command per argument, quoted")
     args = ap.parse_args(argv)
     root = resolver.find_root(os.path.abspath(args.project_dir))
+    # Before reading: a cai.json still under .claude/ holds keys this write keeps.
+    for line in cai_paths.migrate(root):
+        print("record_test_command: %s" % line, file=sys.stderr)
     try:
         path = record(root, args.commands)
     except ConfigProblem as exc:

@@ -171,7 +171,7 @@ def test_track_ignored_check_ignore_failure_escapes_control_chars(tmp_path, monk
 def test_track_ignored_exit_1_is_still_not_ignored(tmp_path):
     repo = make_repo(tmp_path)
     # Inside the repo: check-ignore exits 128, not 1, for a path outside it.
-    track = repo / ".claude" / "track" / "x"
+    track = repo / ".cai" / "track" / "x"
 
     result = preflight.track_ignored(str(track), str(repo))
 

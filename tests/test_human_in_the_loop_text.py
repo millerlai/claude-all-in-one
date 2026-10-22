@@ -593,7 +593,8 @@ def test_build_lane_and_closeout_read_the_commit_answer(tree):
     text = _build(tree)
     assert "The commit answer is yes: Gate 1's" in _section(text, "## Step 4")
     close = _section(text, "## Step 6")
-    assert "Gate 1's under a track" in close
+    # The glossary write was Step 6's one commit; it now stays in .cai/.
+    assert "Never `git add` or commit the file, whatever the commit answer" in close
     assert "Step 0.5 answered commit-per-unit" not in close
 
 

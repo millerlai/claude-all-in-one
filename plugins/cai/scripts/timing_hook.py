@@ -324,12 +324,12 @@ def settle(data_dir, now_ms):
 
 
 def _project_from(cwd):
-    """The nearest directory at or above cwd holding .claude/track, or None."""
+    """The nearest directory at or above cwd holding .cai/track, or None."""
     if not isinstance(cwd, str) or not os.path.isabs(cwd):
         return None
     current = os.path.normpath(cwd)
     while True:
-        if os.path.isdir(os.path.join(current, ".claude", "track")):
+        if os.path.isdir(os.path.join(current, ".cai", "track")):
             return current
         parent = os.path.dirname(current)
         if parent == current:

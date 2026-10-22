@@ -224,7 +224,7 @@ def test_unparseable_package_json_is_noted_not_raised(tmp_path):
 # --- AC2: declaration wins, order kept, malformed never falls back ----------
 
 def declare(tmp_path, body, extra=None):
-    files = {os.path.join(".claude", "cai.json"): body}
+    files = {os.path.join(".cai", "cai.json"): body}
     files.update(extra or {})
     return make(tmp_path, files)
 
@@ -235,17 +235,17 @@ def test_declaration_wins_over_detection_and_keeps_order(tmp_path):
     assert result["status"] == "resolved"
     assert result["source"] == "declared"
     assert [c["command"] for c in result["commands"]] == ["npm test", "python -m pytest"]
-    assert all(c["origin"] == ".claude/cai.json" for c in result["commands"])
+    assert all(c["origin"] == ".cai/cai.json" for c in result["commands"])
 
 
 def test_declaration_with_a_utf8_bom_resolves(tmp_path):
-    cfg = tmp_path / ".claude" / "cai.json"
+    cfg = tmp_path / ".cai" / "cai.json"
     cfg.parent.mkdir()
     body = json.dumps({"test": {"commands": ["make test"]}})
     cfg.write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
     result = rtc.resolve(str(tmp_path))
     assert result["status"] == "resolved" and result["source"] == "declared"
-    assert pairs(result) == [("make test", "", "none", ".claude/cai.json")]
+    assert pairs(result) == [("make test", "", "none", ".cai/cai.json")]
     # The BOM is stripped, never read as content: a bad body is still invalid.
     cfg.write_bytes(b"\xef\xbb\xbf{bad")
     assert rtc.resolve(str(tmp_path))["status"] == "invalid"
@@ -257,13 +257,13 @@ def test_declaration_in_utf16_is_invalid_for_every_reader(tmp_path):
     # three now read UTF-8 (with or without a BOM) only.
     import record_test_command
     import ticket
-    cfg = tmp_path / ".claude" / "cai.json"
+    cfg = tmp_path / ".cai" / "cai.json"
     cfg.parent.mkdir()
     body = json.dumps({"test": {"commands": ["make test"]}, "ticket": {"enabled": False, "backend": ""}})
     cfg.write_bytes(body.encode("utf-16"))
     result = rtc.resolve(str(tmp_path))
     assert result["status"] == "invalid"
-    assert result["problem"] == ".claude/cai.json could not be read as JSON".replace("/", os.sep)
+    assert result["problem"] == ".cai/cai.json could not be read as JSON".replace("/", os.sep)
     assert ticket.read_config(str(tmp_path))["problem"] == result["problem"]
     with pytest.raises(record_test_command.ConfigProblem):
         record_test_command.record(str(tmp_path), ["make test"])
@@ -273,24 +273,24 @@ def test_declared_command_borrows_narrow_from_a_known_default(tmp_path):
     body = json.dumps({"test": {"commands": ["python -m pytest", "go test ./...", "go test", "make test"]}})
     result = rtc.resolve(declare(tmp_path, body))
     assert pairs(result) == [
-        ("python -m pytest", "", "paths", ".claude/cai.json"),
-        ("go test", "./...", "packages", ".claude/cai.json"),
-        ("go test", "./...", "packages", ".claude/cai.json"),
-        ("make test", "", "none", ".claude/cai.json"),
+        ("python -m pytest", "", "paths", ".cai/cai.json"),
+        ("go test", "./...", "packages", ".cai/cai.json"),
+        ("go test", "./...", "packages", ".cai/cai.json"),
+        ("make test", "", "none", ".cai/cai.json"),
     ]
 
 
 def test_declared_python3_and_py_launchers_borrow_paths(tmp_path):
     body = json.dumps({"test": {"commands": ["python3 -m pytest", "py -3 -m pytest"]}})
     assert pairs(rtc.resolve(declare(tmp_path, body))) == [
-        ("python3 -m pytest", "", "paths", ".claude/cai.json"),
-        ("py -3 -m pytest", "", "paths", ".claude/cai.json"),
+        ("python3 -m pytest", "", "paths", ".cai/cai.json"),
+        ("py -3 -m pytest", "", "paths", ".cai/cai.json"),
     ]
 
 
 def test_unknown_declared_command_is_whole_and_unnarrowed(tmp_path):
     result = rtc.resolve(declare(tmp_path, json.dumps({"test": {"commands": ["  ./run-tests.sh  "]}})))
-    assert pairs(result) == [("./run-tests.sh", "", "none", ".claude/cai.json")]
+    assert pairs(result) == [("./run-tests.sh", "", "none", ".cai/cai.json")]
 
 
 def test_cai_json_without_test_key_falls_through_to_detection(tmp_path):
@@ -390,7 +390,7 @@ def test_main_prints_one_json_object_and_exit_codes(tmp_path, capsys):
     out = capsys.readouterr()
     assert json.loads(out.out)["commands"][0]["command"] == "cargo test"
     assert out.err == ""
-    make(tmp_path, {".claude/cai.json": "{bad"})
+    make(tmp_path, {".cai/cai.json": "{bad"})
     assert rtc.main(["--project-dir", str(tmp_path)]) == rtc.EXIT_INVALID == 5
 
 
@@ -408,7 +408,7 @@ def snapshot(root):
 
 def test_resolver_leaves_the_file_tree_unchanged(tmp_path):
     root = make(tmp_path, {"Makefile": "test:\n\tx\n", "go.mod": "module x\n",
-                           "package.json": "{bad", ".claude/cai.json": '{"ticket": {}}'})
+                           "package.json": "{bad", ".cai/cai.json": '{"ticket": {}}'})
     before = snapshot(root)
     rtc.resolve(root)
     rtc.main(["--project-dir", root])
@@ -474,13 +474,16 @@ def test_docs_name_every_entry_file_the_resolver_reads(doc):
         assert name in text, (doc, name)
 
 
-def test_this_repo_resolves_to_regenerate_then_pytest():
-    # #370: this repo's own .claude/cai.json declares the command, which flips
+def test_this_repos_regenerate_then_pytest_declaration_resolves_whole(tmp_path):
+    # #370: this repo declares its command in .cai/cai.json, which flips
     # `source` to "declared"; how detection finds it is pinned on a copy of
     # pyproject.toml below. #371: the declared string regenerates
     # plugins/cai-codex first, so a verify fix under plugins/cai/ cannot leave
-    # the generated tree stale for the pytest that follows.
-    result = rtc.resolve(REPO)
+    # the generated tree stale for the pytest that follows. The file is
+    # outside git, so the declaration is written here rather than read.
+    body = json.dumps({"test": {"commands": [
+        "python scripts/gen-codex.py && python -m pytest"]}})
+    result = rtc.resolve(make(tmp_path, {os.path.join(".cai", "cai.json"): body}))
     assert result["status"] == "resolved"
     assert [c["command"] for c in result["commands"]] == [
         "python scripts/gen-codex.py && python -m pytest"]

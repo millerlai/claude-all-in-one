@@ -24,7 +24,7 @@ def make_state_md(track_dir):
 
 
 def enable_ticket(project_dir, backend="fake-read"):
-    claude_dir = project_dir / ".claude"
+    claude_dir = project_dir / ".cai"
     claude_dir.mkdir(parents=True, exist_ok=True)
     (claude_dir / "cai.json").write_text(
         json.dumps({"ticket": {"enabled": True, "backend": backend}}), encoding="utf-8")
@@ -87,7 +87,7 @@ def test_read_disabled_prints_nothing(tmp_path, monkeypatch, capsys):
     track = tmp_path / "track"
     track.mkdir()
     project_dir = tmp_path / "proj"
-    project_dir.mkdir()  # no .claude/cai.json at all -- disabled
+    project_dir.mkdir()  # no .cai/cai.json at all -- disabled
     backend = FakeReadBackend(value={"number": "48", "title": "t", "body": "b"})
     register(monkeypatch, backend)
     set_pointer(track, "fake-read", "48")
@@ -267,7 +267,7 @@ def test_read_with_ref_stays_silent_when_mirroring_is_off(
     """AC1 holds on this path too: a project that never turned the feature on
     prints nothing, so `/cai:track <url>` can tell "off" from "unreachable"."""
     project_dir = tmp_path / "proj"
-    project_dir.mkdir()  # no .claude/cai.json at all
+    project_dir.mkdir()  # no .cai/cai.json at all
     backend = FakeReadBackend(value={"number": "1", "title": "t", "body": "b"})
     register(monkeypatch, backend)
 
@@ -390,7 +390,7 @@ def test_local_claim_state_invalid_name_is_not_local(tmp_path):
 
 
 def test_local_claim_state_resumable(tmp_path):
-    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir = tmp_path / ".cai" / "track" / "track-issue-status-sync"
     track_dir.mkdir(parents=True)
     ticket.write_pointer(str(track_dir),
                           {"backend": "github", "ref": "170", "login": "octocat",
@@ -401,7 +401,7 @@ def test_local_claim_state_resumable(tmp_path):
 
 
 def test_local_claim_state_finished(tmp_path):
-    done_dir = tmp_path / ".claude" / "track" / "done" / "track-issue-status-sync"
+    done_dir = tmp_path / ".cai" / "track" / "done" / "track-issue-status-sync"
     done_dir.mkdir(parents=True)
     ticket.write_pointer(str(done_dir),
                           {"backend": "github", "ref": "170", "login": "octocat",
@@ -412,7 +412,7 @@ def test_local_claim_state_finished(tmp_path):
 
 
 def test_local_claim_state_wrong_login_or_issue_is_not_local(tmp_path):
-    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir = tmp_path / ".cai" / "track" / "track-issue-status-sync"
     track_dir.mkdir(parents=True)
     ticket.write_pointer(str(track_dir),
                           {"backend": "github", "ref": "170", "login": "octocat",
@@ -424,7 +424,7 @@ def test_local_claim_state_wrong_login_or_issue_is_not_local(tmp_path):
 
 
 def test_local_claim_state_unreadable_pointer_is_not_local(tmp_path):
-    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir = tmp_path / ".cai" / "track" / "track-issue-status-sync"
     track_dir.mkdir(parents=True)
     (track_dir / "ticket.json").write_text("{not json", encoding="utf-8")
     assert ticket.local_claim_state(str(tmp_path), "track-issue-status-sync",
@@ -435,7 +435,7 @@ def test_local_claim_state_missing_login_is_not_local(tmp_path):
     """A cached login of "" or None can never equal a claim's login, so a
     pointer without one is never resumable -- the failure mode the design
     calls out for a deleted claim author."""
-    track_dir = tmp_path / ".claude" / "track" / "track-issue-status-sync"
+    track_dir = tmp_path / ".cai" / "track" / "track-issue-status-sync"
     track_dir.mkdir(parents=True)
     ticket.write_pointer(str(track_dir),
                           {"backend": "github", "ref": "170", "login": None,
@@ -468,7 +468,7 @@ def test_read_ref_prints_claims_zero_on_success(tmp_path, monkeypatch, capsys):
 def test_read_ref_prints_claim_lines_with_local_suffixes(tmp_path, monkeypatch, capsys):
     project_dir = tmp_path / "proj"
     enable_ticket(project_dir)
-    track_dir = project_dir / ".claude" / "track" / "track-issue-status-sync"
+    track_dir = project_dir / ".cai" / "track" / "track-issue-status-sync"
     track_dir.mkdir(parents=True)
     ticket.write_pointer(str(track_dir),
                           {"backend": "github", "ref": "170", "login": "millerlai",

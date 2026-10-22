@@ -50,7 +50,7 @@ def make_state_md(track_dir, rows=SIX_ROWS):
 
 
 def enable_ticket(project_dir, backend="recording-stub"):
-    claude_dir = project_dir / ".claude"
+    claude_dir = project_dir / ".cai"
     claude_dir.mkdir(parents=True, exist_ok=True)
     (claude_dir / "cai.json").write_text(
         json.dumps({"ticket": {"enabled": True, "backend": backend}}), encoding="utf-8")
@@ -144,7 +144,7 @@ def test_ac12_disabled_feature_makes_zero_write_calls(tmp_path, monkeypatch):
     track.mkdir()
     make_state_md(track)
     project_dir = tmp_path / "proj"
-    project_dir.mkdir()  # no .claude/cai.json at all -- disabled
+    project_dir.mkdir()  # no .cai/cai.json at all -- disabled
     backend = RecordingBackend()
     register(monkeypatch, backend)
     set_pointer(track, "recording-stub", "48")  # a pointer exists, but disabled wins
@@ -460,7 +460,7 @@ def test_usage_error_unknown_command_exits_1(tmp_path, monkeypatch):
 
 def test_project_command_via_main_exits_0_when_disabled(tmp_path, monkeypatch):
     project_dir = tmp_path / "proj"
-    project_dir.mkdir()  # disabled: no .claude/cai.json
+    project_dir.mkdir()  # disabled: no .cai/cai.json
     monkeypatch.setattr(sys, "argv",
                         ["ticket.py", "project", "--track-dir", str(tmp_path),
                          "--project-dir", str(project_dir)])

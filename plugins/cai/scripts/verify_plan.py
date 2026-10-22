@@ -123,7 +123,7 @@ def read_levels(text):
 
 METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 INTAKE_NAME = "intake.md"
-CONFIG_LABEL = ".claude/cai.json"  # as the person writes it, whatever the OS separator
+CONFIG_LABEL = ".cai/cai.json"  # as the person writes it, whatever the OS separator
 
 
 def _none(problem):

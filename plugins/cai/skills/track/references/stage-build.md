@@ -171,9 +171,9 @@ copied into the notes verbatim, on a line of its own: the main session reads
 it there before any later dispatch of this build or of verify, and asks no
 more. Step 6.2 keeps its glossary record in these same notes.
 
-Under a track the notes go in `.claude/track/<feature>/`, beside the
+Under a track the notes go in `.cai/track/<feature>/`, beside the
 `state.md` a cold session resumes from. Check `.gitignore` covers
-`.claude/track/` first — `preflight.py`'s `track_ignored` reports when it
+`.cai/track/` first — `preflight.py`'s `track_ignored` reports when it
 does not and never blocks. An untracked track file never trips `ship`'s
 `clean_tree` on its own (#198); committing it and then changing it does, and
 that FAIL now names the file rather than leaving the person to guess why the
@@ -465,7 +465,7 @@ Units all green is not done:
    red before the fix, green after it, a test's observed result — reads
    `not run: test command skipped`. The `file:line` columns are filled in as
    usual.
-2. **Write the merged terms into `<top>/.claude/cai-context.md`**, before
+2. **Write the merged terms into `<top>/.cai/cai-context.md`**, before
    verify. The merged terms are the project terms the Detail design's
    `## Glossary` defines that pass the glossary check. Nobody is asked
    which, under a track or standing alone: no menu, no pending question.
@@ -520,7 +520,7 @@ Units all green is not done:
    finished record with no `- Line:` entry runs no check. With no finished
    record for this design, record the
    outcome in one edit to `implementation-notes.md` before
-   `.claude/cai-context.md` is touched — one `- Write:` entry per term that
+   `.cai/cai-context.md` is touched — one `- Write:` entry per term that
    passed, one `- Kept out:` entry per term flagged, `- Complete: yes`
    last, each field on a line of its own so that nothing inside a
    definition can split it:
@@ -538,7 +538,11 @@ Units all green is not done:
    With no `- Write:` entry in the record, write nothing, create no file
    and skip the rest of this item; the same when this run's check flags
    every `- Line:`; the report still names every term kept out.
-   Otherwise, if `.claude/cai-context.md`
+   Otherwise run
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/cai_paths.py ensure --project-dir "<top>"`,
+   which makes `.cai/` and the `.gitignore` that keeps it out of git; when
+   it exits non-zero, write nothing and quote its last line in the report.
+   Then, if `.cai/cai-context.md`
    does not exist, create it verbatim from
    `${CLAUDE_PLUGIN_ROOT}/templates/cai-context.md.tpl` first. Then write
    each `- Line:` exactly as it was checked, in the record's order. The
@@ -547,9 +551,13 @@ Units all green is not done:
    folded to one and case is ignored, the way the glossary check compares
    names — is replaced in place. It stays under the heading it was under,
    and the report names that heading, on a rerun too, not the one its
-   `- Write:` entry says. With no such line, the new line goes
-   after the last entry under its `- Write:` heading, and past any `_Avoid_`
-   lines directly under that entry, or directly under
+   `- Write:` entry says. With no such line, the new line goes after the
+   entry under its `- Write:` heading that it is most closely related to —
+   the same thing seen from another side, a part of it, a step next to it —
+   and past any `_Avoid_` lines directly under that entry. When no entry
+   there is related, it goes before the first entry under that heading
+   whose name sorts after the new term's, names compared as above, or after
+   the last entry and its `_Avoid_` lines when none does; directly under
    that heading when it has none; when the file lacks that `## Domain` or
    `## Process` heading, add it at the end of the file first; those two
    are the only headings build ever adds. Hand-written `_Avoid_` lines,
@@ -575,20 +583,12 @@ Units all green is not done:
    If `<top>/CONTEXT.md` exists and its first four lines are the
    template's first four, an earlier cai wrote it. Leave it untouched, and
    say in the report that cai no longer reads it, so the person can move
-   the entries they want to keep into `.claude/cai-context.md`, or delete
+   the entries they want to keep into `.cai/cai-context.md`, or delete
    it.
-   Then run `git check-ignore -q .claude/cai-context.md` from `<top>`.
-   Exit 0 means the project's `.gitignore` ignores it: add and commit
-   nothing — never `git add -f`, never an edit to `.gitignore` — and say
-   in the report that it was written but will not reach the PR. Exit 1:
-   when `git status --porcelain -- .claude/cai-context.md` prints nothing —
-   a rerun that found every line already written — there is nothing to
-   commit, so skip the commit and say nothing about it. Otherwise, when the
-   commit answer is yes (Gate 1's under a track, Step 0.5's
-   standing alone), commit this write on its
-   own by its path, the same way Step 3's commit does; otherwise leave it
-   in the working tree. Any other exit: commit nothing, and quote git's
-   first line in the report.
+   Never `git add` or commit the file, whatever the commit answer: like
+   everything cai writes into a project, it stays in `.cai/`, out of git,
+   unless the person adds it themselves; say in the report that it was
+   written but will not reach the PR.
 3. **Review.** Under a track, skip this step: the branch is reviewed by the
    verify stage, which runs next over this same diff, and a second pass of the
    four lenses would only repeat it. Standing alone there is no verify stage after this

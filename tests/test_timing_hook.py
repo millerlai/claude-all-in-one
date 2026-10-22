@@ -24,7 +24,7 @@ class Env:
         self.session = "main-session"
 
     def track(self, name="feature", run_id="run-1", stage="build"):
-        path = os.path.join(self.project, ".claude", "track", name)
+        path = os.path.join(self.project, ".cai", "track", name)
         timing.begin_run(path, stage, run_id, "claude")
         return path
 
@@ -226,7 +226,7 @@ def test_closed_run_drops_a_spool_with_a_tool_left_open(env):
 def test_cli_end_lets_the_next_settle_drop_an_unfinished_spool(env, capsys):
     # #320 through the CLI the track skill runs: begin leaves the open marker that
     # keeps a live spool, end removes it, and the next settle drops the spool.
-    path = os.path.join(env.project, ".claude", "track", "feature")
+    path = os.path.join(env.project, ".cai", "track", "feature")
     assert timing.main(["begin", "--track-dir", path, "--stage", "build", "--platform", "claude"]) == 0
     line = capsys.readouterr().out.strip()
     run_id = line.split(": ", 1)[1]
@@ -525,7 +525,7 @@ def test_replaying_the_recorded_real_session_gives_the_same_segments_both_orders
 # with PostToolUse instead of a PostToolBatch.
 class CodexEnv(Env):
     def track(self, name="feature", run_id="run-1", stage="build", platform="codex"):
-        path = os.path.join(self.project, ".claude", "track", name)
+        path = os.path.join(self.project, ".cai", "track", name)
         timing.begin_run(path, stage, run_id, platform)
         return path
 
@@ -668,7 +668,7 @@ def test_codex_track_skill_opens_and_closes_a_codex_run(codex, capsys):
     end = flat.split("<cai> timing end ", 1)[1].split("`", 1)[0]
     assert re.findall(r"--[a-z-]+", end) == ["--track-dir", "--run"]
     assert "every dispatch prompt of this stage" in flat
-    path = os.path.join(codex.project, ".claude", "track", "feature")
+    path = os.path.join(codex.project, ".cai", "track", "feature")
     assert timing.main(["begin", "--track-dir", path, "--stage", "build", "--platform", "codex"]) == 0
     line = capsys.readouterr().out.strip()
     codex.spawn("helper", message="review this\n" + line)

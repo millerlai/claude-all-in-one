@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record the start command and ready URL a person confirmed into `.claude/cai.json`.
+"""Record the start command and ready URL a person confirmed into `.cai/cai.json`.
 
 Writes `run.start` and `run.ready` and leaves every other key (`test`, `ticket`,
 an existing `run.e2e`) as it was. Exit 0 written, 2 arguments that fail
@@ -37,6 +37,7 @@ def record(project_dir, start, ready):
         raise ValueError(problem)
     run["start"], run["ready"] = start, ready
     data["run"] = run
+    record_test_command.cai_paths.ensure_dir(project_dir)
     record_test_command.write_config(path, data)
     return path
 
@@ -53,6 +54,9 @@ def main(argv=None):
     ap.add_argument("--ready", required=True, help="URL polled to tell the app is up")
     args = ap.parse_args(argv[:cut])
     root = rtc.find_root(os.path.abspath(args.project_dir))
+    # Before reading: a cai.json still under .claude/ holds keys this write keeps.
+    for line in record_test_command.cai_paths.migrate(root):
+        print("record_start_command: %s" % line, file=sys.stderr)
     try:
         path = record(root, words, args.ready)
     except ConfigProblem as exc:

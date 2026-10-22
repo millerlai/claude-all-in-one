@@ -78,18 +78,37 @@ def test_step_6_2_checks_again_and_writes_nothing_unchecked(tree):
     assert "whatever the exit code, write nothing, record nothing" in item
 
 
+ENSURE = {
+    "plugins/cai": 'python ${CLAUDE_PLUGIN_ROOT}/scripts/cai_paths.py ensure --project-dir "<top>"',
+    "plugins/cai-codex": '<cai> cai_paths ensure --project-dir "<top>"',
+}
+
+
 @pytest.mark.parametrize("tree", TREES)
-def test_step_6_2_never_forces_a_gitignored_file_in(tree):
+def test_step_6_2_writes_into_cai_and_never_commits_it(tree):
+    # The glossary went into git on every branch and conflicted with every
+    # parallel one; it now lives in .cai/, which ignores itself.
     item = _step_6_2(tree)
-    assert "git check-ignore -q .claude/cai-context.md" in item
-    assert "never `git add -f`" in item
+    assert ENSURE[tree] in item
+    assert "if `.cai/cai-context.md`" in item
+    assert "Never `git add` or commit the file, whatever the commit answer" in item
+    assert ".claude/cai-context.md" not in item
+    assert "commit this write" not in item
+
+
+@pytest.mark.parametrize("tree", TREES)
+def test_step_6_2_places_a_new_term_beside_a_related_one_or_in_name_order(tree):
+    item = _step_6_2(tree)
+    assert "that it is most closely related to" in item
+    assert "whose name sorts after the new term's" in item
+    assert "after the last entry under its" not in item
 
 
 @pytest.mark.parametrize("tree", TREES)
 def test_step_6_2_records_before_it_writes_and_never_rejudges(tree):
     item = _step_6_2(tree)
     assert "A finished glossary record is never judged again" in item
-    assert "before `.claude/cai-context.md` is touched" in item
+    assert "before `.cai/cai-context.md` is touched" in item
     assert ("**Glossary record** for <the design document's path, relative to "
             "`<top>`> at <what git hash-object printed>") in item
     assert ("names the design document's path relative to `<top>`, written "
@@ -142,9 +161,10 @@ def test_step_6_2_places_and_replaces_by_name_and_touches_nothing_else(tree):
     # goes under its own heading; nothing else in the file moves.
     item = _step_6_2(tree)
     assert "The first line in the file, under any heading, whose bold name is the same term" in item
-    assert ("the new line goes after the last entry under its `- Write:` heading, "
-            "and past any `_Avoid_` lines directly under that entry, or directly "
-            "under that heading when it has none") in item
+    assert ("the new line goes after the entry under its `- Write:` heading that "
+            "it is most closely related to") in item
+    assert "and past any `_Avoid_` lines directly under that entry" in item
+    assert "directly under that heading when it has none" in item
     assert ("a term left out or kept out never changes an existing entry, even "
             "one with its name") in item
     assert "A line that already reads as the recorded line is left as it is" in item
@@ -289,14 +309,6 @@ def test_step_6_2_says_a_deleted_line_comes_back(tree):
 def test_step_6_2_quotes_the_replaced_line_when_the_check_did_not_run(tree):
     # m3
     assert ("quoting its `- Replaces:` line when it names one" in _step_6_2(tree))
-
-
-@pytest.mark.parametrize("tree", TREES)
-def test_step_6_2_commits_nothing_when_nothing_changed(tree):
-    # m4: a rerun that found every line written has nothing to commit.
-    item = _step_6_2(tree)
-    assert "git status --porcelain -- .claude/cai-context.md" in item
-    assert "there is nothing to commit, so skip the commit" in item
 
 
 @pytest.mark.parametrize("tree", TREES)
