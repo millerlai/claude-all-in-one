@@ -118,10 +118,9 @@ passes: `approval-gates.md`'s Gate 2 says why and how (#316).
 
 ## `/cai:track status`
 
-Run `track_state.py status` and relay its output verbatim: current track,
-every stage's status, the next unfinished stage, and the reason on every
-`skipped` row. With `--all`, run `track_state.py status --all` instead: one
-row per git worktree, naming its track, next stage and unanswered questions.
+Run `track_state.py status` and relay its output verbatim: current track, every stage's status,
+the next unfinished stage, and the reason on every `skipped` row. With `--all`, run `track_state.py
+status --all` instead: one row per git worktree, naming its track, next stage and unanswered questions.
 
 ## `/cai:track skip <stage> --reason "<why>"`
 
