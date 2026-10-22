@@ -36,7 +36,8 @@ def bak(dest):
 
 def test_the_four_states(tmp_path):
     src, dest = tree(tmp_path, {"a.md": "A\n", "b.md": "B\n", "c.md": "C2\n", "d.md": "D2\n"})
-    (dest / "b.md").write_text("B\r\n", encoding="utf-8")
+    # Bytes: write_text on Windows would turn "\r\n" into "\r\r\n".
+    (dest / "b.md").write_bytes(b"B\r\n")
     (dest / "c.md").write_text("C1\n", encoding="utf-8")
     (dest / "d.md").write_text("D1 mine\n", encoding="utf-8")
     setup_files.save_manifest(dest, {"c.md": setup_files.digest("C1\n"),

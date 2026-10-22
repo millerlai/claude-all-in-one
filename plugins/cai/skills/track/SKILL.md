@@ -1,11 +1,11 @@
 ---
 name: track
 description: "One feature carried through every SDLC stage — intake, discover, design, build, verify, ship — with its state kept in .cai/track/ so a later session can resume where it stopped. Usage: /cai:track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
-argument-hint: "[<feature>|status|skip <stage> --reason \"<why>\"|done|cancel --reason \"<why>\"]"
+argument-hint: "[<feature> [--here]|status|skip <stage> --reason \"<why>\"|done|cancel --reason \"<why>\"]"
 ---
 
 ```
-/cai:track <feature>     create or resume; <feature> may not be `current` or `done`
+/cai:track <feature> [--here]   create (in its own worktree; --here: in this checkout) or resume; not `current`/`done`
 /cai:track               resume whatever .cai/track/current names
 /cai:track status        list tracks, where this one stopped, next step, what was skipped
 /cai:track skip <stage> --reason "<why>"   record the reason, then advance
@@ -35,7 +35,7 @@ Reject `current` and `done` as names; an argument with `://` or only digits is
 a ticket, not a name — `references/ticket-mirror.md`. If `.cai/track/<feature>/`
 already exists, this is a resume: skip straight to the next unfinished
 stage `track_state.py status` names. Otherwise this is a new track. Before creating
-anything, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_start.py --track-dir .cai/track/<feature> --project-dir <project root>` and relay what it prints; on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 2 means stop, create nothing, and report exactly what it printed.
+anything, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/track_start.py --track-dir .cai/track/<feature> --project-dir <project root>`, adding `--in-place` when the person typed `--here`, and relay what it prints. Exit 2 means stop, create nothing, and report exactly what it printed. With `--in-place` on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 3 means the track gets its own git worktree, so several tracks can run side by side, one session each — the person's `/cai:track` command is the request for that worktree. Its line names the one `EnterWorktree` call to make: `enter-worktree: name <n>` sets `name` to `<n>`, `enter-worktree: path <dir>` sets `path` to `<dir>`. Then start this section again from its first sentence, now inside the worktree: a track already there resumes, otherwise `track_start.py` exits 0 there. If the call fails, stop and report its error as it is; `--here` is the person's way to start without a worktree. If `EnterWorktree` is not among your tools at all, say so in one line and run `track_start.py` again with `--in-place`.
 
 Create `.cai/track/<feature>/state.md`, then `.cai/track/current`, then
 start the first stage below. The table: `| stage | status | artifact | note |`,

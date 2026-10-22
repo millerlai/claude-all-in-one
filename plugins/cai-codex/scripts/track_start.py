@@ -12,13 +12,23 @@ message, when there is none) and switches to `track/<feature>`; on any other
 branch, or a detached HEAD, it leaves things alone. Preflight intake is
 unchanged and still blocks on `main` as the backstop.
 
-Usage:  track_start.py --track-dir DIR [--project-dir DIR]
+On `main`/`master` the default since #467 is a worktree instead, so several
+tracks can run side by side, one session each: the script creates nothing
+and prints the one `EnterWorktree` call to make -- `enter-worktree: name
+<feature>` for a new worktree, or `enter-worktree: path <dir>` when
+`.claude/worktrees/<feature>` already exists -- after which the track starts
+inside it. `--in-place` keeps the old branch-in-this-checkout behaviour, for
+a platform without `EnterWorktree` or a person who asked for it.
+
+Usage:  track_start.py --track-dir DIR [--project-dir DIR] [--in-place]
 Exit:   0 proceed (a branch was created, or none was needed), 2 stop and
-        create nothing, 1 usage error.
+        create nothing, 3 enter the worktree printed and run again there,
+        1 usage error.
 """
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -28,6 +38,10 @@ import cai_paths  # noqa: E402
 import preflight  # noqa: E402
 import tool_path  # noqa: E402
 
+# What EnterWorktree accepts as one name segment (its own schema); a track
+# name is one directory, so a "/" is not allowed here either.
+WORKTREE_NAME = re.compile(r"[A-Za-z0-9._-]{1,64}\Z")
+WORKTREES = os.path.join(".claude", "worktrees")
 PULL_TIMEOUT = 60  # preflight.git()'s 5s is sized for a local answer; a real
                     # fetch over the network needs far more room.
 
@@ -88,6 +102,25 @@ def write_baseline(track_dir, project_dir):
             json.dump(paths, fh)
     except OSError:
         pass
+
+
+def worktree_target(track_dir, project_dir):
+    """(3, "enter-worktree: ...") when a new track on `main`/`master` should
+    go into a worktree, (2, why) when its name cannot name one, else None:
+    `start()` then decides as before, including every way git can fail."""
+    if preflight.is_git_repo(project_dir) is not True:
+        return None
+    if preflight.current_branch(project_dir) not in ("main", "master"):
+        return None
+    feature = os.path.basename(os.path.normpath(track_dir))
+    existing = os.path.join(os.path.abspath(project_dir), WORKTREES, feature)
+    if os.path.isdir(existing):
+        return 3, "enter-worktree: path %s" % existing
+    if not WORKTREE_NAME.match(feature):
+        return 2, ("%s cannot name a worktree (letters, digits, '.', '_' and '-' "
+                   "only, at most 64) -- pick another name, or start it in this "
+                   "checkout with --here" % feature)
+    return 3, "enter-worktree: name %s" % feature
 
 
 def start(track_dir, project_dir):
@@ -177,7 +210,16 @@ def main():
     ap = ArgParser(description=__doc__.splitlines()[0])
     ap.add_argument("--track-dir", required=True)
     ap.add_argument("--project-dir", default=".")
+    ap.add_argument("--in-place", action="store_true")
     args = ap.parse_args()
+
+    # Before anything is made: a track headed for a worktree leaves this
+    # checkout exactly as it was (#467).
+    target = None if args.in_place else worktree_target(args.track_dir, args.project_dir)
+    if target:
+        code, message = target
+        print(message, file=sys.stderr if code == 2 else sys.stdout)
+        return code
 
     # Before the new track's directory exists: what an earlier cai kept under
     # .claude/ moves first, and .cai/ gets the .gitignore that keeps it out of git.

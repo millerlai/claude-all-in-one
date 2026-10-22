@@ -324,3 +324,67 @@ def test_main_stops_when_cai_cannot_be_made(tmp_path, monkeypatch, capsys):
                                       "--project-dir", str(project)])
     assert track_start.main() == 2
     assert capsys.readouterr().err.startswith("track_start: could not make ")
+
+
+# --- #467: a new track on main goes into a worktree ------------------------
+
+def run_main(monkeypatch, repo, feature, *extra):
+    monkeypatch.setattr(sys, "argv", ["track_start.py", "--track-dir",
+                                      str(repo / ".cai" / "track" / feature),
+                                      "--project-dir", str(repo), *extra])
+    return track_start.main()
+
+
+def test_on_main_prints_the_worktree_to_enter_and_creates_nothing(tmp_path, monkeypatch, capsys):
+    repo = init_repo(tmp_path / "repo")
+    before = sorted(os.listdir(repo))
+    assert run_main(monkeypatch, repo, "feat-w") == 3
+    assert capsys.readouterr().out == "enter-worktree: name feat-w\n"
+    assert sorted(os.listdir(repo)) == before
+    assert git(repo, "branch", "--show-current")[0] == "main"
+    assert git(repo, "branch", "--list", "track/*")[0] == ""
+
+
+def test_an_existing_worktree_of_that_name_is_entered_by_path(tmp_path, monkeypatch, capsys):
+    repo = init_repo(tmp_path / "repo")
+    existing = repo / ".claude" / "worktrees" / "feat-w"
+    git(repo, "worktree", "add", "-q", "-b", "worktree-feat-w", str(existing))
+    assert run_main(monkeypatch, repo, "feat-w") == 3
+    assert capsys.readouterr().out == "enter-worktree: path %s\n" % existing
+
+
+@pytest.mark.parametrize("feature", ["bad name", "a" * 65, "é-feature"])
+def test_a_name_enter_worktree_refuses_stops_and_names_the_way_out(tmp_path, monkeypatch, capsys,
+                                                                   feature):
+    repo = init_repo(tmp_path / "repo")
+    assert run_main(monkeypatch, repo, feature) == 2
+    err = capsys.readouterr().err
+    assert "cannot name a worktree" in err and "--here" in err
+    assert not (repo / ".cai").exists()
+
+
+def test_in_place_keeps_the_old_branch_in_this_checkout(tmp_path, monkeypatch, capsys):
+    repo = init_repo(tmp_path / "repo")
+    assert run_main(monkeypatch, repo, "feat-i", "--in-place") == 0
+    assert git(repo, "branch", "--show-current")[0] == "track/feat-i"
+    assert "created and switched to track/feat-i" in capsys.readouterr().out
+
+
+def test_inside_the_worktree_the_track_starts_where_it_is(tmp_path, monkeypatch, capsys):
+    repo = init_repo(tmp_path / "repo")
+    wt = repo / ".claude" / "worktrees" / "feat-w"
+    git(repo, "worktree", "add", "-q", "-b", "worktree-feat-w", str(wt))
+    assert run_main(monkeypatch, wt, "feat-w") == 0
+    assert "already on worktree-feat-w" in capsys.readouterr().out
+    assert os.path.isfile(wt / ".cai" / "track" / "feat-w" / preflight.UNTRACKED_BASELINE_NAME)
+    assert not (repo / ".cai" / "track").exists()
+
+
+def test_off_main_and_outside_git_nothing_changes(tmp_path, monkeypatch, capsys):
+    repo = init_repo(tmp_path / "repo")
+    git(repo, "switch", "-q", "-c", "topic")
+    assert run_main(monkeypatch, repo, "feat-o") == 0
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert run_main(monkeypatch, plain, "feat-p") == 0
+    assert "enter-worktree" not in capsys.readouterr().out
