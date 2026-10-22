@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.59.0 — 2026-10-22
+
+This release lets Claude Code tracks run side by side in their own worktrees, preserves their archives in the main checkout, lists tracks across worktrees, and warns when tracks change the same files.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.58.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 1.58.0 to 1.59.0. Re-running `/cai:setup` is not needed: nothing it installs changed.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`. Re-running `$setup` is not needed.
+- An in-progress track stays in its current checkout and keeps its saved state and ledger. New tracks started on `main` or `master` use their own worktree in Claude Code; Codex keeps starting in the current checkout because it has no `EnterWorktree` tool. (#472)
+
+### Tracks across worktrees
+
+- In Claude Code, `/cai:track <feature>` on `main` or `master` now enters `.claude/worktrees/<feature>/` on branch `worktree-<feature>`, so separate sessions can run separate tracks without switching each other's branch. An existing worktree with that name is entered again. Use `/cai:track <feature> --here` to keep the track in the current checkout. A build inside a linked worktree runs its units sequentially. (#472)
+- `done` and `cancel` in a linked worktree copy the whole track archive into the main checkout's `.cai/track/done/` and add glossary terms it lacks before the worktree is removed. A taken archive name gets a numeric suffix; a conflicting glossary definition keeps the main checkout's wording and is reported. If the copy fails, keep the worktree until it succeeds. (#473)
+- `/cai:track status --all` (Codex: `$track status --all`) lists every worktree's branch, active track, next stage and unanswered-question count. A broken track is marked in its own row while the rest of the table remains available; plain `status` is unchanged. (#474)
+- Before build and ship, a track now warns when another worktree's active track has changed the same files, including uncommitted and untracked files. The warning lists up to ten shared files and does not block the stage; if the check cannot run, it says so. (#475)
+
+### Timing and codemap hooks
+
+- Claude Code's stage timing now follows the session into its worktree instead of looking only in the main checkout. The timing and codemap hook launchers also recognize a timing run or index under `.claude/worktrees/`, so those hooks run when their files exist only in that worktree. (#471)
+
 ## v1.58.0 — 2026-10-22
 
 This release moves everything cai writes into your project out of `.claude/` and into a self-ignoring `.cai/`, lets `/cai:models` set each tier's reasoning effort, hands the codemap index to cai's read-side agents outside a track, and stops offering open-item fixes that cannot change anything.
