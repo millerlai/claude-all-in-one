@@ -138,3 +138,17 @@ def test_write_failure_exits_5(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(rec.record_test_command, "write_config", boom)
     assert rec.main(["--project-dir", str(tmp_path), "--ready", READY, "--", "x"]) == 5
     assert "nothing changed" in capsys.readouterr().err
+
+
+def test_main_moves_an_old_cai_json_first_and_keeps_its_keys(tmp_path, capsys):
+    old = tmp_path / ".claude" / "cai.json"
+    old.parent.mkdir()
+    old.write_text(json.dumps({"ticket": {"enabled": True, "backend": "github"}}),
+                   encoding="utf-8")
+    assert rec.main(["--project-dir", str(tmp_path), "--ready", READY, "--", "npm", "start"]) == 0
+    assert ("record_start_command: moved .claude/cai.json to .cai/cai.json"
+            in capsys.readouterr().err.splitlines())
+    data = load(tmp_path)
+    assert data["ticket"] == {"enabled": True, "backend": "github"}
+    assert data["run"]["start"] == ["npm", "start"]
+    assert not old.exists()

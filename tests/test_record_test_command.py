@@ -146,3 +146,17 @@ def test_script_runs_from_the_command_line(tmp_path):
                           capture_output=True)
     assert proc.returncode == 0
     assert "make test" in proc.stdout.decode("utf-8")
+
+
+def test_main_moves_an_old_cai_json_first_and_keeps_its_keys(tmp_path, capsys):
+    old = tmp_path / ".claude" / "cai.json"
+    old.parent.mkdir()
+    old.write_text(json.dumps({"ticket": {"enabled": True, "backend": "github"}}),
+                   encoding="utf-8")
+    assert rec.main(["--project-dir", str(tmp_path), "make test"]) == 0
+    assert ("record_test_command: moved .claude/cai.json to .cai/cai.json"
+            in capsys.readouterr().err.splitlines())
+    data = json.loads(cfg(tmp_path).read_text(encoding="utf-8"))
+    assert data == {"ticket": {"enabled": True, "backend": "github"},
+                    "test": {"commands": ["make test"]}}
+    assert (tmp_path / ".cai" / ".gitignore").read_text(encoding="ascii") == "*\n"
