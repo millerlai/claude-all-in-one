@@ -12,9 +12,16 @@ REM the code as it would without an index. With one, it runs codemap_hook.py
 REM through the interpreter run-guard.cmd already recorded (read only; it never
 REM probes and never writes). No record, a bad record or a missing interpreter
 REM all mean exit 0. Always exit 0: stdout is only ever the hook's JSON.
+REM
+REM An index one level into .claude\worktrees counts too: after EnterWorktree,
+REM CLAUDE_PROJECT_DIR still names the main checkout, while codemap_hook.py
+REM reads the index from the cwd (#466).
 
 if not defined CLAUDE_PROJECT_DIR exit /b 0
-if not exist "%CLAUDE_PROJECT_DIR%\.cai\codemap\state.json" exit /b 0
+if exist "%CLAUDE_PROJECT_DIR%\.cai\codemap\state.json" goto open
+for /d %%W in ("%CLAUDE_PROJECT_DIR%\.claude\worktrees\*") do if exist "%%~W\.cai\codemap\state.json" goto open
+exit /b 0
+:open
 set "SCRIPT=%~dp0..\scripts\codemap_hook.py"
 if not defined CLAUDE_CONFIG_DIR goto defaultroot
 set "REC=%CLAUDE_CONFIG_DIR%\cai\guard-launcher-cmd.txt"
@@ -45,7 +52,12 @@ exit /b 0
 CMDBLOCK
 
 [ -n "$CLAUDE_PROJECT_DIR" ] || exit 0
-[ -f "$CLAUDE_PROJECT_DIR/.cai/codemap/state.json" ] || exit 0
+OPEN=
+for F in "$CLAUDE_PROJECT_DIR"/.cai/codemap/state.json \
+         "$CLAUDE_PROJECT_DIR"/.claude/worktrees/*/.cai/codemap/state.json; do
+    [ -f "$F" ] && { OPEN=1; break; }
+done
+[ -n "$OPEN" ] || exit 0
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$DIR/../scripts/codemap_hook.py"

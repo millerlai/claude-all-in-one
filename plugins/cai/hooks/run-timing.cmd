@@ -11,9 +11,16 @@ REM timing_hook.py through the interpreter run-guard.cmd already recorded
 REM (read only; it never probes and never writes). No record, a bad record or a
 REM missing interpreter all mean exit 0. Always exit 0, print nothing: a
 REM PreToolUse hook's output is parsed as a decision.
+REM
+REM The marker is also looked for one level into .claude\worktrees: after
+REM EnterWorktree, CLAUDE_PROJECT_DIR still names the main checkout while the
+REM run is open in the worktree, which timing_hook.py finds from the cwd (#466).
 
 if not defined CLAUDE_PROJECT_DIR exit /b 0
-if not exist "%CLAUDE_PROJECT_DIR%\.cai\track\timing-open.*" exit /b 0
+if exist "%CLAUDE_PROJECT_DIR%\.cai\track\timing-open.*" goto open
+for /d %%W in ("%CLAUDE_PROJECT_DIR%\.claude\worktrees\*") do if exist "%%~W\.cai\track\timing-open.*" goto open
+exit /b 0
+:open
 set "SCRIPT=%~dp0..\scripts\timing_hook.py"
 if not defined CLAUDE_CONFIG_DIR goto defaultroot
 set "REC=%CLAUDE_CONFIG_DIR%\cai\guard-launcher-cmd.txt"
@@ -44,8 +51,12 @@ exit /b 0
 CMDBLOCK
 
 [ -n "$CLAUDE_PROJECT_DIR" ] || exit 0
-set -- "$CLAUDE_PROJECT_DIR"/.cai/track/timing-open.*
-[ -e "$1" ] || exit 0
+OPEN=
+for F in "$CLAUDE_PROJECT_DIR"/.cai/track/timing-open.* \
+         "$CLAUDE_PROJECT_DIR"/.claude/worktrees/*/.cai/track/timing-open.*; do
+    [ -e "$F" ] && { OPEN=1; break; }
+done
+[ -n "$OPEN" ] || exit 0
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$DIR/../scripts/timing_hook.py"
