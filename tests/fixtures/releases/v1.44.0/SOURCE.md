@@ -18,7 +18,7 @@ a copy; CONTRIBUTING.md, `### Upgrade-axis samples`, has the rules.
 | `track/export-csv/pending.md` | `scripts/pending.py start`, then `scripts/pending.py answer` |
 | `config/cai/model-choice.json` | `scripts/model_choice.py set` |
 
-The commands, run from the project root with `T=.cai/track/export-csv`:
+The commands, run from the project root with `T=.claude/track/export-csv`:
 
 ```
 ledger.py append --track-dir $T --stage intake --outcome passed --artifact $T/intake.md --note "Goal and AC1-AC2 confirmed with the user."
