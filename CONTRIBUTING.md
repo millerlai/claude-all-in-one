@@ -283,18 +283,20 @@ the same failure.
 
 After a release is published, add a directory for its tag in a follow-up pull
 request, so the newest release is always covered. From Git Bash at the repo
-root, with `PREV` the newest directory already there. Every release so far
-keeps its tracks under `.claude/track`, which is what the commands below and
-`install()` in `tests/test_upgrade_axis.py` assume; the first release that
-keeps them under `.cai/track` needs both changed to that path, and its status
-test no longer expects a move:
+root, with `PREV` the newest directory already there. Releases before v1.58.0
+kept their tracks under `.claude/track`; v1.58.0 and later keep them under
+`.cai/track`, which is what the commands below assume (a backfill of an older
+tag uses `.claude` in their `T`, `mkdir` and two `cp` lines, and leaves out
+`chore.effort=low`, which its `model_choice.py` cannot take).
+`track_home()` in `tests/test_upgrade_axis.py` tells the test where each
+sample goes and whether `track_state.py status` is expected to move it:
 
 ```bash
 TAG=vX.Y.Z; PREV=vA.B.C
-R="$PWD/tests/fixtures/releases"; T=.claude/track/export-csv
-WORK="$(mktemp -d)"; mkdir -p "$WORK/old" "$WORK/proj/.claude"
+R="$PWD/tests/fixtures/releases"; T=.cai/track/export-csv
+WORK="$(mktemp -d)"; mkdir -p "$WORK/old" "$WORK/proj/.cai"
 git archive "$TAG" plugins/cai | tar -x -C "$WORK/old"
-cp -r "$R/$PREV/track" "$WORK/proj/.claude/track"
+cp -r "$R/$PREV/track" "$WORK/proj/.cai/track"
 rm "$WORK/proj/$T/ledger.jsonl" "$WORK/proj/$T/pending.md"
 cp "$R/_inputs/intake.md" "$WORK/proj/$T/intake.md"
 old() { ( cd "$WORK/proj" && env -u CLAUDE_CODE_SESSION_ID \
@@ -310,9 +312,9 @@ old pending.py start --track-dir $T --stage design --round 1 \
     --report-file "$R/_inputs/report.md"
 old pending.py answer --track-dir $T --question 1 \
     --answer-file "$R/_inputs/answer-1.md"
-old model_choice.py set chore=sonnet think=fable
+old model_choice.py set chore=sonnet think=fable chore.effort=low
 rm "$WORK/proj/$T/intake.md"
-mkdir "$R/$TAG" && cp -r "$WORK/proj/.claude/track" "$WORK/config" "$R/$TAG/"
+mkdir "$R/$TAG" && cp -r "$WORK/proj/.cai/track" "$WORK/config" "$R/$TAG/"
 ```
 
 `old` runs the tag's scripts from a scratch project root with no session id
@@ -324,8 +326,12 @@ fails a sample that carries one.
 `PREV` carries them over. Before running anything, read
 `git diff $PREV $TAG -- plugins/cai/skills/track/SKILL.md`: if what the track
 skill says about either file changed, rewrite the copy by hand to the new
-wording. If an old script no longer takes these arguments, change the
-command, never its output.
+wording; a `PREV` from before v1.58.0 names `.claude/track/export-csv/intake.md`
+in `state.md`'s artifact cell, which becomes `.cai/track/export-csv/intake.md`
+in the copy only. If an old script no longer takes these arguments, change the
+command, never its output. Keep every bulk find-and-replace away from
+`tests/fixtures/releases/`: those files are what old releases wrote, and a
+path rename once rewrote twelve of them.
 
 Then write `$R/$TAG/SOURCE.md` from `PREV`'s — the tag, its commit
 (`git rev-parse "$TAG^{commit}"`), the date, the `SKILL.md` lines, and any

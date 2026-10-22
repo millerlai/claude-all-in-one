@@ -41,6 +41,14 @@ BACKFILLED = ("v1.44.0", "v1.49.0", "v1.50.0")
 # names passed to releases() below. The sample itself stays as it is.
 XFAIL = {}
 
+# The first release that keeps a track under .cai/track; every one before it
+# kept it under .claude/track, and the new cai moves such a track on first use.
+CAI_TRACK_SINCE = (1, 58, 0)
+
+# The efforts a sample's model-choice.json holds, by release. v1.58.0 is the
+# first that could save one; an older file has no `efforts` key.
+EFFORTS = {"v1.58.0": {"chore": "low"}}
+
 # A drive letter or a home directory: what a path from the machine that
 # generated a sample would start with.
 LOCAL_PATH = re.compile(rb"\b[A-Za-z]:[\\/]|/home/|/Users/")
@@ -51,13 +59,19 @@ def releases(reader):
             if (v, reader) in XFAIL else v for v in VERSIONS]
 
 
+def track_home(version):
+    """The directory under the project root where `version` kept its track."""
+    numbers = tuple(int(n) for n in version.lstrip("v").split("."))
+    return ".cai" if numbers >= CAI_TRACK_SINCE else ".claude"
+
+
 def install(version, tmp_path):
     """One release's sample, copied to where that release kept it: the track
-    under <project>/.claude/track, the model choice under a config root.
+    under <project>/<track_home>/track, the model choice under a config root.
     Returns the project root. Reading a copy is what keeps the sample itself
     from ever being written."""
     project = tmp_path / "project"
-    shutil.copytree(RELEASES / version / "track", project / ".claude" / "track")
+    shutil.copytree(RELEASES / version / "track", project / track_home(version) / "track")
     shutil.copytree(RELEASES / version / "config", tmp_path / "config")
     return project
 
@@ -78,15 +92,18 @@ def test_status_takes_an_old_track_to_its_next_stage(version, tmp_path):
 
     assert done.returncode == 0, done.stdout + done.stderr
     assert "next: design" in done.stdout.splitlines()
-    # Every release so far kept its tracks under .claude/; status moves them.
-    assert "track_state: moved .claude/track to .cai/track" in done.stderr.splitlines()
     assert (project / ".cai" / "track" / FEATURE / "state.md").is_file()
     assert not (project / ".claude" / "track").exists()
+    if track_home(version) == ".claude":
+        # An older release's track is moved by status itself.
+        assert "track_state: moved .claude/track to .cai/track" in done.stderr.splitlines()
+    else:
+        assert done.stderr == ""
 
 
 @pytest.mark.parametrize("version", releases("ledger"))
 def test_every_line_of_an_old_ledger_is_a_record(version, tmp_path):
-    track = install(version, tmp_path) / ".claude" / "track" / FEATURE
+    track = install(version, tmp_path) / track_home(version) / "track" / FEATURE
     lines = [ln for ln in (track / "ledger.jsonl").read_bytes().split(b"\n") if ln.strip()]
 
     records = ledger.records(str(track))
@@ -99,7 +116,7 @@ def test_every_line_of_an_old_ledger_is_a_record(version, tmp_path):
 
 @pytest.mark.parametrize("version", releases("pending"))
 def test_old_pending_questions_load_with_their_answers(version, tmp_path):
-    track = install(version, tmp_path) / ".claude" / "track" / FEATURE
+    track = install(version, tmp_path) / track_home(version) / "track" / FEATURE
 
     data = pending.load(str(track / "pending.md"))
 
@@ -119,7 +136,7 @@ def test_an_old_model_choice_loads_from_where_it_was_saved(version, tmp_path, mo
     choice, efforts = model_choice.load_choice(model_choice.choice_path(), roles)
 
     assert choice == {"chore": "sonnet", "think": "fable"}
-    assert efforts == {}
+    assert efforts == EFFORTS.get(version, {})
 
 
 @pytest.mark.parametrize("version", VERSIONS)
