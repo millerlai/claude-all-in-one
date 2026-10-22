@@ -25,6 +25,9 @@ Four layers, plus one underneath all of them.
   happens where `EnterWorktree` does not exist (Codex). A worktree is a fresh
   checkout: list ignored files it needs, such as `.env`, in a
   [`.worktreeinclude`](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees).
+  `/cai:track done` and `cancel` copy the archived track and any new glossary
+  terms back into the main checkout's `.cai/`, since removing a worktree
+  deletes the ignored files in it.
 - **The six stages.** `intake`, `discover`, `design`, `build`, `verify`,
   `ship`. Each stage's procedure is a reference file under
   `skills/track/references/stage-*.md`, read two ways: by the subagent the
