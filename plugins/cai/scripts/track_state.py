@@ -6,6 +6,7 @@ resuming it must answer from files alone -- this script is that answer. It
 never writes state.md; overwriting a row is the track's job, this only reads.
 
 Usage:  track_state.py status    [--track-root DIR]
+        track_state.py status --all            (one row per git worktree, #469)
         track_state.py resolve   [--track-root DIR]   (prints only the feature name)
         track_state.py left-open [--track-root DIR]   (prints the open items, then the reminders state.md marks "Left open:")
 Exit:   0 an active track exists, 2 no active track (or a state.md that
@@ -254,6 +255,90 @@ def status(track_root):
     return 0
 
 
+def worktrees(project_dir):
+    """[(path, branch, prunable)] from `git worktree list --porcelain`, the
+    main checkout first; None when git cannot list them."""
+    done = preflight.git(project_dir, "worktree", "list", "--porcelain")
+    if done is None or done.returncode != 0:
+        return None
+    out, entry = [], None
+    for line in done.stdout.splitlines() + [""]:
+        if line.startswith("worktree "):
+            entry = {"path": line[len("worktree "):], "branch": "-", "prunable": False}
+        elif entry is None:
+            continue
+        elif line.startswith("branch "):
+            entry["branch"] = line[len("branch "):].replace("refs/heads/", "", 1)
+        elif line == "detached":
+            entry["branch"] = "(detached HEAD)"
+        elif line == "bare":
+            entry["bare"] = True
+        elif line.startswith("prunable"):
+            entry["prunable"] = True
+        elif line == "":
+            if not entry.get("bare"):
+                out.append((entry["path"], entry["branch"], entry["prunable"]))
+            entry = None
+    return out
+
+
+def worktree_row(path, order):
+    """(track, next, pending) for one worktree's current track."""
+    track_root = os.path.join(path, DEFAULT_TRACK_ROOT)
+    feature = current_feature(track_root)
+    if not feature:
+        return "-", "-", "-"
+    track_dir = os.path.join(track_root, feature)
+    state = os.path.join(track_dir, "state.md")
+    if not os.path.isfile(state):
+        return feature, "(no state.md)", "-"
+    actual = table_stage_ids(state)
+    if len(actual) != len(order) or set(actual) != set(order):
+        return feature, "(state.md disagrees with stages.json)", "-"
+    found = next_unfinished(track_dir, order)
+    nxt = ("done" if found is None
+           else "%s (%s)" % (found[0], found[1]) if found[1] else found[0])
+    waiting = "-"
+    path_pending = os.path.join(track_dir, pending.FILE_NAME)
+    if os.path.isfile(path_pending):
+        try:
+            data = pending.load(path_pending)
+        except pending.PendingError:
+            waiting = "(unreadable %s)" % pending.FILE_NAME
+        else:
+            n = sum(1 for q in data["questions"] if q["status"] != "answered")
+            waiting = "%d question%s" % (n, "" if n == 1 else "s") if n else "-"
+    return feature, nxt, waiting
+
+
+def status_all(project_dir):
+    """Every worktree's current track in one table: what a session left in
+    the main checkout reads to see the tracks running in worktrees (#469).
+    Reads only. Outside git there are no worktrees to list, so it is the
+    ordinary `status`."""
+    found = worktrees(project_dir)
+    if not found:
+        return status(os.path.join(project_dir, DEFAULT_TRACK_ROOT))
+    order = stage_ids()
+    main_top = found[0][0]
+    rows = [("worktree", "branch", "track", "next", "pending")]
+    for path, branch, prunable in found:
+        try:
+            shown = os.path.relpath(path, main_top).replace(os.sep, "/")
+        except ValueError:  # another drive, on Windows
+            shown = path
+        if shown.startswith(".."):
+            shown = path
+        if prunable or not os.path.isdir(path):
+            rows.append((shown, branch, "-", "(directory gone; git worktree prune)", "-"))
+            continue
+        rows.append((shown, branch) + worktree_row(path, order))
+    widths = [max(len(r[i]) for r in rows) for i in range(4)]
+    for row in rows:
+        print("  ".join(cell.ljust(w) for cell, w in zip(row, widths)) + "  " + row[4])
+    return 0
+
+
 def resolve_cmd(track_root):
     feature, info = resolve(track_root)
     if feature is None:
@@ -323,7 +408,10 @@ def main():
     ap = ArgParser(description=__doc__.splitlines()[0])
     ap.add_argument("command", choices=["status", "resolve", "left-open"])
     ap.add_argument("--track-root", default=DEFAULT_TRACK_ROOT)
+    ap.add_argument("--all", action="store_true")
     args = ap.parse_args()
+    if args.all and args.command != "status":
+        ap.error("--all goes with status only")
 
     # Resuming is where a track an earlier cai kept under .claude/ is first
     # read again. Only with the default root does this know the project root;
@@ -332,6 +420,8 @@ def main():
         for line in cai_paths.migrate(os.getcwd()):
             print("track_state: %s" % line, file=sys.stderr)
 
+    if args.command == "status" and args.all:
+        return status_all(os.getcwd())
     if args.command == "status":
         return status(args.track_root)
     if args.command == "left-open":
