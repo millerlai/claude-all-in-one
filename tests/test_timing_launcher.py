@@ -158,4 +158,5 @@ def test_hooks_json_registers_exactly_the_five_timing_entries():
         ("PreToolUse", "Write|Edit|NotebookEdit",
          '"${CLAUDE_PLUGIN_ROOT}/hooks/run-guard.cmd" write'),
         ("SessionStart", None, '"${CLAUDE_PLUGIN_ROOT}/hooks/run-models.cmd"'),
+        ("SubagentStart", None, '"${CLAUDE_PLUGIN_ROOT}/hooks/run-codemap.cmd"'),
     ], key=str)

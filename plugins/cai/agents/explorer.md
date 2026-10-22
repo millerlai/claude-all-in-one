@@ -17,7 +17,8 @@ provide it; this agent has no shell tool.
 - Do NOT propose fixes or refactors.
 - If the target is ambiguous, list all candidates ranked by likelihood.
 - Keep output terse: bullet list, no prose.
-- When the brief carries a line starting `codemap: fresh`, start from
+- When the brief, or the context you start with, carries a line starting
+  `codemap: fresh`, start from
   `repo-map.md` in the directory the line names after `index`, and the shard
   files it names, each read by its exact path, or Grep `symbols.jsonl` in that
   directory with that one file as the path — a Grep over the directory finds
