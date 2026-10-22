@@ -119,9 +119,10 @@ person types a word back into:
   verify's: `ship`'s Step 1 stops on the tracked ones (`clean_tree`) and
   the person commits.
 - **The parallel lane itself.** Asked only when the `Alongside` column names a
-  pair of units whose sides of the ownership map do not intersect, and the
-  commit answer is yes; otherwise — no such pair, or a commit answer that is
-  not yes — there is no menu, and the four lines say "sequential" in one
+  pair of units whose sides of the ownership map do not intersect, the tree
+  is not a linked worktree (Step 4's condition 4), and the commit answer is
+  yes; otherwise — no such pair, a commit answer that is not yes,
+  or a linked worktree — there is no menu, and the four lines say "sequential" in one
   line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
   four small units it is not worth it. Recommend, let the user decide,
   default to sequential.
@@ -323,13 +324,18 @@ unit that does all three:
 
 ## Step 4 — Two units at once
 
-Only when all three hold, otherwise sequential, silently:
+Only when all four hold, otherwise sequential, silently:
 
 1. The schedule's `Alongside` column names the other unit.
 2. Their two sides of the ownership map do not intersect — checked by
    reading both sets; the map wins over `Alongside` when they disagree.
 3. The commit answer is yes: Gate 1's, from the `commit_answer` line, under a
    track; Step 0.5's yes standing alone.
+4. The tree is not a linked worktree: `git rev-parse --git-dir` and
+   `git rev-parse --git-common-dir`, run as two plain commands, print the
+   same path. A track started on `main` runs in a linked worktree, and
+   Claude Code refuses an isolated session's writes into any other worktree
+   (observed 2026-10-22, #467), so a lane there could not be built in.
 
 Two lanes, never three — `model-selection.md` caps parallel work at 2–4 and
 prefers sequential; two is the conservative end of that range.
