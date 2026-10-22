@@ -1,5 +1,39 @@
 # Changelog
 
+## v1.58.0 — 2026-10-22
+
+This release moves everything cai writes into your project out of `.claude/` and into a self-ignoring `.cai/`, lets `/cai:models` set each tier's reasoning effort, hands the codemap index to cai's read-side agents outside a track, and stops offering open-item fixes that cannot change anything.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.57.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 1.57.0 to 1.58.0. Re-running `/cai:setup` is not needed: nothing it installs changed.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`. Re-running `$setup` is not needed.
+- **Run `/cai:track status` once right after updating.** An in-progress track is not lost, and its state and ledger record the same things, but its folder moves from `.claude/track/` to `.cai/track/` only the first time a `/cai:track` command runs. Until then cai reads only `.cai/`: a `cai.json` (your test command, ticket settings), glossary or review policy still under `.claude/` is not used, and Agent Viewer and the stage-timing hook do not see the track. If no track is active, the command says so after it has moved everything. Anything git tracks under `.claude/` is copied instead of moved and the original is left for you to remove. (#464)
+
+### Where cai keeps its files
+
+- Everything cai writes into your project now lives under `.cai/`: the tracks (`.cai/track/`), `cai.json`, the glossary `cai-context.md` and the review policy `cai-review.md`. `.cai/` carries its own `.gitignore` of `*`, so none of it reaches git unless you add it yourself with `git add -f`. `intake` no longer suggests adding a line to your own `.gitignore`. (#464)
+- The first use after updating moves what an earlier cai left under `.claude/` into `.cai/`, one line per item. It never deletes a file git tracks: it copies it and says so. Your `.gitignore` entries for `.claude/track/` are harmless and can stay. (#464)
+- `cai-review.md` is a file you write by hand. Under `.cai/` it is no longer shared through git; to keep sharing it, `git add -f .cai/cai-review.md`. (#464)
+- Build no longer commits the glossary, so two tracks adding terms at once no longer conflict on it. That conflict is what sent `ship` back to merge `main` and run `verify` again, over and over; a real conflict in code still does. A new term also goes beside the entry it is most closely related to, or in name order when none is, instead of always after the last entry. (#464)
+- The glossary is now one file per checkout, not shared through git: each clone and each worktree builds its own. To share one with your team, `git add -f .cai/cai-context.md` and commit it yourself. (#464)
+- If you keep `.claude/cai.json`, `cai-context.md` or `cai-review.md` in git, they are copied to `.cai/`, and removing the originals with `git rm --cached` is yours to do.
+
+### Models
+
+- `/cai:models <tier> <model> [<effort>]` and `/cai:models <tier> effort <effort>` (`low`, `medium`, `high`, `xhigh`, `max`, or `default`) set a tier's reasoning effort, as Codex's `$models` already did. `reset` restores model and effort together, and the no-argument menu now asks the three models and then the three efforts. Restart the session to apply a change. (#462)
+- The effort is saved under a new optional `efforts` key in `model-choice.json`, absent when you never set one, so an existing file is read as before. Each tier's components ship different efforts, so the first effort change keeps a snapshot of what they shipped in the installed plugin, and `default` and `reset` restore from it. (#462)
+
+### Subagents and codemap
+
+- When you have built a codemap index with `/cai:codemap build` and it is fresh, `cai:explorer`, `cai:architect` and `cai:designer` now start with its state line even when you dispatch them yourself, outside a track. It is added by a hook that only reads the index's state: after you edit a file the index is stale and nothing is added until you run `/cai:codemap update`. Projects with no index see no change. Claude Code only. Checked on Claude Code 2.1.304; on an older one the line may not arrive, and the agent reads the code as before. (#463)
+
+### Open items
+
+- The open-item menu no longer offers a fix that could not change anything: a fix choice appears only for a severity that has a fixable item, and when fixable and unfixable items are mixed, a fix choice fixes the fixable ones and queues the others as notes on the pull request. (#461)
+
 ## v1.57.0 — 2026-10-14
 
 This release aligns the common status-line fields in Codex and Claude Code and adds context capacity and input/output token counts to Claude Code's status line.
