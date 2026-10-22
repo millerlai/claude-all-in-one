@@ -172,6 +172,24 @@ def test_launcher_with_an_index_passes_stdin_and_stdout_through(layout):
     assert layout["sentinel"].read_text() == '{"agent_type": "cai:explorer"}'
 
 
+def test_launcher_with_an_index_only_in_a_worktree_runs_the_hook(layout):
+    """#466: CLAUDE_PROJECT_DIR stays on the main checkout after EnterWorktree;
+    codemap_hook.py reads the index from the input's cwd, so the launcher must
+    not stop at the main checkout having none."""
+    index = layout["project"] / ".claude" / "worktrees" / "wt" / ".cai" / "codemap"
+    index.mkdir(parents=True)
+    (index / "state.json").write_text("{}")
+    result = _launch(layout, stdin="x")
+    assert result.returncode == 0 and result.stdout.strip() == "from-stub"
+    assert layout["sentinel"].read_text() == "x"
+
+
+def test_launcher_with_a_worktree_but_no_index_exits_before_any_interpreter(layout):
+    (layout["project"] / ".claude" / "worktrees" / "wt" / ".cai").mkdir(parents=True)
+    result = _launch(layout)
+    assert result.returncode == 0 and result.stdout == "" and not layout["sentinel"].exists()
+
+
 def test_launcher_file_is_ascii_lf_without_bom():
     raw = open(os.path.join(HOOKS, "run-codemap.cmd"), "rb").read()
     assert all(b < 128 for b in raw) and b"\r" not in raw and not raw.startswith(b"\xef\xbb\xbf")

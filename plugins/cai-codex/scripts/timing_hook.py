@@ -351,10 +351,16 @@ def main(argv=None):
                 if project_dir:
                     observe(payload, data_dir, project_dir, now_ms, platform="codex")
             return 0
-        data_dir, project_dir = os.environ.get("CLAUDE_PLUGIN_DATA"), os.environ.get("CLAUDE_PROJECT_DIR")
-        if data_dir and project_dir:
+        data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+        if data_dir:
             # Bytes, so json detects UTF-8 itself; text-mode stdin uses the locale code page.
-            observe(json.loads(sys.stdin.buffer.read()), data_dir, project_dir, now_ms)
+            payload = json.loads(sys.stdin.buffer.read())
+            # The cwd first: after EnterWorktree CLAUDE_PROJECT_DIR still names
+            # the main checkout, while the run is open in the worktree (#466).
+            project_dir = ((_project_from(payload.get("cwd")) if isinstance(payload, dict) else None)
+                           or os.environ.get("CLAUDE_PROJECT_DIR"))
+            if project_dir:
+                observe(payload, data_dir, project_dir, now_ms)
     except Exception as exc:  # never break the tool call the hook is attached to
         print("timing_hook: " + type(exc).__name__, file=sys.stderr)
     return 0

@@ -76,6 +76,26 @@ def test_marker_in_a_different_project_does_not_trigger(layout):
     assert not layout["sentinel"].exists()
 
 
+def test_open_marker_in_a_worktree_under_the_project_runs_the_hook(layout):
+    """#466: a session that entered .claude/worktrees/<name> keeps
+    CLAUDE_PROJECT_DIR on the main checkout, so the marker is looked for there too."""
+    record(layout)
+    track = layout["project"] / ".claude" / "worktrees" / "wt" / ".cai" / "track"
+    track.mkdir(parents=True)
+    (track / "timing-open.abc").write_text("")
+    result = call(layout, stdin="x")
+    assert result.returncode == 0 and result.stdout == "" and result.stderr == ""
+    assert layout["sentinel"].read_text() == "x"
+
+
+def test_a_worktree_without_an_open_marker_does_not_trigger(layout):
+    record(layout)
+    (layout["project"] / ".claude" / "worktrees" / "wt" / ".cai" / "track").mkdir(parents=True)
+    (layout["project"] / ".claude" / "worktrees" / "empty").mkdir()
+    assert call(layout).returncode == 0
+    assert not layout["sentinel"].exists()
+
+
 def test_a_marker_that_is_a_directory_name_without_prefix_does_not_trigger(layout):
     record(layout)
     (layout["project"] / ".cai" / "track" / "feature").mkdir()

@@ -454,6 +454,49 @@ def test_main_end_to_end_through_a_real_process(env):
     assert len(work(journal(path), "agentA")) == 2
 
 
+def test_main_follows_the_session_into_a_worktree(env):
+    """#466: after EnterWorktree, CLAUDE_PROJECT_DIR still names the main
+    checkout; the run is open in the worktree's own .cai/track, which the hook
+    finds from the input's cwd."""
+    worktree = os.path.join(env.project, ".claude", "worktrees", "wt")
+    path = os.path.join(worktree, ".cai", "track", "feature")
+    timing.begin_run(path, "build", "run-1", "claude")
+    full = dict(os.environ, CLAUDE_PLUGIN_DATA=env.data, CLAUDE_PROJECT_DIR=env.project)
+    steps = [
+        {"hook_event_name": "PostToolUse", "tool_name": "Agent", "session_id": "s",
+         "tool_input": {"prompt": marker("run-1")}, "tool_response": {"agentId": "agentA"}},
+        {"hook_event_name": "SubagentStart", "agent_id": "agentA", "session_id": "s"},
+        {"hook_event_name": "PreToolUse", "agent_id": "agentA", "tool_use_id": "t1", "session_id": "s"},
+        {"hook_event_name": "PostToolBatch", "agent_id": "agentA", "session_id": "s",
+         "tool_calls": [{"tool_use_id": "t1"}]},
+        {"hook_event_name": "SubagentStop", "agent_id": "agentA", "session_id": "s"},
+    ]
+    for step in steps:
+        result = hook(full, json.dumps(dict(step, cwd=os.path.join(worktree, "src"))))
+        assert result.returncode == 0 and result.stdout == "" and result.stderr == ""
+        time.sleep(0.01)
+    assert len(work(journal(path), "agentA")) == 2
+
+
+def test_main_without_a_cai_track_above_cwd_falls_back_to_the_project_dir(env, tmp_path):
+    path = env.track()
+    full = dict(os.environ, CLAUDE_PLUGIN_DATA=env.data, CLAUDE_PROJECT_DIR=env.project)
+    elsewhere = str(tmp_path / "elsewhere")
+    steps = [
+        {"hook_event_name": "PostToolUse", "tool_name": "Agent", "session_id": "s",
+         "tool_input": {"prompt": marker("run-1")}, "tool_response": {"agentId": "agentA"}},
+        {"hook_event_name": "SubagentStart", "agent_id": "agentA", "session_id": "s"},
+        {"hook_event_name": "PreToolUse", "agent_id": "agentA", "tool_use_id": "t1", "session_id": "s"},
+        {"hook_event_name": "PostToolBatch", "agent_id": "agentA", "session_id": "s",
+         "tool_calls": [{"tool_use_id": "t1"}]},
+        {"hook_event_name": "SubagentStop", "agent_id": "agentA", "session_id": "s"},
+    ]
+    for step in steps:
+        assert hook(full, json.dumps(dict(step, cwd=elsewhere))).returncode == 0
+        time.sleep(0.01)
+    assert len(work(journal(path), "agentA")) == 2
+
+
 def test_main_reads_stdin_as_utf8_whatever_the_locale_says(env):
     # Claude Code writes UTF-8; on a cp950 machine text-mode stdin would fail to
     # decode a Chinese tool result and the swallowed error would lose the row.
