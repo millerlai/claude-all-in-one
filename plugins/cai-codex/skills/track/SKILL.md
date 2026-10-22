@@ -150,11 +150,11 @@ number, or `0` for no cap) and deleting `ledger.jsonl`; the
 ## `$track done`
 
 First run `<cai> track_state left-open` and relay its output verbatim; once the refusal below has passed, ask the open items still undecided, fix pending or filing their one menu, as `references/approval-gates.md`'s `## Open items before ship` says for `done`; then follow `<cai-root>/skills/track/references/ticket-mirror.md`'s `$track done` section, which says what runs after the move too — all skipped when the refusal below fires, when a pick fixes an item or is Stop, and while a menu is unanswered.
-Then move `.cai/track/<feature>/` to `.cai/track/done/<feature>/` and delete `.cai/track/current`. Refuse if any stage's row is empty
+Then move `.cai/track/<feature>/` to `.cai/track/done/<feature>/`, delete `.cai/track/current`, and run `<cai> track_archive --track-dir .cai/track/done/<feature> --project-dir <project root>`, relaying what it prints: in a linked worktree it copies that archive and the glossary's new terms into the main checkout, since removing the worktree deletes its ignored `.cai/`; exit 2 means they were not copied, so say the worktree must be kept until they are. Refuse if any stage's row is empty
 or `in-progress` — report which are which.
-Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `$git-sweep`, which shows its table before deleting anything — run none of this yourself.
+Once the PR has merged, tell the person to switch to the base branch, `git pull`, then run `$git-sweep`, which shows its table before deleting anything — run none of this yourself. In a linked worktree, switching is leaving it instead: asking to exit the worktree, or ending the session, offers to keep or remove it.
 
 ## `$track cancel --reason "<why>"`
 
-For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.cai/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/` and delete `current` as `done` does, whatever the rows say.
+For a track that will not finish, which `done` refuses. `--reason` is required — refuse the subcommand without it. Write `.cai/track/<feature>/cancelled.md` holding today's date and the reason, then move into `done/`, delete `current` and run `track_archive.py` as `done` does, whatever the rows say.
 Run none of `done`'s other steps: say in one line that the branch, any PR and whatever `references/ticket-mirror.md` mirrored stay as they are, that nothing queued is posted, and how many are undecided (`<cai> open_items undecided --track-dir .cai/track/<feature>`, run before the move) — what happens to them is the person's call.
