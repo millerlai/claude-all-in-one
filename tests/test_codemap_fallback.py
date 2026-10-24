@@ -78,7 +78,7 @@ def test_every_read_side_text_carries_the_fallback_sentence(rel):
 
 def test_brief_says_no_line_when_the_index_is_absent_or_a_command_fails():
     text = _folded("skills/track/references/codemap-brief.md")
-    assert "does not exist, stop here" in text
+    assert "Without that line, or on any exit other than 0, stop here: add no line" in text
     assert "Any exit other than 0: add no line" in text
     assert "Anything else: add no line" in text
     assert "Never run `build` here" in text

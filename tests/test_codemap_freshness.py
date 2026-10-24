@@ -93,6 +93,39 @@ def test_cli_status_on_absent_prints_the_build_hint(tmp_path, capsys):
         "codemap: absent", "run /cai:codemap build to create one"]
 
 
+def _main_and_worktree(tmp_path, build_main):
+    main, wt = tmp_path / "main", tmp_path / "wt"
+    main.mkdir()
+    make_repo(main, FILES)
+    if build_main:
+        idx.build(str(main))
+    git(main, "worktree", "add", "-q", str(wt), "-b", "feature")
+    return str(main), str(wt)
+
+
+def test_cli_status_in_a_worktree_says_when_the_main_checkout_has_an_index(tmp_path, capsys):
+    main, wt = _main_and_worktree(tmp_path, build_main=True)
+    assert codemap_cli.main(["status", "--project-dir", wt]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "codemap: absent", "run /cai:codemap build to create one", codemap_cli.MAIN_HAS_INDEX]
+    assert codemap_cli.main(["status", "--project-dir", main]) == 0
+    assert capsys.readouterr().out.startswith("codemap: fresh")
+
+
+def test_cli_status_in_a_worktree_is_silent_when_the_main_checkout_has_none(tmp_path, capsys):
+    _, wt = _main_and_worktree(tmp_path, build_main=False)
+    assert codemap_cli.main(["status", "--project-dir", wt]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "codemap: absent", "run /cai:codemap build to create one"]
+
+
+def test_cli_status_in_a_worktree_with_its_own_index_does_not_mention_the_main_one(tmp_path, capsys):
+    _, wt = _main_and_worktree(tmp_path, build_main=True)
+    idx.build(wt)
+    assert codemap_cli.main(["status", "--project-dir", wt]) == 0
+    assert codemap_cli.MAIN_HAS_INDEX not in capsys.readouterr().out
+
+
 def test_empty_repository_builds_and_is_fresh(tmp_path):
     git(tmp_path, "init", "-q")
     res = idx.build(str(tmp_path))
