@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.60.0 — 2026-10-24
+
+This release tells you when a track's new worktree has no codemap index although the main checkout does.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.59.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 1.59.0 to 1.60.0. Re-running `/cai:setup` is not needed: nothing it installs changed.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`. Re-running `$setup` is not needed.
+- An in-progress track keeps its saved state and ledger; the formats did not change. A track that has already passed `intake` never shows the new sentence.
+
+### Codemap in a track's worktree
+
+- `.cai/` is ignored by git, so a worktree that `/cai:track` opens never receives the codemap index you built in the main checkout, and the track used to run without it and say nothing. Now, before `intake`'s first dispatch in such a worktree, the track tells you once that the worktree has no index while the main checkout does, and that `/cai:codemap build` creates one. It is one sentence: it asks nothing and never stops the stage. (#476)
+- `/cai:codemap status` in that worktree prints one more line after its usual two, `the main checkout has an index; this worktree has none`, including when the file listing times out. (#476)
+- A project that never built an index and the main checkout itself run nothing new. A worktree whose main checkout has no index, one made from a bare repository, or one that has its own index sees no new sentence; before `intake` a worktree without its own index runs `status` once to find out.
+
 ## v1.59.0 — 2026-10-22
 
 This release lets Claude Code tracks run side by side in their own worktrees, preserves their archives in the main checkout, lists tracks across worktrees, and warns when tracks change the same files.
