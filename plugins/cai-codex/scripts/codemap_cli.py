@@ -25,6 +25,8 @@ import codemap_store  # noqa: E402
 import preflight  # noqa: E402
 
 ABSENT_HINT = "run $codemap build to create one"
+# `.cai/` is ignored, so a new worktree never receives the main checkout's index.
+MAIN_HAS_INDEX = "the main checkout has an index; this worktree has none"
 
 
 def _top(project_dir):
@@ -33,6 +35,24 @@ def _top(project_dir):
     if done is None or done.returncode != 0 or not done.stdout.strip():
         return start
     return os.path.normpath(done.stdout.strip())
+
+
+def _main_checkout_has_index(top):
+    """True when `top` is a linked worktree and its main checkout holds an index.
+    The main checkout is found as track_archive.main_checkout does; it is not
+    imported because this script may import only the codemap siblings and
+    preflight (test_codemap_imports.py)."""
+    found = []
+    for flag in ("--git-dir", "--git-common-dir"):
+        done = preflight.git(top, "rev-parse", flag)
+        if done is None or done.returncode != 0:
+            return False
+        found.append(os.path.realpath(os.path.join(top, done.stdout.strip())))
+    git_dir, common = found
+    if os.path.normcase(git_dir) == os.path.normcase(common) or os.path.basename(common) != ".git":
+        return False
+    state = os.path.join(codemap_store.index_dir(os.path.dirname(common)), codemap_store.STATE_NAME)
+    return os.path.isfile(state)
 
 
 def _shown(text):
@@ -115,7 +135,13 @@ def main(argv: Optional[list] = None) -> int:
     top = _top(args.project_dir)
     try:
         if args.command == "status":
-            _print_status(codemap_index.status(top))
+            status = codemap_index.status(top)
+            _print_status(status)
+            # Not keyed on `absent`: a tree listing that times out says
+            # `unsupported`, and the worktree still has no index of its own.
+            own = os.path.join(codemap_store.index_dir(top), codemap_store.STATE_NAME)
+            if not os.path.isfile(own) and _main_checkout_has_index(top):
+                print(MAIN_HAS_INDEX)
             return 0
         if args.command == "query":
             return _query(top, " ".join(args.text))

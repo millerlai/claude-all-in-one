@@ -93,6 +93,63 @@ def test_cli_status_on_absent_prints_the_build_hint(tmp_path, capsys):
         "codemap: absent", "run /cai:codemap build to create one"]
 
 
+def _main_and_worktree(tmp_path, build_main):
+    main, wt = tmp_path / "main", tmp_path / "wt"
+    main.mkdir()
+    make_repo(main, FILES)
+    if build_main:
+        idx.build(str(main))
+    git(main, "worktree", "add", "-q", str(wt), "-b", "feature")
+    return str(main), str(wt)
+
+
+def test_cli_status_in_a_worktree_says_when_the_main_checkout_has_an_index(tmp_path, capsys):
+    main, wt = _main_and_worktree(tmp_path, build_main=True)
+    assert codemap_cli.main(["status", "--project-dir", wt]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "codemap: absent", "run /cai:codemap build to create one", codemap_cli.MAIN_HAS_INDEX]
+    assert codemap_cli.main(["status", "--project-dir", main]) == 0
+    assert capsys.readouterr().out.startswith("codemap: fresh")
+
+
+def test_cli_status_in_a_worktree_is_silent_when_the_main_checkout_has_none(tmp_path, capsys):
+    _, wt = _main_and_worktree(tmp_path, build_main=False)
+    assert codemap_cli.main(["status", "--project-dir", wt]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "codemap: absent", "run /cai:codemap build to create one"]
+
+
+def test_cli_status_in_a_worktree_with_its_own_index_does_not_mention_the_main_one(tmp_path, capsys):
+    _, wt = _main_and_worktree(tmp_path, build_main=True)
+    idx.build(wt)
+    assert codemap_cli.main(["status", "--project-dir", wt]) == 0
+    assert codemap_cli.MAIN_HAS_INDEX not in capsys.readouterr().out
+
+
+def test_cli_status_in_a_worktree_still_says_so_when_the_tree_listing_fails(tmp_path, capsys, monkeypatch):
+    # A large repository's listing can time out; the worktree still has no index.
+    _, wt = _main_and_worktree(tmp_path, build_main=True)
+    monkeypatch.setattr(codemap_cli.codemap_index, "status",
+                        lambda top: idx.Status("unsupported", "git did not answer", []))
+    assert codemap_cli.main(["status", "--project-dir", wt]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "codemap: unsupported (git did not answer)", codemap_cli.MAIN_HAS_INDEX]
+
+
+def test_cli_status_in_a_bare_repos_worktree_says_nothing_about_a_main_index(tmp_path, capsys):
+    # A bare repository has no main checkout to hold an index.
+    src = tmp_path / "src"
+    src.mkdir()
+    make_repo(src, FILES)
+    bare = tmp_path / "repo.git"
+    git(tmp_path, "clone", "-q", "--bare", str(src), str(bare))
+    wt = tmp_path / "wt"
+    git(bare, "worktree", "add", "-q", str(wt), "-b", "feature")
+    assert codemap_cli.main(["status", "--project-dir", str(wt)]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "codemap: absent", "run /cai:codemap build to create one"]
+
+
 def test_empty_repository_builds_and_is_fresh(tmp_path):
     git(tmp_path, "init", "-q")
     res = idx.build(str(tmp_path))
