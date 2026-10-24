@@ -137,7 +137,10 @@ def main(argv: Optional[list] = None) -> int:
         if args.command == "status":
             status = codemap_index.status(top)
             _print_status(status)
-            if status.word == "absent" and _main_checkout_has_index(top):
+            # Not keyed on `absent`: a tree listing that times out says
+            # `unsupported`, and the worktree still has no index of its own.
+            own = os.path.join(codemap_store.index_dir(top), codemap_store.STATE_NAME)
+            if not os.path.isfile(own) and _main_checkout_has_index(top):
                 print(MAIN_HAS_INDEX)
             return 0
         if args.command == "query":

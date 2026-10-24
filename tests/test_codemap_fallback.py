@@ -11,6 +11,7 @@ import sys
 
 import pytest
 
+import codemap_cli
 import codemap_index as idx
 import preflight
 from codemap_repo import git, make_repo
@@ -78,7 +79,14 @@ def test_every_read_side_text_carries_the_fallback_sentence(rel):
 
 def test_brief_says_no_line_when_the_index_is_absent_or_a_command_fails():
     text = _folded("skills/track/references/codemap-brief.md")
-    assert "Without that line, or on any exit other than 0, stop here: add no line" in text
+    assert "Otherwise stop here, running no command, adding no line and reminding nobody" in text
+    assert "Either way, stop here." in text
     assert "Any exit other than 0: add no line" in text
     assert "Anything else: add no line" in text
     assert "Never run `build` here" in text
+
+
+def test_brief_names_the_exact_line_codemap_cli_prints():
+    # The brief tells a model to look for this text; a reworded constant would
+    # silence the worktree reminder with every other test still passing.
+    assert codemap_cli.MAIN_HAS_INDEX in _folded("skills/track/references/codemap-brief.md")

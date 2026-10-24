@@ -6,21 +6,26 @@ too, and then the session itself is the stage's agent: the line it yields is its
 own to act on. A standalone `/cai:discover` skips step 2: a model may start it
 without anyone typing it, and only a person's command or a track's dispatch
 writes the index. It never stops a stage and never asks a question: the most it adds
-is one line to the brief, or one sentence to the person before `intake`.
+is one line to the brief, or, inside a track, one sentence to the person before
+`intake`. A standalone command follows this file only when the index exists, so
+it never reaches that sentence.
 
 `<top>` is what `git rev-parse --show-toplevel` prints for the project being
 worked on.
 
-1. If `<top>/.cai/codemap/state.json` does not exist, run
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py status --project-dir "<top>"`
-   and look for a line saying `the main checkout has an index; this worktree has
-   none`. Without that line, or on any exit other than 0, stop here: add no line,
-   remind nobody. A project that never built an index, and a main checkout
-   itself, sees nothing of this feature. With it, and only before `intake`'s
-   first dispatch in this session, tell the person in one sentence that this
-   worktree has no index while the main checkout does, and that
-   `/cai:codemap build` creates one here. Ask nothing, wait for nothing, add
-   nothing to the brief; then stop here.
+1. If `<top>/.cai/codemap/state.json` exists, go on to step 2. Otherwise stop
+   here, running no command, adding no line and reminding nobody, with one
+   exception: `intake` is about to be dispatched for the first time in this
+   session and `<top>/.git` is a file rather than a directory (a linked
+   worktree). Then run
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py status --project-dir "<top>"`;
+   on exit 0 with this line in its output:
+   `the main checkout has an index; this worktree has none`
+   tell the person in one sentence that this worktree has no index while the
+   main checkout does, and that `/cai:codemap build` creates one here. Ask
+   nothing, wait for nothing, add nothing to the brief. Either way, stop here.
+   A project that never built an index, and a main checkout itself, run
+   nothing and see nothing of this feature.
 2. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py update --project-dir "<top>"`.
    Any exit other than 0: add no line, and do not run `status` — an index that
    may be half written must not get a chance to say `fresh`.
@@ -36,7 +41,8 @@ worked on.
 Run these four steps for every dispatch of the stage, including one that carries a
 person's answer: the tree may have changed since the last one.
 
-Never run `build` here, never suggest running it beyond step 1's one sentence, and never let a state word
-other than `fresh` hold a stage back: a missing, failed or non-`fresh` line
-means the stage reads the code with `Read`/`Grep`/`Glob` as it always did. Only a
-person's own `/cai:codemap build` creates an index.
+Never run `build` here, never suggest running it beyond step 1's one sentence,
+and never let a state word other than `fresh` hold a stage back: a missing,
+failed or non-`fresh` line means the stage reads the code with
+`Read`/`Grep`/`Glob` as it always did. Only a person's own `/cai:codemap build`
+creates an index.
