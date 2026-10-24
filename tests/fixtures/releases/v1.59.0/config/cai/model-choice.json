@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "roles": {
+    "chore": "sonnet",
+    "think": "fable"
+  },
+  "efforts": {
+    "chore": "low"
+  }
+}
