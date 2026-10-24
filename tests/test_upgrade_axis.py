@@ -47,7 +47,7 @@ CAI_TRACK_SINCE = (1, 58, 0)
 
 # The efforts a sample's model-choice.json holds, by release. v1.58.0 is the
 # first that could save one; an older file has no `efforts` key.
-EFFORTS = {"v1.58.0": {"chore": "low"}}
+EFFORTS = {"v1.58.0": {"chore": "low"}, "v1.59.0": {"chore": "low"}}
 
 # A drive letter or a home directory: what a path from the machine that
 # generated a sample would start with.
