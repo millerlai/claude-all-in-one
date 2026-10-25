@@ -54,8 +54,7 @@ def test_gate2_says_what_to_do_standing_alone():
 
 
 def test_left_open_prints_build_manual_steps(tmp_path):
-    rows = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-             ("design", "done", "—", ""),
+    rows = [("design", "done", "—", ""),
              ("build", "done", "—", "Left open: run X by hand; check Y"),
              ("verify", "", "", ""), ("ship", "", "", "")]
     root, _ = make_track(tmp_path, rows)

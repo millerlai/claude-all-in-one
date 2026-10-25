@@ -68,7 +68,7 @@ def test_read_only_lenses_have_no_shell():
 
 def test_no_detail_design_has_explicit_brief_and_traceability():
     build = Path("plugins/cai/skills/track/references/stage-build.md").read_text(encoding="utf-8")
-    intake = Path("plugins/cai/skills/track/references/stage-intake.md").read_text(encoding="utf-8")
+    intake = Path("plugins/cai/skills/track/references/stage-design.md").read_text(encoding="utf-8")
     assert "## Invariants preserved" in build
     assert "no `UC`/`R` ids and is not a diagnosis" in build
     assert "AC1, AC2" in intake

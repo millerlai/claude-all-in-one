@@ -148,16 +148,18 @@ Pick Option A if you would rather not weigh it, because it costs the least and i
 
 
 def make_track(tmp_path, artifact):
-    """A track sitting at `build`, with intake/discover/design all done and
-    the design row naming `artifact`."""
+    """A track sitting at `build`, with design done and the design row naming
+    `artifact`, and the `intake.md` the design stage's report became."""
     track = tmp_path / "track"
     track.mkdir(exist_ok=True)  # the drift test remakes it once per kind
-    rows = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-            ("design", "done", artifact, ""), ("build", "", "", ""),
+    rows = [("design", "done", artifact, ""), ("build", "", "", ""),
             ("verify", "", "", ""), ("ship", "", "", "")]
     lines = ["# fixture", "", "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
     (track / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (track / "intake.md").write_text(
+        "# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
+        "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look |\n", encoding="utf-8")
     return str(track)
 
 
@@ -627,7 +629,7 @@ def test_build_reuses_earlier_signed_decisions_without_local_drafts(tmp_path, mo
                     "- **Decided:** A, chosen by the user, 2026-09-25.\n")
     track = make_track(tmp_path, "d-decisions.md")
     monkeypatch.setattr(ledger, "_now", lambda: "2026-09-26T00:00:00Z")
-    ledger.append(track, "intake", "passed")
+    ledger.append(track, "design", "passed")
     ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
     assert done.returncode == 0, done.stdout

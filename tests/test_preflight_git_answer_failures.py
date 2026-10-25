@@ -41,8 +41,7 @@ def make_repo(tmp_path, with_diff=False):
 def make_track(tmp_path):
     track = tmp_path / "track"
     track.mkdir()
-    rows = [("intake", "", "—", ""), ("discover", "", "", ""),
-            ("design", "", "", ""), ("build", "", "", ""),
+    rows = [("design", "", "", ""), ("build", "", "", ""),
             ("verify", "done", "—", ""), ("ship", "", "", "")]
     lines = ["# fixture", "", "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
@@ -108,8 +107,8 @@ def test_verify_diff_quiet_exit_1_is_a_diff(tmp_path):
     assert result[0][1].startswith("has_changes (diff from main")
 
 
-def _intake(repo, track):
-    return preflight.intake(track, str(repo))[0]
+def _start_checks(repo, track):
+    return preflight._start_checks(track, str(repo))[0]
 
 
 def _ship(repo, track):
@@ -118,7 +117,7 @@ def _ship(repo, track):
 
 
 SEVEN_CALLERS = [
-    ("intake", lambda repo, track: _intake(repo, track),
+    ("start_checks", lambda repo, track: _start_checks(repo, track),
      (False, "not_main_branch (git did not answer)")),
     ("track_ignored", lambda repo, track: preflight.track_ignored(track, str(repo)),
      (True, "track_ignored (git did not answer)")),

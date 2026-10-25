@@ -12,7 +12,7 @@ import open_items
 import preflight
 
 LABEL = "open_items_decided"
-STAGES = ("intake", "discover", "design", "build", "verify", "ship")
+STAGES = ("design", "build", "verify", "ship")
 
 
 def make_track(tmp_path, left_open=""):

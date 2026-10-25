@@ -22,7 +22,6 @@ PREFLIGHT = os.path.join(PLUGIN, "scripts", "preflight.py")
 FALLBACK = "Any other line, or none, means Read/Grep/Glob as you would without it."
 READ_SIDE = [
     "agents/architect.md", "agents/designer.md", "agents/explorer.md",
-    "skills/track/references/stage-intake.md",
     "skills/track/references/stage-discover.md",
     "skills/track/references/stage-design.md",
 ]
@@ -55,8 +54,8 @@ def _repo(root, variant):
     return repo, track
 
 
-@pytest.mark.parametrize("stage", ["intake", "discover", "design"])
-def test_preflight_prints_the_same_with_no_index_a_good_one_and_a_damaged_one(tmp_path, stage):
+def test_preflight_prints_the_same_with_no_index_a_good_one_and_a_damaged_one(tmp_path):
+    stage = "design"
     outputs = {}
     for variant in ("none", "good", "damaged"):
         repo, track = _repo(tmp_path, variant)

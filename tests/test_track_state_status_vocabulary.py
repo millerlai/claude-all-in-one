@@ -11,8 +11,7 @@ import ledger
 
 SCRIPTS = os.path.dirname(ledger.__file__)
 
-ROWS = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-        ("design", "skipped", "—", "not needed"),
+ROWS = [("design", "skipped", "—", "not needed"),
         ("build", "in-progress", "—", "unit 3 of 5"),
         ("verify", "", "", ""), ("ship", "", "", "")]
 
@@ -46,7 +45,7 @@ def test_a_misspelled_stage_id_exits_2_and_names_both_sides(tmp_path):
     # count still matched stages.json, so the stage it was meant to be
     # stayed "not started" forever, silently.
     rows = list(ROWS)
-    rows[2] = ("desgin", "skipped", "—", "not needed")
+    rows[0] = ("desgin", "skipped", "—", "not needed")
     root, _ = make_track(tmp_path, rows)
 
     done = run("status", "--track-root", root)
@@ -58,7 +57,7 @@ def test_a_misspelled_stage_id_exits_2_and_names_both_sides(tmp_path):
 
 def test_an_illegal_status_exits_2_and_prints_no_next_line(tmp_path):
     rows = list(ROWS)
-    rows[0] = ("intake", "passed", "—", "")
+    rows[0] = ("design", "passed", "—", "")
     root, _ = make_track(tmp_path, rows)
 
     done = run("status", "--track-root", root)
@@ -69,13 +68,13 @@ def test_an_illegal_status_exits_2_and_prints_no_next_line(tmp_path):
 
 def test_the_message_names_the_stage_the_value_and_the_four_legal_ones(tmp_path):
     rows = list(ROWS)
-    rows[0] = ("intake", "passed", "—", "")
+    rows[0] = ("design", "passed", "—", "")
     root, _ = make_track(tmp_path, rows)
 
     done = run("status", "--track-root", root)
     assert done.returncode == 2
     legal = "(empty), in-progress, done, skipped"
-    assert ("unknown status for intake: passed (expected one of %s)" % legal
+    assert ("unknown status for design: passed (expected one of %s)" % legal
             in done.stderr)
 
 
@@ -84,15 +83,15 @@ def test_two_illegal_rows_each_print_their_own_line_in_stage_order(tmp_path):
     # stderr line, in stages.json order, seen all at once." A regression that
     # reports only the first bad row, or reorders them, must go red here.
     rows = list(ROWS)
-    rows[0] = ("intake", "passed", "—", "")
-    rows[3] = ("build", "fooled", "—", "unit 3 of 5")
+    rows[0] = ("design", "passed", "—", "")
+    rows[1] = ("build", "fooled", "—", "unit 3 of 5")
     root, _ = make_track(tmp_path, rows)
 
     done = run("status", "--track-root", root)
     assert done.returncode == 2
     legal = "(empty), in-progress, done, skipped"
-    intake_line = "unknown status for intake: passed (expected one of %s)" % legal
+    design_line = "unknown status for design: passed (expected one of %s)" % legal
     build_line = "unknown status for build: fooled (expected one of %s)" % legal
-    assert intake_line in done.stderr
+    assert design_line in done.stderr
     assert build_line in done.stderr
-    assert done.stderr.index(intake_line) < done.stderr.index(build_line)
+    assert done.stderr.index(design_line) < done.stderr.index(build_line)

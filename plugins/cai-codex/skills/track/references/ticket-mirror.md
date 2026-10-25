@@ -76,8 +76,8 @@ option; ask again only after the person next writes.
    `track_start.py` run, then
    `ticket.py point --track-dir .cai/track/<name> --ref <the argument>`.
 
-   The order matters and nothing enforces it: pointing after `intake` has
-   already run means intake never read the ticket, and no later stage says so
+   The order matters and nothing enforces it: pointing after `design` has
+   already run means design never read the ticket, and no later stage says so
    — the track simply runs to the end quietly unlinked, which reads exactly
    like a track that never had a ticket.
 
@@ -87,9 +87,9 @@ open.
 
 ## Before dispatch: read once
 
-**intake** reads the ticket once, before step 2's dispatch: `ticket.py read
+**design** reads the ticket once, before step 2's dispatch: `ticket.py read
 --track-dir ... --project-dir ...`. Its stdout — number, title, body — is
-intake's starting point for the problem statement, the same way a pasted
+design's starting point for the problem statement, the same way a pasted
 request would be. A read that fails (no pointer yet, an unknown backend, or
 the backend call itself) prints one line and still exits 0; treat that the
 same as no ticket at all and proceed from the request in the conversation.
@@ -97,16 +97,16 @@ same as no ticket at all and proceed from the request in the conversation.
 Right after that read, run `ticket.py project --track-dir ... --project-dir
 ...` once, unless the read said this track has no ticket pointer. This is the
 claim: the ticket's one marked comment appears now, reading `status:
-in-progress` over six still-empty rows, so a session starting from the same
-ticket sees it before intake has run. A failed projection prints one line;
-dispatch intake anyway.
+in-progress` over four still-empty rows, so a session starting from the same
+ticket sees it before design has run. A failed projection prints one line;
+dispatch design anyway.
 
-**verify**, only when intake was skipped for this track, reads the ticket
+**verify**, only when design was skipped for this track, reads the ticket
 the same way, once, immediately before `stage-verify.md`'s Step 1 lens
 dispatch — not instead of that dispatch, before it. When the read succeeds,
 its body becomes the written requirement handed to the conformance lens, in
 place of the plan/issue/user-words `stage-verify.md` normally uses. When it
-fails, or the integration is off or unreachable, or intake already ran (so
+fails, or the integration is off or unreachable, or design already ran (so
 Step 0 already found a requirement from its ordinary sources), nothing
 changes here: `stage-verify.md` Step 1's rule for a missing requirement
 stands as written — conformance has no written requirement and Step 3's
@@ -153,7 +153,7 @@ subcommand exits 0, so relay what a step prints and carry on.
 
 1. **Before the move, the final state.** `ticket.py project --track-dir
    .cai/track/<feature> --project-dir <project root> --final` rewrites
-   the track's one marked comment in place: `status: done`, the six rows,
+   the track's one marked comment in place: `status: done`, the four rows,
    and the open items and reminders as their own list. Whatever it prints,
    `SKILL.md`'s move into `done/` and its deletion of
    `.cai/track/current` run next.

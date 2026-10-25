@@ -65,15 +65,15 @@ def test_states_fallback_to_existing_stage_verify_behaviour():
 
 # --- the rest of the design's stage-by-stage list --------------------------
 
-def test_states_intake_reads_ticket_once():
+def test_states_design_reads_ticket_once():
     text = _flat()
-    assert "intake" in text
+    assert "**design** reads the ticket once" in text
     assert "ticket.py read" in text
 
 
-def test_states_verify_reads_once_when_intake_was_skipped():
+def test_states_verify_reads_once_when_design_was_skipped():
     text = _flat()
-    assert "intake was skipped" in text
+    assert "design was skipped" in text
 
 
 def test_states_project_after_every_state_md_write_including_skip():
@@ -86,8 +86,8 @@ def test_states_ship_resolves_number_before_quoting():
     text = _flat()
     assert "resolve" in text
     # the ship section specifically -- ticket.py read already appears
-    # earlier, in the intake section, so the phrase anchors this to ship,
-    # not to intake, and to a resolution that actually calls a backend.
+    # earlier, in the design section, so the phrase anchors this to ship,
+    # not to design, and to a resolution that actually calls a backend.
     assert "resolve it with `ticket.py read" in text
     assert "resolve it with `ticket.py show" not in text
 
@@ -149,7 +149,7 @@ def test_asks_before_naming_the_directory():
 
 
 def test_warns_that_pointing_late_is_silent():
-    """The failure that has no error message: a track pointed after intake
+    """The failure that has no error message: a track pointed after design
     ran is indistinguishable from one that never had a ticket."""
     text = _flat()
     assert "before the" in text and "first stage runs" in text
@@ -157,7 +157,7 @@ def test_warns_that_pointing_late_is_silent():
 
 
 # --- Unit 6: the claim menu, the naming-collision rule, the claim -----------
-# --- projection before intake's dispatch ------------------------------------
+# --- projection before design's dispatch ------------------------------------
 
 
 def test_states_claims_line_and_claim_menu():
@@ -203,9 +203,9 @@ def test_states_free_text_refusal_rule():
     assert "say which claim carries it, and ask again" in text
 
 
-def test_states_claim_projection_before_intake_dispatch():
+def test_states_claim_projection_before_design_dispatch():
     text = _flat()
     assert "Right after that read, run `ticket.py project" in text
     assert "unless the read said this track has no ticket pointer" in text
-    assert "status: in-progress` over six still-empty rows" in text
-    assert "A failed projection prints one line; dispatch intake anyway" in text
+    assert "status: in-progress` over four still-empty rows" in text
+    assert "A failed projection prints one line; dispatch design anyway" in text

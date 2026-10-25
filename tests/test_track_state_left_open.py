@@ -13,15 +13,13 @@ import track_state
 
 SCRIPTS = os.path.dirname(track_state.__file__)
 
-ROWS = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-        ("design", "done", "—", ""), ("build", "done", "—", ""),
+ROWS = [("design", "done", "—", ""), ("build", "done", "—", ""),
         ("verify", "done", "—",
          "Ready. 2 Minors documented. Left open: Minor A in foo.py; "
          "parked proposal B"),
         ("ship", "done", "—", "Shipped. Left open: tag v1.2 waiting on the person")]
 
-NO_MARKER_ROWS = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-                   ("design", "done", "—", ""), ("build", "done", "—", ""),
+NO_MARKER_ROWS = [("design", "done", "—", ""), ("build", "done", "—", ""),
                    ("verify", "done", "—",
                     "nothing fixed, nothing parked. 6 Minors documented, not fixed"),
                    ("ship", "", "", "")]

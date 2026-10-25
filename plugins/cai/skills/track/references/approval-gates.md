@@ -762,7 +762,7 @@ is only the shape — a menu, never a sentence to type a word back into. None
 of them spends one of `pending-questions.md`'s three rounds: that file's
 "What counts as a round" is the definition, and these are its stops:
 
-- `stage-intake.md` Step 5 — the problem statement, the route Step 2 derived
+- `stage-design.md` Step 5 — the problem statement, the route Step 2 derived
   (broken, or never there) with its evidence, and the recommended approach,
   before anything is designed.
 - `stage-design.md`'s cost-sizing — the four lines, before a pass that reads

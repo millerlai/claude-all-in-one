@@ -1,9 +1,5 @@
 {
   "stages": [
-    { "id": "intake",   "agent": "architect",
-      "reference": "references/stage-intake.md",   "auto_invoke": false },
-    { "id": "discover", "agent": "architect",
-      "reference": "references/stage-discover.md", "auto_invoke": true },
     { "id": "design",   "agent": "designer",
       "reference": "references/stage-design.md",   "auto_invoke": false },
     { "id": "build",    "agent": "implementer",
@@ -13,5 +9,5 @@
     { "id": "ship",     "agent": "shipper",
       "reference": "references/stage-ship.md",     "auto_invoke": false }
   ],
-  "retired": []
+  "retired": ["intake", "discover"]
 }

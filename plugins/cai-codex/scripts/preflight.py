@@ -140,12 +140,19 @@ def state_row(track_dir, stage_id):
 def intake_document(track_dir):
     """Checks for the file `verify` reads its acceptance criteria from (#376).
 
-    Only once the intake row is `done`: the main session writes `intake.md`
-    when intake passes (stage-intake.md Step 5), and a skipped or unfinished
-    intake owes none. A missing file used to be silent -- verify_plan.py just
-    planned from nothing. A legacy intake (no `## Verification levels`, exit 4
-    of `verify_plan.py levels`) is not blocked; an invalid table (exit 5) is."""
-    row = state_row(track_dir, "intake")
+    Run by `build`: the main session writes `intake.md` when the design stage
+    reports (stage-design.md, "Hand the requirement back"), so it exists once
+    the design row is `done` and not before. A missing file used to be silent
+    -- verify_plan.py just planned from nothing. A legacy intake (no
+    `## Verification levels`, exit 4 of `verify_plan.py levels`) is not
+    blocked; an invalid table (exit 5) is.
+
+    A track begun before intake was merged into design still has that row, and
+    keeps the rule it started under: the file is owed only when the intake row
+    is `done`, since a skipped intake owes none and its design row says
+    nothing about one."""
+    owner = "intake" if retired_rows(track_dir) else "design"
+    row = state_row(track_dir, owner)
     if row is None or (row[1] if len(row) > 1 else "") != "done":
         return []
     path = os.path.join(track_dir, verify_plan.INTAKE_NAME)
@@ -153,9 +160,9 @@ def intake_document(track_dir):
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
     except (OSError, UnicodeDecodeError) as exc:
-        return [(False, "intake_document (intake is done but %s cannot be read: %s -- "
-                        "the main session writes the intake report there, "
-                        "stage-intake.md Step 5)" % (path, exc))]
+        return [(False, "intake_document (%s is done but %s cannot be read: %s -- "
+                        "the main session writes the design report's intake document "
+                        "there, stage-design.md)" % (owner, path, exc))]
     levels = verify_plan.read_levels(text)
     if levels["status"] == "invalid":
         return [(False, "intake_document (%s: %s)" % (path, "; ".join(levels["problems"])))]
@@ -163,7 +170,10 @@ def intake_document(track_dir):
 
 
 def design(track_dir, project_dir):
-    return intake_document(track_dir) + _design(track_dir, project_dir)
+    # The three checks the retired intake stage ran come first: design is now
+    # the first stage, so it is where a track is refused on main, under a
+    # reserved name. `intake.md` is not asked for -- this stage writes it.
+    return _start_checks(track_dir, project_dir) + _design(track_dir, project_dir)
 
 
 def _design(track_dir, project_dir):
@@ -412,7 +422,7 @@ def current_branch(cwd):
     off a protected branch. Not knowing is a reason to block, not to continue.
 
     symbolic-ref still answers on an unborn HEAD (a freshly-init'd repo with
-    no commits), which is what intake needs before the first commit exists."""
+    no commits), which is what design needs before the first commit exists."""
     done = git(cwd, "symbolic-ref", "--short", "HEAD")
     if done is None:
         return UNKNOWN_BRANCH
@@ -430,7 +440,7 @@ def active_tracks(track_root):
                   if n != "done" and os.path.isdir(os.path.join(track_root, n)))
 
 
-def intake(track_dir, project_dir):
+def _start_checks(track_dir, project_dir):
     repo = is_git_repo(project_dir)
     if repo is GIT_DID_NOT_ANSWER:
         branch_check = (False, "not_main_branch (git did not answer)")
@@ -455,7 +465,7 @@ def intake(track_dir, project_dir):
 def track_ignored(track_dir, project_dir):
     """Whether git ignores this track's own files. Reports, never blocks.
 
-    It reports at `intake` because that is where the fix is one line, while
+    It reports at `design` (the first stage) because that is where the fix is one line, while
     the bill arrives at `ship`: that stage requires a clean working tree, and
     a track whose state.md and ledger are tracked makes the tree dirty simply
     by existing. What the person sees then is `clean_tree (working tree has
@@ -482,16 +492,6 @@ def track_ignored(track_dir, project_dir):
                   "does not block ship (#198), but committing one and then "
                   "changing it does, and ship's clean_tree will name it "
                   "without saying why it's there)" % track_dir)
-
-
-def discover(track_dir, project_dir):
-    row = state_row(track_dir, "intake")
-    if row is None:
-        return [(False, "state_md (cannot read state.md or find the intake row)")]
-    status = row[1] if len(row) > 1 else ""
-    ok = status in ledger.COUNTS_AS_FINISHED
-    return [(ok, "intake_status (intake row's status is %s)" % (status or "empty")),
-            *intake_document(track_dir)]
 
 
 def _tier1_id(title, position):
@@ -627,6 +627,15 @@ def tier1_drafts(text, artifact, doc, track_dir, project_dir):
 
 
 def build(track_dir, project_dir):
+    # Spliced in after the two ledger checks rather than inside _build: every
+    # one of its early returns starts with them, and the file is owed
+    # whichever document the design row names -- `verify` plans from it, not
+    # from that document.
+    checks = _build(track_dir, project_dir)
+    return checks[:2] + intake_document(track_dir) + checks[2:]
+
+
+def _build(track_dir, project_dir):
     # Computed first so they survive the early returns below: both start from
     # the ledger, so they still speak when state.md is the thing that is
     # broken -- and "the design changed after sign-off" (or was never signed
@@ -1359,8 +1368,7 @@ def ship(track_dir, project_dir):
             open_items_decided(track_dir)]
 
 
-STAGES = {"design": design, "intake": intake, "discover": discover,
-          "build": build, "verify": verify, "ship": ship}
+STAGES = {"design": design, "build": build, "verify": verify, "ship": ship}
 
 
 class ArgParser(argparse.ArgumentParser):

@@ -71,7 +71,7 @@ def test_real_not_a_git_repository_is_named_by_every_caller(tmp_path, name, call
     where = str(plain)
     said = "%s is not a git repository" % where
     expected = {
-        "intake": (False, "not_main_branch (%s)" % said),
+        "start_checks": (False, "not_main_branch (%s)" % said),
         "track_ignored": (True, "track_ignored (%s)" % said),
         "verify": [(False, "has_changes (%s)" % said)],
         "untracked_since_start": (

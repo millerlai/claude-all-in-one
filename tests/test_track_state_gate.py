@@ -8,8 +8,7 @@ which the last pass alone does not settle.
 import ledger
 import track_state
 
-ROWS = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-        ("design", "done", "docs/design/thing-detail.md", ""),
+ROWS = [("design", "done", "docs/design/thing-detail.md", ""),
         ("build", "in-progress", "—", "unit 3 of 5"),
         ("verify", "", "", ""), ("ship", "", "", "")]
 
@@ -45,7 +44,7 @@ def test_the_human_gate_is_shown_against_the_stage_it_passed(tmp_path, monkeypat
     monkeypatch.chdir(tmp_path)
     track = make_track(tmp_path)
     doc = write_design(tmp_path)
-    ledger.append(track, "intake", "passed", artifact="—")
+    ledger.append(track, "verify", "passed", artifact="—")
     ledger.append(track, "design", "passed", artifact=doc, gate="human",
                   note="signed off")
     # A later failure must not hide who signed the passing run off.
@@ -54,7 +53,7 @@ def test_the_human_gate_is_shown_against_the_stage_it_passed(tmp_path, monkeypat
     lines = {line.split()[0]: line for line in status_text(track).splitlines()
              if line and not line.startswith(("current", "next", "other", "skipped"))}
     assert "(gate: human)" in lines["design"]
-    assert "(gate: auto)" in lines["intake"]
+    assert "(gate: auto)" in lines["verify"]
     # build has no passing record at all, so there is nobody to name.
     assert "gate:" not in lines["build"]
 

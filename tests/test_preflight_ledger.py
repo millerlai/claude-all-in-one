@@ -1,8 +1,9 @@
 """preflight's three ledger checks: UC2, UC5, UC7, UC8, D12, D14, R1.
 
-`discover` is the stage most of these run against: it needs a state.md with a
-filled-in intake row and nothing else, so a failure here is about the ledger
-rather than about git or a design document.
+`design` is the stage most of these run against: with its design row empty, as
+a track starts, and a git repo on a branch that is not main, the only thing
+left to fail is the ledger, so a failure here is about the ledger rather than
+about git or a design document.
 """
 import os
 import subprocess
@@ -13,8 +14,7 @@ import preflight
 
 PREFLIGHT_PY = os.path.join(os.path.dirname(ledger.__file__), "preflight.py")
 
-ROWS = [("intake", "done", "—", ""), ("discover", "", "", ""),
-        ("design", "", "", ""), ("build", "", "", ""),
+ROWS = [("design", "", "", ""), ("build", "", "", ""),
         ("verify", "", "", ""), ("ship", "", "", "")]
 
 
@@ -25,12 +25,14 @@ def make_track(tmp_path, rows=ROWS):
              "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
     (track / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    # A `done` intake owes an intake.md (#376); these tests are about the ledger.
-    (track / "intake.md").write_text("# Intake\n", encoding="utf-8")
+    # design's start checks need a repo that is not on main; it sits beside the
+    # track, where `run` looks for it.
+    subprocess.run(["git", "init", "-q", "-b", "work", str(tmp_path / "repo")], check=True)
     return str(track)
 
 
-def run(stage, track, project=".", **env):
+def run(stage, track, project=None, **env):
+    project = project or os.path.join(os.path.dirname(track), "repo")
     return subprocess.run(
         [sys.executable, PREFLIGHT_PY, stage, "--track-dir", track,
          "--project-dir", project],
@@ -43,14 +45,14 @@ def run(stage, track, project=".", **env):
 def test_the_cap_lets_four_through_and_stops_the_fifth(tmp_path):
     track = make_track(tmp_path)
     for n in range(4):
-        ledger.append(track, "discover", "failed", note="try %d" % n)
+        ledger.append(track, "design", "failed", note="try %d" % n)
 
-    done = run("discover", track)
+    done = run("design", track)
     assert done.returncode == 0, done.stdout
     assert "PASS ledger_attempts (4 of 5)" in done.stdout
 
-    ledger.append(track, "discover", "failed", note="the fifth and last")
-    done = run("discover", track)
+    ledger.append(track, "design", "failed", note="the fifth and last")
+    done = run("design", track)
     assert done.returncode == 2
     assert "FAIL ledger_attempts (5 of 5" in done.stdout
 
@@ -58,12 +60,12 @@ def test_the_cap_lets_four_through_and_stops_the_fifth(tmp_path):
 def test_the_blocking_message_carries_the_reasons_and_the_ways_out(tmp_path):
     track = make_track(tmp_path)
     for n in range(5):
-        ledger.append(track, "discover", "failed", note="unknown %d still open" % n)
+        ledger.append(track, "design", "failed", note="unknown %d still open" % n)
 
-    out = run("discover", track).stdout
+    out = run("design", track).stdout
     for n in range(5):
         assert "unknown %d still open" % n in out
-    assert "/cai:track skip discover" in out
+    assert "/cai:track skip design" in out
     assert "CAI_TRACK_MAX_ATTEMPTS" in out
     assert "ledger.jsonl" in out
 
@@ -73,12 +75,12 @@ def test_the_blocking_message_carries_the_reasons_and_the_ways_out(tmp_path):
 def test_the_environment_overrides_the_cap(tmp_path):
     track = make_track(tmp_path)
     for n in range(5):
-        ledger.append(track, "discover", "failed", note="try %d" % n)
+        ledger.append(track, "design", "failed", note="try %d" % n)
 
-    assert run("discover", track).returncode == 2
-    assert run("discover", track, CAI_TRACK_MAX_ATTEMPTS="10").returncode == 0
+    assert run("design", track).returncode == 2
+    assert run("design", track, CAI_TRACK_MAX_ATTEMPTS="10").returncode == 0
 
-    unlimited = run("discover", track, CAI_TRACK_MAX_ATTEMPTS="0")
+    unlimited = run("design", track, CAI_TRACK_MAX_ATTEMPTS="0")
     assert unlimited.returncode == 0
     assert "no cap" in unlimited.stdout
 
@@ -86,10 +88,10 @@ def test_the_environment_overrides_the_cap(tmp_path):
 def test_an_unusable_setting_falls_back_to_the_default(tmp_path):
     track = make_track(tmp_path)
     for n in range(5):
-        ledger.append(track, "discover", "failed", note="try %d" % n)
+        ledger.append(track, "design", "failed", note="try %d" % n)
 
     for bad in ("abc", "", "-3", "5.5"):
-        done = run("discover", track, CAI_TRACK_MAX_ATTEMPTS=bad)
+        done = run("design", track, CAI_TRACK_MAX_ATTEMPTS=bad)
         assert done.returncode == 2, "%r should behave as unset" % bad
         assert "5 of 5" in done.stdout
 
@@ -99,10 +101,10 @@ def test_an_unusable_setting_falls_back_to_the_default(tmp_path):
 def test_provider_refusals_never_reach_the_cap(tmp_path):
     track = make_track(tmp_path)
     for _ in range(8):
-        ledger.append(track, "discover", "unavailable",
+        ledger.append(track, "design", "unavailable",
                       note="429 rate_limit_error from the provider")
 
-    done = run("discover", track)
+    done = run("design", track)
     assert done.returncode == 0, done.stdout
     assert "PASS ledger_attempts (0 of 5)" in done.stdout
 
@@ -110,11 +112,11 @@ def test_provider_refusals_never_reach_the_cap(tmp_path):
 def test_refusals_and_real_failures_are_counted_apart(tmp_path):
     track = make_track(tmp_path)
     for n in range(3):
-        ledger.append(track, "discover", "failed", note="unknown %d open" % n)
+        ledger.append(track, "design", "failed", note="unknown %d open" % n)
     for _ in range(5):
-        ledger.append(track, "discover", "unavailable", note="529 overloaded_error")
+        ledger.append(track, "design", "unavailable", note="529 overloaded_error")
 
-    done = run("discover", track)
+    done = run("design", track)
     assert done.returncode == 0
     assert "PASS ledger_attempts (3 of 5)" in done.stdout
 
@@ -124,10 +126,10 @@ def test_the_blocking_message_shows_the_refusals_it_did_not_count(tmp_path):
     # that five of the eight lines were the provider, not their code.
     track = make_track(tmp_path)
     for n in range(5):
-        ledger.append(track, "discover", "failed", note="unknown %d open" % n)
-    ledger.append(track, "discover", "unavailable", note="429 rate_limit_error")
+        ledger.append(track, "design", "failed", note="unknown %d open" % n)
+    ledger.append(track, "design", "unavailable", note="429 rate_limit_error")
 
-    out = run("discover", track).stdout
+    out = run("design", track).stdout
     assert "FAIL ledger_attempts (5 of 5" in out
     assert "unavailable -- 429 rate_limit_error" in out
 
@@ -137,11 +139,11 @@ def test_the_blocking_message_shows_the_refusals_it_did_not_count(tmp_path):
 def test_a_skip_reopens_a_capped_stage(tmp_path):
     track = make_track(tmp_path)
     for n in range(5):
-        ledger.append(track, "discover", "failed", note="try %d" % n)
-    assert run("discover", track).returncode == 2
+        ledger.append(track, "design", "failed", note="try %d" % n)
+    assert run("design", track).returncode == 2
 
-    ledger.append(track, "discover", "skipped", artifact="—", note="doing it by hand")
-    done = run("discover", track)
+    ledger.append(track, "design", "skipped", artifact="—", note="doing it by hand")
+    done = run("design", track)
     assert done.returncode == 0
     assert "PASS ledger_attempts (0 of 5)" in done.stdout
 
@@ -150,7 +152,7 @@ def test_a_skip_reopens_a_capped_stage(tmp_path):
 
 def test_broken_lines_are_reported_by_every_stage_and_block_nothing(tmp_path):
     track = make_track(tmp_path)
-    ledger.append(track, "discover", "failed", note="one real attempt")
+    ledger.append(track, "design", "failed", note="one real attempt")
     with open(os.path.join(track, "ledger.jsonl"), "a", encoding="utf-8") as fh:
         fh.write('{"stage":"disc\n')
 
@@ -158,21 +160,21 @@ def test_broken_lines_are_reported_by_every_stage_and_block_nothing(tmp_path):
         out = run(stage, track).stdout
         assert "PASS ledger_intact (1 malformed line(s) at 2)" in out, stage
 
-    # discover has nothing else wrong with it, so a broken ledger alone must
+    # design has nothing else wrong with it, so a broken ledger alone must
     # not be what stops it -- that is R5, and UC8 is the visibility half.
-    assert run("discover", track).returncode == 0
+    assert run("design", track).returncode == 0
 
 
 def test_a_clean_ledger_still_says_so(tmp_path):
     track = make_track(tmp_path)
-    assert "PASS ledger_intact (0 malformed)" in run("discover", track).stdout
+    assert "PASS ledger_intact (0 malformed)" in run("design", track).stdout
 
 
 # --- R1/R4: a track with no ledger behaves exactly as it did before ---------
 
 def test_a_track_without_a_ledger_is_not_blocked(tmp_path):
     track = make_track(tmp_path)
-    done = run("discover", track)
+    done = run("design", track)
     assert done.returncode == 0
     assert "PASS ledger_attempts (0 of 5)" in done.stdout
     assert "PASS ledger_intact (0 malformed)" in done.stdout

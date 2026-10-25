@@ -180,9 +180,9 @@
         "  relevant lines, then read those files yourself and decide what they mean.",
         "  A scout's summary is a pointer, not evidence.",
         "- **Official documentation** — for any tool, framework, or platform the",
-        "  design stands on, fetch the vendor's own docs (`explorer`'s tools are",
-        "  Read/Grep/Glob only, so this needs a chore-tier subagent with web access),",
-        "  then interpret it yourself. Record the URL and the sentence taken."
+        "  design stands on, fetch the vendor's own docs yourself with",
+        "  `WebSearch`/`WebFetch` (`explorer` cannot: its tools are Read/Grep/Glob",
+        "  only), then interpret them. Record the URL and the sentence taken."
       ],
       "replacement": [
         "- **This project** — locate and quote the relevant lines yourself with",

@@ -14,7 +14,7 @@ import track_state
 
 SCRIPT = os.path.join(os.path.dirname(track_state.__file__), "track_state.py")
 GIT_ID = ["-c", "user.email=t@example.com", "-c", "user.name=t"]
-STAGES = ("intake", "discover", "design", "build", "verify", "ship")
+STAGES = ("design", "build", "verify", "ship")
 REPORT = ("## Pending questions\n"
           "1. Commit per unit?\n   Background: a\n   Options: b\n   Blocks: c\n"
           "   Why asked: gate - r\n"
@@ -61,8 +61,8 @@ def rows(out):
 
 def test_one_row_per_worktree_with_its_track_and_next_stage(repo):
     wts = repo / ".claude" / "worktrees"
-    track(wts / "login-fix", "login-fix", ["done", "done", "done", "done", "", ""])
-    d = track(wts / "export-csv", "export-csv", ["done", "skipped", "done", "in-progress", "", ""])
+    track(wts / "login-fix", "login-fix", ["done", "done", "", ""])
+    d = track(wts / "export-csv", "export-csv", ["done", "in-progress", "", ""])
     report = repo.parent / "report.md"
     report.write_text(REPORT, encoding="utf-8")
     pending.start(str(d), "build", 1, str(report))
@@ -80,7 +80,7 @@ def test_one_row_per_worktree_with_its_track_and_next_stage(repo):
 
 def test_the_same_table_from_inside_a_worktree(repo):
     wts = repo / ".claude" / "worktrees"
-    track(wts / "login-fix", "login-fix", ["done"] * 6)
+    track(wts / "login-fix", "login-fix", ["done"] * 4)
     got = rows(run(wts / "login-fix").stdout)
     assert got[1][0] == "."
     assert [".claude/worktrees/login-fix", "worktree-login-fix", "login-fix", "done", "-"] in got
@@ -88,11 +88,11 @@ def test_the_same_table_from_inside_a_worktree(repo):
 
 def test_a_broken_track_costs_its_row_only(repo):
     wts = repo / ".claude" / "worktrees"
-    d = track(wts / "login-fix", "login-fix", ["done"] * 6)
+    d = track(wts / "login-fix", "login-fix", ["done"] * 4)
     (d / "state.md").unlink()
-    track(wts / "export-csv", "export-csv", ["done"] * 6)
+    track(wts / "export-csv", "export-csv", ["done"] * 4)
     (wts / "export-csv" / ".cai" / "track" / "export-csv" / "state.md").write_text(
-        "| stage | status |\n|---|---|\n| intake | done |\n", encoding="utf-8")
+        "| stage | status |\n|---|---|\n| design | done |\n", encoding="utf-8")
     result = run(repo)
     assert result.returncode == 0
     assert "(no state.md)" in result.stdout
@@ -107,13 +107,13 @@ def test_a_worktree_whose_directory_is_gone_is_named(repo):
 
 
 def test_an_unreadable_pending_file_costs_one_cell(repo):
-    d = track(repo / ".claude" / "worktrees" / "login-fix", "login-fix", ["done", "", "", "", "", ""])
+    d = track(repo / ".claude" / "worktrees" / "login-fix", "login-fix", ["done", "", "", ""])
     (d / "pending.md").write_text("not a pending file\n", encoding="utf-8")
     assert "(unreadable pending.md)" in run(repo).stdout
 
 
 def test_outside_git_it_is_the_ordinary_status(tmp_path):
-    track(tmp_path, "solo", ["done", "", "", "", "", ""])
+    track(tmp_path, "solo", ["done", "", "", ""])
     result = run(tmp_path)
     assert result.returncode == 0
     assert result.stdout.startswith("current: solo\n")

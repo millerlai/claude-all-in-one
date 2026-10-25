@@ -39,7 +39,7 @@ def track(tmp_path):
     d = tmp_path / "feat"
     d.mkdir()
     lines = ["# fixture", "", "| stage | status | artifact | note |", "|---|---|---|---|"]
-    lines += ["| %s | done | — |  |" % s for s in ("intake", "design", "build", "verify")]
+    lines += ["| %s | done | — |  |" % s for s in ("design", "build", "verify")]
     lines += ["| ship |  |  |  |"]
     (d / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return d

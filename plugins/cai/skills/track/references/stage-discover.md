@@ -1,8 +1,10 @@
 # stage-discover — make the unknowns visible before you build
 
-This file is read two ways: by the subagent the track dispatches to run this
-stage, and by `/cai:discover` when someone runs the stage standing alone,
-with no track underneath it. The procedure below is the same either way.
+This file is read by `/cai:discover`, which runs standing alone: a track no
+longer has a discover stage. Inside a track, the `design` stage recommends
+running `/cai:discover` first when the option space is unexplored, and does not
+run it itself. The sections below that speak of a track's dispatch describe the
+one place this procedure used to run.
 
 A wrong assumption costs the least before any code exists. Every move below
 is a cheap way to convert an unknown into something the user can react to —
@@ -141,8 +143,8 @@ worth nothing.
 
 The artifact is an input, not a deliverable to admire:
 
-- Feed the answers straight into the next stage — `intake`'s problem
-  statement, or `design`'s option-weighing. Once a design exists,
+- Feed the answers straight into the next stage — `design`'s problem
+  statement and option-weighing. Once a design exists,
   `plan-review` is what audits it back against these answers.
 - Durable, project-specific findings → the project's `CLAUDE.md` or memory,
   following `memory.md` (stable facts only — not line numbers or

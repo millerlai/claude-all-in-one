@@ -6,10 +6,12 @@ argument-hint: "<what is unclear>"
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
 
 
-Run the discover stage for: $ARGUMENTS
+Run the discover procedure for: $ARGUMENTS
 
-The procedure lives in one place, read by whoever runs this stage — a
-track's subagent or this command:
+This is a standalone command, not a stage of `$track`: a track's `design`
+stage recommends it when the option space is unexplored, and never runs it.
+
+The procedure lives in one place, read by this command:
 `<cai-root>/skills/track/references/stage-discover.md`. First, if
 `<top>/.cai/codemap/state.json` exists, follow
 `<cai-root>/skills/track/references/codemap-brief.md` yourself,

@@ -1,13 +1,13 @@
 # codemap-brief — put the index's state line in a stage's brief, or nothing
 
-The main session follows this before it dispatches `intake`, `discover` or
-`design`. A standalone `/cai:intake`, `/cai:discover` or `/cai:design` follows it
-too, and then the session itself is the stage's agent: the line it yields is its
-own to act on. A standalone `/cai:discover` skips step 2: a model may start it
+The main session follows this before it dispatches `design`. A standalone
+`/cai:discover` or `/cai:design` follows it too, and then the session itself
+runs the procedure: the line it yields is its own to act on. A standalone
+`/cai:discover` skips step 2: a model may start it
 without anyone typing it, and only a person's command or a track's dispatch
 writes the index. It never stops a stage and never asks a question: the most it adds
 is one line to the brief, or, inside a track, one sentence to the person before
-`intake`. A standalone command follows this file only when the index exists, so
+`design`. A standalone command follows this file only when the index exists, so
 it never reaches that sentence.
 
 `<top>` is what `git rev-parse --show-toplevel` prints for the project being
@@ -15,7 +15,7 @@ worked on.
 
 1. If `<top>/.cai/codemap/state.json` exists, go on to step 2. Otherwise stop
    here, running no command, adding no line and reminding nobody, with one
-   exception: `intake` is about to be dispatched for the first time in this
+   exception: `design` is about to be dispatched for the first time in this
    session and `<top>/.git` is a file rather than a directory (a linked
    worktree). Then run
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py status --project-dir "<top>"`;

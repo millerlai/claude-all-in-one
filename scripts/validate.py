@@ -486,7 +486,7 @@ def _skills():
     # description out of the always-on budget; its dedicated section also pins
     # the absence of a model and tool grants, like `codemap`.
     SKILL_NAMES = ["build", "chore", "codemap", "debug", "design", "discover", "fix",
-                   "fix-unclaim", "git", "git-sweep", "goal", "intake", "models", "options",
+                   "fix-unclaim", "git", "git-sweep", "goal", "models", "options",
                    "plan-review", "quiz", "refactor", "setup", "ship", "track", "usage",
                    "verify", "viewer"]
     skill_dirs = sorted(os.path.basename(os.path.dirname(p)) for p in skills)
@@ -597,7 +597,7 @@ def _options():
         check(f"{path} points at options_lint.py", "options_lint.py" in read_text(path))
 
     # The literal the probe reads for "a pick was made", and the same one
-    # stage-design.md and stage-intake.md already ask a design's options to carry.
+    # stage-design.md already asks a design's options to carry.
     # Reword it out of the rule and every draft fails one_recommended with nothing
     # saying why -- the marker is a contract between three files and a script.
     for path in (OPTION_RULE, OPTIONS_TEMPLATE):
@@ -691,7 +691,7 @@ def _codemap():
     # is about.
     TRACKED_ONLY = ("It holds tracked files only: a file not yet added with `git add` "
                     "is not in it, so Glob for new files.")
-    refs = [f"skills/track/references/stage-{s}.md" for s in ("intake", "discover", "design")]
+    refs = [f"skills/track/references/stage-{s}.md" for s in ("discover", "design")]
     agents = [f"agents/{a}.md" for a in ("architect", "designer", "explorer")]
     codex_agents = [f"agents/cai_{a}.toml" for a in ("architect", "designer", "explorer")]
     pinned = ([f"{PLUGIN}/{p}" for p in refs + agents]
@@ -2032,8 +2032,8 @@ def _preflight():
     PREFLIGHT_TRACK = os.path.join(PREFLIGHT_PROJECT, "track")
     os.makedirs(os.path.join(PREFLIGHT_PROJECT, "docs", "design"), exist_ok=True)
     os.makedirs(PREFLIGHT_TRACK, exist_ok=True)
-    # design and discover refuse a track whose intake is `done` but whose
-    # intake.md is missing or has an invalid levels table (#376).
+    # build refuses a track whose design is `done` but whose intake.md is
+    # missing or has an invalid levels table (#376).
     with open(os.path.join(PREFLIGHT_TRACK, "intake.md"), "w", encoding="utf-8") as fh:
         fh.write("# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
                  "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look at it |\n")
@@ -2052,8 +2052,7 @@ def _preflight():
         # replaces the whole file rather than editing one cell.
         text = ("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
                 "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-                "|---|---|---|---|\n| intake | done | — | |\n"
-                "| discover | done | — | |\n"
+                "|---|---|---|---|\n"
                 "| design | %s | %s | |\n"
                 "| build | | | |\n| verify | | | |\n| ship | | | |\n"
                 % (design_status, artifact_cell))
@@ -2166,8 +2165,7 @@ def _preflight():
     with open(os.path.join(PREFLIGHT_NO_SIGNOFF_TRACK, "state.md"), "w", encoding="utf-8") as fh:
         fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
                  "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-                 "|---|---|---|---|\n| intake | done | — | |\n"
-                 "| discover | done | — | |\n"
+                 "|---|---|---|---|\n"
                  "| design | done | docs/design/billing-detail.md | |\n"
                  "| build | | | |\n| verify | | | |\n| ship | | | |\n")
     done = run_preflight("build", track_dir=PREFLIGHT_NO_SIGNOFF_TRACK)
@@ -2195,63 +2193,64 @@ def _preflight():
     check("preflight build [no state.md] -> 2", done.returncode == 2)
     check("preflight build names state_md", "FAIL state_md" in done.stdout)
 
-    # discover only needs the intake row's status; write_preflight_state's default
-    # (intake: done) is the passing fixture, an empty status is the blocking one.
-    write_preflight_state("docs/design/billing-detail.md")
-    done = run_preflight("discover")
-    check("preflight discover [intake done] -> 0", done.returncode == 0)
-
-    with open(os.path.join(PREFLIGHT_TRACK, "state.md"), "w", encoding="utf-8") as fh:
-        fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
-                 "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-                 "|---|---|---|---|\n| intake | | — | |\n| discover | | — | |\n"
-                 "| design | | | |\n| build | | | |\n| verify | | | |\n| ship | | | |\n")
-    done = run_preflight("discover")
-    check("preflight discover [intake status empty] -> 2", done.returncode == 2)
-    check("preflight discover names intake_status", "FAIL intake_status" in done.stdout)
-
     def run_preflight_at(stage, project_dir, track_dir):
         return subprocess.run(
             [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
              "--project-dir", project_dir],
             capture_output=True, text=True)
 
-    # intake decides whether a track may even start, so its fixtures are plain
-    # repos with no state.md at all -- the checks it runs never look for one.
+    # design is the first stage, so it is the one that decides whether a track
+    # may even start (the checks the retired intake stage ran). The refusals
+    # below need no state.md: they are asserted by name, and the run fails on
+    # state_md as well.
     INTAKE_MAIN = temp_repo("main")
-    done = run_preflight_at("intake", INTAKE_MAIN, os.path.join(INTAKE_MAIN, "track", "feature-a"))
-    check("preflight intake [on main] -> 2", done.returncode == 2)
-    check("preflight intake names not_main_branch", "FAIL not_main_branch" in done.stdout)
+    done = run_preflight_at("design", INTAKE_MAIN, os.path.join(INTAKE_MAIN, "track", "feature-a"))
+    check("preflight design [on main] -> 2", done.returncode == 2)
+    check("preflight design names not_main_branch", "FAIL not_main_branch" in done.stdout)
 
     INTAKE_RESERVED = temp_repo("work")
-    done = run_preflight_at("intake", INTAKE_RESERVED,
+    done = run_preflight_at("design", INTAKE_RESERVED,
                             os.path.join(INTAKE_RESERVED, "track", "current"))
-    check("preflight intake [reserved feature name] -> 2", done.returncode == 2)
-    check("preflight intake names reserved_name", "FAIL reserved_name" in done.stdout)
+    check("preflight design [reserved feature name] -> 2", done.returncode == 2)
+    check("preflight design names reserved_name", "FAIL reserved_name" in done.stdout)
 
     # No cap on open tracks (#309): six of them, past the old ceiling of five,
-    # plus a done/ archive, still let a new one start.
+    # plus a done/ archive, still let a new one start. The new track's state.md
+    # has the design row empty, as SKILL.md creates it, and no intake.md: this
+    # stage writes that.
     INTAKE_OK = temp_repo("work")
     INTAKE_OK_ROOT = os.path.join(INTAKE_OK, "track")
     for i in range(6):
         os.makedirs(os.path.join(INTAKE_OK_ROOT, f"f{i}"))
     os.makedirs(os.path.join(INTAKE_OK_ROOT, "done", "archived-1"))
-    done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
-    check("preflight intake [6 active + done/ archive] -> 0", done.returncode == 0)
+    INTAKE_OK_TRACK = os.path.join(INTAKE_OK_ROOT, "feature-new")
+    os.makedirs(INTAKE_OK_TRACK)
+    with open(os.path.join(INTAKE_OK_TRACK, "state.md"), "w", encoding="utf-8") as fh:
+        fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
+                 "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
+                 "|---|---|---|---|\n| design | | | |\n| build | | | |\n"
+                 "| verify | | | |\n| ship | | | |\n")
+    done = run_preflight_at("design", INTAKE_OK, INTAKE_OK_TRACK)
+    check("preflight design [6 active + done/ archive] -> 0", done.returncode == 0)
 
     # A track that git tracks makes the working tree dirty by existing, and the
     # stage that then refuses is `ship`, whose clean_tree failure says nothing
-    # about why. intake says so while the fix is still one line -- and says it
+    # about why. design says so while the fix is still one line -- and says it
     # without blocking, because committing your track is a legitimate choice.
-    check("preflight intake warns when the track is not ignored",
+    check("preflight design warns when the track is not ignored",
           "track_ignored" in done.stdout and "NOT ignored" in done.stdout)
-    check("preflight intake does not block on it", done.returncode == 0)
+    check("preflight design does not block on it", done.returncode == 0)
 
     with open(os.path.join(INTAKE_OK, ".gitignore"), "w", encoding="utf-8") as fh:
         fh.write("track/\n")
-    done = run_preflight_at("intake", INTAKE_OK, os.path.join(INTAKE_OK_ROOT, "feature-new"))
-    check("preflight intake is quiet once the track is ignored",
+    done = run_preflight_at("design", INTAKE_OK, INTAKE_OK_TRACK)
+    check("preflight design is quiet once the track is ignored",
           "track_ignored" in done.stdout and "NOT ignored" not in done.stdout)
+
+    # intake and discover are retired stages, not preflight stages.
+    for retired in ("intake", "discover"):
+        done = run_preflight_at(retired, INTAKE_OK, INTAKE_OK_TRACK)
+        check(f"preflight {retired} (retired stage id) -> 1", done.returncode == 1)
 
     # verify reads state.md and the ledger only for the `commit_answer` line,
     # which always passes, so its fixtures are still bare repos: it otherwise
@@ -2272,8 +2271,7 @@ def _preflight():
         with open(os.path.join(track_dir, "state.md"), "w", encoding="utf-8") as fh:
             fh.write("# preflight-fixture\n\nbranch: feat/preflight-fixture\n"
                       "started: 2026-08-27\n\n| stage | status | artifact | note |\n"
-                      "|---|---|---|---|\n| intake | done | — | |\n"
-                      "| discover | done | — | |\n| design | done | — | |\n"
+                      "|---|---|---|---|\n| design | done | — | |\n"
                       "| build | done | — | |\n| verify | %s | — | |\n"
                       "| ship | | | |\n" % verify_status)
 
@@ -2476,35 +2474,19 @@ def _track_stages():
     # exactly what pointed design at architect (can't Write) and ship at
     # explorer (can't run git) before designer/verifier/shipper existed.
     STAGE_TOOL_NEEDS = {
-        # intake and discover both run on `architect` (stages.json), which
-        # stays read-only: D6-1/2/3 rewrote the three imperatives out rather
-        # than grant it `Agent` or `Write`. `Agent` reaches `implementer`, so
-        # it is a `Write` grant wearing another name -- and it cannot be
-        # narrowed, because the type list in the parentheses is ignored in a
-        # subagent definition (verifier.md). Three separate files say this
-        # agent is read-only: architect.md, plan-review/SKILL.md,
-        # stage-design.md. RETIRED_IMPERATIVES below is what keeps the
-        # rewrite from quietly coming back.
+        # intake and discover are retired stages (stages.json's `retired`):
+        # intake's work moved into design, and discover is a standalone
+        # command whose own agent, architect, stays read-only -- D6-1/2/3
+        # rewrote the three imperatives out rather than grant it `Agent` or
+        # `Write`, and RETIRED_IMPERATIVES below keeps stage-discover.md from
+        # quietly asking for them again.
         #
-        # The web tools are granted, though: reading a page writes nothing.
-        # Without them intake handed a web lookup on to discover, which runs
-        # on this same agent, and nobody did it (#335). Both references now
-        # say the lookup happens in the stage that needs it.
-        "intake": [
-            ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
-            ("a search tool",
-             lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
-            ("WebSearch", lambda tools: re.search(r"\bWebSearch\b", tools) is not None),
-            ("WebFetch", lambda tools: re.search(r"\bWebFetch\b", tools) is not None),
-        ],
-        "discover": [
-            ("Read", lambda tools: re.search(r"\bRead\b", tools) is not None),
-            ("a search tool",
-             lambda tools: re.search(r"\bGrep\b|\bGlob\b", tools) is not None),
-            ("WebSearch", lambda tools: re.search(r"\bWebSearch\b", tools) is not None),
-            ("WebFetch", lambda tools: re.search(r"\bWebFetch\b", tools) is not None),
-        ],
+        # The web tools are what intake needed (#335: it handed a web lookup
+        # on to discover and nobody did it), and the merged stage runs on
+        # designer, so designer is granted them: reading a page writes nothing.
         "design": [
+            ("WebSearch", lambda tools: re.search(r"\bWebSearch\b", tools) is not None),
+            ("WebFetch", lambda tools: re.search(r"\bWebFetch\b", tools) is not None),
             ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
             ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
             # stage-design.md runs design_probe.py and mmdc; designer.md's own
@@ -2561,24 +2543,40 @@ def _track_stages():
         ],
     }
 
-    # The track skill's stage table. Shape checks only -- the six stage prose
-    # files and their wrapper skills are later units and do not exist yet.
+    # The track skill's stage table. Shape checks only.
     STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
-    STAGE_ORDER = ["intake", "discover", "design", "build", "verify", "ship"]
+    STAGE_ORDER = ["design", "build", "verify", "ship"]
+    RETIRED_STAGES = ["intake", "discover"]
     missing_stages = sorted(set(STAGE_ORDER) - set(STAGE_TOOL_NEEDS))
     check("STAGE_TOOL_NEEDS covers every stage id (%s)"
-          % (", ".join(missing_stages) or "all six"),
+          % (", ".join(missing_stages) or "all four"),
           set(STAGE_TOOL_NEEDS) == set(STAGE_ORDER))
     check(f"stages.json ships ({STAGES_JSON})", os.path.isfile(STAGES_JSON))
     if os.path.isfile(STAGES_JSON):
         stages_text = read_text(STAGES_JSON)
         stages = json.loads(stages_text)["stages"]
+        check(f"stages.json retires {RETIRED_STAGES} "
+              f"({json.loads(stages_text).get('retired')})",
+              json.loads(stages_text).get("retired") == RETIRED_STAGES)
         check(f"stages.json has {len(STAGE_ORDER)} rows ({len(stages)})",
               len(stages) == len(STAGE_ORDER))
         keys_ok = all(set(row) == {"id", "agent", "reference", "auto_invoke"} for row in stages)
         check("every stage row has exactly id/agent/reference/auto_invoke", keys_ok)
         ids = [row.get("id") for row in stages]
         check(f"stage ids are {STAGE_ORDER} in order ({ids})", ids == STAGE_ORDER)
+
+        # R2: intake's route test used to be written twice, once per stage.
+        # Merged, the procedure routes once; a second copy is a second chance
+        # for the two to disagree about what counts as broken.
+        route_test = "Can you write a test that fails now and would pass if an existing promise"
+        design_reference = f"{PLUGIN}/skills/track/references/stage-design.md"
+        routes = (" ".join(read_text(design_reference).split()).count(route_test)
+                  if os.path.isfile(design_reference) else 0)
+        check(f"{design_reference} holds exactly one route decision (R2) ({routes})",
+              routes == 1)
+        # UC5: discover left the stage list, but the command stays.
+        discover_skill = f"{PLUGIN}/skills/discover/SKILL.md"
+        check(f"{discover_skill} still exists (UC5)", os.path.isfile(discover_skill))
 
         # Model tier lives only in models.json; a second copy here would drift
         # the moment a role is re-tiered. "build" is also a legitimate stage id
@@ -2893,7 +2891,7 @@ def _track_references():
     # take Write back off verifier.md and the check goes red, naming the stage
     # and the tool. A gap it closed by rewording the reference has nothing
     # holding it closed -- paste "Dispatch `explorer`" back into
-    # stage-intake.md and every check still passes, with the reference once
+    # stage-discover.md and every check still passes, with the reference once
     # more asking for a tool its runner does not have. That is the defect this
     # block exists to catch, so the four retired imperatives are named here,
     # per file.
@@ -2911,23 +2909,14 @@ def _track_references():
     # the reason in the reference's own prose, so an editor reads it before
     # rewording the sentence.
     #
-    # The #73 row is the same shape arriving from the other direction: the lint
-    # belongs wherever options are laid out, and intake is the one stage whose
-    # runner can neither write the draft nor run a script (architect.md:7). Its
-    # prose says so and points at where the probe does run, so this catches the
-    # command being pasted in anyway -- matched as the command, not the filename,
-    # because that prose names the file deliberately.
-    #
-    # The `scripts/codemap_` rows are the same shape: the three stage runners
-    # read the index with `Read`/`Grep` only, and the main session alone runs
+    # The `scripts/codemap_` rows are the same shape: the stage runners read
+    # the index with `Read`/`Grep` only, and the main session alone runs
     # codemap_cli.py (D9; the stage-design.md row is T3-8, the same practice one
     # file further -- designer_guard.py already blocks it, this makes the text
-    # and the capability fail together).
+    # and the capability fail together). The #73 row that pinned the intake
+    # stage's lack of a lint command left with that stage: its approaches now
+    # run on designer, which may run options_lint.py.
     RETIRED_IMPERATIVES = {
-        "stage-intake.md": [("Dispatch `explorer`", "intake", "Agent"),
-                            ("scripts/options_lint.py", "intake",
-                             "Write and a python interpreter"),
-                            ("scripts/codemap_", "intake", "a python interpreter")],
         "stage-discover.md": [("Dispatch `explorer`", "discover", "Agent"),
                               ("Write it to the session", "discover", "Write"),
                               ("scripts/codemap_", "discover", "a python interpreter")],
@@ -2958,7 +2947,6 @@ def _track_references():
         "skills/track/SKILL.md": "the two human gates themselves",
         "skills/track/references/stage-design.md": "the design sign-off, and the cost-sizing go",
         "skills/track/references/stage-ship.md": "the irreversible operations, squash included",
-        "skills/track/references/stage-intake.md": "the approval before anything is designed",
         "skills/track/references/stage-build.md": "Step 0.5's answers",
         "skills/track/references/pending-questions.md": "a gate handed up by a subagent",
         "skills/track/references/ticket-mirror.md": "the claim menu and the close at done",
@@ -3101,15 +3089,17 @@ def _track_references():
               "proposals",
               "parked as a proposal" in verify_section("## Report"))
 
-    # AC1: stage-intake.md is the only place that tells the intake's author the
-    # shape of the `## Verification levels` table, and verify_plan.py levels
-    # rejects any other shape. A claim about what the model writes, so the whole
-    # paragraph is pinned, whitespace folded so a rewrap passes and a changed
-    # word does not (same convention as the track-skill block below).
-    INTAKE_REF = f"{PLUGIN}/skills/track/references/stage-intake.md"
-    LEVELS_MARKER = "End the intake with a `## Verification levels` section"
+    # AC1: stage-design.md's Step 5 is the only place that tells the requirement's
+    # author the shape of the `## Verification levels` table, and verify_plan.py
+    # levels rejects any other shape. A claim about what the model writes, so the
+    # whole paragraph is pinned, whitespace folded so a rewrap passes and a
+    # changed word does not (same convention as the track-skill block below).
+    # The paragraph moved here from the retired stage-intake.md; only its opening
+    # words changed with the move.
+    INTAKE_REF = f"{PLUGIN}/skills/track/references/stage-design.md"
+    LEVELS_MARKER = "End the requirement with a `## Verification levels` section"
     LEVELS_CLAUSE = (
-        "End the intake with a `## Verification levels` section: the heading "
+        "End the requirement with a `## Verification levels` section: the heading "
         "verbatim, then a table with the header `| AC | level | check |` verbatim "
         "and exactly one row per acceptance criterion. `level` is one of `test`, "
         "`local-run`, `deployed`, `manual`. `check` for `local-run` is either an "
@@ -3121,7 +3111,7 @@ def _track_references():
         intake_text = read_text(INTAKE_REF)
         levels_para = (LEVELS_MARKER + intake_text.split(LEVELS_MARKER, 1)[1].split("\n\n", 1)[0]
                        if LEVELS_MARKER in intake_text else "")
-        check("stage-intake.md's Verification levels paragraph is pinned word for "
+        check("stage-design.md's Verification levels paragraph is pinned word for "
               "word -- verify_plan.py levels rejects any other table shape; update "
               "this pinned string only together with that parser",
               " ".join(levels_para.split()) == LEVELS_CLAUSE)
@@ -3301,7 +3291,7 @@ def _track_skill():
     # `## Before build`, where the menu and the skip's reach live. Moved together
     # with the pinned body-line count (140 -> 141), keeping the gap.
     #
-    # 143 -> 144 (#376): one line has the main session save intake's
+    # 143 -> 144 (#376): one line has the main session save the design stage's
     # `## Intake document` as the track's intake.md. Pinned count 141 -> 142.
     #
     # 144 -> 145 (#385): one line has the main session quote the
@@ -3444,14 +3434,12 @@ def _track_state():
 
     TRACK_FIXTURE_ROOT = temp_repo("track-state-fixture")
 
-    # Same six rows as the state.md example in the track spec: one stage done
-    # with an artifact, one done with a note, one skipped with a reason, one
-    # in-progress, two not started -- so "next" lands on the in-progress row
-    # rather than skating past it.
+    # Same four rows as the state.md example in the track spec: one stage done
+    # with an artifact and a note, one in-progress, two not started -- so
+    # "next" lands on the in-progress row rather than skating past it.
     FULL_ROWS = [
-        ("intake", "done", "docs/design/2026-08-27-billing-export-intake.md", ""),
-        ("discover", "done", "—", "three unknowns closed"),
-        ("design", "skipped", "—", "reusing the existing spec"),
+        ("design", "done", "docs/design/2026-08-27-billing-export-detail.md",
+         "three unknowns closed"),
         ("build", "in-progress", "—", "unit 3 of 5"),
         ("verify", "", "", ""),
         ("ship", "", "", ""),
@@ -3487,7 +3475,7 @@ def _track_state():
 
     def row_mismatch_track_root():
         root = make_track_root("row-mismatch")
-        write_track_state(os.path.join(root, "short-track"), FULL_ROWS[:5])  # missing "ship"
+        write_track_state(os.path.join(root, "short-track"), FULL_ROWS[:3])  # missing "ship"
         write_current(root, "short-track")
         return root
 
@@ -3498,7 +3486,7 @@ def _track_state():
         # (label, root-builder, expected exit, substring the output must name)
         ("valid track resolves the next stage", valid_track_root, 0, "next: build"),
         ("current names a missing directory", missing_dir_track_root, 2, "ghost-feature"),
-        ("state.md row count disagrees with stages.json", row_mismatch_track_root, 2, "5 stage row"),
+        ("state.md row count disagrees with stages.json", row_mismatch_track_root, 2, "3 stage row"),
         ("no current at all", no_current_track_root, 2, "no active track"),
     ]
 

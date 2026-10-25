@@ -15,15 +15,184 @@ Standing alone you are the main session — ask directly.
 
 The failure this stage exists to catch is a design that arrives already
 committed — plausible, detailed, and resting on an architecture nobody was
-asked about, or on a capability nobody checked was actually available.
+asked about, or on a capability nobody checked was actually available. Its
+first half catches the failure before that one: starting to build before anyone
+agreed on what "done" means. A request arrives as a sentence; Steps 1–5 turn it
+into a problem statement precise enough that a later stage can check whether
+its acceptance criteria were actually met, and only then does a mode start.
 
-## Pick a mode, and say which
+Steps 1–5 run once, when the request is new. Delta starts from a branch that
+exists, and Decisions and Detail start from an approved entrance, so none of
+those three runs Steps 2–5; each still reads `cai-context.md` as Step 1 says.
+
+**When `.cai/track/<feature>/intake.md` already exists** — the main session
+saved it after an earlier pass of this stage reported, or the track began
+before intake was merged into this stage and its intake finished — start from
+it: read it, do not ask the interview again, do not propose approaches again,
+and go to "Pick a mode". The route comes from the brief, which quotes the
+earlier report's route or the intake row's note; when it carries none, run
+Step 2 once on the document's problem statement.
+
+## Step 1 — Explore the context
+
+Before asking anything, look. Map the area the request touches yourself by
+reading it — related code, existing conventions, anything that already
+half-solves this — and dispatch `explorer` for what a scout can locate faster
+(the evidence rule below says what a scout's answer is worth). A
+question asked without having looked first spends the person's time on
+something you could have found yourself.
 
 If `<top>/.cai/cai-context.md` exists — `<top>` being the path your brief
 names or, if it names none, what `git rev-parse --show-toplevel` prints —
 read it first and use its terms. If it does not exist, or neither gives you
 `<top>`, say nothing about it and do not suggest creating one. Read only
 that one file, and never write it.
+
+When the brief carries a line starting `codemap: fresh`, "The codemap index is
+not a fourth source", under the evidence rule below, says how to use it.
+
+Facts from outside this repo — how other products handle the same request, what
+a vendor's documentation promises — are part of the same look: search and fetch
+them yourself with `WebSearch`/`WebFetch`, recording the URL and the sentence
+relied on. Never defer one to `/cai:discover`: it is a standalone command that
+nobody runs for you inside a track, so a lookup handed on there is a lookup
+nobody does (#335). If one fails — the tool is refused or the page will not
+load — name the query or URL among the Report's deviations, so the person can
+see it was not done.
+
+## Step 2 — Route it: broken, or never there
+
+A request does not say which it is, and its wording is not evidence. "Add a
+retry" sounds like a feature; its root cause is often a misconfigured pool,
+where the retry treats the symptom. A ticket's title is written by whoever
+noticed the problem, not by whoever knows its cause.
+
+So route on evidence, with one test:
+
+> **Can you write a test that fails now and would pass if an existing promise
+> held?**
+
+A promise is an existing test, the documentation, a spec, or an invariant in
+a stance document. **Never anyone's expectation** — an expectation nobody
+wrote down is a requirement, and that answers the question the other way.
+
+- **Yes** → it is broken. The **Diagnosis** mode runs, and that failing test
+  is its entry condition, already written.
+- **No, because nothing ever promised it** → it was never there. The
+  **Stance** mode runs.
+
+The best part of this test is that running it is not overhead: whichever way
+it comes out, that test had to be written. Routing is the first piece of the
+work, not a ceremony in front of it.
+
+**Both at once is normal.** "Login is slow" can be an N+1 query (broken) and
+a caching layer nobody ever built (never there) in the same ticket. Split
+it: the half you can write a failing test for goes one way, the half you
+cannot goes the other. Forced down one road, the second half silently looks
+finished when the first is.
+
+**Report the route with its evidence**, not as a label: the test you wrote or
+the reason you could not, and which promise it tests against. Three
+counter-checks, none of which needs judgement:
+
+- Called a bug, but no failing test can be written → it is not a bug.
+- Called a feature, but an existing test or the documentation already
+  promises the opposite → it is a bug.
+- Either way, if the cause later lands on an invariant, diagnosis escalates
+  to stance (Diagnosis step 4). That escalation is one-way and gets
+  recorded.
+
+## Step 3 — Ask one question at a time
+
+Whatever is still ambiguous after exploring goes to the user, following the
+interview move (`stage-discover.md`, move C):
+
+- Open with the count and the ordering — "4 open questions, ordered by
+  blast radius."
+- **Ask one question at a time and wait.** A numbered list of questions is
+  not an interview; it gets one vague answer covering none of them.
+- Order by whether the answer changes the shape of the work, not by what is
+  easiest to answer. Cheap cosmetic questions go last or get dropped.
+- Offer a default with each question ("I'd assume X — correct me"), so a
+  shrug still moves things forward.
+
+Skip this step when the request already reads unambiguous — interviewing
+someone who already answered is noise.
+
+## Step 4 — Propose 2–3 approaches
+
+Once the request is unambiguous, propose 2–3 approaches. Each one carries:
+
+- what it does, concretely;
+- its trade-offs — what it costs, what it constrains later;
+- how it fails — the situation where this would be the wrong choice.
+
+Mark at most one **(recommended)**, and say why from the trade-offs above —
+never from preference alone. This is the same option-weighing the Decisions
+mode runs before an architecture choice, sized for a raw request rather than a
+full feasibility table.
+
+Lay each approach out in `option-explainer.md`'s six-field shape: a title line,
+then the six numbered, one field per item. Not a paragraph with them run
+together — every field is still there and none of them can be found (#73).
+Write the approaches to `<scratchpad>/options-approaches.md` and check them
+before they go anywhere:
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the options, as a file>`,
+exit 0 or fix what it names.
+
+When you cannot name two real approaches without a survey of the option space,
+or an unknown would change the amount of work, say so in the Report and
+recommend the person run `/cai:discover`. Do not run it yourself: it is a
+standalone command, and a track no longer has a stage for it.
+
+## Step 5 — Hand the requirement up
+
+**Do not start the design yet.** Hand back the problem statement, the
+acceptance criteria it implies, and the recommended approach, then stop. Give
+every acceptance criterion a stable id (AC1, AC2, ...), retained through
+design, build, and verification. Each criterion states an observable outcome
+and how to check it; do not renumber approved criteria. A mode only starts
+once the user has said yes to this. Typing the request is not agreement to
+whatever was inferred from it.
+
+End the requirement with a `## Verification levels` section: the heading
+verbatim, then a table with the header `| AC | level | check |` verbatim and
+exactly one row per acceptance criterion. `level` is one of `test`,
+`local-run`, `deployed`, `manual`. `check` for `local-run` is either an HTTP
+check, `<METHOD> <path> <status>` with an optional quoted string the response
+body must contain, or `e2e <name>`; for `deployed` and `manual` it is the steps
+a person follows. Write a literal `|` inside a cell as `\|`.
+
+| AC | level | check |
+|---|---|---|
+| AC1 | test | tests/test_levels.py |
+| AC2 | local-run | GET /health 200 "ok" |
+| AC3 | deployed | open the preview URL and confirm the banner shows |
+| AC4 | manual | read the README section and confirm it names all four levels |
+
+That yes is a menu, not a word to type: the approaches from Step 4 become the
+options, `references/approval-gates.md` holds the shape, and the person who
+puts it is the main session (this stage's runner has no interactive tool).
+
+**Hand the whole document back as its own section** so the main session can
+save it unedited: a `## Intake document` section holding the problem
+statement, the numbered acceptance criteria, the recommended approach and the
+`## Verification levels` table above, in that order, the table last. The
+section runs to the end of the reply, or to a `## Pending questions` section
+if there is one. Inside a track the main session writes its body, verbatim,
+to `.cai/track/<feature>/intake.md` before it asks for approval, so the
+person can open the full text; `verify` and `preflight.py build` read it from
+there (`verify_plan.py`'s `INTAKE_NAME`). You write no track file yourself.
+Standing alone there is no track directory: give the same section in the
+conversation and ask the approval directly.
+
+**Hand the route up with it**, in the same breath as the problem statement:
+which entrance the mode will take, and the evidence Step 2 produced for it. A
+route inferred later, from the shape of the request, is the guess Step 2
+exists to replace. Once the approval is in, the main session dispatches this
+stage again; that pass finds `intake.md` and goes to "Pick a mode".
+
+## Pick a mode, and say which
 
 - **Diagnosis** — something is broken. Names the root cause and the fix, one
   page. Entry condition below; it is not "someone called it a bug".
@@ -37,22 +206,10 @@ that one file, and never write it.
 - **Delta** — the branch is already built. Recovers the decisions from the
   diff and the commits instead of deciding anything.
 
-**Diagnosis and Stance are the two entrances, and one test picks between
-them** — the same one `stage-intake.md` runs to route the work:
-
-> Can you write a test that fails now and would pass if an existing promise
-> held?
-
-A promise is an existing test, the documentation, a spec, or an invariant.
-Never anyone's expectation: an expectation nobody wrote down is a
-requirement, and requirements are Stance's problem.
-
-- **Yes** → something is broken. Diagnosis.
-- **No, because nothing ever promised it** → it was never there. Stance.
-
-Do not route on the words the request arrived in. "Add a retry" sounds like a
-feature and its root cause is often a misconfigured pool, where the retry
-treats the symptom — and the ticket's wording never says so.
+**Diagnosis and Stance are the two entrances, and Step 2's route picks
+between them**: broken is Diagnosis, never there is Stance. There is no second
+test here — a requirement nobody wrote down is Stance's problem, and the route
+was already reported with its evidence.
 
 After either entrance, the rest is shared: Decisions where choices survive,
 then Detail. Delta only applies when code already exists and nobody wrote
@@ -95,9 +252,9 @@ Three sources count, and nothing else does:
   relevant lines, then read those files yourself and decide what they mean.
   A scout's summary is a pointer, not evidence.
 - **Official documentation** — for any tool, framework, or platform the
-  design stands on, fetch the vendor's own docs (`explorer`'s tools are
-  Read/Grep/Glob only, so this needs a chore-tier subagent with web access),
-  then interpret it yourself. Record the URL and the sentence taken.
+  design stands on, fetch the vendor's own docs yourself with
+  `WebSearch`/`WebFetch` (`explorer` cannot: its tools are Read/Grep/Glob
+  only), then interpret them. Record the URL and the sentence taken.
 - **Neither** — write `UNVERIFIED`, and name the design decision that stops
   standing up if the guess turns out wrong.
 
@@ -651,10 +808,13 @@ of the ledger's `--note`; you write no track file at all.
 - which mode ran
 - where the document landed
 - what `plan-review` returned
+- when Steps 1–5 ran: the problem statement that was agreed, and which
+  questions were skipped and why
 - any deviation from this procedure
 
 Evidence goes in the artifact this stage already produces, never pasted
-in here. 4000 characters is the ceiling for this section: the largest
+in here. The `## Intake document` section of Step 5 sits outside this ceiling
+too: the main session saves it as the track's `intake.md`. 4000 characters is the ceiling for this section: the largest
 note any finished track has written is 1941 characters, measured across
 30 rows in five tracks, and a report carries those fields plus what never
 reaches that cell. The number is the user's call, 2026-09-08. A

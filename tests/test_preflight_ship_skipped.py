@@ -17,7 +17,7 @@ SCRIPTS = os.path.dirname(ledger.__file__)
 PREFLIGHT_PY = os.path.join(SCRIPTS, "preflight.py")
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GIT_ID = ["-c", "user.email=t@example.com", "-c", "user.name=t"]
-STAGES = ("intake", "discover", "design", "build", "verify", "ship")
+STAGES = ("design", "build", "verify", "ship")
 
 
 def git(repo, *args):
@@ -39,7 +39,7 @@ def make_repo(tmp_path):
 
 
 def make_track(tmp_path, newline="\n", **rows):
-    """A six-row state.md. `rows` maps a stage to its (status, note); verify
+    """A four-row state.md. `rows` maps a stage to its (status, note); verify
     defaults to done so ship's own verify_status passes, the rest to empty.
     A skipped row carries the `—` artifact `/cai:track skip` writes."""
     track = tmp_path / "track"
@@ -76,14 +76,14 @@ def test_skipped_verify_is_named_with_its_reason(tmp_path):
 
 def test_every_skipped_stage_is_listed_in_table_order(tmp_path):
     track = make_track(tmp_path, verify=("skipped", "docs only"),
-                       discover=("skipped", "solution space already clear"),
-                       intake=("done", "problem statement confirmed"))
+                       build=("skipped", "solution space already clear"),
+                       design=("done", "problem statement confirmed"))
     assert skipped_line(track, tmp_path) == (
-        True, "skipped_stages (discover: solution space already clear; verify: docs only)")
+        True, "skipped_stages (build: solution space already clear; verify: docs only)")
 
 
 def test_no_skipped_stage_says_none(tmp_path):
-    track = make_track(tmp_path, intake=("done", "x"), build=("in-progress", "unit 1 of 2"))
+    track = make_track(tmp_path, design=("done", "x"), build=("in-progress", "unit 1 of 2"))
     assert skipped_line(track, tmp_path) == (True, "skipped_stages (none)")
 
 

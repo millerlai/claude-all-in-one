@@ -31,9 +31,7 @@ def _grep_forbidden(text):
     return [word for word in FORBIDDEN if word in low]
 
 
-SIX_ROWS = [
-    ("intake", "done", "docs/design/x-intake.md", "signed off"),
-    ("discover", "skipped", "-", "reason: closed at the program layer"),
+FOUR_ROWS = [
     ("design", "done", "docs/design/x-detail.md", "HLD and detail both signed off"),
     ("build", "passed", "-", ""),
     ("verify", "passed", "-", ""),
@@ -41,7 +39,7 @@ SIX_ROWS = [
 ]
 
 
-def _make_state_md(track_dir, rows=SIX_ROWS):
+def _make_state_md(track_dir, rows=FOUR_ROWS):
     lines = ["# fixture", "", "branch: feat/fixture", "started: 2026-08-29", "",
              "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
@@ -49,7 +47,7 @@ def _make_state_md(track_dir, rows=SIX_ROWS):
 
 
 def _run_a_track(track_dir, project_dir):
-    """Simulates one track running end to end: six ledger records (a
+    """Simulates one track running end to end: four ledger records (a
     realistic note on each, the same shape the real stages write) plus one
     ticket-mirror projection through the no-network `local-stub` backend --
     close enough to a real run to be what AC8 is about, without touching
@@ -63,8 +61,6 @@ def _run_a_track(track_dir, project_dir):
         encoding="utf-8")
 
     for stage, outcome, note in (
-            ("intake", "passed", "signed off by the user"),
-            ("discover", "skipped", "closed at the program layer"),
             ("design", "passed", "HLD and detail both signed off"),
             ("build", "passed", "tests green"),
             ("verify", "passed", "reviewer approved"),

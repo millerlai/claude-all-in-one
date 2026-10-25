@@ -1,6 +1,6 @@
 """Unit 2: marker_for and render_comment (AC11).
 
-render_comment is a pure function of state.md's six rows -- these tests
+render_comment is a pure function of state.md's four rows -- these tests
 build state.md fixtures directly, the same shape tests/test_preflight_ledger.py's
 make_track() writes, rather than driving a real track through the skill.
 """
@@ -8,7 +8,7 @@ import open_items
 import preflight
 import ticket
 
-STAGE_IDS = ["intake", "discover", "design", "build", "verify", "ship"]
+STAGE_IDS = ["design", "build", "verify", "ship"]
 
 LONG_NOTE = "x" * 250
 
@@ -20,12 +20,10 @@ def make_state_md(track_dir, rows):
     (track_dir / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-SIX_ROWS = [
-    ["intake", "done", "docs/design/x-intake.md", "seven decisions signed off"],
-    ["discover", "skipped", "—",
-     "reason: four unknowns already closed at the program layer, user decided to skip"],
+FOUR_ROWS = [
     ["design", "done", "docs/design/x-detail.md", "HLD and detail both signed off"],
-    ["build", "", "", ""],
+    ["build", "skipped", "—",
+     "reason: four unknowns already closed at the program layer, user decided to skip"],
     ["verify", "", "", ""],
     ["ship", "", "", LONG_NOTE],
 ]
@@ -46,11 +44,11 @@ def test_marker_for_is_not_a_substring_of_a_similarly_named_feature():
 # --- AC11: render_comment matches state.md row for row -----------------------
 
 def test_render_comment_matches_state_md_row_for_row(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body = ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z")
     assert body is not None
 
-    for stage, status, artifact, note in SIX_ROWS:
+    for stage, status, artifact, note in FOUR_ROWS:
         assert ("| %s | %s | " % (stage, status)) in body
 
     # marker is the first line, load-bearing for find-back
@@ -59,21 +57,21 @@ def test_render_comment_matches_state_md_row_for_row(tmp_path):
 
 
 def test_render_comment_never_leaks_the_artifact_column(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body = ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z")
-    for stage, status, artifact, note in SIX_ROWS:
+    for stage, status, artifact, note in FOUR_ROWS:
         if artifact and artifact != "—":
             assert artifact not in body
 
 
 def test_render_comment_skipped_rows_reason_reaches_the_body(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body = ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z")
     assert "reason: four unknowns already closed" in body
 
 
 def test_render_comment_truncates_a_note_over_200_chars(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body = ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z")
     assert LONG_NOTE not in body               # the untruncated 250-char note is gone
     assert ("x" * 200) in body                 # but the first 200 chars survive
@@ -84,13 +82,13 @@ def test_render_comment_returns_none_when_state_md_is_missing(tmp_path):
     assert ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z") is None
 
 
-def test_render_comment_returns_none_when_row_count_is_not_six(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS[:5])
+def test_render_comment_returns_none_when_row_count_is_not_four(tmp_path):
+    make_state_md(tmp_path, FOUR_ROWS[:3])
     assert ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z") is None
 
 
 def test_render_comment_is_a_pure_function_of_its_inputs(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body1 = ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z")
     body2 = ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z")
     assert body1 == body2
@@ -99,12 +97,9 @@ def test_render_comment_is_a_pure_function_of_its_inputs(tmp_path):
 # --- Unit 5: the status line, and the `final` left-open projection -----------
 
 ROWS_WITH_LEFT_OPEN = [
-    ["intake", "done", "docs/design/x-intake.md",
-     "signed off. Left open: whether ship Gate 2 keeps a close item; status-"
-     "line wording and whether it names the login"],
-    ["discover", "skipped", "—",
-     "reason: four unknowns already closed at the program layer"],
-    ["design", "done", "docs/design/x-detail.md", "HLD and detail both signed off"],
+    ["design", "done", "docs/design/x-detail.md",
+     "HLD and detail both signed off. Left open: whether ship Gate 2 keeps a close "
+     "item; status-line wording and whether it names the login"],
     ["build", "done", "—", "tests green"],
     ["verify", "done", "—", "reviewer approved"],
     ["ship", "done", "—", "PR opened"],
@@ -112,7 +107,7 @@ ROWS_WITH_LEFT_OPEN = [
 
 
 def test_render_comment_default_status_line_is_in_progress(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body = ticket.render_comment(str(tmp_path), "ticket-integration", "2026-08-31T00:00:00Z")
     lines = body.splitlines()
     assert lines[0] == "[cai track: ticket-integration]"
@@ -120,14 +115,14 @@ def test_render_comment_default_status_line_is_in_progress(tmp_path):
 
 
 def test_render_comment_final_false_status_line_is_in_progress(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body = ticket.render_comment(str(tmp_path), "ticket-integration",
                                   "2026-08-31T00:00:00Z", final=False)
     assert body.splitlines()[1] == "status: in-progress"
 
 
 def test_render_comment_final_true_status_line_is_done(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     body = ticket.render_comment(str(tmp_path), "ticket-integration",
                                   "2026-08-31T00:00:00Z", final=True)
     assert body.splitlines()[1] == "status: done"
@@ -188,8 +183,8 @@ def test_render_comment_final_true_renders_items_then_reminders(tmp_path):
     assert lines[lines.index("left open:") + 1:-2] == [
         "- [verify] Minor A (undecided)",
         "- [build] " + "y" * 200 + ticket.ELLIPSIS + " (undecided)",
-        "- [intake] whether ship Gate 2 keeps a close item",
-        "- [intake] status-line wording and whether it names the login",
+        "- [design] whether ship Gate 2 keeps a close item",
+        "- [design] status-line wording and whether it names the login",
     ]
 
 
@@ -204,7 +199,7 @@ def _decided(n, state, url=None):
 
 
 def test_render_comment_final_true_item_line_ends_with_state_word(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     items = [_decided(1, "fixed"), _decided(2, "accepted"),
              _decided(3, "filed", ISSUE), _decided(4, "noted", NOTE),
              _decided(5, "fix-pending"), _decided(6, "undecided")]
@@ -221,7 +216,7 @@ def test_render_comment_final_true_item_line_ends_with_state_word(tmp_path):
 
 
 def test_render_comment_final_true_state_word_survives_a_long_item(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     item = _decided(1, "filed", ISSUE)
     item["what"] = "z" * 250
     _write_record(tmp_path, [item])
@@ -236,7 +231,7 @@ def test_render_comment_final_true_state_word_survives_a_long_item(tmp_path):
 def test_render_comment_final_true_drops_a_url_that_is_not_an_issue_or_note(tmp_path):
     # The record is a file a person may have edited; its url goes to a public
     # ticket, so only the shapes `record-url` itself accepts are printed.
-    make_state_md(tmp_path, SIX_ROWS)
+    make_state_md(tmp_path, FOUR_ROWS)
     _write_record(tmp_path, [_decided(1, "filed", "C:\\Users\\x\\err.txt"),
                              _decided(2, "noted", "fatal: could not read")])
 
@@ -256,12 +251,12 @@ def test_render_comment_final_true_unreadable_record_falls_back(tmp_path, capsys
     printed = capsys.readouterr().out.strip().splitlines()
     assert len(printed) == 1 and open_items.FILE_NAME in printed[0]
     bullets = [ln for ln in body.splitlines() if ln.startswith("- [")]
-    assert bullets == ["- [intake] whether ship Gate 2 keeps a close item",
-                       "- [intake] status-line wording and whether it names the login"]
+    assert bullets == ["- [design] whether ship Gate 2 keeps a close item",
+                       "- [design] status-line wording and whether it names the login"]
 
 
 def test_render_comment_final_true_left_open_none_when_no_items(tmp_path):
-    make_state_md(tmp_path, SIX_ROWS)  # no "Left open:" marker anywhere
+    make_state_md(tmp_path, FOUR_ROWS)  # no "Left open:" marker anywhere
     body = ticket.render_comment(str(tmp_path), "ticket-integration",
                                   "2026-08-31T00:00:00Z", final=True)
     assert "left open: none" in body.splitlines()
@@ -293,9 +288,7 @@ def test_truncate_note_boundary_is_exactly_200_chars():
 def test_render_comment_final_true_note_cut_at_200_chars(tmp_path):
     long_item = "y" * 250
     rows = [
-        ["intake", "done", "—", "note. Left open: " + long_item],
-        ["discover", "done", "—", ""],
-        ["design", "done", "—", ""],
+        ["design", "done", "—", "note. Left open: " + long_item],
         ["build", "done", "—", ""],
         ["verify", "done", "—", ""],
         ["ship", "done", "—", ""],

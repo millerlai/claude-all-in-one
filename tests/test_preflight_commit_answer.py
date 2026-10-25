@@ -34,12 +34,15 @@ MALFORMED = ("commit_answer (unreadable: ledger line %d is malformed and comes a
 def make_track(tmp_path, artifact="d-detail.md"):
     track = tmp_path / "track"
     track.mkdir(exist_ok=True)
-    rows = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-            ("design", "done", artifact, ""), ("build", "", "", ""),
+    rows = [("design", "done", artifact, ""), ("build", "", "", ""),
             ("verify", "", "", ""), ("ship", "", "", "")]
     lines = ["# fixture", "", "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
     (track / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # build owes the file the design stage's report becomes once design is done.
+    (track / "intake.md").write_text(
+        "# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
+        "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look |\n", encoding="utf-8")
     return str(track)
 
 

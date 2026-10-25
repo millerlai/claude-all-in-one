@@ -2,8 +2,9 @@
 discover existed still has their rows, journal events and ledger records, and
 every reader must skip or fold them (into design) without an error.
 
-The shipped stages.json lists no retired stage yet, so each test substitutes a
-four-stage file that does and points every module's own STAGES_JSON at it.
+Each test substitutes a four-stage file and points every module's own
+STAGES_JSON at it, so the result does not depend on what ships;
+test_merged_design_stage.py runs the same readers against the real file.
 """
 import json
 import os
@@ -78,8 +79,8 @@ def test_retired_stage_ids_is_empty_when_the_key_is_missing(tmp_path, monkeypatc
     assert ledger.folded("intake") == "intake"
 
 
-def test_the_shipped_stages_json_retires_nothing():
-    assert ledger.retired_stage_ids() == ()
+def test_the_shipped_stages_json_retires_intake_and_discover():
+    assert ledger.retired_stage_ids() == ("intake", "discover")
 
 
 def test_retired_stage_ids_raises_when_the_file_cannot_be_read(tmp_path, monkeypatch):

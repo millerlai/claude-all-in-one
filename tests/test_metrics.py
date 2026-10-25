@@ -50,13 +50,13 @@ def test_fixed_sample_all_four_numbers(tmp_path, monkeypatch):
     artifact = tmp_path / "design.md"
     artifact.write_text("design doc", encoding="utf-8")
 
-    # intake: blocked (preflight refusal, counts as a first-try failure)
+    # build: blocked (preflight refusal, counts as a first-try failure)
     # then passed -- two attempts, first_pass 0.
-    _append(track, "intake", "blocked", monkeypatch, "2026-09-01T00:00:00Z")
-    _append(track, "intake", "passed", monkeypatch, "2026-09-01T00:05:00Z")
+    _append(track, "build", "blocked", monkeypatch, "2026-09-01T00:00:00Z")
+    _append(track, "build", "passed", monkeypatch, "2026-09-01T00:05:00Z")
 
-    # discover: skipped -- never an attempt.
-    _append(track, "discover", "skipped", monkeypatch, "2026-09-01T00:06:00Z")
+    # verify: skipped -- never an attempt.
+    _append(track, "verify", "skipped", monkeypatch, "2026-09-01T00:06:00Z")
 
     # design: auto-passed then human-signed, same artifact/sha -- one attempt.
     _append(track, "design", "passed", monkeypatch, "2026-09-01T01:00:00Z",
@@ -64,21 +64,21 @@ def test_fixed_sample_all_four_numbers(tmp_path, monkeypatch):
     _append(track, "design", "passed", monkeypatch, "2026-09-01T01:00:05Z",
            artifact=str(artifact), gate="human")
 
-    # build: unavailable -- a provider refusal, never an attempt.
-    _append(track, "build", "unavailable", monkeypatch, "2026-09-01T02:00:00Z")
+    # ship: unavailable -- a provider refusal, never an attempt.
+    _append(track, "ship", "unavailable", monkeypatch, "2026-09-01T02:00:00Z")
 
     with open(os.path.join(track, "ledger.jsonl"), "a", encoding="utf-8") as fh:
         fh.write("{not json\n")
 
     report = usage_report.metrics_report(track)
 
-    intake_line = _line(report, "intake")
-    assert "first_pass=0" in intake_line
-    assert "rework=2" in intake_line
-    assert "cycle=0:05:00" in intake_line
-    # intake has no human gate (issue #200) -- n/a, not a ratio of an
+    build_line = _line(report, "build")
+    assert "first_pass=0" in build_line
+    assert "rework=2" in build_line
+    assert "cycle=0:05:00" in build_line
+    # build has no human gate (issue #200) -- n/a, not a ratio of an
     # attempt count no human ever signs.
-    assert "human_signed=n/a" in intake_line
+    assert "human_signed=n/a" in build_line
 
     design_line = _line(report, "design")
     assert "first_pass=1" in design_line
@@ -86,26 +86,26 @@ def test_fixed_sample_all_four_numbers(tmp_path, monkeypatch):
     assert "human_signed=1/1" in design_line
     assert "cycle=0:00:05" in design_line
 
-    discover_line = _line(report, "discover")
-    assert "first_pass=%s" % usage_report.NO_DATA in discover_line
-    assert "rework=%s" % usage_report.NO_DATA in discover_line
+    verify_line = _line(report, "verify")
+    assert "first_pass=%s" % usage_report.NO_DATA in verify_line
+    assert "rework=%s" % usage_report.NO_DATA in verify_line
 
-    build_line = _line(report, "build")
-    assert "first_pass=%s" % usage_report.NO_DATA in build_line
+    ship_line = _line(report, "ship")
+    assert "first_pass=%s" % usage_report.NO_DATA in ship_line
     # A no-attempt stage carries no number at all -- every column, not just
     # the two a typo in the NO_DATA print would leave intact (verify, 2026-09-13).
-    for line in (discover_line, build_line):
+    for line in (verify_line, ship_line):
         assert "cycle=%s" % usage_report.NO_DATA in line
         assert "human_signed=%s" % usage_report.NO_DATA in line
 
-    # TOTAL: only intake (2 attempts, first_pass 0, 0 human) and design
-    # (1 attempt, first_pass 1, 1 human) had attempts -- discover (skipped)
-    # and build (unavailable only) stay out of every denominator (issue #85:
+    # TOTAL: only build (2 attempts, first_pass 0, 0 human) and design
+    # (1 attempt, first_pass 1, 1 human) had attempts -- verify (skipped)
+    # and ship (unavailable only) stay out of every denominator (issue #85:
     # 沒有 attempt 的 stage 不入分母).
     total_line = _line(report, "TOTAL")
     assert "first_pass=1/2" in total_line
     assert "rework=3" in total_line
-    # human_signed sums gated stages only (issue #200) -- intake is ungated,
+    # human_signed sums gated stages only (issue #200) -- build is ungated,
     # so only design's 1/1 counts.
     assert "human_signed=1/1" in total_line
 
@@ -147,16 +147,16 @@ def test_empty_ledger_prints_no_data_for_every_stage(tmp_path):
 def test_single_record_ledger(tmp_path, monkeypatch):
     track = str(tmp_path / "track")
     os.makedirs(track)
-    _append(track, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z")
+    _append(track, "build", "passed", monkeypatch, "2026-09-01T00:00:00Z")
 
     report = usage_report.metrics_report(track)
 
-    intake_line = _line(report, "intake")
-    assert "first_pass=1" in intake_line
-    assert "rework=1" in intake_line
-    assert "cycle=0:00:00" in intake_line
-    # intake has no human gate (issue #200).
-    assert "human_signed=n/a" in intake_line
+    build_line = _line(report, "build")
+    assert "first_pass=1" in build_line
+    assert "rework=1" in build_line
+    assert "cycle=0:00:00" in build_line
+    # build has no human gate (issue #200).
+    assert "human_signed=n/a" in build_line
 
 
 # --- (c) a passed stage with no human gate anywhere is called out ----------
@@ -342,19 +342,18 @@ def test_central_metrics_no_central_ledger_exits_with_no_data_message(tmp_path):
 # --- (e) human_signed is gated -- issue #200 --------------------------------
 
 def test_ungated_stage_with_attempts_prints_na_in_both_reports(tmp_path, monkeypatch, metrics_clock):
-    """intake/build/verify have no human gate at all (GATE_WALKED_STAGES ==
+    """build/verify have no human gate at all (GATE_WALKED_STAGES ==
     design/ship only), so a stage with attempts but no gate prints n/a, not
     a ratio that always reads 0 -- design and ship still print a ratio."""
     track = str(tmp_path / "track")
     os.makedirs(track)
-    _append(track, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z")
     _append(track, "build", "passed", monkeypatch, "2026-09-01T00:01:00Z")
     _append(track, "verify", "passed", monkeypatch, "2026-09-01T00:02:00Z")
     _append(track, "design", "passed", monkeypatch, "2026-09-01T00:03:00Z", gate="human")
 
     report = usage_report.metrics_report(track)
 
-    for stage in ("intake", "build", "verify"):
+    for stage in ("build", "verify"):
         assert "human_signed=n/a" in _line(report, stage)
     assert "human_signed=1/1" in _line(report, "design")
 
@@ -365,26 +364,25 @@ def test_ungated_stage_with_attempts_prints_na_in_both_reports(tmp_path, monkeyp
     monkeypatch.setattr(os, "getcwd", lambda: str(tmp_path / "proj-c"))
     central_track = str(tmp_path / "proj-c" / "track")
     os.makedirs(central_track)
-    _append(central_track, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z",
+    _append(central_track, "build", "passed", monkeypatch, "2026-09-01T00:00:00Z",
            session_id="sess-c")
     _append(central_track, "design", "passed", monkeypatch, "2026-09-01T00:01:00Z",
            session_id="sess-c", gate="human")
 
     central_report = usage_report.central_metrics_report(str(central_path), 30)
-    assert "human_signed=n/a" in _line(central_report, "intake")
+    assert "human_signed=n/a" in _line(central_report, "build")
     assert "human_signed=1/1" in _line(central_report, "design")
     # TOTAL sums numerators/denominators over design/ship only -- the
-    # ungated intake attempt must not leak into it (1/1, not 1/2).
+    # ungated build attempt must not leak into it (1/1, not 1/2).
     assert "human_signed=1/1" in _line(central_report, "TOTAL")
 
 
 def test_total_human_signed_counts_gated_stages_only(tmp_path, monkeypatch):
-    """Three ungated attempts (intake/build/verify) plus one signed design
-    attempt: TOTAL's human_signed is 1/1, not 1/4 -- the ungated attempts
+    """Two ungated attempts (build/verify) plus one signed design
+    attempt: TOTAL's human_signed is 1/1, not 1/3 -- the ungated attempts
     never belonged in that denominator (issue #200)."""
     track = str(tmp_path / "track")
     os.makedirs(track)
-    _append(track, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z")
     _append(track, "build", "passed", monkeypatch, "2026-09-01T00:01:00Z")
     _append(track, "verify", "passed", monkeypatch, "2026-09-01T00:02:00Z")
     _append(track, "design", "passed", monkeypatch, "2026-09-01T00:03:00Z", gate="human")
@@ -393,10 +391,9 @@ def test_total_human_signed_counts_gated_stages_only(tmp_path, monkeypatch):
     assert "human_signed=1/1" in _line(report, "TOTAL")
 
     # Without any design/ship attempt, TOTAL's human_signed has nothing to
-    # sum -- NO_DATA, not 0/3 from the ungated stages.
+    # sum -- NO_DATA, not 0/2 from the ungated stages.
     track2 = str(tmp_path / "track2")
     os.makedirs(track2)
-    _append(track2, "intake", "passed", monkeypatch, "2026-09-01T00:00:00Z")
     _append(track2, "build", "passed", monkeypatch, "2026-09-01T00:01:00Z")
     _append(track2, "verify", "passed", monkeypatch, "2026-09-01T00:02:00Z")
 
@@ -427,7 +424,7 @@ def test_cli_metrics_track_dir_exits_zero(tmp_path, monkeypatch):
     os.makedirs(track)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-cli")
     monkeypatch.setattr(ledger.usage_collector, "collect", lambda *a, **k: ({}, {}, []))
-    ledger.append(track, "intake", "passed")
+    ledger.append(track, "build", "passed")
 
     done = subprocess.run(
         [sys.executable, os.path.join(SCRIPTS, "usage_report.py"),
@@ -436,7 +433,7 @@ def test_cli_metrics_track_dir_exits_zero(tmp_path, monkeypatch):
 
     assert done.returncode == 0, done.stderr
     text = done.stdout.decode("utf-8")
-    assert "intake" in text
+    assert "build" in text
     assert "first_pass=1" in text
 
 

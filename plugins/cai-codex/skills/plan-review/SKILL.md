@@ -317,7 +317,7 @@ and nothing you find by reading closes a hole it has already named.
   code.
 - The plan is already agreed and the question is whether the *code* matches it
   — that is a code review.
-- The requirements themselves are the unknown. That is the `discover` stage (`$discover`);
+- The requirements themselves are the unknown. That is `$discover`;
   come back here once there is something to trace against.
 - There is no document yet and one is needed. `$design` writes them in
   order — stance, then decisions, then detail; each gathers the evidence
