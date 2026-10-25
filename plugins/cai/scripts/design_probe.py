@@ -12,7 +12,7 @@ tokens.
 The definitions of "filled" and "item" come from the SDD design note under
 docs/, so that a probe two people run returns the same number.
 
-Usage:  design_probe.py --kind hld|detail|delta [--project-dir DIR] <document>
+Usage:  design_probe.py --kind hld|detail|delta|intake [--project-dir DIR] <document>
 Exit:   0 every probe passed, 2 at least one failed.
 """
 import argparse
@@ -116,6 +116,12 @@ STANCE_MAX_LINES = 80
 # stance has. It is still a ceiling -- what is signed here is one root cause,
 # and a root cause that needs three pages is usually two causes.
 DIAGNOSIS_MAX_LINES = 100
+# The short path's `## Signals` table: the cost test's three rows, in the order
+# stage-design.md lists them, each with one verdict from the table's Low/High
+# columns plus the answer for a row the evidence cannot settle.
+SIGNALS_HEADER = "| Row | Verdict | Evidence |"
+SIGNAL_ROWS = ("Blast radius", "Found out when", "Undo cost")
+SIGNAL_VERDICTS = ("low", "high", "unanswerable")
 
 # The templates are the shape the design commands write to, so they are the
 # source of truth for the lists above. validate.py asserts the two agree.
@@ -676,9 +682,67 @@ def delta_probes(secs, text, roots):
     yield bool(imp), "impact_has_rows (%d)" % len(imp)
 
 
+def intake_probes(secs, text, roots):
+    """The short path's `intake.md`: the three cost-test rows, each judged with
+    evidence, and the verification levels `verify` plans from. Every missing or
+    wrong item is its own FAIL, so the person who reads the line knows which
+    row to fix."""
+    if "Signals" not in secs:
+        yield False, "signals_section (no ## Signals section)"
+        rows = []
+    else:
+        table = [ln.strip() for ln in COMMENT.sub("", secs["Signals"]).splitlines()
+                 if ln.strip().startswith("|")]
+        header = table[0] if table else ""
+        yield re.sub(r"\s+", " ", header) == SIGNALS_HEADER, \
+            "signals_header (want exactly %s)" % SIGNALS_HEADER
+        rows = [[c.strip() for c in ln.strip("|").split("|")] for ln in table[1:]
+                if not _is_separator(ln)]
+        yield len(rows) == len(SIGNAL_ROWS), \
+            "signal_rows (%d data row(s), want exactly %d)" % (len(rows), len(SIGNAL_ROWS))
+
+        names = [r[0] for r in rows]
+        for want in SIGNAL_ROWS:
+            if want not in names:
+                yield False, "signal[%s] (row missing)" % want
+        if all(w in names for w in SIGNAL_ROWS):
+            yield names[:len(SIGNAL_ROWS)] == list(SIGNAL_ROWS), \
+                "signal_order (found %s; want %s)" % (", ".join(names), ", ".join(SIGNAL_ROWS))
+
+    for r in rows:
+        name = r[0]
+        if name not in SIGNAL_ROWS:
+            continue
+        if len(r) != 3:
+            yield False, "signal[%s] (not three cells: Row | Verdict | Evidence)" % name
+            continue
+        verdict, evidence = r[1], r[2]
+        if verdict not in SIGNAL_VERDICTS:
+            yield False, "signal[%s] verdict (%r is not one of %s)" % (
+                name, verdict, ", ".join(SIGNAL_VERDICTS))
+        elif verdict == "unanswerable":
+            # Nothing to cite is the meaning of the word, so the reason takes
+            # the citation's place; a bare placeholder is no reason.
+            yield filled(evidence, short_ok=True), "signal[%s] reason (%s)" % (
+                name, "given" if filled(evidence, short_ok=True)
+                else "unanswerable with no reason")
+        else:
+            yield bool(CITE.search(evidence)), "signal[%s] evidence (%s)" % (
+                name, "cited" if CITE.search(evidence)
+                else "%s with no file:line or URL" % verdict)
+
+    # Imported here: verify_plan pulls in the test-command resolvers, which a
+    # caller of the other kinds never needs.
+    import verify_plan
+    levels = verify_plan.read_levels(text)
+    yield levels["status"] != "invalid", "verification_levels (%s)" % (
+        "; ".join(levels["problems"]) or levels["status"])
+
+
 PROBES = {"stance": stance_probes, "decisions": decisions_probes,
           "diagnosis": diagnosis_probes, "hld": hld_probes,
-          "detail": detail_probes, "delta": delta_probes}
+          "detail": detail_probes, "delta": delta_probes,
+          "intake": intake_probes}
 
 
 def main():

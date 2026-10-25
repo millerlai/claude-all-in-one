@@ -3195,6 +3195,15 @@ def _track_references():
          folded_section(build_ref, "## Step 6"),
          ["| AC | Red before | Green after | Satisfied at |",
           "`already green before`", "`no baseline: no start declaration`"]),
+        # U3 of the plan-stage design (I3): a row the evidence cannot settle is
+        # not high for the whole change, or the short path would never be taken.
+        ("R1", "stage-design.md's signals rule keeps unanswerable out of high and "
+               "names the short path's single stop",
+         folded_section(f"{REFS}/stage-design.md", "## Judge the signals"),
+         ["`unanswerable` does **not** count as high here",
+          "**No row `high`** → the **short path**",
+          "Step 5's approval is Gate 1: one menu, fingerprinting `intake.md`",
+          "design_probe.py --kind intake"]),
     ]
     for ac, label, section, phrases in PINS:
         missing = [p for p in phrases if p not in section]

@@ -55,6 +55,17 @@ UNTRACKED_BASELINE_NAME = "untracked-at-start.json"
 SUFFIX_KIND = {"-diagnosis.md": "diagnosis", "-stance.md": "stance",
                "-decisions.md": "decisions", "-high-level.md": "hld",
                "-detail.md": "detail", "-delta.md": "delta"}
+# The short path's design row names `intake.md` itself, which has no `-<kind>`
+# suffix to match. The whole basename is compared, so `my-intake.md` is not one.
+NAME_KIND = {"intake.md": "intake"}
+
+
+def document_kind(artifact):
+    """The design-row file's kind, or None when it matches nothing."""
+    base = os.path.basename(artifact.replace("\\", "/"))
+    if base in NAME_KIND:
+        return NAME_KIND[base]
+    return next((k for suffix, k in SUFFIX_KIND.items() if artifact.endswith(suffix)), None)
 
 
 def resolve(rel, *bases):
@@ -199,14 +210,10 @@ def _design(track_dir, project_dir):
         # artifact_unchanged checks.
         return [(True, "artifact_named (no design document yet -- this stage writes it)")]
 
-    kind = None
-    for suffix, k in SUFFIX_KIND.items():
-        if artifact.endswith(suffix):
-            kind = k
-            break
+    kind = document_kind(artifact)
     if kind is None:
         return [(False, "artifact_kind (%s matches none of %s)"
-                 % (artifact, ", ".join(sorted(SUFFIX_KIND))))]
+                 % (artifact, ", ".join(sorted([*SUFFIX_KIND, *NAME_KIND]))))]
 
     # Citations inside the document are project-root relative (design_probe's
     # own roots convention), so look there first and fall back to the track
@@ -215,6 +222,11 @@ def _design(track_dir, project_dir):
     if doc is None:
         return [(False, "artifact_exists (%s not found)" % artifact)]
 
+    return probe_checks(kind, doc, project_dir)
+
+
+def probe_checks(kind, doc, project_dir):
+    """design_probe.py's PASS/FAIL lines for one document, as (ok, label)."""
     done = subprocess.run(
         [sys.executable, DESIGN_PROBE, "--kind", kind, "--project-dir", project_dir, doc],
         capture_output=True, text=True)
@@ -668,7 +680,14 @@ def _build(track_dir, project_dir):
 
     with open(doc, encoding="utf-8") as fh:
         text = fh.read()
+    kind = document_kind(artifact)
     drafts = tier1_drafts(text, artifact, doc, track_dir, project_dir)
+    if kind == "intake":
+        # The short path's signed document is `intake.md`, and no other kind is
+        # probed here: design already probed those before Gate 1. This one
+        # carries the Signals the person approved, so a row lost since is
+        # named before build starts rather than discovered during it.
+        drafts = drafts + probe_checks(kind, doc, project_dir)
     has_breakdown = "## Work breakdown" in text
     if has_breakdown:
         return [unchanged, signed_off, (True, "work_breakdown (%s)" % artifact), *drafts]
@@ -686,8 +705,6 @@ def _build(track_dir, project_dir):
     # work breakdown exists, and goal/SKILL.md routes the same document to
     # its whole-document lane. A gate stricter than the stage behind it is
     # the gate that is wrong.
-    kind = next((k for suffix, k in SUFFIX_KIND.items()
-                 if artifact.endswith(suffix)), None)
     if kind == "detail":
         return [unchanged, signed_off, (False, "work_breakdown (%s is a detail design and "
                                    "has no ## Work breakdown heading)" % artifact),

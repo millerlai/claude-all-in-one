@@ -145,6 +145,47 @@ or an unknown would change the amount of work, say so in the Report and
 recommend the person run `/cai:discover`. Do not run it yourself: it is a
 standalone command, and a track no longer has a stage for it.
 
+## Judge the signals — short path or long
+
+Between Step 4 and Step 5, and only for a request Step 2 did not route to
+Diagnosis, judge the three rows of the cost test table (under "The three
+tests") **for the change as a whole**, not choice by choice, each with its
+evidence: a `file:line` or a URL you read. A row is `high` only with evidence
+for high, `low` only with evidence for low, and a row the evidence settles
+neither way is `unanswerable`.
+
+`unanswerable` does **not** count as high here. The cost test's own "anything
+unanswerable counts as high" governs one choice inside the long path, where
+asking costs one question; applied to the whole change it would send every
+request with a gap in the record down the long path, which is the cost this
+split exists to remove.
+
+- **No row `high`** → the **short path**. The `## Intake document` of Step 5
+  gains a `## Signals` section, and no mode runs, no other document is
+  written, and "Say what it will cost, then wait" does not happen. The design
+  row's artifact is `intake.md` itself, and Step 5's approval is Gate 1: one
+  menu, fingerprinting `intake.md`. When all three rows are `unanswerable`,
+  say so in the Report, so the Gate 1 menu can show the person that the
+  short path was taken on no evidence either way.
+- **Any row `high`** → the **long path**: "Pick a mode" onward, unchanged.
+- **Broken** (Step 2 said yes) → Diagnosis, unchanged; its intake carries no
+  `## Signals` section.
+
+`## Signals` is a table with the header `| Row | Verdict | Evidence |`
+verbatim and exactly three data rows, in this order. `Verdict` is `low`,
+`high` or `unanswerable`; `Evidence` is a `file:line` or URL, or — only on an
+`unanswerable` row — the reason nothing could be read. It sits before
+`## Verification levels`, which stays last.
+
+| Row | Verdict | Evidence |
+|---|---|---|
+| Blast radius | low | one caller, src/foo.py:12 |
+| Found out when | low | the unit test fails, tests/test_foo.py:3 |
+| Undo cost | unanswerable | no deploy config in this repo to read |
+
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind intake <the
+intake document, as a file>` checks it, exit 0 or fix what it names.
+
 ## Step 5 — Hand the requirement up
 
 **Do not start the design yet.** Hand back the problem statement, the
@@ -176,8 +217,9 @@ puts it is the main session (this stage's runner has no interactive tool).
 
 **Hand the whole document back as its own section** so the main session can
 save it unedited: a `## Intake document` section holding the problem
-statement, the numbered acceptance criteria, the recommended approach and the
-`## Verification levels` table above, in that order, the table last. The
+statement, the numbered acceptance criteria, the recommended approach, on the
+short path the `## Signals` table, and the `## Verification levels` table
+above, in that order, the table last. The
 section runs to the end of the reply, or to a `## Pending questions` section
 if there is one. Inside a track the main session writes its body, verbatim,
 to `.cai/track/<feature>/intake.md` before it asks for approval, so the
@@ -227,7 +269,8 @@ already signed off stay passable. Do not write a new one.
 
 ## Say what it will cost, then wait
 
-Before any mode starts, four lines: the document path and the headings it
+On the long path only — the short path stops once, at Gate 1 — before any
+mode starts, four lines: the document path and the headings it
 will carry; how much of the target directory has to be read and how many
 documentation sources fetched; what is already unclear enough that you will
 have to ask; and what this will not decide. Then wait for a go — asked as a
@@ -749,7 +792,9 @@ enough to sign again** after it changes.
 
 **Which path goes in the track's `design` row:** the document `build` reads —
 the detail design when Detail mode ran, otherwise the last document this
-stage wrote. A detail design's `## Reference` names the stance and the
+stage wrote. On the short path nothing else was written, so it is the track's
+`intake.md` itself; `preflight.py` maps that exact filename to `--kind
+intake`. A detail design's `## Reference` names the stance and the
 decisions it elaborates, so a reader who starts there reaches all three. On
 the diagnosis path it names the diagnosis instead, and reaches that one.
 `preflight.py` reads that cell, picks the kind off the suffix, and runs the
@@ -772,9 +817,11 @@ relying on a check that will not fire.
 A design document that nobody needed is the most expensive kind, because it
 reads exactly like one that was needed. Each of these belongs somewhere else:
 
-- **The change is small enough that a code review would settle it.** A
-  feasibility table over a two-file change is ceremony, and ceremony is what
-  makes someone skip this stage the time it would have mattered.
+- **The change is small enough that a code review would settle it.** It takes
+  the short path (see "Judge the signals"): no mode runs and no feasibility
+  table is written, because a feasibility table over a two-file change is
+  ceremony, and ceremony is what makes someone skip this stage the time it
+  would have mattered.
 - **The decisions are already made and you want them written down.** That is
   dictation, not design — write the document, but skip the option-weighing
   this stage exists for rather than staging a choice nobody is making.
@@ -783,7 +830,7 @@ reads exactly like one that was needed. Each of these belongs somewhere else:
   Diagnosis mode is for a broken thing whose *cause* is worth a person's
   confirmation; a document proving what everyone can already see is the same
   ceremony this list exists to prevent.
-- **The requirements themselves are the unknown.** Run `discover` first, then
+- **The requirements themselves are the unknown.** Run `/cai:discover` first, then
   come back — this stage traces a design against requirements, and it has
   nothing to trace against yet.
 - **Decisions mode only:** the stance is still `draft`. Weighing options
