@@ -39,7 +39,7 @@ def _top(project_dir):
 
 def _main_checkout_has_index(top):
     """True when `top` is a linked worktree and its main checkout holds an index.
-    The main checkout is found as track_archive.main_checkout does; it is not
+    The main checkout is found as cai_paths.main_checkout does; it is not
     imported because this script may import only the codemap siblings and
     preflight (test_codemap_imports.py)."""
     found = []

@@ -45,9 +45,9 @@ BASELINE = (
 REPORT = (
     "## Pending questions\n"
     "1. Commit per unit?\n"
-    "   Background: a\n   Options: b\n   Blocks: c\n"
+    "   Background: a\n   Options: b\n   Blocks: c\n   Why asked: gate - r\n"
     "2. Parallel lane?\n"
-    "   Background: a\n   Options: b\n   Blocks: c\n")
+    "   Background: a\n   Options: b\n   Blocks: c\n   Why asked: gate - r\n")
 
 
 def _state(rows):

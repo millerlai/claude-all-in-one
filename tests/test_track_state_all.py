@@ -17,7 +17,9 @@ GIT_ID = ["-c", "user.email=t@example.com", "-c", "user.name=t"]
 STAGES = ("intake", "discover", "design", "build", "verify", "ship")
 REPORT = ("## Pending questions\n"
           "1. Commit per unit?\n   Background: a\n   Options: b\n   Blocks: c\n"
-          "2. Parallel lane?\n   Background: a\n   Options: b\n   Blocks: c\n")
+          "   Why asked: gate - r\n"
+          "2. Parallel lane?\n   Background: a\n   Options: b\n   Blocks: c\n"
+          "   Why asked: gate - r\n")
 
 
 def git(repo, *args):

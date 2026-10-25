@@ -31,10 +31,23 @@ report with:
    Options: <2-4; the recommended one first and marked `(recommended)`; each
             with what it costs and what choosing it forecloses>
    Blocks: <what in this stage cannot continue until this is answered>
+   Why asked: <evidence-split|gate|irreversible|outward> - <one sentence why>
 ```
+
+`Why asked:` is required; `pending.py start` refuses a question without it.
+`evidence-split` means the evidence and the approved stance cannot pick
+between the options. `gate`, `irreversible` and `outward` are consent the
+person must give every time: a gate, something that cannot be undone, or
+something that leaves the machine.
 
 A stage with nothing to ask omits the section. An empty one reads as "asked
 and got nothing back", which is a different and much worse claim.
+
+**Before handing a question up, read the file on the brief's `answers:`
+line.** An `evidence-split` question answered there before, for the same kind
+of choice, is not handed up again: reuse that answer and write one line
+citing its date and track. `gate`, `irreversible` and `outward` questions are
+always asked and never reused.
 
 ## What the main session does with it
 

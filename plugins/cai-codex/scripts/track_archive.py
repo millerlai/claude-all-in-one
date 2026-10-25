@@ -30,26 +30,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import cai_paths  # noqa: E402
 import glossary_check  # noqa: E402
-import preflight  # noqa: E402
 
 HEADING = re.compile(r"^## ")
-
-
-def main_checkout(project_dir):
-    """The main checkout's top when project_dir is a linked worktree, else
-    None with the reason it stays put."""
-    found = []
-    for flag in ("--git-dir", "--git-common-dir"):
-        done = preflight.git(project_dir, "rev-parse", flag)
-        if done is None or done.returncode != 0:
-            return None, "not a git work tree -- nothing to copy"
-        found.append(os.path.realpath(os.path.join(project_dir, done.stdout.strip())))
-    git_dir, common = found
-    if os.path.normcase(git_dir) == os.path.normcase(common):
-        return None, "not a linked worktree -- the archive stays where it is"
-    if os.path.basename(common) != ".git":
-        return None, "the main repository is bare -- no checkout to copy into"
-    return os.path.dirname(common), None
 
 
 def free_name(directory, name):
@@ -114,7 +96,7 @@ def write_atomic(path, text):
 
 def archive(track_dir, project_dir):
     """(exit code, lines to print)."""
-    top, why = main_checkout(project_dir)
+    top, why = cai_paths.main_checkout(project_dir)
     if top is None:
         return 0, [why]
     out = []

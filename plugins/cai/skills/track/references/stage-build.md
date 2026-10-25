@@ -194,7 +194,7 @@ item 5 says. A blocked unit's uncommitted edits stay out of every later commit: 
 unit by its own paths, never `git add -A` or `git commit -a`, and name them
 under "In flight" if the run stops. When nothing that can run is left, end the report with the question under `##
 Pending questions` (`references/pending-questions.md`), its `Blocks:` line
-naming the blocked units. The main session re-dispatches you with the answer,
+naming the blocked units and its `Why asked:` line the reason it is asked. The main session re-dispatches you with the answer,
 and the table says where to resume. Standing alone you are the main session —
 ask directly, with the same units held back meanwhile.
 

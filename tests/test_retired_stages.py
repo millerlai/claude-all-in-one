@@ -137,7 +137,7 @@ def test_status_still_exits_2_on_a_row_that_is_not_a_stage(tmp_path):
 # --- pending ----------------------------------------------------------------
 
 REPORT = ("## Pending questions\n1. Which?\n   Background: b\n"
-          "   Options: (a) x; (b) y\n   Blocks: nothing\n")
+          "   Options: (a) x; (b) y\n   Blocks: nothing\n   Why asked: gate - r\n")
 
 
 def write_intake_pending(track):

@@ -61,7 +61,7 @@ For the stage about to run:
    there before dispatching the stage's own agent, if any.
    Before handing the work over, run `<cai> timing begin
    --track-dir .cai/track/<feature> --stage <stage> --platform codex` and put the line
-   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first.
+   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first. Also run `<cai> answers path --project-dir <top>` and put `answers: <path>` in the dispatch prompt.
 3. **Record.** Once the report is back — a `## Pending questions` one too — first run
    `<cai> timing end --track-dir .cai/track/<feature> --run <run_id>`
    (the value from step 2's line; a failure changes nothing). Then every attempt goes in the ledger, not only the ones that

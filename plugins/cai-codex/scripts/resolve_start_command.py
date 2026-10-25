@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Resolve how this project starts its app (the `run` object), read-only.
+"""Resolve how this project starts its app (the `run` object). Read-only,
+except for the merge cai_paths.config_path may do in a linked worktree.
 
 Reads `run` from `.cai/cai.json` and checks its shape; with no declaration it
 lists candidates from `package.json` and never runs anything. Prints one JSON
 object. Exit 0 declared, 3 candidates, 4 unknown, 5 invalid declaration; 1 and 2
 are left to uncaught exceptions and argparse. Zero deps beyond the standard
-library and `resolve_test_command`.
+library, `cai_paths` and `resolve_test_command`.
 """
 import argparse
 import json
@@ -15,6 +16,7 @@ from urllib.parse import urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import cai_paths  # noqa: E402
 import resolve_test_command as rtc  # noqa: E402
 
 PORT = "{port}"
@@ -85,12 +87,12 @@ def validate(group):
 
 def _result(root, status, declaration=None, candidates=(), problem=None):
     return {"status": status, "root": root, "declaration": declaration,
-            "candidates": list(candidates), "problem": problem}
+            "candidates": list(candidates), "problem": problem, "notes": []}
 
 
-def _declared(root):
-    """None when nothing is declared, else a finished result (declared or invalid)."""
-    path = os.path.join(root, rtc.CONFIG_REL)
+def _declared(root, path):
+    """None when nothing is declared, else a finished result (declared or invalid).
+    `path` is the cai.json cai_paths.config_path chose for `root`."""
     if not os.path.isfile(path):
         return None
     try:
@@ -130,12 +132,15 @@ def _candidates(root):
 
 
 def resolve(root):
-    """How `root` (already a root) starts its app, as a dict; writes nothing."""
-    declared = _declared(root)
-    if declared is not None:
-        return declared
-    found = _candidates(root)
-    return _result(root, "candidates" if found else "unknown", candidates=found)
+    """How `root` (already a root) starts its app, as a dict; writes nothing
+    beyond config_path's merge."""
+    path, merged = cai_paths.config_path(root)
+    declared = _declared(root, path)
+    if declared is None:
+        found = _candidates(root)
+        declared = _result(root, "candidates" if found else "unknown", candidates=found)
+    declared["notes"] += merged
+    return declared
 
 
 EXIT_BY_STATUS = {"declared": EXIT_DECLARED, "candidates": EXIT_CANDIDATES,

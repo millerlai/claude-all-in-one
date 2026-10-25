@@ -56,7 +56,7 @@ For the stage about to run:
    and give it `<top>`, what `git rev-parse --show-toplevel` prints.
    Before handing the work over, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py begin
    --track-dir .cai/track/<feature> --stage <stage> --platform claude` and put the line
-   it prints (`cai-timing-run: <run_id>`) in the dispatch prompt unchanged; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first.
+   it prints (`cai-timing-run: <run_id>`) in the dispatch prompt unchanged; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first. Also run `python ${CLAUDE_PLUGIN_ROOT}/scripts/answers.py path --project-dir <top>` and put `answers: <path>` in the dispatch prompt.
 3. **Record.** Once the report is back — a `## Pending questions` one too — first run
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py end --track-dir .cai/track/<feature> --run <run_id>`
    (the value from step 2's line; a failure changes nothing). Then every attempt goes in the ledger, not only the ones that
