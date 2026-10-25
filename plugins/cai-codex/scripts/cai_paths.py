@@ -19,6 +19,8 @@ import subprocess
 import sys
 import tempfile
 
+import tool_path
+
 CAI_DIR = ".cai"
 SELF_IGNORE = ".gitignore"
 SELF_IGNORE_BODY = "*\n"
@@ -58,7 +60,8 @@ def _tracked(top, rel):
     # the person's locale.
     env = dict(os.environ, LC_ALL="C", LANGUAGE="C")
     try:
-        done = subprocess.run(["git", "ls-files", "-z", "--", rel.replace(os.sep, "/")],
+        done = subprocess.run([tool_path.resolve("git", top), "ls-files", "-z", "--",
+                               rel.replace(os.sep, "/")],
                               cwd=top, capture_output=True, timeout=30, env=env)
     except (OSError, subprocess.SubprocessError):
         return "unknown"
@@ -107,7 +110,7 @@ def _git(cwd, *args):
     and bytes decoded by the caller, as _tracked does."""
     env = dict(os.environ, LC_ALL="C", LANGUAGE="C")
     try:
-        return subprocess.run(["git", *args], cwd=cwd, capture_output=True,
+        return subprocess.run([tool_path.resolve("git", cwd), *args], cwd=cwd, capture_output=True,
                               timeout=10, env=env)
     except (OSError, subprocess.SubprocessError):
         return None
@@ -144,21 +147,37 @@ def _read_object(path):
     return data if isinstance(data, dict) else None
 
 
-def config_path(project_dir):
-    """(the cai.json to read and write, note lines this call produced).
+def config_path(project_dir, key=None, merge=False):
+    """(the cai.json to read or write, note lines this call produced).
 
     A linked worktree starts with no cai.json because `.cai/` ignores itself,
     so what an earlier worktree recorded was invisible. There the answer is
-    the main checkout's file, and every top-level key the worktree's own file
-    has and the main one lacks is merged into it first (main wins on a
-    conflict). Anywhere else, or when either file cannot be trusted as a JSON
-    object, nothing is merged and a missing file is still just a path."""
+    the main checkout's file.
+
+    merge=False (every reader) never writes: a worktree file something other
+    than the main session can write must not be promoted into the main
+    checkout's allowlist by being read. When `key` is given, the main file is
+    a JSON object (or absent) lacking it and the worktree's own file holds it,
+    the worktree's own path comes back, with a note.
+
+    merge=True (only the recorders, run by the main session) first merges
+    every top-level key the worktree's file has and the main one lacks into
+    the main one (main wins on a conflict). Anywhere else, or when either file
+    cannot be trusted as a JSON object, nothing is merged and a missing file
+    is still just a path."""
     own = os.path.join(project_dir, CONFIG)
     top, _ = main_checkout(project_dir)
     if top is None:
         return own, []
     shared = os.path.join(top, CONFIG)
     mine = _read_object(own)
+    if not merge:
+        theirs = _read_object(shared)
+        if (key is not None and theirs is not None and key not in theirs
+                and mine and key in mine):
+            return own, ["cai_paths: %s read from %s; the main checkout's cai.json has none"
+                         % (key, own)]
+        return shared, []
     if not mine:
         return shared, []
     # Read just before writing: a second worktree merging at once is seen,

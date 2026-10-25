@@ -24,7 +24,7 @@ ConfigProblem = record_test_command.ConfigProblem
 
 def record(project_dir, start, ready):
     """Write run.start and run.ready under `project_dir`; returns the path."""
-    path, _ = record_test_command.cai_paths.config_path(project_dir)
+    path, _ = record_test_command.cai_paths.config_path(project_dir, merge=True)
     data = record_test_command._load(path)
     run = data.get("run", {})
     if not isinstance(run, dict):
@@ -37,7 +37,7 @@ def record(project_dir, start, ready):
         raise ValueError(problem)
     run["start"], run["ready"] = start, ready
     data["run"] = run
-    record_test_command.cai_paths.ensure_dir(project_dir)
+    record_test_command.cai_paths.ensure_dir(os.path.dirname(os.path.dirname(path)))
     record_test_command.write_config(path, data)
     return path
 
@@ -57,7 +57,7 @@ def main(argv=None):
     # Before reading: a cai.json still under .claude/ holds keys this write keeps.
     for line in record_test_command.cai_paths.migrate(root):
         print("record_start_command: %s" % line, file=sys.stderr)
-    for line in record_test_command.cai_paths.config_path(root)[1]:
+    for line in record_test_command.cai_paths.config_path(root, merge=True)[1]:
         print(line, file=sys.stderr)
     try:
         path = record(root, words, args.ready)

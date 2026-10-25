@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve which test command(s) this project's root uses. Read-only, except
-that in a linked worktree cai_paths.config_path may first merge the
-worktree's own cai.json keys into the main checkout's.
+"""Resolve which test command(s) this project's root uses. Only reads files.
 
 Zero deps beyond the standard library, and it deliberately imports no sibling
 (`ticket` would drag `preflight` into the hook's hot path). It only parses
@@ -300,7 +298,7 @@ def _marker_candidates(root, notes):
 def resolve(project_dir):
     """What `project_dir` (already a root) uses to run tests, as a dict."""
     root = project_dir
-    path, merged = cai_paths.config_path(root)
+    path, merged = cai_paths.config_path(root, key="test")
     declared = _declared(root, path)
     if declared is not None:
         declared["notes"] += merged

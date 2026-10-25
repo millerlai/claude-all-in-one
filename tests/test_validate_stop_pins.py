@@ -63,22 +63,32 @@ def _copy_repo(tmp_path):
     return dest
 
 
-def _r5_lines(capsys):
+def _pin_lines(capsys, prefix="R5:"):
     return [l for l in capsys.readouterr().out.splitlines()
-            if l.split(" ", 1)[-1].startswith("R5:")]
+            if l.split(" ", 1)[-1].startswith(prefix)]
 
 
 def test_the_r5_pins_pass_on_the_checked_in_tree(monkeypatch, capsys, validate_module):
     monkeypatch.chdir(REPO_ROOT)
     validate_module._track_references()
-    lines = _r5_lines(capsys)
+    lines = _pin_lines(capsys)
     assert len(lines) == 3, lines
     assert all(l.startswith("PASS ") for l in lines), lines
 
 
-@pytest.mark.parametrize("name, sentence, instead, label", PINNED)
+# The short path's Gate 1 message shows the Signals rows (I3).
+SHORT_PATH = [
+    ("approval-gates.md",
+     "`Row: verdict — evidence`, and names each `unanswerable` row with its reason,",
+     "`Row: verdict — evidence`, and nothing else,",
+     "approval-gates.md's short-path Gate 1 message"),
+]
+
+
+@pytest.mark.parametrize("prefix, name, sentence, instead, label",
+                         [("R5:",) + p for p in PINNED] + [("I3:",) + p for p in SHORT_PATH])
 def test_a_pinned_stop_sentence_that_is_gone_fails_its_pin(
-        tmp_path, monkeypatch, capsys, validate_module, name, sentence, instead, label):
+        tmp_path, monkeypatch, capsys, validate_module, prefix, name, sentence, instead, label):
     repo = _copy_repo(tmp_path)
     path = repo / REFS / name
     text = path.read_text(encoding="utf-8")
@@ -89,5 +99,5 @@ def test_a_pinned_stop_sentence_that_is_gone_fails_its_pin(
 
     validate_module._track_references()
 
-    failed = [l for l in _r5_lines(capsys) if l.startswith("FAIL ")]
+    failed = [l for l in _pin_lines(capsys, prefix) if l.startswith("FAIL ")]
     assert len(failed) == 1 and label in failed[0], failed

@@ -34,14 +34,22 @@ separately from the thing they look attached to.
 
 ## Gate 1 — the design sign-off, after `design` and before any code
 
-**What is being signed.** The `design` stage writes more than one document
-(`stage-design.md`), and they are not all signed here. What a person signs is
-the **stance** and the **answered Tier 1 decisions** — the two that were
-written to be read in full. The build spec is not signed: it is written for
+**What is being signed on the short path.** The signed document is `intake.md`
+itself: the problem statement, the acceptance criteria, the approach and its
+`## Signals`. The message above the menu lists every `## Signals` row as
+`Row: verdict — evidence`, and names each `unanswerable` row with its reason,
+so the person sees what the "no hard-to-undo signal" call rests on, not just
+the call.
+
+**What is being signed on the long path.** The `design` stage writes one
+`-design.md` (`stage-design.md`), and not all of it is signed here. What a
+person signs is its **Stance** section and the **answered Tier 1 entries** of
+its Decisions section — the parts written to be read in full. The Detail
+section (the build spec) is not signed: it is written for
 whoever builds, nobody reviews it line by line, and pretending otherwise is
-how a signature comes to mean "I gave up reading". Name the stance and
-decisions documents in the menu's message; name the build spec as the thing
-this authorises, not as the thing being read.
+how a signature comes to mean "I gave up reading". Name the document and those
+two parts in the menu's message; name the Detail section as the thing this
+authorises, not as the thing being read.
 
 That split is also what keeps re-signing possible. A change to a signed
 document invalidates the signature, so what gets signed has to stay small
@@ -65,11 +73,12 @@ is not known yet. Under a track this is the cost check: build's first pass
 asks nothing under a track (`stage-build.md` Step 0.5), so a long pass is
 agreed to here or not at all.
 
-Before asking, when the design row names a `-design.md` or a `-diagnosis.md`,
+Before asking, when the design row names a `-design.md`, `-detail.md` or `-diagnosis.md`,
 save the report's `intake.md`, compute its sha256, and add the line
 `AC: <intake.md path> sha256 <hex>` to that document (in `-design.md` under the
-Detail section's `### Reference`, in `-diagnosis.md` at the end of
-`## Failing test`) — the Approve's fingerprint is taken afterwards, and
+Detail section's `### Reference` when Detail exists, otherwise at the end of the
+last section present; in a stand-alone `-detail.md` under its `## Reference`;
+in `-diagnosis.md` at the end of `## Failing test`) — the Approve's fingerprint is taken afterwards, and
 `preflight.py build` refuses a missing line or a changed `intake.md`.
 
 Say the documents' paths and those four lines, then ask. Nothing in `build`

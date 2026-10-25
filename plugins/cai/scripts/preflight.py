@@ -207,16 +207,25 @@ def intake_unchanged(track_dir, project_dir):
     if kind == "intake":
         return [(True, "intake_unchanged (the design row is intake.md itself, "
                        "which Gate 1's own fingerprint covers)")]
-    if kind not in ("design", "diagnosis"):
+    # A stand-alone -detail.md is the design row of the diagnosis -> Detail
+    # route; only a track begun before the merge (retired rows) signed one
+    # without the line.
+    if kind not in ("design", "diagnosis") and not (kind == "detail"
+                                                    and not retired_rows(track_dir)):
         return [(True, "intake_unchanged (not checked: %s is a %s document, signed "
                        "before intake.md was fingerprinted this way)"
                  % (artifact, kind or "legacy"))]
 
     with open(doc, encoding="utf-8") as fh:
         text = design_probe.COMMENT.sub("", fh.read())
-    # Where the line sits: under the Detail section's Reference in a design
-    # file, at the end of `## Failing test` in a diagnosis.
-    held = design_probe.sections(text).get("Detail" if kind == "design" else "Failing test", "")
+    # Where the line sits: anywhere in a design file (its last section may be
+    # Stance or Decisions, not Detail), under `## Reference` in a stand-alone
+    # detail document, at the end of `## Failing test` in a diagnosis.
+    if kind == "design":
+        held = text
+    else:
+        held = design_probe.sections(text).get(
+            "Reference" if kind == "detail" else "Failing test", "")
     found = AC_LINE.search(held)
     if found is None:
         if retired_rows(track_dir):
@@ -224,8 +233,9 @@ def intake_unchanged(track_dir, project_dir):
             # before the upgrade, so a track signed then is left as it was.
             return [(True, "intake_unchanged (signed off before the upgrade: %s has no AC: "
                            "line, and adding one would change Gate 1's fingerprint)" % artifact)]
-        where = ("under the Detail section's ### Reference" if kind == "design"
-                 else "at the end of ## Failing test")
+        where = {"design": "at the end of the last section (under the Detail "
+                           "section's ### Reference when there is one)",
+                 "detail": "under ## Reference"}.get(kind, "at the end of ## Failing test")
         return [(False, "intake_unchanged (%s has no `AC: <intake.md path> sha256 <hex>` "
                         "line %s -- the main session adds it after saving intake.md and "
                         "before Gate 1; then re-sign Gate 1)" % (artifact, where))]

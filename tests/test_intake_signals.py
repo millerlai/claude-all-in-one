@@ -94,11 +94,19 @@ def test_a_bad_verdict_fails_and_names_the_row():
     assert any("Found out when" in label and "verdict" in label for label in bad), bad
 
 
-def test_low_and_high_rows_need_a_citation():
-    for verdict in ("low", "high"):
-        rows = [GOOD_ROWS[0], GOOD_ROWS[1], ("Undo cost", verdict, "it is easy, trust me")]
-        bad = failing(intake(rows))
-        assert any("Undo cost" in label and "evidence" in label for label in bad), (verdict, bad)
+def test_a_low_row_needs_a_citation():
+    rows = [GOOD_ROWS[0], GOOD_ROWS[1], ("Undo cost", "low", "it is easy, trust me")]
+    bad = failing(intake(rows))
+    assert any("Undo cost" in label and "evidence" in label for label in bad), bad
+
+
+def test_a_cited_high_row_still_fails_the_short_path():
+    # I3: any row judged high with evidence sends the change to the long path.
+    rows = [GOOD_ROWS[0], GOOD_ROWS[1], ("Undo cost", "high", "no rollback, deploy.sh:9")]
+    bad = failing(intake(rows))
+    assert any(label.startswith("signals_short_path") and "Undo cost" in label
+               for label in bad), bad
+    assert not any("evidence" in label for label in bad), bad
 
 
 def test_an_unanswerable_row_with_a_reason_and_no_citation_passes():

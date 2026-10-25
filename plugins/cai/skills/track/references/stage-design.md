@@ -868,8 +868,9 @@ file, and on the long and the diagnosis path that file is not `intake.md`, so
 fixed: you report; the main session writes `intake.md` from the report's
 `## Intake document`; the main session computes that file's sha256 and adds one
 line, `AC: <intake.md path> sha256 <hex>` — in `-design.md` under the Detail
-section's `### Reference`, in `-diagnosis.md` at the end of `## Failing
-test`; only then does Gate 1 take its fingerprint. You leave the placeholder
+section's `### Reference` when Detail exists, otherwise at the end of the last
+section present; in a stand-alone `-detail.md` under its `## Reference`; in
+`-diagnosis.md` at the end of `## Failing test`; only then does Gate 1 take its fingerprint. You leave the placeholder
 alone and write no digest. `preflight.py build`'s `intake_unchanged` compares
 the line with `intake.md` as it stands, and refuses a missing line or a
 different digest. On the short path the design row is `intake.md`, and Gate 1's

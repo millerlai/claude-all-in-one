@@ -6,6 +6,7 @@ Usage: validate.py [SECTION ...] -- no name runs every section; an unknown
 name exits 2 and lists the real ones."""
 import atexit
 import glob
+import hashlib
 import json
 import os
 import re
@@ -2066,7 +2067,13 @@ def _preflight():
         # DETAIL_OK's glossary cites scripts/validate.py:41, which does not exist
         # inside this throwaway project root; point it at the sibling hld.md
         # written above instead, which does.
-        fh.write(DETAIL_OK.replace("scripts/validate.py:41", "docs/design/hld.md:1"))
+        # A stand-alone -detail.md on a new track owes the AC: line for intake.md
+        # (preflight.intake_unchanged), under its ## Reference.
+        with open(os.path.join(PREFLIGHT_TRACK, "intake.md"), "rb") as intake_fh:
+            intake_sha = hashlib.sha256(intake_fh.read()).hexdigest()
+        fh.write(DETAIL_OK.replace("scripts/validate.py:41", "docs/design/hld.md:1")
+                 .replace("## Reference\n", "## Reference\nAC: intake.md sha256 %s\n"
+                          % intake_sha, 1))
 
     def write_preflight_state(artifact_cell, design_status="done"):
         # state.md is overwritten in place, never appended to -- each case
@@ -3260,6 +3267,12 @@ def _track_references():
           "- Gate 1 and Gate 2's push — `gate`",
           "there is no second cost stop after it",
           "the long path's fixed stops are four"]),
+        # I3: on the short path the signed document is intake.md, and the message
+        # above Gate 1's menu shows every Signals row, not only the call.
+        ("I3", "approval-gates.md's short-path Gate 1 message lists each Signals row's "
+               "verdict and evidence and the unanswerable ones with their reason",
+         folded_section(gates_ref, "## Gate 1"),
+         ["`Row: verdict — evidence`, and names each `unanswerable` row with its reason,"]),
         ("R5", "stage-build.md Step 0.5 opens the parallel lane by itself and says so in "
                "one line",
          folded_section(build_ref, "## Step 0.5"),

@@ -62,7 +62,7 @@ def read_config(project_dir):
     of the file itself, since a `problem` string ends up in whatever the
     caller logs.
     """
-    path, merged = cai_paths.config_path(project_dir)
+    path, merged = cai_paths.config_path(project_dir, key="ticket")
     for line in merged:
         print(line, file=sys.stderr)
     if not os.path.isfile(path):

@@ -6,6 +6,7 @@ The line always passes. What matters is that anything but a strict
 "unreadable", which the track treats as no.
 """
 import builtins
+import hashlib
 import json
 import os
 import subprocess
@@ -31,6 +32,23 @@ MALFORMED = ("commit_answer (unreadable: ledger line %d is malformed and comes a
              "the Approve at line %d, so it may be a newer answer)")
 
 
+INTAKE = ("# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
+          "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look |\n")
+
+
+def with_ac_line(name, text):
+    """A new track's stand-alone -detail.md carries the AC: line for its
+    intake.md under ## Reference (preflight.intake_unchanged); these tests are
+    about other checks, so the line is added here."""
+    if not name.endswith("-detail.md"):
+        return text
+    digest = hashlib.sha256(INTAKE.encode("utf-8")).hexdigest()
+    if "## Reference\n" not in text:
+        return text + "\n## Reference\nAC: intake.md sha256 %s\n" % digest
+    return text.replace("## Reference\n",
+                        "## Reference\nAC: intake.md sha256 %s\n" % digest, 1)
+
+
 def make_track(tmp_path, artifact="d-detail.md"):
     track = tmp_path / "track"
     track.mkdir(exist_ok=True)
@@ -40,15 +58,14 @@ def make_track(tmp_path, artifact="d-detail.md"):
     lines += ["| " + " | ".join(r) + " |" for r in rows]
     (track / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     # build owes the file the design stage's report becomes once design is done.
-    (track / "intake.md").write_text(
-        "# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
-        "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look |\n", encoding="utf-8")
+    # Bytes, so the digest with_ac_line records is the one on disk on Windows too.
+    (track / "intake.md").write_bytes(INTAKE.encode("utf-8"))
     return str(track)
 
 
 def write_doc(tmp_path, name="d-detail.md", text=DOC):
     doc = tmp_path / name
-    doc.write_text(text, encoding="utf-8")
+    doc.write_text(with_ac_line(name, text), encoding="utf-8")
     return str(doc)
 
 

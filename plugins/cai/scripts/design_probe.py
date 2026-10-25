@@ -755,6 +755,10 @@ def intake_probes(secs, text, roots):
             yield bool(CITE.search(evidence)), "signal[%s] evidence (%s)" % (
                 name, "cited" if CITE.search(evidence)
                 else "%s with no file:line or URL" % verdict)
+        if verdict == "high":
+            # A recognised value, so this says why instead of "not one of ...".
+            yield False, ("signals_short_path (row %s is high -- this change "
+                          "belongs on the long path)" % name)
 
     # Imported here: verify_plan pulls in the test-command resolvers, which a
     # caller of the other kinds never needs.

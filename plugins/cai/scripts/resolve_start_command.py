@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve how this project starts its app (the `run` object). Read-only,
-except for the merge cai_paths.config_path may do in a linked worktree.
+"""Resolve how this project starts its app (the `run` object). Only reads files.
 
 Reads `run` from `.cai/cai.json` and checks its shape; with no declaration it
 lists candidates from `package.json` and never runs anything. Prints one JSON
@@ -132,9 +131,8 @@ def _candidates(root):
 
 
 def resolve(root):
-    """How `root` (already a root) starts its app, as a dict; writes nothing
-    beyond config_path's merge."""
-    path, merged = cai_paths.config_path(root)
+    """How `root` (already a root) starts its app, as a dict; writes nothing."""
+    path, merged = cai_paths.config_path(root, key="run")
     declared = _declared(root, path)
     if declared is None:
         found = _candidates(root)

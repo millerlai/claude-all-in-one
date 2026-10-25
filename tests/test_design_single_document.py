@@ -535,6 +535,22 @@ def test_an_ac_line_inside_a_comment_does_not_count(tmp_path):
     assert "FAIL intake_unchanged" in run_build(track, tmp_path).stdout
 
 
+def test_a_design_file_ending_at_decisions_takes_its_ac_line_at_the_end(tmp_path):
+    # Build accepts a row that stops at Stance or Decisions (no Detail section).
+    track = make_track(tmp_path, "x-design.md")
+    (track / "options-D1.md").write_text(VALID_DRAFT, encoding="utf-8")
+    document = tmp_path / "x-design.md"
+    document.write_text(doc(det="AC: intake.md sha256 %s\n" % sha(track / "intake.md")),
+                        encoding="utf-8")
+    sign(track, document)
+    done = run_build(track, tmp_path)
+    assert "PASS intake_unchanged" in done.stdout, done.stdout
+    document.write_text(doc(det="AC: intake.md sha256 %s\n" % ("0" * 64)), encoding="utf-8")
+    sign(track, document)
+    assert "FAIL intake_unchanged (intake.md changed after sign-off:" in \
+        run_build(track, tmp_path).stdout
+
+
 def test_a_short_path_intake_is_covered_by_gate_1_itself(tmp_path):
     track = make_track(tmp_path, "intake.md")
     sign(track, track / "intake.md")
@@ -544,7 +560,7 @@ def test_a_short_path_intake_is_covered_by_gate_1_itself(tmp_path):
 
 
 def test_an_old_kind_is_not_checked(tmp_path):
-    for name in ("x-detail.md", "x-stance.md", "x-high-level.md", "x-delta.md"):
+    for name in ("x-stance.md", "x-high-level.md", "x-delta.md"):
         track = make_track(tmp_path, name)
         (tmp_path / name).write_text("# x\n", encoding="utf-8")
         checks = preflight.intake_unchanged(str(track), str(tmp_path))
@@ -596,6 +612,56 @@ def test_a_bug_track_whose_intake_changed_fails(tmp_path):
     sign(track, document)
     done = run_build(track, tmp_path)
     assert "FAIL intake_unchanged (intake.md changed after sign-off:" in done.stdout
+
+
+# --- the diagnosis -> Detail route: a stand-alone -detail.md ------------------
+
+def detail_doc(ac_line=None):
+    text = "# t — detail\n\n## Reference\n\nThe diagnosis of this track.\n"
+    return text + ("\n" + ac_line + "\n" if ac_line else "") + "\n## Requirement\n\nUC1.\n"
+
+
+def test_a_new_track_detail_row_with_a_matching_ac_line_passes(tmp_path):
+    track = make_track(tmp_path, "x-detail.md")
+    document = tmp_path / "x-detail.md"
+    document.write_text(detail_doc("AC: intake.md sha256 %s" % sha(track / "intake.md")),
+                        encoding="utf-8")
+    sign(track, document)
+    checks = preflight.intake_unchanged(str(track), str(tmp_path))
+    assert checks and checks[0][0] is True and "matches" in checks[0][1], checks
+
+
+def test_a_new_track_detail_row_without_an_ac_line_fails(tmp_path):
+    track = make_track(tmp_path, "x-detail.md")
+    document = tmp_path / "x-detail.md"
+    document.write_text(detail_doc(), encoding="utf-8")
+    sign(track, document)
+    checks = preflight.intake_unchanged(str(track), str(tmp_path))
+    assert checks and checks[0][0] is False and "no `AC:" in checks[0][1], checks
+
+
+def test_a_new_track_detail_row_whose_intake_changed_fails(tmp_path):
+    track = make_track(tmp_path, "x-detail.md")
+    document = tmp_path / "x-detail.md"
+    document.write_text(detail_doc("AC: intake.md sha256 %s" % sha(track / "intake.md")),
+                        encoding="utf-8")
+    sign(track, document)
+    with open(track / "intake.md", "a", encoding="utf-8") as fh:
+        fh.write("\nAC2: late.\n")
+    checks = preflight.intake_unchanged(str(track), str(tmp_path))
+    assert checks and checks[0][0] is False and "changed after sign-off" in checks[0][1], checks
+
+
+def test_an_old_six_row_track_with_a_detail_row_and_no_line_still_passes(tmp_path):
+    rows = [("intake", "done", "intake.md", ""), ("discover", "skipped", "", ""),
+            ("design", "done", "x-detail.md", ""), ("build", "", "", ""),
+            ("verify", "", "", ""), ("ship", "", "", "")]
+    track = make_track(tmp_path, "x-detail.md", rows)
+    document = tmp_path / "x-detail.md"
+    document.write_text(detail_doc(), encoding="utf-8")
+    sign(track, document)
+    checks = preflight.intake_unchanged(str(track), str(tmp_path))
+    assert checks and checks[0][0] is True and "not checked" in checks[0][1], checks
 
 
 # --- UC3: an old six-row track into build ------------------------------------
