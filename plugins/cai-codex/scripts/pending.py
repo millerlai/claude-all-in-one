@@ -32,6 +32,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import ledger  # noqa: E402
 import preflight  # noqa: E402
 STAGES_JSON = os.path.join(HERE, "..", "skills", "track", "stages.json")
 FILE_NAME = "pending.md"
@@ -220,7 +221,10 @@ def _path(track_dir):
 def _finished(track_dir, stage):
     """True when state.md says `stage` is done or skipped: its round can no
     longer be resumed, and `track_state.py status` already calls the file
-    stale and ignores it, so the writer must not let it block a later stage."""
+    stale and ignores it, so the writer must not let it block a later stage.
+    A retired stage has no row to be done, and its round can never resume."""
+    if stage in ledger.retired_stage_ids():
+        return True
     try:
         row = preflight.state_row(track_dir, stage)
     except (OSError, UnicodeDecodeError):

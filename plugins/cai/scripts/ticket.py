@@ -175,10 +175,14 @@ def render_comment(track_dir, feature, now, final=False):
         print("cannot render a comment: no state.md in %s" % track_dir)
         return None
 
-    rows = preflight.data_rows(text)
-    if len(rows) != 6:
-        print("cannot render a comment: state.md has %d stage row(s), not 6"
-              % len(rows))
+    # Reached through preflight, not imported: DD2 forbids this file importing
+    # ledger because it must never write one, and this only reads stages.json.
+    retired = preflight.ledger.retired_stage_ids()
+    expected = len(preflight.ledger.stage_ids())
+    rows = [cells for cells in preflight.data_rows(text) if cells[0] not in retired]
+    if len(rows) != expected:
+        print("cannot render a comment: state.md has %d stage row(s), not %d"
+              % (len(rows), expected))
         return None
 
     lines = [marker_for(feature),

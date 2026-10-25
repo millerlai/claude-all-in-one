@@ -47,7 +47,7 @@ def _validate(event, stages=None):
     if not all(_string(event[key]) for key in COMMON - {"format"}):
         raise ValueError("journal-malformed")
     if stages is None:
-        stages = ledger.stage_ids()
+        stages = ledger.stage_ids() + list(ledger.retired_stage_ids())
     if event["stage"] not in stages or event["platform"] not in ("claude", "codex"):
         raise ValueError("journal-malformed")
     for key in FIELDS[kind] - {"at_ms", "parent_actor_id", "actor_ids", "coverage_scope"}:
@@ -139,7 +139,8 @@ def _events_from_bytes(raw):
     seen = {}
     conflicts = set()
     problems = set()
-    stages = ledger.stage_ids()  # once per parse, not once per event (#322)
+    # once per parse, not once per event (#322); retired stages still count
+    stages = ledger.stage_ids() + list(ledger.retired_stage_ids())
     # LF is the writer's only separator; Unicode separators may occur in JSON strings.
     for line in raw.split(b"\n"):
         if not line.strip():

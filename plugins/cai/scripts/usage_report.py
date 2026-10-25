@@ -345,10 +345,11 @@ def track_report(track_dir, price_table):
              "this row has usage data on file." % (CAVEAT, NO_DATA), ""]
 
     total = _new_summary()
+    retired = ledger.retired_stage_ids()
     for stage in stages:
         summary = _new_summary()
         for record in all_records:
-            if record.get("malformed") or record.get("stage") != stage:
+            if record.get("malformed") or ledger.folded(record.get("stage"), retired) != stage:
                 continue
             _accumulate(summary, record, price_table)
         _merge_into(total, summary)
@@ -495,11 +496,12 @@ def range_report(central_path, days, price_table):
 
     total = _new_summary()
     total_scopes = set()
+    retired = ledger.retired_stage_ids()
     for stage in ledger.stage_ids():
         summary = _new_summary()
         scopes = set()
         for record in in_range:
-            if record.get("stage") != stage:
+            if ledger.folded(record.get("stage"), retired) != stage:
                 continue
             _accumulate(summary, record, price_table)
             scopes.add((record.get("project"), record.get("track")))
@@ -611,23 +613,26 @@ def stage_metrics(stage_records, stage):
 def _by_stage(records):
     """Non-malformed records, file order preserved, split by stage id."""
     by_stage = {stage: [] for stage in ledger.stage_ids()}
+    retired = ledger.retired_stage_ids()
     for record in records:
         if record.get("malformed"):
             continue
-        stage = record.get("stage")
+        stage = ledger.folded(record.get("stage"), retired)
         if stage in by_stage:
             by_stage[stage].append(record)
     return by_stage
 
 
-def _track_cycle_seconds(by_stage):
-    """ship's last `passed` ts minus intake's first record ts (any
-    outcome) -- None when either end is missing."""
-    intake = by_stage.get("intake") or []
+def _track_cycle_seconds(records, by_stage):
+    """ship's last `passed` ts minus the track's first record ts (any stage,
+    any outcome, file order) -- None when either end is missing. Not intake's:
+    a track begun after intake was merged away has no intake record."""
+    first = next((r for r in records if not r.get("malformed")
+                  and ledger.folded(r.get("stage")) in by_stage), None)
     ship = by_stage.get("ship") or []
-    if not intake or not ship:
+    if first is None or not ship:
         return None
-    first_ts = _parse_ts(intake[0].get("ts"))
+    first_ts = _parse_ts(first.get("ts"))
     last_passed_ts = None
     for record in ship:
         if record.get("outcome") == "passed":
@@ -645,7 +650,7 @@ def track_metrics(records):
     track) and central_metrics_report() (one (project, track) group)."""
     by_stage = _by_stage(records)
     per_stage = {stage: stage_metrics(by_stage[stage], stage) for stage in ledger.stage_ids()}
-    return per_stage, _track_cycle_seconds(by_stage)
+    return per_stage, _track_cycle_seconds(records, by_stage)
 
 
 def _fmt_hms(seconds):

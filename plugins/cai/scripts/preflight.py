@@ -108,6 +108,19 @@ def left_open_items(state_text):
     return out
 
 
+def retired_rows(track_dir):
+    """Ids of state.md's rows that stages.json lists as retired; [] when
+    state.md is missing. Read through data_rows(), not track_state's
+    table_stage_ids(), which hides exactly these rows -- a track that still
+    has them was begun before the stage was merged away."""
+    path = os.path.join(track_dir, "state.md")
+    if not os.path.isfile(path):
+        return []
+    retired = ledger.retired_stage_ids()
+    with open(path, encoding="utf-8") as fh:
+        return [cells[0] for cells in data_rows(fh.read()) if cells[0] in retired]
+
+
 def state_row(track_dir, stage_id):
     """The stage table row in state.md, as a list of trimmed cells, or None
     when state.md is missing or names no such row. Not being able to read it
