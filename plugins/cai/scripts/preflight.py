@@ -54,7 +54,8 @@ UNTRACKED_BASELINE_NAME = "untracked-at-start.json"
 # carries no separate field for this -- the filename is the convention.
 SUFFIX_KIND = {"-diagnosis.md": "diagnosis", "-stance.md": "stance",
                "-decisions.md": "decisions", "-high-level.md": "hld",
-               "-detail.md": "detail", "-delta.md": "delta"}
+               "-detail.md": "detail", "-delta.md": "delta",
+               "-design.md": "design"}
 # The short path's design row names `intake.md` itself, which has no `-<kind>`
 # suffix to match. The whole basename is compared, so `my-intake.md` is not one.
 NAME_KIND = {"intake.md": "intake"}
@@ -178,6 +179,68 @@ def intake_document(track_dir):
     if levels["status"] == "invalid":
         return [(False, "intake_document (%s: %s)" % (path, "; ".join(levels["problems"])))]
     return [(True, "intake_document (%s, verification levels %s)" % (path, levels["status"]))]
+
+
+# One line, written by the main session after it saves `intake.md` and before
+# Gate 1 takes the fingerprint: Gate 1 binds a single file, and `intake.md` is
+# not that file on the long or the bug path.
+AC_LINE = re.compile(r"^[ \t]*AC:[ \t]*(\S+)[ \t]+sha256[ \t]+([0-9a-fA-F]{64})[ \t]*$", re.M)
+
+
+def intake_unchanged(track_dir, project_dir):
+    """Proves `intake.md` is the one the person signed for, when the design row
+    names a document that is not `intake.md` itself.
+
+    The recorded digest lives in the design document, so it is inside Gate 1's
+    fingerprint; the digest of `intake.md` as it stands now is compared with it.
+    Nothing is returned when the design row names no readable document: the
+    other build checks already say so."""
+    row = state_row(track_dir, "design")
+    artifact = row[2] if row is not None and len(row) > 2 else ""
+    if not artifact or artifact == "—":
+        return []
+    doc = resolve(artifact, project_dir, track_dir)
+    if doc is None:
+        return []
+
+    kind = document_kind(artifact)
+    if kind == "intake":
+        return [(True, "intake_unchanged (the design row is intake.md itself, "
+                       "which Gate 1's own fingerprint covers)")]
+    if kind not in ("design", "diagnosis"):
+        return [(True, "intake_unchanged (not checked: %s is a %s document, signed "
+                       "before intake.md was fingerprinted this way)"
+                 % (artifact, kind or "legacy"))]
+
+    with open(doc, encoding="utf-8") as fh:
+        text = design_probe.COMMENT.sub("", fh.read())
+    # Where the line sits: under the Detail section's Reference in a design
+    # file, at the end of `## Failing test` in a diagnosis.
+    held = design_probe.sections(text).get("Detail" if kind == "design" else "Failing test", "")
+    found = AC_LINE.search(held)
+    if found is None:
+        if retired_rows(track_dir):
+            # Adding the line now would change the fingerprint Gate 1 took
+            # before the upgrade, so a track signed then is left as it was.
+            return [(True, "intake_unchanged (signed off before the upgrade: %s has no AC: "
+                           "line, and adding one would change Gate 1's fingerprint)" % artifact)]
+        where = ("under the Detail section's ### Reference" if kind == "design"
+                 else "at the end of ## Failing test")
+        return [(False, "intake_unchanged (%s has no `AC: <intake.md path> sha256 <hex>` "
+                        "line %s -- the main session adds it after saving intake.md and "
+                        "before Gate 1; then re-sign Gate 1)" % (artifact, where))]
+
+    recorded = found.group(2).lower()
+    try:
+        with open(os.path.join(track_dir, verify_plan.INTAKE_NAME), "rb") as fh:
+            current = hashlib.sha256(fh.read()).hexdigest()
+    except OSError as exc:
+        return [(False, "intake_unchanged (%s records an intake.md digest, but it cannot "
+                        "be read: %s)" % (artifact, exc))]
+    if recorded != current:
+        return [(False, "intake_unchanged (intake.md changed after sign-off: %s != %s -- "
+                        "re-sign Gate 1)" % (recorded, current))]
+    return [(True, "intake_unchanged (intake.md matches the AC: line in %s)" % artifact)]
 
 
 def design(track_dir, project_dir):
@@ -542,7 +605,12 @@ def options_drafts(text, artifact, track_dir):
 
     Entries decided before this track's first ledger record owe no local
     draft. Ambiguous dates keep the draft requirement."""
-    if not artifact.endswith("-decisions.md"):
+    if artifact.endswith("-design.md"):
+        # The single design file keeps its Tier 1 entries one level deeper, in
+        # its `## Decisions` section; promoted, they read as a decisions file.
+        section = design_probe.sections(text).get("Decisions", "")
+        text = design_probe.promote(section)
+    elif not artifact.endswith("-decisions.md"):
         return [(True, "options_drafts (artifact is not a decisions document)")]
 
     tier1 = design_probe.entries(design_probe.sections(text).get("Tier 1", ""))
@@ -644,7 +712,8 @@ def build(track_dir, project_dir):
     # whichever document the design row names -- `verify` plans from it, not
     # from that document.
     checks = _build(track_dir, project_dir)
-    return checks[:2] + intake_document(track_dir) + checks[2:]
+    return (checks[:2] + intake_document(track_dir)
+            + intake_unchanged(track_dir, project_dir) + checks[2:])
 
 
 def _build(track_dir, project_dir):

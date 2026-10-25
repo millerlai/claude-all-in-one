@@ -2020,6 +2020,27 @@ def _design_probe():
                                capture_output=True, text=True)
         check(f"{kind} template does not pass its own probe", blank.returncode == 2)
 
+    # The single design document is the four modes' templates stacked, one
+    # heading level deeper: its sections must be the probe's, and what is inside
+    # each must be the headings of the mode's own template, or `--kind design`
+    # would check a section against a list it was not written to.
+    tpl = f"{PLUGIN}/templates/{design_probe.TEMPLATES['design']}"
+    check("design template ships", os.path.isfile(tpl))
+    if os.path.isfile(tpl):
+        top = design_probe.sections(read_text(tpl))
+        check("design template sections match the probe",
+              list(top) == list(design_probe.DESIGN_SECTIONS))
+        for name, want in (("Diagnosis", design_probe.DIAGNOSIS_HEADINGS),
+                           ("Stance", design_probe.STANCE_HEADINGS),
+                           ("Decisions", design_probe.DECISIONS_HEADINGS),
+                           ("Detail", design_probe.DETAIL_HEADINGS)):
+            got = list(design_probe.sections(design_probe.promote(top.get(name, ""))))
+            check(f"design template's {name} section carries the {name.lower()} headings",
+                  got == want)
+        blank = subprocess.run([sys.executable, PROBE, "--kind", "design", tpl],
+                               capture_output=True, text=True)
+        check("design template does not pass its own probe", blank.returncode == 2)
+
 
 @section("preflight")
 def _preflight():
@@ -3204,6 +3225,19 @@ def _track_references():
           "**No row `high`** → the **short path**",
           "Step 5's approval is Gate 1: one menu, fingerprinting `intake.md`",
           "design_probe.py --kind intake"]),
+        # U4 (R4, I7): the long path writes one -design.md, and the AC: line is
+        # added in a fixed order, or intake_unchanged has nothing to compare.
+        ("R4", "stage-design.md says the long path is one -design.md, edited in place, "
+               "and fixes the order the AC: line is written in",
+         " ".join(read_text(f"{REFS}/stage-design.md").split())
+         if os.path.isfile(f"{REFS}/stage-design.md") else "",
+         ["Stance, Decisions and Detail each write their own section into **one** file",
+          "`${CLAUDE_PLUGIN_ROOT}/templates/design.md.tpl`",
+          "each mode editing the file in place and never rewriting what an earlier mode wrote",
+          "`AC: <intake.md path> sha256 <hex>`",
+          "you report; the main session writes `intake.md`",
+          "only then does Gate 1 take its fingerprint",
+          "design_probe.py --kind design"]),
     ]
     for ac, label, section, phrases in PINS:
         missing = [p for p in phrases if p not in section]
@@ -3526,6 +3560,12 @@ def _plan_review():
                            ("hld", design_probe.HLD_HEADINGS),
                            ("detail", design_probe.DETAIL_HEADINGS)):
             check(f"plan-review's {kind} skeleton matches the probe", want in listed)
+        check("plan-review's single-document skeleton matches the probe",
+              list(design_probe.DESIGN_SECTIONS) in listed)
+        # Only the last two headings of the short-path intake are read by a program.
+        check("plan-review's short-path intake skeleton ends with Signals and "
+              "Verification levels",
+              any(h[-2:] == ["Signals", "Verification levels"] for h in listed))
 
 
 @section("hook-self-tests")

@@ -259,12 +259,32 @@ After either entrance, the rest is shared: Decisions where choices survive,
 then Detail. Delta only applies when code already exists and nobody wrote
 down why it looks the way it does.
 
-**Why these are three documents and not one.** A document that has to be read
-before a decision and a document that has to be complete enough to build from
-pull in opposite directions: the first fails by being long, the second by
-being short. One file serving both ends up too long to read and still not
-enough to build from — which is what the old single high-level design became,
-and why it stopped being reviewed in full.
+**Why the long path is one document, in sections.** Stance, Decisions and
+Detail each write their own section into **one** file,
+`docs/design/<YYYY-MM-DD>-<topic>-design.md`, copied from
+`<cai-root>/templates/design.md.tpl`: `## Stance`, then
+`## Decisions`, then `## Detail`, in that order, each mode editing the file in
+place and never rewriting what an earlier mode wrote. A bug that escalates to
+Stance adds `## Diagnosis` ahead of them — its root cause becomes that section.
+Inside a section every heading is one level deeper than in the stand-alone
+template of the same mode, and nothing else about the section changes.
+
+What keeps the sections from becoming the old high-level design is that a
+section is still checked as the page it would have been alone: `--kind design`
+promotes each section's headings one level and runs that mode's own probe on
+it, so the stance's one-page ceiling counts the Stance section only. The
+person signs the Diagnosis and Stance sections and the answered Tier 1
+entries; Detail is for the builder, who reads it end to end, and carries no
+ceiling. The cost is that the part to sign no longer sits on a page of its own
+— the person reads down to the next `## ` heading and stops — and the gain is
+that Gate 1 fingerprints the whole file, so an edit to any section after
+sign-off is caught ("What the fingerprint covers now" below).
+
+A bug that does not escalate still writes its own `-diagnosis.md`, and a
+diagnosis taken straight to Detail writes a stand-alone `-detail.md` that names
+it. The older multi-file shapes (`-stance.md`, `-decisions.md`, `-detail.md`,
+`-high-level.md`) stay readable and checkable, so a track signed off in one
+is not disturbed.
 
 **High-level** is that old shape, still accepted (`--kind hld`) so documents
 already signed off stay passable. Do not write a new one.
@@ -473,7 +493,9 @@ full, and lower them when the answer is no.
    `docs/design/<YYYY-MM-DD>-<topic>-diagnosis.md`, date from `date +%F`.
    Copy `<cai-root>/templates/design-diagnosis.md.tpl`, fill it
    in, delete the HTML-comment guidance as you answer it. Do not add or
-   rename headings.
+   rename headings. (If Step 4 escalates, this document is not kept as a file:
+   its content becomes the `## Diagnosis` section of the `-design.md` that
+   Stance mode writes, the same headings one level deeper.)
 
    `## Root cause` answers one question beyond naming the cause: **what would
    still be true if you fixed the line the stack trace points at?** "The same
@@ -501,7 +523,8 @@ full, and lower them when the answer is no.
 5. **Check, then review.**
    `<cai> design_probe --kind diagnosis <the document>`
    until it exits 0, then `plan-review` against it (how it runs: see
-   "The gate every mode shares").
+   "The gate every mode shares"). Once it is a section of a `-design.md`, the
+   same probe runs as `--kind design`.
 
 6. **Stop.** `## Status` stays `draft`. What the person signs here is **the
    root cause**, not the fix: a wrong cause makes every fix downstream of it
@@ -527,10 +550,15 @@ full, and lower them when the answer is no.
    the platform, the library — settle it under the evidence rule first. A
    stance written from what you remember is a guess a person is being asked to
    sign.
-2. **Write the trade, all four parts.** Unless the person named a path:
-   `docs/design/<YYYY-MM-DD>-<topic>-stance.md`, date from `date +%F`. Copy
-   `<cai-root>/templates/design-stance.md.tpl`, fill it in, delete
-   the HTML-comment guidance as you answer it. Do not add or rename headings.
+2. **Write the trade, all four parts.** This mode creates the track's one
+   design document. Unless the person named a path:
+   `docs/design/<YYYY-MM-DD>-<topic>-design.md`, date from `date +%F`. Copy
+   `<cai-root>/templates/design.md.tpl` and keep its `## Stance`
+   section — plus `## Diagnosis` when this track escalated from a bug, with the
+   root cause moved into it — deleting `## Decisions` and `## Detail`: their
+   modes add them back from the template, in place and in order. Fill the
+   Stance section in, delete the HTML-comment guidance as you answer it. Do not
+   add or rename headings.
    - `## Optimises for` is one or two sentences. Optimising for everything
      rules out nothing, and a stance that rules out nothing deletes no options
      later — which is the entire job it has.
@@ -556,31 +584,34 @@ full, and lower them when the answer is no.
    `mmdc -i <the document> -o <scratchpad>/check.md`. A sentence under it says
    what to look at — a diagram with no reading is decoration.
 5. **Check, then review.**
-   `<cai> design_probe --kind stance <the document>`
-   until it exits 0. It enforces the one-page ceiling; over it, cut, do not
-   reword. Then `plan-review` against the document (see "The gate every
-   mode shares" for how it runs).
-6. **Stop.** `## Status` stays `draft`. Only the person's approval changes it
-   to `approved <YYYY-MM-DD>`, through the menu in
+   `<cai> design_probe --kind design <the document>`
+   until it exits 0. It enforces the one-page ceiling on the Stance section
+   alone; over it, cut, do not reword. Then `plan-review` against the document
+   (see "The gate every mode shares" for how it runs).
+6. **Stop.** The Stance section's `### Status` stays `draft`. Only the
+   person's approval changes it to `approved <YYYY-MM-DD>`, through the menu in
    `references/approval-gates.md`. Decisions mode reads that line and refuses
    to start on a draft.
 
 ## Mode: Decisions
 
-0. **The gate.** Open the stance document and check, in the file: `## Status`
-   reads `approved` with a date, `## Invariants` is non-empty,
-   `## Use cases / Issues` numbers its entries. Any failing, stop and say
-   which. Weighing options against a trade nobody agreed to is how a stance
+0. **The gate.** Open the stance — the `## Stance` section of the track's
+   `-design.md`, or the stance document of a track signed in the older shape —
+   and check, in the file: `### Status` (`## Status` there) reads `approved`
+   with a date, `Invariants` is non-empty, `Use cases / Issues` numbers its
+   entries. Any failing, stop and say which. Weighing options against a trade nobody agreed to is how a stance
    gets replaced one implementation detail at a time.
 1. **Feasibility, before any option.** Every capability this design needs,
    settled under the evidence rule in a table: `C1`, `C2`, …, Capability,
    Verdict (`verified`/`UNVERIFIED`/`infeasible`), Evidence. The ids are
    load-bearing — the probe fails a capability no entry cites, and a Tier 2
    entry resting on one that is not `verified`.
-2. **List every choice, then run the three tests on each**, in order. Write to
-   `docs/design/<YYYY-MM-DD>-<topic>-decisions.md`, same `<topic>` as the
-   stance. Copy `<cai-root>/templates/design-decisions.md.tpl`,
-   same heading discipline.
+2. **List every choice, then run the three tests on each**, in order. Write
+   into the same `-design.md`, adding the `## Decisions` section after
+   `## Stance` — copy that section from
+   `<cai-root>/templates/design.md.tpl`; Tier entries are `####`
+   headings there. Same heading discipline, and the Stance section is not
+   touched.
    - conflict test → `## Ruled out`, with the invariant it hit;
    - origin test → `## Requirement gaps`, with a veto condition or a
      verification path;
@@ -593,7 +624,7 @@ full, and lower them when the answer is no.
    entry a test catches tomorrow is scanned, one that surfaces after a
    migration is not. Unknown counts as late, not as low.
 5. **Check, then ask.**
-   `<cai> design_probe --kind decisions <the document>`
+   `<cai> design_probe --kind design <the document>`
    until it exits 0 — budgets, citations and diagrams are all mechanical, so
    fix them before spending any reading on review. Then `plan-review` (see
    "The gate every mode shares" for how it runs), then
@@ -661,11 +692,13 @@ runs Stance then Decisions instead. The procedure below is unchanged.
 
 ## Mode: Detail
 
-0. **The gate.** Open the documents this elaborates and check, in the files:
-   the stance's `## Status` reads `approved` with a date and its
-   `## Use cases / Issues` numbers its entries; the decisions document's
-   `## Tier 1` entries each carry a `Decided:` line. Any failing, stop and say
-   which. (A legacy high-level design instead: `## Status` approved,
+0. **The gate.** Open what this elaborates and check, in the file: the
+   stance's status reads `approved` with a date and its
+   `Use cases / Issues` numbers its entries; the decisions' `Tier 1` entries
+   each carry a `Decided:` line (the probe's `tier1_decided` line checks it
+   once `## Detail` exists). On the long path these are the `## Stance` and
+   `## Decisions` sections of the track's `-design.md`. Any failing, stop and
+   say which. (A legacy high-level design instead: `## Status` approved,
    `## Open questions` empty or every entry answered, use cases numbered.)
    (An approved diagnosis instead: `## Status` approved with a date, which
    the probe's `diagnosis_is_approved` line checks. It numbers no use cases,
@@ -677,10 +710,16 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    otherwise settle by accident, one implementation detail at a time.
 1. **Ground it in the real directory.** Read the target project directory;
    every claim about existing code resolves to a real `file:line` you have
-   opened. Write to `docs/design/<YYYY-MM-DD>-<topic>-detail.md`, same
-   `<topic>` as the stance, or the diagnosis. Copy
-   `<cai-root>/templates/design-detail.md.tpl`, fill it in, same
-   heading discipline as the modes above.
+   opened. On the long path, add the `## Detail` section after
+   `## Decisions` in the same `-design.md`, copied from
+   `<cai-root>/templates/design.md.tpl`; its `### Reference` names
+   the Stance and Decisions sections of the file, and carries an
+   `AC: <intake.md path> sha256 <hex>` placeholder that you leave as it is —
+   the main session fills it in ("The `AC:` line" below). Taking an approved
+   diagnosis straight to Detail instead, write the stand-alone
+   `docs/design/<YYYY-MM-DD>-<topic>-detail.md` from
+   `<cai-root>/templates/design-detail.md.tpl`, same `<topic>` as
+   the diagnosis. Fill it in, same heading discipline as the modes above.
 2. **Four tables before any prose:** the `## Reference` block (path + status
    line the probe follows), the traceability table (every `UC`/`R` id vs.
    what satisfies it here), the glossary (every load-bearing term, its
@@ -713,7 +752,8 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    rule, one at a time, biggest blast radius first. A confident guess is
    worse than an open question.
 8. **Check, then review.**
-   `<cai> design_probe --kind detail --project-dir <target project dir> <the document>`
+   `<cai> design_probe --kind design --project-dir <target project dir> <the document>`
+   (`--kind detail` for the stand-alone detail design of a diagnosis)
    first, fix and re-run until 0. Then `plan-review` (see "The gate every
    mode shares" for how it runs) with the detail skeleton, lens 8 first. Blocker/Major → fix and re-probe *and* re-review;
    section 4 → the question tool; Minor → leave documented. At most three
@@ -785,35 +825,50 @@ requirements — not your conclusions: a review by the author is the one thing
 the gate exists to avoid. Act on what it returns as the mode's step says.
 Standing alone you are the main session and invoke the skill yourself.
 
-Each mode has its own `--kind`: `diagnosis`, `stance`, `decisions`, `detail`,
-`delta`, and `hld` for the legacy shape. What the person signs is whichever
-entrance ran — a root cause, or a stance and its answered Tier 1 entries —
-never the build spec, which is written for whoever builds and is not reviewed
-line by line. That is why the first two have
-ceilings and the third does not: **what a person signs has to stay small
-enough to sign again** after it changes.
+The long path's three modes all run `--kind design` on the one `-design.md`;
+the other kinds are `diagnosis` for a bug that did not escalate, `detail` for
+the stand-alone detail design of a diagnosis, `intake` for the short path,
+`delta`, and `stance`, `decisions` and `hld` for the older shapes. What the
+person signs is whichever entrance ran — a root cause, or a stance and its
+answered Tier 1 entries — never the build spec, which is written for whoever
+builds and is not reviewed line by line. That is why those sections have
+ceilings and Detail does not: **what a person signs has to stay small enough
+to sign again** after it changes.
 
-**Which path goes in the track's `design` row:** the document `build` reads —
-the detail design when Detail mode ran, otherwise the last document this
-stage wrote. On the short path nothing else was written, so it is the track's
+**Which path goes in the track's `design` row:** the document `build` reads.
+On the long path that is the one `-design.md`, whichever of its sections ran
+last. On the short path nothing else was written, so it is the track's
 `intake.md` itself; `preflight.py` maps that exact filename to `--kind
-intake`. A detail design's `## Reference` names the stance and the
-decisions it elaborates, so a reader who starts there reaches all three. On
-the diagnosis path it names the diagnosis instead, and reaches that one.
-`preflight.py` reads that cell, picks the kind off the suffix, and runs the
-matching probe; Gate 1's Approve fingerprints the same file. Not because the
-person reads the build spec line by line — they sign the entrance's
-documents, above — but because it is what `build` acts on, so editing it
-after the Approve re-opens the gate.
+intake`. On the diagnosis path it is the `-diagnosis.md`, or the stand-alone
+`-detail.md` when Detail followed it, whose `## Reference` names the
+diagnosis. `preflight.py` reads that cell, picks the kind off the suffix, and
+runs the matching probe; Gate 1's Approve fingerprints the same file. Not
+because the person reads the build spec line by line — they sign the
+entrance's sections, above — but because it is what `build` acts on, so
+editing it after the Approve re-opens the gate.
 
-**A known gap in that arrangement.** The ledger fingerprints one file, so
-editing the *stance* or the decisions document after sign-off does not trip
-`preflight.py build` the way editing the document in the design row does.
-The probe still catches the case that matters — the stance's `## Status`
-going back to `draft` — but a reworded invariant under an unchanged status
-is not caught. Until the ledger can carry more than one artifact, treat an
-edit to either after sign-off as re-opening the gate, and say so rather than
-relying on a check that will not fire.
+**The `AC:` line, and the order it is written in.** Gate 1 fingerprints one
+file, and on the long and the diagnosis path that file is not `intake.md`, so
+`intake.md` would otherwise be free to change after sign-off. The order is
+fixed: you report; the main session writes `intake.md` from the report's
+`## Intake document`; the main session computes that file's sha256 and adds one
+line, `AC: <intake.md path> sha256 <hex>` — in `-design.md` under the Detail
+section's `### Reference`, in `-diagnosis.md` at the end of `## Failing
+test`; only then does Gate 1 take its fingerprint. You leave the placeholder
+alone and write no digest. `preflight.py build`'s `intake_unchanged` compares
+the line with `intake.md` as it stands, and refuses a missing line or a
+different digest. On the short path the design row is `intake.md`, and Gate 1's
+fingerprint already covers it.
+
+**What the fingerprint covers now.** Gate 1 fingerprints the whole
+`-design.md`, so editing the Stance or Decisions section after sign-off trips
+`artifact_unchanged` in `preflight.py build` the way editing any other part
+does — the gap the three-file arrangement had is closed for the long path.
+What remains is an older multi-file track (`-stance.md`, `-decisions.md` next to
+a `-detail.md`): the ledger fingerprints one of those files, so an edit to the
+others does not trip the check. For those, treat an edit after sign-off as
+re-opening the gate, and say so rather than relying on a check that will not
+fire.
 
 ## When to skip this stage entirely
 

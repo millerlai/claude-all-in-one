@@ -12,7 +12,7 @@ tokens.
 The definitions of "filled" and "item" come from the SDD design note under
 docs/, so that a probe two people run returns the same number.
 
-Usage:  design_probe.py --kind hld|detail|delta|intake [--project-dir DIR] <document>
+Usage:  design_probe.py --kind hld|detail|delta|intake|design [--project-dir DIR] <document>
 Exit:   0 every probe passed, 2 at least one failed.
 """
 import argparse
@@ -122,6 +122,14 @@ DIAGNOSIS_MAX_LINES = 100
 SIGNALS_HEADER = "| Row | Verdict | Evidence |"
 SIGNAL_ROWS = ("Blast radius", "Found out when", "Undo cost")
 SIGNAL_VERDICTS = ("low", "high", "unanswerable")
+# The long path's single `-design.md`: these four `## ` sections, in this order,
+# each holding what the mode of the same name used to write as its own file.
+# Decisions is meaningless without the stance it serves, and Detail without
+# both; Diagnosis is there only when a bug escalated, so nothing needs it.
+DESIGN_SECTIONS = ("Diagnosis", "Stance", "Decisions", "Detail")
+DESIGN_NEEDS = {"Decisions": ("Stance",), "Detail": ("Stance", "Decisions")}
+SAME_FILE_STANCE = "## Stance section"
+DECIDED = re.compile(r"^\s*(?:[-*]\s+)?(?:\*\*)?Decided:", re.M)
 
 # The templates are the shape the design commands write to, so they are the
 # source of truth for the lists above. validate.py asserts the two agree.
@@ -129,7 +137,8 @@ TEMPLATES = {"hld": "design-high-level.md.tpl", "detail": "design-detail.md.tpl"
              "delta": "design-delta.md.tpl",
              "stance": "design-stance.md.tpl",
              "decisions": "design-decisions.md.tpl",
-             "diagnosis": "design-diagnosis.md.tpl"}
+             "diagnosis": "design-diagnosis.md.tpl",
+             "design": "design.md.tpl"}
 
 
 def sections(text):
@@ -404,25 +413,33 @@ def diagnosis_probes(secs, text, roots):
         "within_one_page (%d line(s), ceiling %d)" % (n, DIAGNOSIS_MAX_LINES)
 
 
-def decisions_probes(secs, text, roots):
+def decisions_probes(secs, text, roots, upstream=None):
+    """`upstream` is how `--kind design` hands over the stance: (label,
+    sections) pairs from the same file, in place of the .md files that
+    ## Reference names. Left None, the document is read as it always was."""
     yield probe_headings(secs, DECISIONS_HEADINGS)
 
-    resolved = []
-    for cand in re.findall(r"[\w./\\-]+\.md",
-                           COMMENT.sub("", secs.get("Reference", ""))):
-        # A sibling of this document is the likely shape, so look there first.
-        p = resolve(cand, *reversed(roots))
-        if p:
-            resolved.append(p)
-    ref = resolved[0] if resolved else None
-    yield ref is not None, "reference_resolves (%s)" % (
-        ref or "## Reference names no readable .md")
+    if upstream is not None:
+        parsed = upstream
+        yield True, "reference_resolves (the %s of this same file)" % SAME_FILE_STANCE
+    else:
+        resolved = []
+        for cand in re.findall(r"[\w./\\-]+\.md",
+                               COMMENT.sub("", secs.get("Reference", ""))):
+            # A sibling of this document is the likely shape, so look there first.
+            p = resolve(cand, *reversed(roots))
+            if p:
+                resolved.append(p)
+        ref = resolved[0] if resolved else None
+        yield ref is not None, "reference_resolves (%s)" % (
+            ref or "## Reference names no readable .md")
 
-    if resolved:
         parsed = []
         for p in resolved:
             with open(p, encoding="utf-8") as fh:
                 parsed.append((p, sections(fh.read())))
+
+    if parsed:
         # The stance is whichever referenced file carries every heading of the
         # stance template, not whichever is listed first -- a diagnosis or an
         # intake ahead of it in that list is not a stance, and picking it by
@@ -433,7 +450,7 @@ def decisions_probes(secs, text, roots):
         if stance is None:
             yield False, ("stance_is_approved (no referenced .md is a stance -- "
                           "none of %d carries every ## heading of the stance "
-                          "template)" % len(resolved))
+                          "template)" % len(parsed))
         else:
             ok = is_approved(stance)
             # Weighing options against a trade nobody has agreed to is how a
@@ -523,28 +540,36 @@ def citation_problem(row, roots):
     return None
 
 
-def detail_probes(secs, text, roots):
+def detail_probes(secs, text, roots, upstream=None):
+    """`upstream`: see decisions_probes. Under `--kind design` it is the same
+    file's stance, so the use cases are read from there and looked for in
+    `text`, which is the Detail section alone."""
     yield probe_headings(secs, DETAIL_HEADINGS)
 
-    resolved = []
-    for cand in re.findall(r"[\w./\\-]+\.md", COMMENT.sub("", secs.get("Reference", ""))):
-        # A sibling of this document is the likely shape, so look there first.
-        p = resolve(cand, *reversed(roots))
-        if p:
-            resolved.append(p)
-    hld = resolved[0] if resolved else None
-    yield hld is not None, "reference_resolves (%s)" % (
-        hld or "## Reference names no readable .md")
+    if upstream is not None:
+        parsed = upstream
+        yield True, "reference_resolves (the %s of this same file)" % SAME_FILE_STANCE
+    else:
+        resolved = []
+        for cand in re.findall(r"[\w./\\-]+\.md", COMMENT.sub("", secs.get("Reference", ""))):
+            # A sibling of this document is the likely shape, so look there first.
+            p = resolve(cand, *reversed(roots))
+            if p:
+                resolved.append(p)
+        hld = resolved[0] if resolved else None
+        yield hld is not None, "reference_resolves (%s)" % (
+            hld or "## Reference names no readable .md")
 
-    if resolved:
-        # Filled only on the branch where traceability passes as not applicable:
-        # beside a stance that numbers use cases, the diagnosis is not what
-        # build starts from, so its two lines below are not asked of it.
-        diagnosed = []
         parsed = []
         for p in resolved:
             with open(p, encoding="utf-8") as fh:
                 parsed.append((p, sections(fh.read())))
+
+    if parsed:
+        # Filled only on the branch where traceability passes as not applicable:
+        # beside a stance that numbers use cases, the diagnosis is not what
+        # build starts from, so its two lines below are not asked of it.
+        diagnosed = []
         # The traceability source is the first upstream that actually numbers
         # use cases, not whichever the ## Reference lists first -- a diagnosis
         # or a decisions document ahead of it in that list numbers nothing on
@@ -739,10 +764,72 @@ def intake_probes(secs, text, roots):
         "; ".join(levels["problems"]) or levels["status"])
 
 
+def promote(body):
+    """A section's body with every heading one level up (`###` -> `##`), so the
+    probe written for the stand-alone document reads it unchanged: its line
+    ceiling counts this section only, and its `### ` Tier entries are the
+    `#### ` ones here. Fenced blocks are left alone."""
+    out, fenced = [], False
+    for line in body.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and re.match(r"^###+\s", line):
+            line = line[1:]
+        out.append(line)
+    return "\n".join(out)
+
+
+def design_probes(secs, text, roots):
+    """The single design document: its order and prerequisites, then each
+    present section through the probe of its mode. A label carries the section
+    it came from, because `headings_complete` alone would not say which of four
+    sections lost a heading."""
+    present = [n for n in DESIGN_SECTIONS if n in secs]
+    if not present:
+        yield False, ("design_sections (no ## %s section)"
+                      % ", ## ".join(DESIGN_SECTIONS))
+        return
+
+    found = [m for m in re.findall(r"^##\s+(\S.*?)\s*$", text, re.M)
+             if m in DESIGN_SECTIONS]
+    want = [n for n in DESIGN_SECTIONS if n in found]
+    yield found == want, "section_order (found %s; want %s)" % (
+        ", ".join(found), ", ".join(want))
+
+    for name, needs in DESIGN_NEEDS.items():
+        if name in secs:
+            lacking = [n for n in needs if n not in secs]
+            yield not lacking, "section_needs (%s needs %s%s)" % (
+                name, ", ".join(needs),
+                "; missing " + ", ".join(lacking) if lacking else "")
+
+    bodies = {n: promote(secs[n]) for n in present}
+    parsed = {n: sections(bodies[n]) for n in present}
+    stance = [(SAME_FILE_STANCE, parsed["Stance"])] if "Stance" in parsed else []
+    for name in present:
+        extra = {"upstream": stance} if name in ("Decisions", "Detail") else {}
+        for ok, label in SECTION_PROBES[name](parsed[name], bodies[name], roots, **extra):
+            yield ok, "%s [%s]" % (label, name)
+
+    # The Detail section's own gate (stage-design.md, Detail step 0): an open
+    # Tier 1 entry is an architecture question the build spec would settle by
+    # accident. Asked only once Detail exists -- the person answers Tier 1 one
+    # entry at a time, so a missing `Decided:` is normal until then.
+    if "Detail" in parsed and "Decisions" in parsed:
+        open_ = [t[:28] for t, b in entries(parsed["Decisions"].get("Tier 1", ""))
+                 if not DECIDED.search(b)]
+        yield not open_, "tier1_decided (%s)" % (
+            "Tier 1 entry without a Decided: line: " + ", ".join(open_[:3])
+            if open_ else "every Tier 1 entry is decided")
+
+
+SECTION_PROBES = {"Diagnosis": diagnosis_probes, "Stance": stance_probes,
+                  "Decisions": decisions_probes, "Detail": detail_probes}
+
 PROBES = {"stance": stance_probes, "decisions": decisions_probes,
           "diagnosis": diagnosis_probes, "hld": hld_probes,
           "detail": detail_probes, "delta": delta_probes,
-          "intake": intake_probes}
+          "intake": intake_probes, "design": design_probes}
 
 
 def main():

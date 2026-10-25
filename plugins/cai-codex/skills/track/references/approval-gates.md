@@ -72,6 +72,13 @@ is not known yet. Under a track this is the cost check: build's first pass
 does not stop when it has nothing to ask (`stage-build.md` Step 0.5), so a
 long pass is agreed to here or not at all.
 
+Before asking, when the design row names a `-design.md` or a `-diagnosis.md`,
+save the report's `intake.md`, compute its sha256, and add the line
+`AC: <intake.md path> sha256 <hex>` to that document (in `-design.md` under the
+Detail section's `### Reference`, in `-diagnosis.md` at the end of
+`## Failing test`) — the Approve's fingerprint is taken afterwards, and
+`preflight.py build` refuses a missing line or a changed `intake.md`.
+
 Say the documents' paths and those four lines, then ask. Nothing in `build`
 starts until this is answered: `preflight.py build` refuses to start unless a `passed` record with
 `gate: human` carries the sha256 of the design row's document as it stands —

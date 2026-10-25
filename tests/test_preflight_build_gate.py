@@ -707,8 +707,8 @@ def test_a_separator_character_in_the_approve_note_still_signs_off(tmp_path):
 def test_forty_usage_problems_still_let_gate_1_pass_with_full_artifact_path(
         tmp_path, monkeypatch):
     (tmp_path / "docs" / "design").mkdir(parents=True)
-    doc = write_doc(tmp_path, "docs/design/x-diagnosis.md", HLD)
-    track = make_track(tmp_path, "docs/design/x-diagnosis.md")
+    doc = write_doc(tmp_path, "docs/design/x-high-level.md", HLD)
+    track = make_track(tmp_path, "docs/design/x-high-level.md")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-t7")
     n = 40
@@ -730,8 +730,8 @@ def test_forty_usage_problems_still_let_gate_1_pass_with_full_artifact_path(
 
 def test_forty_models_still_collapse_and_keep_the_full_artifact_path(tmp_path, monkeypatch):
     (tmp_path / "docs" / "design").mkdir(parents=True)
-    doc = write_doc(tmp_path, "docs/design/x-diagnosis.md", HLD)
-    track = make_track(tmp_path, "docs/design/x-diagnosis.md")
+    doc = write_doc(tmp_path, "docs/design/x-high-level.md", HLD)
+    track = make_track(tmp_path, "docs/design/x-high-level.md")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-t8")
     orchestration = _worst_case_models(20)
