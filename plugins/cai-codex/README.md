@@ -51,8 +51,8 @@ status_line = ["model-with-reasoning", "current-dir", "context-window", "token-u
 ## Usage
 
 Invoke a skill with `$name` — the Claude Code form `/cai:name` becomes `$name`
-on Codex. `$track <feature>` carries one feature through all six SDLC stages,
-intake to ship; `$design`, `$verify`, `$git`, and `$chore` work the same way,
+on Codex. `$track <feature>` carries one feature through all four SDLC stages,
+design to ship; `$design`, `$verify`, `$git`, and `$chore` work the same way,
 one `$` command per skill.
 
 Start Codex with `--enable default_mode_request_user_input` if you want the
@@ -79,7 +79,7 @@ settings from `.cai/cai.json` — the same files the Claude Code plugin
 uses. That is deliberate: both run the same scripts over the same files, so
 one repository's track can be resumed from either tool, although switching
 tools in the middle of a track has not been exercised end to end. Keep
-`.cai/track/` out of git: `$track`'s intake stage reminds you when it is
+`.cai/track/` out of git: `$track`'s design stage reminds you when it is
 not ignored, because `ship` refuses to start on a working tree with
 uncommitted changes.
 

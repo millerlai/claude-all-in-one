@@ -202,7 +202,7 @@ units that cannot run in parallel, and possibly a boundary the design drew
 wrong, which goes to the user: both units are `blocked` and the question is
 handed up, as above.
 Without a detail design, locate the paths named by `## Fix` or by the
-approved intake criteria and signed decisions in the current source, and
+approved `intake.md` criteria and signed decisions in the current source, and
 assign each affected path to a unit explicitly. This substitutes for
 `## Implementation spec`; do not invent a missing section.
 
@@ -242,7 +242,7 @@ For each unit, in schedule order:
    When there is no detail design, do not invent missing sections. On the
    diagnosis path, quote `## Fix`, `## Failing test`, and
    `## Invariants preserved` from the diagnosis for the contract, proof,
-   and constraints. On a decisions-only path, quote intake's numbered
+   and constraints. On a decisions-only path, quote `intake.md`'s numbered
    acceptance criteria and the signed decisions applicable to this unit.
    Carry any stated budgets verbatim; if none are stated, say so. The
    dependency interfaces and allowed/forbidden files are still required.
@@ -447,12 +447,12 @@ Units all green is not done:
    design, it is not the fingerprinted file, but is still the human-approved
    root cause.
    When the design has no `UC`/`R` ids and is not a diagnosis, trace every
-   numbered acceptance criterion from the approved intake (AC1, AC2, ...)
+   numbered acceptance criterion from the approved `intake.md` (AC1, AC2, ...)
    instead. Each row names the criterion, the `file:line` satisfying it,
    and the test/check with its observed result. A criterion without a
    satisfying location is unimplemented, not silently omitted. If a legacy
-   intake has no ids, assign AC1, AC2, ... in its original order in the
-   table, quote each criterion verbatim, and leave the signed intake
+   `intake.md` has no ids, assign AC1, AC2, ... in its original order in the
+   table, quote each criterion verbatim, and leave the signed `intake.md`
    unchanged. The conformance lens checks these same criteria.
 
    An AC at the `local-run` level also gets a row in this baseline table, from
@@ -599,7 +599,7 @@ Units all green is not done:
    verify stage, which runs next over this same diff, and a second pass of the
    four lenses would only repeat it. Standing alone there is no verify stage after this
    one. Run `stage-verify.md` over the whole branch, passing the design
-   document and the approved intake as the requirements its conformance
+   document and the approved `intake.md` as the requirements its conformance
    lens reviews against (including the AC rows when no UC/R ids exist), and
    the glossary record Step 6.2 kept in `implementation-notes.md`. Fix
    Blocker/Major per that stage's rules; leave Minor documented; its

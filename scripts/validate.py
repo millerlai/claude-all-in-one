@@ -3289,6 +3289,34 @@ def _track_references():
               not missing)
 
 
+@section("doc-stages")
+def _doc_stages():
+    # R3 (documents): the track has four stages, and `intake` and `discover` are
+    # folded into `design`. A front-door document that still lists them is wrong
+    # in a way nothing else notices. The patterns are the shapes such a listing
+    # takes, not the words themselves -- `intake.md`, "the retired `intake`
+    # stage" and `/cai:discover` (a standalone command) are all still true:
+    #   - the removed command `/cai:intake`;
+    #   - the two ids as adjacent code spans, `intake`, `discover` (a stage list);
+    #   - a count of six stages, in English or Traditional Chinese;
+    #   - a diagram node whose label opens with either id ("intake<br/>").
+    # "the six stage rows" and "Six more lines" are deliberately not matched.
+    patterns = [
+        ("the /cai:intake command", re.compile(r"/cai:intake")),
+        ("`intake` and `discover` listed side by side",
+         re.compile(r"`intake`[\s,、→>-]+`discover`")),
+        ("a count of six stages",
+         re.compile(r"\bsix (?:SDLC )?stages\b|六個(?:SDLC )?階段")),
+        ("a diagram node for either",
+         re.compile(r'\["(?:intake|discover)<br')),
+    ]
+    for doc in ("README.md", "README.zh-TW.md", "REFERENCE.md", "MANUAL.md", "GUIDE.md"):
+        text = read_text(doc) if os.path.isfile(doc) else ""
+        found = [label for label, pattern in patterns if pattern.search(text)]
+        check("R3: %s does not list intake or discover as a track stage%s"
+              % (doc, " -- found: %s" % "; ".join(found) if found else ""), not found)
+
+
 @section("track-skill")
 def _track_skill():
     # track/SKILL.md routes rather than implements, so it is read start to finish

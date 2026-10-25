@@ -18,7 +18,7 @@ like they fit, the more specific one is right.
 
 | You want to | Type | What happens |
 |---|---|---|
-| Build a feature properly, from nothing | `/cai:track <name>` | Opens a track, walks six stages |
+| Build a feature properly, from nothing | `/cai:track <name>` | Opens a track, walks four stages |
 | Pick up where you left off | `/cai:track` | Resumes whatever `current` names |
 | Know where a track stopped | `/cai:track status` | Reads files, calls no model |
 | Fix something broken | `/cai:debug` | Root cause before any fix |
@@ -162,17 +162,17 @@ begins. The rest are each skill's own.
 ```
 
 Started on `main`/`master`, this first pulls (fast-forward only) and switches
-to `track/billing-export`, so `intake`'s preflight never blocks on the branch;
+to `track/billing-export`, so `design`'s preflight never blocks on the branch;
 on any other branch it leaves things alone. That then creates
 `.cai/track/billing-export/state.md` with one row per stage, writes
-`.cai/track/current`, and begins at `intake`.
+`.cai/track/current`, and begins at `design`.
 
 Everything cai writes into your project — tracks, the glossary, the review
 policy, `cai.json` — lives under `.cai/`, which carries its own `.gitignore`
 of `*`, so none of it reaches git unless you add it yourself
 (`git add -f`). A track's files are working state, and while an untracked one
 never blocks `ship` (#198), committing them and then changing them does —
-`ship` refuses a dirty working tree over a *tracked* change. `intake`'s
+`ship` refuses a dirty working tree over a *tracked* change. `design`'s
 preflight says so when they aren't ignored, without blocking. An earlier cai
 kept the same things under `.claude/`; the first `/cai:track` after you
 update moves them, and copies instead anything git tracks there, leaving that
@@ -203,30 +203,34 @@ flowchart LR
     class P free
 ```
 
-The six stages, in order:
+The four stages, in order:
 
-1. **`intake`** — turns the request into a problem statement whose acceptance
-   you could actually check. Asks one question at a time and waits.
-2. **`discover`** — surfaces what nobody knows yet. Says what the move costs
-   before running it.
-3. **`design`** — writes a design document under `docs/design/`. Two
-   entrances, and `intake` already picked between them with one test: can you
+1. **`design`** — turns the request into a problem statement whose acceptance
+   you could actually check, asking you only what evidence cannot decide, and
+   says why when it does. Then it judges whether anything is hard to undo.
+   With no such signal backed by evidence it takes the **short path**: the
+   track's `intake.md` is all it writes, and you sign it at Gate 1. Otherwise
+   the **long path** writes one sectioned `docs/design/<date>-<topic>-design.md`
+   (Stance, Decisions, Detail). Two entrances, picked with one test: can you
    write a test that fails now and would pass if an existing promise held?
    **diagnosis** when yes (something is broken: root cause and fix, one page),
    **stance** when no because nothing ever promised it (what this optimises
    for, what it gives up, the invariants). Then **decisions** — the choices
    that follow, with only the ones that need you reaching you — and **detail**,
-   the document the build works from. **delta** recovers decisions from a
-   branch already built.
-4. **`build`** — works the design's own work breakdown, one unit at a time,
+   the section the build works from. **delta** recovers decisions from a
+   branch already built. The old `intake` and `discover` stages are folded in:
+   `/cai:discover` is still a command, but the track only recommends it and
+   never runs it. An answer you already gave in this project is reused from
+   `.cai/answers.md` instead of asked again.
+2. **`build`** — works the design's own work breakdown, one unit at a time,
    test-first. Nothing starts until the unit before it is green, and committed
    when you approved commits at the design gate.
-5. **`verify`** — four read-only reviewers over the diff: correctness,
+3. **`verify`** — four read-only reviewers over the diff: correctness,
    conformance to what was asked, whether a test would fail if the change were
    reverted, and security — shell execution, what reaches an argument vector,
    secrets in what is kept, guard bypass. Then fixes Blockers and Majors only,
    with a failing test first.
-6. **`ship`** — squashes the branch into one conventional commit and writes a
+4. **`ship`** — squashes the branch into one conventional commit and writes a
    release note. Inside a track it starts on its own once `verify` passes, so
    you never type `ship`: what you see first is its menu, the squash message
    and PR description already drafted, and nothing irreversible runs until you
@@ -357,14 +361,14 @@ refuses and says to skip `build` too, or fill the design row in.
 ```
 
 First prints what the track left open — the `Left open:` items from each
-stage's note, as a list you can paste straight into `/cai:intake` to start the
+stage's note, as a list you can paste straight into `/cai:track` to start the
 next track. Then moves the track to `.cai/track/done/<feature>/` and clears
 `current`. Refused while any stage row is still empty or `in-progress`, and it
 names which.
 
 With ticket mirroring on, the move is followed by two more steps. First, the
 track's one marked comment is rewritten in place one last time — `status:
-done`, the six stage rows, and the `Left open:` items as their own list — so
+done`, the stage rows, and the `Left open:` items as their own list — so
 anyone reading the issue sees the same thing you just saw. Then, only if a
 ticket number resolves, a close menu asks: "Close #<number>" or "Leave it
 open", with neither recommended. Closing runs the one irreversible call
@@ -378,18 +382,19 @@ deleted — without running any of it for you.
 
 ## Running one stage alone
 
-Every stage is also a command: `/cai:intake`, `/cai:discover`, `/cai:design`,
-`/cai:build`, `/cai:verify`, `/cai:ship`. Both routes read the same reference
-file, so the procedure is identical.
+Every stage is also a command: `/cai:design`, `/cai:build`, `/cai:verify`,
+`/cai:ship`. Both routes read the same reference file, so the procedure is
+identical. `/cai:discover` is a command too but not a stage: the track never
+runs it.
 
 One difference matters: **running a stage this way writes nothing to any
 track.** There is no track underneath it, so nothing advances, no ledger
 records the attempt, and `/cai:track status` will not know it happened.
 
-Four of the six do not start on their own — `intake`, `design`, `build` and
-`ship` all write things, and a description that happens to match your sentence
-should not be enough to begin any of them. `discover` and `verify` only read,
-so they stay open.
+Three of the four do not start on their own — `design`, `build` and `ship`
+all write things, and a description that happens to match your sentence
+should not be enough to begin any of them. `verify` and the standalone
+`discover` only read, so they stay open.
 
 ## When it blocks you
 
@@ -398,12 +403,12 @@ names one of these:
 
 | Names | Meaning | Do this |
 |---|---|---|
-| `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `intake` and again at `ship` | A new track branches for you; seeing this means it could not (git unreachable, or the branch already exists) — branch by hand. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
+| `not_main_branch` | You're on `main`/`master`, or git could not be asked at all. Checked at `design` and again at `ship` | A new track branches for you; seeing this means it could not (git unreachable, or the branch already exists) — branch by hand. An unreachable git also blocks — not knowing is a reason to stop, not to continue |
 | `reserved_name` | You named a feature `current` or `done` | Pick another; both already mean something under `.cai/track/` |
 | `state_md` | No `state.md`, or no row for the stage this one reads | Open the track with `/cai:track <name>` first |
-| `intake_status` | `discover` asked to run before `intake` was `done` or `skipped` | Finish intake, or skip it with a reason |
+| `intake_unchanged` | `build` asked to run, and `intake.md` changed since the design document you signed recorded its digest (an `AC:` line), or the document records none | Revert the edit to `intake.md`, or take the design back through the design gate. A short-path track (the design row is `intake.md` itself) is covered by Gate 1's own fingerprint |
 | `artifact_named` | `build` asked to run, and the design row names no document | Run `design`, or record the document you're reusing. If you skipped `design`, skip `build` too |
-| `artifact_kind` | Filename ends in none of `-diagnosis.md`, `-stance.md`, `-decisions.md`, `-high-level.md`, `-detail.md`, `-delta.md` | Rename it. The suffix is how the kind is known — there is no separate field |
+| `artifact_kind` | Filename is not `intake.md` and ends in none of `-diagnosis.md`, `-stance.md`, `-decisions.md`, `-high-level.md`, `-detail.md`, `-delta.md`, `-design.md` | Rename it. The suffix is how the kind is known — there is no separate field |
 | `artifact_exists` | The document `state.md` names isn't on disk | Fix the path, or re-run the stage that should have written it |
 | a `design_probe.py` line | The design document fails its own structural check | Read the probe's lines; each names one missing heading, citation or number |
 | `design_signed_off` | `build` or `verify` asked to run (at `verify`, only when the design row names a document), and no person's Approve on the ledger carries the sha of the document the design row names, as it stands now | Go through the design gate and pick Approve or Approve without commits; its ledger row takes `--artifact` with that document. Changes requested and Reject don't count, and neither does an approval of another document, such as the stance one. An Approve recorded without `--artifact` ties to no document at all, so record it again |
@@ -417,7 +422,7 @@ names one of these:
 | `open_items_decided` | `ship`: an open item in `open-items.md` is still undecided, fix pending or filing, or the record cannot be read. Not held once `ship` has a passed record, so a fix round is not stopped by it | The track stops and asks what to do with each item (Fix now, File a GitHub issue, Note on the PR, Accept as is); answer, then `ship` starts. If the line says the record cannot be read, repair `open-items.md` by hand |
 
 Six more lines always print as `PASS` and are still worth reading:
-`track_ignored` at `intake` says when git is *not* ignoring the track's
+`track_ignored` at `design` says when git is *not* ignoring the track's
 files, and `ledger_intact` on every stage counts ledger lines that could not
 be parsed. At `build` and `verify`, `commit_answer` says the commit answer
 recorded at the design gate — `yes` or `no` with the ledger line it came from,
@@ -497,14 +502,14 @@ so asking where you are is free.
 
 ### Between stages: keep going, resume, or compact
 
-The six stage reports all land in one conversation, and nothing in the track
+The stage reports all land in one conversation, and nothing in the track
 trims it. The place to decide what to do about that is between stages — once
 the one that just finished has its row in `state.md`, and before the next one
 is dispatched:
 
 | Do | When it fits |
 |---|---|
-| Keep going | The next stage wants this one's report verbatim, not the note cell's summary of it — `discover` → `design` is the usual case — or your peak (below) still leaves room |
+| Keep going | The next stage wants this one's report verbatim, not the note cell's summary of it — `design` → `build` is the usual case — or your peak (below) still leaves room |
 | End the session; `/cai:track <feature>` in a new one | You are stepping away, or the window is close to full. The new session resumes at the next unfinished stage from the files above and nothing else: a report longer than its note cell is gone, and so is anything you said that no file took down |
 | `/compact`, naming the next stage in it — `/compact next is verify` | Same session, with room made. The summary keeps what you point it at, so name the stage; left to choose, it keeps what looked important at the time, which is not always what that stage comes back to |
 
@@ -648,9 +653,9 @@ Point it right after creating the track. Nothing reminds you: a track with no
 pointer runs to the end perfectly happily, just without ever reading the issue
 or reporting back to it.
 
-**2. `intake` reads the issue and routes it.** The routing is the part worth
+**2. `design` reads the issue and routes it.** The routing is the part worth
 watching, because the issue's title does not decide it. Issue #241 says *"add
-a retry when the upstream times out"*, which reads like a feature. `intake`
+a retry when the upstream times out"*, which reads like a feature. `design`
 asks the one question that settles it:
 
 > Can I write a test that fails now and would pass if an existing promise
@@ -666,7 +671,7 @@ asks the one question that settles it:
 Either way you get the problem statement, the route *with its evidence*, and
 2–3 approaches, as a menu.
 
-**3. The design stage takes that entrance.** Diagnosis writes one page —
+**3. The same stage takes that entrance.** Diagnosis writes one page —
 symptom, the failing test, root cause with `file:line`, blast radius, the fix,
 and a diagram with the fault marked — and stops. **What you sign is the root
 cause**, not the fix: a wrong cause makes every fix under it wrong. Stance
@@ -684,23 +689,23 @@ it rewrites the comment one last time and, only then, asks its close menu:
 
 Throughout, one comment on #241 is rewritten after every stage, carrying a
 status line — `status: in-progress` until `done`, then `status: done` — and
-the six stage rows. Local paths are left out of it.
+the stage rows. Local paths are left out of it.
 
 ### What each stage does with the issue
 
-- `intake` reads the issue as its starting request, and derives the route
+- `design` reads the issue as its starting request, and derives the route
   (broken, or never there) from evidence rather than from its wording.
 - Every passing stage row, and every skip, updates one comment on the issue
-  with the six stage rows. Local artifact paths are left out — nobody reading
+  with the stage rows. Local artifact paths are left out — nobody reading
   the issue could open them.
-- `verify`, on a track whose `intake` was skipped, reviews conformance against
+- `verify`, on a track with no `intake.md`, reviews conformance against
   the issue's body.
 - `ship` looks the issue up again before quoting its number in the commit and
   the PR. Its own row reaches the comment like every other stage's, with no
   question of its own.
 - `/cai:track done`, once its refusal check has passed and the track has
   moved into `done/`, rewrites the comment a final time — `status: done`, the
-  six rows, and the `Left open:` items — and then, only if a ticket number
+  stage rows, and the `Left open:` items — and then, only if a ticket number
   resolves, asks its own close menu: "Close #<number>" or "Leave it open",
   with neither recommended. Only "Close #<number>" closes it. A close that
   fails says the issue is still open and is not retried.

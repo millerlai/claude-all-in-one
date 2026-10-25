@@ -2,16 +2,16 @@
 
 [English](README.md) | 繁體中文
 
-一個 [Claude Code](https://claude.com/claude-code) 外掛（plugin）——另有一份自動產生、給 Codex CLI 用的對應版本 `cai-codex`——把一整組日常能力裝進你機器上的每個專案：更省錢的模型分派、更安全的 git 操作，以及一套共用的行為規則。它的核心是 `/cai:track`：帶著一個 feature 走完六個軟體開發生命週期（SDLC）階段，並把狀態存在磁碟上，讓新的 session 能從上一個停下的地方接手。
+一個 [Claude Code](https://claude.com/claude-code) 外掛（plugin）——另有一份自動產生、給 Codex CLI 用的對應版本 `cai-codex`——把一整組日常能力裝進你機器上的每個專案：更省錢的模型分派、更安全的 git 操作，以及一套共用的行為規則。它的核心是 `/cai:track`：帶著一個 feature 走完四個軟體開發生命週期（SDLC）階段，並把狀態存在磁碟上，讓新的 session 能從上一個停下的地方接手。
 
 ## 整體架構
 
 四層，外加墊在所有層底下的一層。
 
-- **軌道（track）。** `/cai:track <feature>` 帶著一個 feature 走完六個 SDLC 階段，狀態存在 `.cai/track/<feature>/state.md`，所以一個完全不記得這段對話的新 session 也能接手繼續。
-- **六個階段（stage）。** `intake`、`discover`、`design`、`build`、`verify`、`ship`——每一個也能單獨執行，有沒有軌道都可以。恰好有兩處會停下來等人簽核，而且都以選單呈現讓你點選：`design` 之後、任何程式碼存在之前；以及 `ship` 內部那些不可逆的步驟（merge、打 tag、發佈）之前。
+- **軌道（track）。** `/cai:track <feature>` 帶著一個 feature 走完四個 SDLC 階段，狀態存在 `.cai/track/<feature>/state.md`，所以一個完全不記得這段對話的新 session 也能接手繼續。
+- **四個階段（stage）。** `design`、`build`、`verify`、`ship`——每一個也能單獨執行，有沒有軌道都可以。`design` 有短路徑（沒有難以回復的變更，只留下軌道的 `intake.md`）與長路徑（一份分段的設計文件）。`/cai:discover` 是獨立指令，不是階段。恰好有兩處會停下來等人簽核，而且都以選單呈現讓你點選：`design` 之後、任何程式碼存在之前；以及 `ship` 內部那些不可逆的步驟（merge、打 tag、發佈）之前。
 - **工具。** 不需要跑軌道、隨時可用——見[指令](#指令)。
-- **知識。** 在被讀取之前完全不花成本的參考檔：72 張具名重構（refactoring）卡、smell（程式碼壞味道）到重構手法的對照表、六份階段程序，以及每一種設計文件各一份範本。
+- **知識。** 在被讀取之前完全不花成本的參考檔：72 張具名重構（refactoring）卡、smell（程式碼壞味道）到重構手法的對照表、四份階段程序，以及每一種設計文件各一份範本。
 
 墊在最底下的是幾支小腳本（`preflight.py`、`track_state.py`、`design_probe.py`、`options_lint.py`、`validate.py`）：在任何東西送進模型之前，先回答那些確定性檢查（deterministic check，不需判斷、結果固定）就能判定的問題——這個階段可以開始嗎？軌道停在哪裡？而 `ledger.py` 以只附加、不修改的方式，保存每個階段的每一次嘗試。
 
@@ -26,24 +26,19 @@ config:
 flowchart TB
     START(["/cai:track feature"]) --> S1
 
-    S1["intake<br/>一份可以驗收的問題陳述"] --> S2
-    S2["discover<br/>還沒有人知道的事"] --> S3
-    S3["design<br/>diagnosis 或 stance，<br/>接 decisions，再接 detail"] --> HG1
-    HG1[/"人工關卡 · 選單<br/>簽核，此時尚無程式碼"/] --> S4
-    S4["build<br/>依工作分解逐單元實作"] --> S5
-    S5["verify<br/>四個視角審查 diff"] --> S6
-    S6["ship<br/>一個 commit，加一份 release note"] --> HG2
+    S1["design<br/>短路徑：只留 intake.md<br/>長路徑：一份分段的設計文件"] --> HG1
+    HG1[/"人工關卡 · 選單<br/>簽核，此時尚無程式碼"/] --> S2
+    S2["build<br/>依工作分解逐單元實作"] --> S3
+    S3["verify<br/>四個視角審查 diff"] --> S4
+    S4["ship<br/>一個 commit，加一份 release note"] --> HG2
     HG2[/"人工關卡 · 選單<br/>merge、tag、發佈之前"/] --> DONE(["/cai:track done"])
 
-    S1 -.-> AR
-    S2 -.-> AR
-    S3 -.-> DE
-    S4 -.-> IM
-    S5 -.-> VE
-    S6 -.-> SH
+    S1 -.-> DE
+    S2 -.-> IM
+    S3 -.-> VE
+    S4 -.-> SH
 
-    AR(["architect · think<br/>Read Grep Glob<br/>+ WebSearch, WebFetch"])
-    DE(["designer · think<br/>+ Write"])
+    DE(["designer · think<br/>Read Grep Glob<br/>+ Write, WebSearch, WebFetch"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
     VE(["verifier · build<br/>測試 + git 讀取 + Agent"])
     SH(["shipper · build<br/>git + gh"])
@@ -54,25 +49,23 @@ flowchart TB
     classDef build fill:#e6eef3,stroke:#4a7c94,color:#1f3f4d
     classDef ends fill:#ffffff,stroke:#9aa5b1,color:#33404d
 
-    class S1,S2,S3,S4,S5,S6 stage
+    class S1,S2,S3,S4 stage
     class HG1,HG2 human
-    class AR,DE think
+    class DE think
     class IM,VE,SH build
     class START,DONE ends
 ```
 
-為什麼 `architect` 出現兩次、為什麼挑 agent 看的是工具權限而不是等級：見 [REFERENCE.md](REFERENCE.md#what-the-stage-diagram-cannot-show)（英文）。
+為什麼挑 agent 看的是工具權限而不是等級：見 [REFERENCE.md](REFERENCE.md#what-the-stage-diagram-cannot-show)（英文）。
 
 ## 指令
 
-六個階段，每一個也能單獨執行：
+四個階段，每一個也能單獨執行：
 
 | 指令 | 作用 |
 |---|---|
 | `/cai:track <feature>` | 建立或接續一條軌道。另有 `status`、`skip <stage> --reason "<why>"` 與 `done`。 |
-| `/cai:intake` | 在任何程式碼存在之前，把需求轉成可驗收的問題陳述。 |
-| `/cai:discover` | 在寫程式之前，找出你還不知道的事。 |
-| `/cai:design` | 撰寫供審查的設計文件——診斷（diagnosis）、立場（stance）、決策（decisions）、細部設計（detail）或差異（delta）。 |
+| `/cai:design` | 把需求轉成可驗收的問題陳述；有難以回復的部分時，再撰寫供審查的設計文件——診斷（diagnosis）、立場（stance）、決策（decisions）、細部設計（detail）或差異（delta）。 |
 | `/cai:build` | 依設計的工作分解逐單元實作，測試先行。 |
 | `/cai:verify` | 平行派出四個唯讀審查視角檢視 diff，再以測試先行的方式修正 Blocker 與 Major（最嚴重與次嚴重的發現）。 |
 | `/cai:ship` | 把分支壓成一個遵循 conventional commit 慣例的 commit、寫一份 release note，並在 merge、打 tag 或發佈之前停下，直到有人確認。 |
@@ -81,6 +74,7 @@ flowchart TB
 
 | 指令 | 作用 |
 |---|---|
+| `/cai:discover` | 在寫程式之前，找出你還不知道的事。獨立指令：軌道的 `design` 階段會建議它，但從不代你執行。 |
 | `/cai:debug` | 在提出任何修正之前，先找出 bug 的根本原因。 |
 | `/cai:fix` | 修正一個 GitHub issue、從清單中挑選的多個 issue、一個 pull request 的行內留言（review thread），或一張 Jira ticket，並一路推送到底、中途不停：它會自己 push、開 pull request、回覆留言，而且從不合併。 |
 | `/cai:fix-unclaim` | 清除 `/cai:fix` 留下的一筆指定的本機工作階段（session）認領，不必等它過期。 |
@@ -108,7 +102,7 @@ flowchart TB
        alt="Agent Viewer：每個 session 一張卡片——等待你回答、已完成等待指示、執行中——並附上 cai 軌道的階段進度">
 </p>
 
-`/cai:viewer` 會開啟一個只在本機的網頁（預設 `127.0.0.1:7788`），列出每一個執行中的 Claude Code 與 Codex 主 session：哪些在等你回答、哪些已完成在等指示、哪些還在執行。屬於某條 `cai` 軌道的 session，還會顯示它的六個階段與各階段已記錄的時間。可以依 *Needs you*、*cai track* 或 *Other agents* 篩選、切換主題與語言（English／繁體中文），也可以選擇在有 session 需要你時發出提示音。這個頁面只負責顯示，回答要回到終端機。`/cai:viewer stop` 會關閉它。
+`/cai:viewer` 會開啟一個只在本機的網頁（預設 `127.0.0.1:7788`），列出每一個執行中的 Claude Code 與 Codex 主 session：哪些在等你回答、哪些已完成在等指示、哪些還在執行。屬於某條 `cai` 軌道的 session，還會顯示它的各個階段與各階段已記錄的時間。可以依 *Needs you*、*cai track* 或 *Other agents* 篩選、切換主題與語言（English／繁體中文），也可以選擇在有 session 需要你時發出提示音。這個頁面只負責顯示，回答要回到終端機。`/cai:viewer stop` 會關閉它。
 
 ## 安裝
 
