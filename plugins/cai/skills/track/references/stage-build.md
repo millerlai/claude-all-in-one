@@ -6,12 +6,11 @@ no track underneath it. The procedure below is the same either way.
 
 **Asking is the one thing that is not.** Dispatched by the track you are a
 subagent, and the platform removes `AskUserQuestion` from every subagent
-whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends
-architecture decisions to the user, then mean: finish what the answer does
-not block and end the report with the `## Pending questions` section
-`references/pending-questions.md` specifies. Step 0.5 blocks every unit, so
-under a track the first pass stops there when it has a question to hand up:
-no unit starts until the answers come back; with none, it does not stop.
+whatever `tools:` says. Step 2's row that sends architecture decisions to
+the user then means: finish what the answer does not block and end the
+report with the `## Pending questions` section
+`references/pending-questions.md` specifies. Step 0.5 asks nothing under a
+track, so the first pass does not stop there.
 Standing alone you are the main session — ask directly.
 
 Long runs do not fail gracefully. A session limit, a token limit, or a
@@ -59,7 +58,7 @@ before reading anything:
 A non-zero exit means building against a document already known to be
 wrong — say so and stop.
 
-## Step 0.5 — Say what it will cost, then get up to two answers
+## Step 0.5 — Say what it will cost, then get one answer standing alone
 
 Four lines first, before anything is dispatched: how many units, which of
 them can run alongside another, the verify command each will have to pass,
@@ -70,18 +69,13 @@ sit above the menu (`references/approval-gates.md`); yours come from the
 schedule you cut, so your report names any line that differs from the
 design's.
 
-Then up to two answers standing alone and at most one under a track, once for the
-whole run and not per unit, before anything is started. Under a track the
-first pass is Step 0, those four lines, and Step 1's state table (the lane
-question needs its `Alongside` column); when there is a lane question to ask
-it then ends with that question in one `## Pending questions` report and
-nothing else done: no unit starts, no commit is made.
-With no question to hand up, the first pass does not stop: it carries on from
-Step 1 and puts the four lines in its report. That is one hand-up, a stop that
-`references/pending-questions.md` does not count as one of its three rounds,
-and the main session re-dispatches you with the answer. Up to two decisions
-standing alone and at most one under a track, one menu per turn —
-`references/approval-gates.md` holds the shape, and none is a sentence the
+Then one answer standing alone, and none under a track, once for the whole
+run and not per unit, before anything is started. The parallel lane below is
+no longer asked: it is decided from the schedule. Under a track the first pass
+is Step 0, those four lines, and Step 1's state table; it does not stop, and
+carries on from Step 1 with the four lines and the lane decision in its report.
+Standing alone the commit question is one menu —
+`references/approval-gates.md` holds the shape, and it is not a sentence the
 person types a word back into:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
@@ -113,21 +107,19 @@ person types a word back into:
   plainly — and every change stays in the working tree, build's and
   verify's: `ship`'s Step 1 stops on the tracked ones (`clean_tree`) and
   the person commits.
-- **The parallel lane itself.** Asked only when the `Alongside` column names a
-  pair of units whose sides of the ownership map do not intersect, the tree
-  is not a linked worktree (Step 4's condition 4), and the commit answer is
-  yes; otherwise — no such pair, a commit answer that is not yes,
-  or a linked worktree — there is no menu, and the four lines say "sequential" in one
-  line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
-  four small units it is not worth it. Recommend, let the user decide,
-  default to sequential.
+- **The parallel lane itself is not asked.** Lanes open on their own when the
+  commit answer is yes and the schedule's `Alongside` column names a pair of
+  units (Step 4 still checks the ownership map and the linked worktree
+  before it opens one); otherwise units run one at a time. The report says
+  which was chosen and why, in one line. It buys wall-clock and costs a
+  worktree per lane plus a merge.
 
 A Step 0.5 menu that closes on its own leaves that answer unmade, not
 defaulted: `references/approval-gates.md`'s new section names the fallback
 each takes — commit per unit, asked only standing alone, is treated as no,
-so the parallel lane stays off and falls back to sequential. The run states
-which menus timed out, by name, and build proceeds on whichever fallback
-applies.
+so the parallel lane is not opened and units run sequentially. The run
+states which menus timed out, by name, and build proceeds on whichever
+fallback applies.
 
 ## Step 1 — Turn the schedule into a state table
 

@@ -36,7 +36,8 @@ report with:
 
 `Why asked:` is required; `pending.py start` refuses a question without it.
 `evidence-split` means the evidence and the approved stance cannot pick
-between the options. `gate`, `irreversible` and `outward` are consent the
+between the options, and its sentence says why — a decision's Tier 1 case,
+never one the evidence can point at a recommended option for. `gate`, `irreversible` and `outward` are consent the
 person must give every time: a gate, something that cannot be undone, or
 something that leaves the machine.
 
@@ -47,7 +48,9 @@ and got nothing back", which is a different and much worse claim.
 line.** An `evidence-split` question answered there before, for the same kind
 of choice, is not handed up again: reuse that answer and write one line
 citing its date and track. `gate`, `irreversible` and `outward` questions are
-always asked and never reused.
+always asked and never reused. Nor is an approval of one document (a stance, a
+diagnosis) or a choice about one item (an open item, a ticket): the earlier
+answer was about a different document or item.
 
 ## What the main session does with it
 

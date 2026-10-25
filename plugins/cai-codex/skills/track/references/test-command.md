@@ -64,8 +64,10 @@ command runs.
 
 `build` never waits on a test command. Before it starts — under a track ahead
 of its first dispatch, standing alone before its Step 0 — you, the main
-session, run the resolver and settle the command with the person in one menu
-(`references/approval-gates.md`), or settle that there is none. This menu
+session, run the resolver and settle the command: a single detected command is
+adopted and recorded without asking, and the person is asked in one menu
+(`references/approval-gates.md`) only when it finds several candidates or none,
+or the declaration is invalid; that menu can also settle that there is none. This table
 replaces the exit table above for this one moment only; everything that runs
 the resolver later still follows that table.
 
@@ -76,7 +78,7 @@ that answer, and you carry the line on as the last paragraph says.
 | Exit | The menu |
 |---|---|
 | 0, `source` `declared` | None: the person already chose it. |
-| 0, `source` `detected` | "Use `<command>` (recommended)" and "Skip: build without a test command". A different command goes in the free-text entry. |
+| 0, `source` `detected` | None: adopt the one command found. Record it with `record_test_command.py` as exit 3's main-session bullet above says (the single `commands` entry, `command` followed by a space and `whole` when `whole` is not empty), run the resolver again and expect exit 0 with `source` `declared`, and say in one line which command was adopted and that it was recorded. |
 | 3 | "Run all of them (recommended)", each candidate on its own when there are at most two, and "Skip: build without a test command". With more than two the menu is "Run all of them (recommended)", "I will name which ones" and the Skip option, the full candidate list in the text above it. |
 | 4 | "Skip: build without a test command (recommended)" and "Check again: I have just added one", the resolver's `notes` in the text above, which also says the command can be typed into the free-text entry. |
 | 5 | "Check again: I have fixed it (recommended)" and "Skip: build without a test command", `problem` in the text above. |
@@ -94,8 +96,8 @@ What each answer does:
   again. The line `Test command: skipped by the person before build` goes in
   build's dispatch prompt.
 
-A menu here that closes on its own counts as Skip: nothing is written, no
-detected command is used, and the line reads `Test command: skipped (the menu
+A menu here (exit 3, 4 or 5) that closes on its own counts as Skip: nothing is
+written, and the line reads `Test command: skipped (the menu
 timed out)`. Say so in one line.
 
 A skip holds for the rest of the track. Every later dispatch of `build` or

@@ -62,8 +62,8 @@ lists, which of them its `Alongside` column pairs, the verify command each
 has to pass, and anything the documents leave for build to ask. With no
 `## Work breakdown`, say that build cuts the units itself and that the count
 is not known yet. Under a track this is the cost check: build's first pass
-does not stop when it has nothing to ask (`stage-build.md` Step 0.5), so a
-long pass is agreed to here or not at all.
+asks nothing under a track (`stage-build.md` Step 0.5), so a long pass is
+agreed to here or not at all.
 
 Before asking, when the design row names a `-design.md` or a `-diagnosis.md`,
 save the report's `intake.md`, compute its sha256, and add the line
@@ -382,14 +382,15 @@ commands and who runs each:
 3. **Triage.** Rank every `finding` by `finding-severity.md` as Blocker,
    Major or Minor, and write the triage list below. A `finding` is a line the
    script printed, not one inside a comment: comment text is indented.
-4. **Which menu.** First: no `pr` line (the sources say `unchecked
+4. **What next.** First: no `pr` line (the sources say `unchecked
    no-pull-request`) → no menu: tell the person and stop. A `pr` state other
    than `OPEN` (someone merged or closed it elsewhere) → no menu either: tell
    the person, and append `ship` as `passed` with `--gate auto` and the state
    in the note. Otherwise, at least one Blocker or Major and `fix_rounds` is
-   below 2 → the triage menu; any other list → straight to the merge.
+   below 2 → a fix round for every Blocker and Major, with no menu asking
+   whether; any other list → straight to the merge.
 
-**The triage list** goes above whatever follows, the triage menu or the merge,
+**The triage list** goes above whatever follows, the fix round or the merge,
 in the same message.
 It opens with the script's `checks` line copied as printed, including `still
 no check runs after a <N> s re-look` when that is what it says, then its two
@@ -411,41 +412,22 @@ too: the script prints `unchecked check "<name>" concluded <conclusion>` for
 `timed_out`, `cancelled`, `startup_failure`, `action_required` and `stale`; a
 red check (`failure`) is not one of them.
 
-### The triage menu
+### Fixing the Blockers and Majors
 
-The shape depends on how many Blockers and Majors the list carries; Minors and
-`unchecked` lines are not counted.
+There is no menu here. Verify already fixes every Blocker and Major test-first,
+so asking whether to do it would only ask the person to agree to what the
+severity ranking has already decided. Start a fix round (below) for every
+Blocker and Major on the list, and say in the message that carries the triage
+list that it is starting and that a fix is committed to this branch. The
+person is still asked before anything is pushed: the round ends at Gate 2's
+push menu.
 
-**2 to 4:** ask one multiSelect question with one option per finding, labelled
-`<k>. <Severity> <path:line>` — for example `3. Major src/app.py:42` — where
-`<k>` is the finding's number on the list; the comment text stays out of the
-label, because it is a third party's. The result joins the ticked labels with
-`, ` and appends any free text after them with no marker, so match each label
-whole, never by splitting on commas.
-
-Nothing on that menu is marked `(recommended)` — an exception to a single
-recommended option — and the question says what the recommendation is: fix
-every one of them. To fix none, tick none (or write `none` in the free-text
-entry when a menu with nothing ticked will not submit); to fix a Minor, write
-its list number in the free-text entry. Say in the question that a fix is
-committed to this branch.
-
-**1, or more than 4:** two options, and the free-text entry for list numbers.
-
-| Option | What it does |
-|---|---|
-| Fix every Blocker/Major (recommended) | Starts a fix round for every Blocker and Major on the list. |
-| Fix none | Nothing is fixed; goes on to the merge. |
-
-**Reading the answer**, whichever shape: take out every full label and the `, `
-joins, and what is left is free text. It counts only as list numbers — a
-Blocker's, a Major's or a Minor's — or a single `none`; the choice is the union
-of the ticked options and the numbers. A number that is an `unchecked` line or
-not on the list, any other text, `none` next to anything else, or "Fix none"
-next to a number, gets an explanation and the question again; never guess
-which one was meant. A Minor named by number is fixed like the rest and is
-quoted verbatim into the verify brief: `finding-severity.md` leaves a Minor
-unfixed unless the person asks for it, and this is the asking.
+A Minor is `no fix` unless the person asks for it in the conversation, by its
+list number. A Minor named by number is fixed like the rest and is quoted
+verbatim into the verify brief: `finding-severity.md` leaves a Minor unfixed
+unless the person asks for it, and this is the asking. A number that is an
+`unchecked` line or not on the list gets an explanation, never a guess at
+which finding was meant.
 
 ### A fix round
 
@@ -482,7 +464,7 @@ unfixed unless the person asks for it, and this is the asking.
 4. Any step that stops the round — verify `failed`, preflight `blocked`,
    verify passed with nothing to commit, or the squash refused — uses the
    round up. Do not push; run the script again without `--sha` and go to
-   "Which menu"; say why above the merge list. A refused squash is recorded
+   "What next"; say why above the merge list. A refused squash is recorded
    as `ship` `failed` with the reason. A push refused by the remote:
    record `ship` as `failed`, relay the first line of git's error, and run no
    merge this round. "Stop — hand me the commands" hands the commands
@@ -495,8 +477,8 @@ command runs, and the bash guard's permission prompt is the one place the
 person agrees. The prompt shows only the guard's reason and the command, never
 this list, which is why the list comes first, in the same message.
 
-The list, in order: every Blocker and Major (including any the person chose
-not to fix), every `unchecked` line, why the round stopped if it did, and,
+The list, in order: every Blocker and Major (including any a fix round left
+unfixed), every `unchecked` line, why the round stopped if it did, and,
 when `sha` and `pr-head` differ, the line `The pull request's head is no
 longer the commit that was checked, so GitHub will refuse this merge.` After
 those, every line `python
@@ -769,18 +751,37 @@ is only the shape — a menu, never a sentence to type a word back into. None
 of them spends one of `pending-questions.md`'s three rounds: that file's
 "What counts as a round" is the definition, and these are its stops:
 
-- `stage-design.md` Step 5 — the problem statement, the route Step 2 derived
-  (broken, or never there) with its evidence, and the recommended approach,
-  before anything is designed.
-- `stage-design.md`'s cost-sizing — the four lines, before a pass that reads
-  a whole directory.
-- `stage-design.md`'s stance approval, at the end of Stance mode. Decisions
+A stop is kept only for one of four reasons, and each entry below names its
+own: `evidence-split` (the evidence and the stance cannot separate the options,
+so it turns on the person's preference or an unwritten requirement),
+`irreversible`, `outward`, or `gate` (one of the two human gates). Everything
+else is decided from the evidence, written as one line of what was chosen and
+on what grounds, and open to being overturned at Gate 1. The intake approval,
+the separate cost-sizing stop, the parallel-lane question, the detected
+test-command menu and the triage menu are not on this list: each is decided
+without asking.
+
+- Gate 1 and Gate 2's push — `gate`. Gate 1 is also the only stop on the short
+  path; a change with no hard-to-undo signal asks nothing before it.
+- `stage-design.md` Step 5 on the long path — `evidence-split`: whether the
+  request is worth the long path is the person's call. One menu carries the
+  problem statement, the acceptance criteria, the route Step 2 derived (broken,
+  or never there) with its evidence, the `Signals` rows that sent it long, the
+  recommended approach, and the four cost lines; there is no second cost stop
+  after it. With the stance question, the stance approval and Gate 1, the long
+  path's fixed stops are four. The diagnosis sign-off below is on a different
+  entrance and is not counted in them.
+- `stage-design.md`'s stance trade-off question, in Stance mode —
+  `evidence-split`: the trade a system makes is the person's preference.
+- `stage-design.md`'s stance approval — `evidence-split`: what it signs is the
+  trade the person chose, at the end of Stance mode. Decisions
   mode refuses to start on a `draft`, so this is a real stop — but it is
   inside the `design` stage, not after it, which is why it is here and not a
   third gate. Three options — Approve, Changes requested, Reject — and the
   same writer: the date goes into `## Status` when a person picks Approve,
   never when the stage decides its own work is done.
-- `stage-design.md`'s diagnosis sign-off, when Detail follows it. The root
+- `stage-design.md`'s diagnosis sign-off, when Detail follows it — `gate` on
+  the direct-to-build entrance, `evidence-split` otherwise. The root
   cause is approved there, in `## Status`, with no ledger row; Gate 1 comes
   after Detail, on the detail design. Going straight to `build`, the same
   stop is Gate 1 itself. When Detail follows, the menu is the stance
@@ -791,38 +792,37 @@ of them spends one of `pending-questions.md`'s three rounds: that file's
   stop, and Gate 1 asks again after the detail design. An extra approving
   option commits nothing; a missing one would leave a direct-to-build sign-off
   without its commit answer.
-- `stage-design.md`'s Tier 1 entries, in Decisions mode — one menu per entry,
+- `stage-design.md`'s Tier 1 entries, in Decisions mode — `evidence-split`,
+  each with its one sentence on why the evidence cannot separate the options;
+  one menu per entry,
   in dependency order, re-running the cost test on what remains after each
   answer. These are ordinary choices between ways forward, so unlike the two
   gates they **do** carry a `(recommended)` when the evidence supports one.
-- `stage-build.md` Step 0.5 — under a track, the parallel lane; standing
-  alone, commit per unit as well, asked first. One decision at most under a
-  track and up to two standing alone, one menu per turn; all handed up from
-  build's first pass in one hand-up, before any unit starts. With no lane
-  pair there is nothing to hand up and the first pass does not stop. The
-  lane is asked only when the commit answer is yes and the `Alongside`
-  column names a pair of units.
+- `stage-build.md` Step 0.5 — standing alone only, commit per unit, asked
+  first and as one menu: `irreversible`, since it is the person's consent to
+  commit. Under a track nothing is asked there: the commit answer is
+  Gate 1's, and the parallel lane opens by itself when that answer is yes and
+  the `Alongside` column names a pair of units.
 - `test-command.md`'s `## Before build` — which test command build uses, or
   Skip, asked by the main session before build's first dispatch and never
-  handed up. An ordinary choice, so it carries a `(recommended)`. A command
-  already declared in `.cai/cai.json`, or a skip already in the track's
-  notes, means no menu. Not counted against `pending-questions.md`'s rounds.
-- Gate 2's triage menu, inside a track once the pull request is open
-  (`### The triage menu` above) — whether to fix the Blockers and Majors the
-  pull request carries. An ordinary choice, so it carries a `(recommended)`:
-  Fix every Blocker/Major — except when the triage list has two to four
-  findings, where the question states the recommendation and no option is
-  marked. It sits inside Gate 2, not beside it, and is not
-  counted against `pending-questions.md`'s rounds.
-- `## Open items before ship` above — one menu for every open item build or
+  handed up, and only when the resolver finds several candidates or none, or
+  the declaration is invalid (`evidence-split`: the evidence cannot say which
+  command the person means). A single detected command is adopted and
+  recorded without a menu. An ordinary choice, so it carries a
+  `(recommended)`. A command already declared in `.cai/cai.json`, or a skip
+  already in the track's notes, means no menu. Not counted against
+  `pending-questions.md`'s rounds.
+- `## Open items before ship` above — `evidence-split`: one menu for every
+  open item build or
   verify left unfixed, grouped by severity, before `ship`'s first draft, and
   again at `/cai:track done` for any still undecided; a `filing` item is
   asked on its own. No option is marked `(recommended)`. It is asked by
   the main session and is not counted against `pending-questions.md`'s rounds.
-- `ticket-mirror.md`'s claim menu, when `/cai:track <ticket>` finds other cai
+- `ticket-mirror.md`'s claim menu — `evidence-split`: whether another session
+  is still working on the ticket cannot be read from the evidence. Asked when `/cai:track <ticket>` finds other cai
   claims on the ticket, before any directory exists. An ordinary choice: it
   recommends the first "Resume <name>" when one is offered, otherwise Stop.
-- `ticket-mirror.md`'s close menu at `/cai:track done` — asked only after
+- `ticket-mirror.md`'s close menu at `/cai:track done` — `outward`: asked only after
   `done`'s refusal check passed and the directory moved, so the track has
   already finished, and its answer writes nothing to `state.md` or the
   ledger. "Close #<number>" and "Leave it open", no `(recommended)` (the
@@ -834,22 +834,19 @@ here is the shape and the free-text slot, not a vocabulary.
 
 ### The reference run's stops
 
-Stops are counted on one run: ticket mirroring on, a design with no gaps, the
-one Step 0.5 question a track can ask asked, at least one open item before
-ship, one fix round, then a merge. The table counts
-the stops from Step 0.5 to the merge, six at most; Gate 1, intake, the
-ticket-name menu and the test-command menu before build also wait in that
+Stops are counted on one run: ticket mirroring on, a design with no gaps, at
+least one open item before ship, one fix round, then a merge. The table counts
+the stops after build starts, to the merge, four at most; Gate 1, the
+ticket-name menu and a test-command menu before build also wait in that
 run and are not counted here. The quotation
 beside each file name can be found word for word in that file.
 
 | # | Stop | Defined in | Asked when |
 |---|---|---|---|
-| 1 | Step 0.5 parallel lane | `stage-build.md` "The parallel lane itself." | Only when the commit answer is yes and two units' sides of the ownership map do not intersect. |
-| 2 | Open items before ship, one menu for every item | `approval-gates.md` "One menu for every item, in one turn." | Only when build or verify left an open item undecided, which the reference run has. |
-| 3 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
-| 4 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
-| 5 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
-| 6 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
+| 1 | Open items before ship, one menu for every item | `approval-gates.md` "One menu for every item, in one turn." | Only when build or verify left an open item undecided, which the reference run has. |
+| 2 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
+| 3 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
+| 4 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
 
 ## A menu that closes on its own
 
@@ -870,13 +867,11 @@ in this file does about one:
 | --- | --- |
 | Gate 1 | Nothing is written. No `approved`, no `--gate human` row. `build` does not start. |
 | Gate 2's push menu (the squash included) | None of it runs. |
-| The triage menu (Gate 2, after the PR opens) | Left unanswered, even when the result lists ticked options: no verify runs, nothing is committed, and the merge is not run until it is answered. |
 | The open-items menus before ship (`## Open items before ship`) | The item stays `undecided` and ship waits. Asked again after the person next writes. |
 | The open-items menus at `done` | `done` stops before ticket mirroring and the move; nothing is written. |
 | Gate 2's merge, the bash guard's permission prompt | Not a menu. Whether it ever closes on its own is untested; a merge that did not run is recorded as `### The merge` says, never retried. |
-| Step 0.5 commit per unit, standing alone with no track | Treated as no, so the parallel lane stays off. Under a track there is no such menu: the answer is Gate 1's. |
-| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
-| The test command before build (`test-command.md`) | Treated as Skip: nothing is written to `.cai/cai.json`, no detected command is used, and build starts with `Test command: skipped (the menu timed out)`. |
+| Step 0.5 commit per unit, standing alone with no track | Treated as no, so the parallel lane stays off and units run sequentially. Under a track there is no such menu: the answer is Gate 1's. |
+| The test command before build (`test-command.md`, exit 3, 4 or 5) | Treated as Skip: nothing is written to `.cai/cai.json`, and build starts with `Test command: skipped (the menu timed out)`. |
 | The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |
 | The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.cai/track/current` is not written. Left unanswered. |
 | Closing the ticket at `/cai:track done` (`ticket-mirror.md`) | `transition` does not run. Left unanswered: asked again when the person next writes in this session; a new session never asks it, since the track is already under `done/` and `current` is cleared. |
@@ -894,14 +889,15 @@ the same as if the person had never touched the menu — a partial draft is not
 a pick. When a result reports nothing selected, Claude never substitutes the
 `(recommended)` option as if the person had chosen it — a recommendation is a
 suggestion for a person to accept, not a default Claude reaches for on a
-timeout's behalf. That is not the same as the two rows above that already use
-whichever option a timeout does report selected, recommended label or not.
+timeout's behalf. That is not the same as the track-directory row above, which
+already uses whichever option a timeout does report selected, recommended label
+or not.
 
 Because a timed-out menu can pass silently otherwise, the run says one line
 per menu that timed out, naming the stop and the outcome applied above. At
-the two stops where a selected option is used rather than left unanswered —
-the parallel lane and the track-directory name — that line also names the
-option used, since the result reporting an option "selected" may just be
+the stop where a selected option is used rather than left unanswered — the
+track-directory name — that line also names the option used,
+since the result reporting an option "selected" may just be
 reporting wherever the cursor happened to be resting, not a real choice.
 Nothing here turns the setting on, and the track does not need it on to run;
 it only has to know what to do the day it happens to be.

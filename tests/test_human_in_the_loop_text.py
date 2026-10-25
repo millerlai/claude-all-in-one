@@ -189,21 +189,21 @@ def _build(tree):
 def test_build_opening_keeps_the_hand_up_and_the_validate_anchor(tree):
     text = _build(tree)
     opening = text[:text.index("## Two situations")]
-    assert "Step 0.5's answers" in opening
+    # U5: Step 0.5 asks nothing under a track, so the opening no longer names
+    # its answers; Step 2's row still hands a question up.
+    assert "Step 2's row" in opening
+    assert "Step 0.5 asks nothing under a track" in " ".join(opening.split())
     assert "`## Pending questions`" in opening
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_build_first_pass_asks_before_any_unit_starts(tree):
-    # D1 = A: the first pass sizes, schedules and hands Step 0.5 up; nothing
-    # is started until the answers come back.
+def test_build_first_pass_does_not_stop_at_step_0_5(tree):
+    # U5 (D10): the lane question is gone and the commit answer is Gate 1's, so
+    # the first pass sizes, schedules and carries on; nothing is handed up here.
     step = _section(_build(tree), "## Step 0.5")
-    assert "`## Pending questions`" in step
-    assert "no unit starts" in step
-    assert "no commit is made" in step
-    # #374: one hand-up, and a stop that spends none of pending-questions.md's rounds.
-    assert "one hand-up" in step
-    assert "does not count as one of its three rounds" in " ".join(step.split())
+    assert "it does not stop" in step
+    assert "no unit starts" not in step
+    assert "one hand-up" not in step
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -217,10 +217,11 @@ def test_build_opening_no_longer_lets_units_run_ahead_of_the_answers(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_build_lane_is_asked_only_when_alongside_names_a_pair(tree):
-    step = _section(_build(tree), "## Step 0.5")
-    assert "only when the `Alongside` column" in step
-    assert "sequential" in step
+def test_build_lane_opens_by_itself_only_when_alongside_names_a_pair(tree):
+    step = " ".join(_section(_build(tree), "## Step 0.5").split())
+    assert "Lanes open on their own when the commit answer is yes" in step
+    assert "`Alongside` column names a pair of units" in step
+    assert "otherwise units run one at a time" in step
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -536,13 +537,13 @@ def test_stage_design_names_the_route_and_the_legacy_gate(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_step_0_5_item_counts_one_question_under_a_track(tree):
+def test_step_0_5_item_asks_nothing_under_a_track(tree):
     text = _reference(tree, "approval-gates.md")
     start = text.index("- `stage-build.md` Step 0.5 —")
-    bullet = text[start:text.index(" - Gate 2's triage menu", start)]
-    assert "one hand-up" in bullet
-    assert "One decision at most under a track" in bullet
-    assert "Up to two decisions under a track" not in bullet
+    bullet = " ".join(text[start:text.index("- `test-command.md`", start)].split())
+    assert "Under a track nothing is asked there" in bullet
+    assert "the parallel lane opens by itself" in bullet
+    assert "One decision at most under a track" not in bullet
 
 
 # --- Unit 3 of default-commit-per-unit (#385): build and verify read it -----
@@ -582,10 +583,10 @@ def test_a_saved_report_in_the_brief_is_a_trace_not_the_answer(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_build_first_pass_does_not_stop_with_nothing_to_ask(tree):
-    step = _section(_build(tree), "## Step 0.5")
-    assert "With no question to hand up, the first pass does not stop" in step
-    assert "and the commit answer is yes" in step
+def test_build_first_pass_never_stops_at_step_0_5_under_a_track(tree):
+    step = " ".join(_section(_build(tree), "## Step 0.5").split())
+    assert "it does not stop" in step
+    assert "when the commit answer is yes" in step
 
 
 @pytest.mark.parametrize("tree", TREES)

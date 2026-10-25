@@ -3238,6 +3238,34 @@ def _track_references():
           "you report; the main session writes `intake.md`",
           "only then does Gate 1 take its fingerprint",
           "design_probe.py --kind design"]),
+        # U5 (R5, I7, I8, D10, D12): the track asks only where the evidence and
+        # the stance cannot separate the options, or the action is irreversible,
+        # outward or a gate. Each pin holds one place that changed WHEN it asks.
+        ("R5", "stage-design.md's Tier 1 bar is high cost plus evidence that cannot separate "
+               "the options, each with a sentence saying why, and the long path asks once",
+         " ".join(read_text(f"{REFS}/stage-design.md").split())
+         if os.path.isfile(f"{REFS}/stage-design.md") else "",
+         ["High cost, *and* the evidence and the stance cannot separate the options",
+          "Every Tier 1 entry carries one sentence saying why the evidence cannot "
+          "separate the options",
+          "the evidence can point at a recommended option — even when the others are not "
+          "fully ruled out — so the designer decides",
+          "The long path asks once here, not twice",
+          "the modes then run with no second cost stop"]),
+        ("R5", "approval-gates.md's stop list no longer holds the intake approval, the "
+               "cost stop, the lane or the triage menu, and still holds both gates",
+         folded_section(gates_ref, "## The other stops"),
+         ["The intake approval, the separate cost-sizing stop, the parallel-lane question, "
+          "the detected test-command menu and the triage menu are not on this list",
+          "- Gate 1 and Gate 2's push — `gate`",
+          "there is no second cost stop after it",
+          "the long path's fixed stops are four"]),
+        ("R5", "stage-build.md Step 0.5 opens the parallel lane by itself and says so in "
+               "one line",
+         folded_section(build_ref, "## Step 0.5"),
+         ["**The parallel lane itself is not asked.** Lanes open on their own when the "
+          "commit answer is yes and the schedule's `Alongside` column names a pair of units",
+          "The report says which was chosen and why, in one line"]),
     ]
     for ac, label, section, phrases in PINS:
         missing = [p for p in phrases if p not in section]

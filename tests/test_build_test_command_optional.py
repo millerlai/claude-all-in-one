@@ -57,14 +57,21 @@ def test_every_resolver_outcome_but_declared_offers_skip(tree):
     rows = _menu_rows(_before_build(tree))
     assert set(rows) == {"0, `source` `declared`", "0, `source` `detected`", "3", "4", "5"}
     assert "None" in rows["0, `source` `declared`"]
-    for exit_cell in ("0, `source` `detected`", "3", "4", "5"):
+    # U5 (D10): a single detected command has no menu, so only the outcomes
+    # that still ask offer Skip.
+    for exit_cell in ("3", "4", "5"):
         assert SKIP_OPTION in rows[exit_cell], exit_cell
+    assert SKIP_OPTION not in rows["0, `source` `detected`"]
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_a_found_command_is_confirmed_not_used_silently(tree):
-    rows = _menu_rows(_before_build(tree))
-    assert '"Use `<command>` (recommended)"' in rows["0, `source` `detected`"]
+def test_a_found_command_is_adopted_and_recorded_without_a_menu(tree):
+    # U5 (D10/D11): one detected command is adopted, recorded, and said in a line.
+    row = _menu_rows(_before_build(tree))["0, `source` `detected`"]
+    assert "None: adopt the one command found" in row
+    assert "`record_test_command.py`" in row
+    assert "say in one line which command was adopted" in row
+    assert "(recommended)" not in row
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -111,8 +118,8 @@ def test_a_skip_already_in_the_notes_is_not_asked_again(tree):
 def test_a_timed_out_menu_counts_as_skip(tree):
     assert "`Test command: skipped (the menu timed out)`" in _before_build(tree)
     timeout = _section(_reference(tree, "approval-gates.md"), "## A menu that closes on its own")
-    assert ("| The test command before build (`test-command.md`) | Treated as Skip: nothing is "
-            "written to `.cai/cai.json`, no detected command is used") in timeout
+    assert ("| The test command before build (`test-command.md`, exit 3, 4 or 5) | Treated as "
+            "Skip: nothing is written to `.cai/cai.json`, and build starts") in timeout
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -187,4 +194,4 @@ def test_approval_gates_lists_the_stop_outside_the_reference_count(tree):
     gates = _reference(tree, "approval-gates.md")
     other = _section(gates, "## The other stops")
     assert "`test-command.md`'s `## Before build`" in other
-    assert "the test-command menu before build also wait in that run and are not counted here" in other
+    assert "a test-command menu before build also wait in that run and are not counted here" in other

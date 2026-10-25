@@ -162,7 +162,8 @@ split exists to remove.
 
 - **No row `high`** → the **short path**. The `## Intake document` of Step 5
   gains a `## Signals` section, and no mode runs, no other document is
-  written, and "Say what it will cost, then wait" does not happen. The design
+  written, and no cost stop happens ("Say what it will cost, then wait"
+  applies to the long path only). The design
   row's artifact is `intake.md` itself, and Step 5's approval is Gate 1: one
   menu, fingerprinting `intake.md`. When all three rows are `unanswerable`,
   say so in the Report, so the Gate 1 menu can show the person that the
@@ -195,6 +196,13 @@ design, build, and verification. Each criterion states an observable outcome
 and how to check it; do not renumber approved criteria. A mode only starts
 once the user has said yes to this. Typing the request is not agreement to
 whatever was inferred from it.
+
+**The long path asks once here, not twice.** The one menu carries the problem
+statement, the criteria, the route with its evidence, the `Signals` rows
+(each verdict with its evidence) that sent the request long, and the four
+cost lines of "Say what it will cost, then wait". Its yes covers the route and
+the cost together, and the modes then run with no second cost stop. The short
+path has no separate requirement approval at all: Step 5's approval is Gate 1.
 
 End the requirement with a `## Verification levels` section: the heading
 verbatim, then a table with the header `| AC | level | check |` verbatim and
@@ -293,8 +301,9 @@ On the long path only — the short path stops once, at Gate 1 — before any
 mode starts, four lines: the document path and the headings it
 will carry; how much of the target directory has to be read and how many
 documentation sources fetched; what is already unclear enough that you will
-have to ask; and what this will not decide. Then wait for a go — asked as a
-menu, never as a sentence to type a word back into
+have to ask; and what this will not decide. The four lines ride in Step 5's
+hand-up and are asked in its one menu, never as a second stop after it; the
+menu is never a sentence to type a word back into
 (`references/approval-gates.md`).
 
 Detail mode is the longest and the one most worth sizing — it reads the whole
@@ -419,11 +428,18 @@ survivor of its options (Tier 2, scanned) while the passenger is three-rows-
 high (Tier 1, answered), and the pair gets waved through together. On a solo
 project there is no second reviewer to catch that.
 
-- **Tier 1 — answered.** High cost, *and* the options differ in substance.
-  Ask one at a time. At most `TIER1_MAX` (5).
-- **Tier 2 — scanned.** High cost, *but* the evidence leaves one live option.
-  Three lines each, shown all at once; the person answers nothing unless they
-  want to overturn something. At most `TIER2_MAX` (10).
+- **Tier 1 — answered.** High cost, *and* the evidence and the stance cannot
+  separate the options: the choice turns on the person's preference or on a
+  requirement nobody wrote down. Ask one at a time. At most `TIER1_MAX` (5).
+  Every Tier 1 entry carries one sentence saying why the evidence cannot
+  separate the options; the same sentence is the `Why asked: evidence-split`
+  line when the entry is handed up.
+- **Tier 2 — scanned.** High cost, *but* the evidence can point at a
+  recommended option — even when the others are not fully ruled out — so the
+  designer decides. Three lines each, shown all at once; the person answers
+  nothing unless they want to overturn something. At most `TIER2_MAX` (10).
+  Tier 2 and Tier 3 entries say what was chosen and on what grounds, in a
+  line or two, never laid out as a comparison; only a Tier 1 entry is.
 
 **The bar for Tier 2 is a citation, not a preference.** If the grounds are not
 a `file:line` or a documentation URL, the entry does not qualify: get the
@@ -612,7 +628,9 @@ full, and lower them when the answer is no.
    - conflict test → `## Ruled out`, with the invariant it hit;
    - origin test → `## Requirement gaps`, with a veto condition or a
      verification path;
-   - cost test → `## Tier 1`, `## Tier 2`, or `## Tier 3`.
+   - cost test → `## Tier 1`, `## Tier 2`, or `## Tier 3`; Tier 1 only when
+     the evidence and the stance cannot separate the options, and then with
+     the one sentence saying why.
 3. **Draw every Tier 1 entry.** One small Mermaid diagram per entry, showing
    the options side by side — this is the one place a person is asked to hold
    two designs in their head at once, and two pictures do that faster than two

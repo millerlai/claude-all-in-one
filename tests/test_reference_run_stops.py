@@ -1,10 +1,10 @@
 """approval-gates.md's table of the reference run's stops (AC12, R7).
 
 The reference run is the one stops are counted on: ticket mirroring on, a
-design with no gaps, the one Step 0.5 question a track can ask asked, at least
-one open item before ship, one fix round, then a merge. The table must stay at
-six rows or fewer (five before the open-items stop; six before the glossary
-menu went, #411; seven before commit-per-unit moved to Gate 1, #385), and each
+design with no gaps, at least one open item before ship, one fix round, then a
+merge. The table must stay at six rows or fewer (it holds four since the lane
+and triage questions went, U5; five before the open-items stop; six before the
+glossary menu went, #411; seven before commit-per-unit moved to Gate 1, #385), and each
 row has to point
 at a stop that really exists: the file it names must contain the quotation
 printed beside the name. A row that cites a sentence nobody can find is a stop
@@ -80,9 +80,11 @@ def test_every_row_quotes_a_sentence_its_file_really_contains(plugin_root):
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
-def test_the_table_covers_the_six_stops_the_design_counted(plugin_root):
+def test_the_table_covers_the_four_stops_left_after_the_stop_inventory(plugin_root):
+    # U5 (D10): the parallel lane is decided from the schedule and the triage
+    # menu is replaced by an automatic fix round, so neither is a stop any more.
     stops = " ".join(ROW.match(ln).group("stop") for ln in _table(plugin_root)[1:]).lower()
-    for word in ("parallel lane", "open item", "push menu", "triage", "fix round",
-                 "merge"):
+    for word in ("open item", "push menu", "fix round", "merge"):
         assert word in stops, word
-    assert "glossary" not in stops
+    for word in ("glossary", "parallel lane", "triage"):
+        assert word not in stops, word

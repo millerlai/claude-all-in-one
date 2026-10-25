@@ -677,11 +677,11 @@
       "target": "skills/track/references/stage-build.md",
       "anchor": [
         "subagent, and the platform removes `AskUserQuestion` from every subagent",
-        "whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends"
+        "whatever `tools:` says. Step 2's row that sends architecture decisions to"
       ],
       "replacement": [
         "subagent, and no subagent can ask the person directly here either.",
-        "Step 0.5's answers, and Step 2's row that sends"
+        "Step 2's row that sends architecture decisions to"
       ],
       "why": "I8: subagents never ask on Codex either."
     },
@@ -1024,55 +1024,12 @@
     {
       "target": "skills/track/references/approval-gates.md",
       "anchor": [
-        "**2 to 4:** ask one multiSelect question with one option per finding, labelled",
-        "`<k>. <Severity> <path:line>` — for example `3. Major src/app.py:42` — where",
-        "`<k>` is the finding's number on the list; the comment text stays out of the",
-        "label, because it is a third party's. The result joins the ticked labels with",
-        "`, ` and appends any free text after them with no marker, so match each label",
-        "whole, never by splitting on commas."
-      ],
-      "replacement": [
-        "**2 to 4:** list the Blockers and Majors as numbered text, each as",
-        "`<k>. <Severity> <path:line>` — for example `3. Major src/app.py:42` — where",
-        "`<k>` is the finding's number on the list; the comment text stays out of the",
-        "label, because it is a third party's. Ask the person to type the numbers to fix, or `none`."
-      ],
-      "why": "I6/D10: the Codex question tool cannot take several ticks (discover.md:105), so the multiSelect shape becomes a numbered text list the person answers with numbers; the rest of the section (the free-text rules, `none`, Minor numbers) reads the same either way."
-    },
-    {
-      "target": "skills/track/references/approval-gates.md",
-      "anchor": [
-        "every one of them. To fix none, tick none (or write `none` in the free-text",
-        "entry when a menu with nothing ticked will not submit); to fix a Minor, write",
-        "its list number in the free-text entry. Say in the question that a fix is",
-        "committed to this branch."
-      ],
-      "replacement": [
-        "every one of them. To fix none, the person types `none`; to fix a Minor, the person types",
-        "its list number too. Say in the question that a fix is",
-        "committed to this branch."
-      ],
-      "why": "I6/D10: follows the override above — on Codex the reply is typed text, so there is nothing to tick."
-    },
-    {
-      "target": "skills/track/references/approval-gates.md",
-      "anchor": [
         "| Gate 2's merge, the bash guard's permission prompt | Not a menu. Whether it ever closes on its own is untested; a merge that did not run is recorded as `### The merge` says, never retried. |"
       ],
       "replacement": [
         "| Gate 2's merge, the bash guard's permission prompt | Denied by the guard on this platform, so nothing prompts: the exact command is handed to the person to run themselves, never retried. |"
       ],
       "why": "I3/I6/I4: on Codex the hook host does not act on an ask (discover.md:34-35), so the guard denies the merge and there is no prompt to time out; the row says what happens instead."
-    },
-    {
-      "target": "skills/track/references/approval-gates.md",
-      "anchor": [
-        "| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |"
-      ],
-      "replacement": [
-        "| Step 0.5 parallel lane | Left unanswered; no parallel lane is started; execution stays sequential. |"
-      ],
-      "why": "An unsubmitted cursor selection on timeout is not an answer to the lane question."
     },
     {
       "target": "skills/track/references/approval-gates.md",
@@ -1090,8 +1047,9 @@
         "a pick. When a result reports nothing selected, Claude never substitutes the",
         "`(recommended)` option as if the person had chosen it — a recommendation is a",
         "suggestion for a person to accept, not a default Claude reaches for on a",
-        "timeout's behalf. That is not the same as the two rows above that already use",
-        "whichever option a timeout does report selected, recommended label or not."
+        "timeout's behalf. That is not the same as the track-directory row above, which",
+        "already uses whichever option a timeout does report selected, recommended label",
+        "or not."
       ],
       "replacement": [
         "a pick. No timeout counts as a submitted answer, even if the result reports a cursor-selected option.",
@@ -1103,9 +1061,9 @@
       "target": "skills/track/references/approval-gates.md",
       "anchor": [
         "per menu that timed out, naming the stop and the outcome applied above. At",
-        "the two stops where a selected option is used rather than left unanswered —",
-        "the parallel lane and the track-directory name — that line also names the",
-        "option used, since the result reporting an option \"selected\" may just be",
+        "the stop where a selected option is used rather than left unanswered — the",
+        "track-directory name — that line also names the option used,",
+        "since the result reporting an option \"selected\" may just be",
         "reporting wherever the cursor happened to be resting, not a real choice."
       ],
       "replacement": [
