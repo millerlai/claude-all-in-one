@@ -8,7 +8,9 @@ without anyone typing it, and only a person's command or a track's dispatch
 writes the index. It never stops a stage and never asks a question: the most it adds
 is one line to the brief, or, inside a track, one sentence to the person before
 `design`. A standalone command follows this file only when the index exists, so
-it never reaches that sentence.
+it never reaches that sentence. The one question this file ever asks comes
+earlier, when a track starts in a new worktree: `## Starting a track in a
+worktree` below.
 
 `<top>` is what `git rev-parse --show-toplevel` prints for the project being
 worked on.
@@ -45,4 +47,33 @@ Never run `build` here, never suggest running it beyond step 1's one sentence,
 and never let a state word other than `fresh` hold a stage back: a missing,
 failed or non-`fresh` line means the stage reads the code with
 `Read`/`Grep`/`Glob` as it always did. Only a person's own `/cai:codemap build`
-creates an index.
+creates an index. Their pick of `Build it` in the menu below counts as one: the
+person chose it, nobody chose it for them.
+
+## Starting a track in a worktree
+
+`.cai/` is ignored, so a new worktree never receives the main checkout's index.
+The main session follows this when `track_start.py` exits 3 in the main checkout,
+and not when the track starts with `--here`. `<main>` is that checkout's `<top>`.
+
+1. If the line was `enter-worktree: path <dir>` and
+   `<dir>/.cai/codemap/state.json` exists, that worktree has an index of its own,
+   which `design`'s dispatch updates: skip this section.
+2. Before the `EnterWorktree` call, while still in the main checkout — Claude
+   Code refuses an isolated session's writes into any other worktree, so the main
+   checkout's index is written now or not at all:
+   - `<main>/.cai/codemap/state.json` exists: run
+     `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py update --project-dir "<main>"`.
+     On a non-zero exit, tell the person its first line in one sentence and go on.
+   - It does not: ask one menu, the way Gate 1 is asked, whether to build an index of the
+     main checkout now so this worktree, and every later track's, starts from it.
+     Options `Build it (Recommended)` and `Skip`. On `Build it`, run
+     `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py build --project-dir "<main>"`
+     and tell the person its first line. On `Skip`, run nothing and skip step 3.
+3. Right after the `EnterWorktree` call succeeds, before anything else runs
+   inside the worktree (a track already there resumes without `track_start.py`), run
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py seed --project-dir "<top>"`
+   with the worktree's `<top>`, and tell the person its first line in one
+   sentence. It writes the worktree's own index from the main checkout's,
+   parsing only the files that differ. Whatever it prints, the track goes on:
+   `design`'s dispatch follows the steps above as it always does.
