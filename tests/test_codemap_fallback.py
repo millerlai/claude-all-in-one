@@ -89,3 +89,12 @@ def test_brief_names_the_exact_line_codemap_cli_prints():
     # The brief tells a model to look for this text; a reworded constant would
     # silence the worktree reminder with every other test still passing.
     assert codemap_cli.MAIN_HAS_INDEX in _folded("skills/track/references/codemap-brief.md")
+
+
+def test_track_names_the_worktree_section_the_brief_has_and_a_command_the_cli_takes(capsys):
+    heading = "## Starting a track in a worktree"
+    assert heading in _folded("skills/track/references/codemap-brief.md")
+    assert "`%s`" % heading in _folded("skills/track/SKILL.md")
+    assert "codemap_cli.py seed --project-dir" in _folded("skills/track/references/codemap-brief.md")
+    assert codemap_cli.main(["seed", "--help"]) == 0
+    capsys.readouterr()

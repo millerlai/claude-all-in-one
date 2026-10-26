@@ -4,7 +4,12 @@
     codemap_cli.py status --project-dir DIR
     codemap_cli.py build  --project-dir DIR
     codemap_cli.py update --project-dir DIR
+    codemap_cli.py seed   --project-dir DIR
     codemap_cli.py query  --project-dir DIR TEXT
+
+`seed` is `update`, except that a linked worktree with no index of its own
+starts from its main checkout's: `.cai/` is ignored, so a new worktree never
+receives it.
 
 The first line printed is always the state line. Exit 0: a state line was
 printed (any state word). Exit 2: `build` could not finish writing, or something
@@ -37,22 +42,31 @@ def _top(project_dir):
     return os.path.normpath(done.stdout.strip())
 
 
-def _main_checkout_has_index(top):
-    """True when `top` is a linked worktree and its main checkout holds an index.
-    The main checkout is found as cai_paths.main_checkout does; it is not
-    imported because this script may import only the codemap siblings and
-    preflight (test_codemap_imports.py)."""
+def _main_checkout(top):
+    """The main checkout's top when `top` is a linked worktree, else None.
+    Found as cai_paths.main_checkout does; it is not imported because this
+    script may import only the codemap siblings and preflight
+    (test_codemap_imports.py)."""
     found = []
     for flag in ("--git-dir", "--git-common-dir"):
         done = preflight.git(top, "rev-parse", flag)
         if done is None or done.returncode != 0:
-            return False
+            return None
         found.append(os.path.realpath(os.path.join(top, done.stdout.strip())))
     git_dir, common = found
     if os.path.normcase(git_dir) == os.path.normcase(common) or os.path.basename(common) != ".git":
-        return False
-    state = os.path.join(codemap_store.index_dir(os.path.dirname(common)), codemap_store.STATE_NAME)
-    return os.path.isfile(state)
+        return None
+    return os.path.dirname(common)
+
+
+def _has_index(top):
+    return os.path.isfile(os.path.join(codemap_store.index_dir(top), codemap_store.STATE_NAME))
+
+
+def _main_checkout_has_index(top):
+    """True when `top` is a linked worktree and its main checkout holds an index."""
+    main = _main_checkout(top)
+    return main is not None and _has_index(main)
 
 
 def _shown(text):
@@ -123,7 +137,7 @@ def _query(top, text):
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(prog="codemap_cli.py", add_help=True)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("status", "build", "update", "query"):
+    for name in ("status", "build", "update", "seed", "query"):
         one = sub.add_parser(name)
         one.add_argument("--project-dir", default=".")
         if name == "query":
@@ -139,14 +153,16 @@ def main(argv: Optional[list] = None) -> int:
             _print_status(status)
             # Not keyed on `absent`: a tree listing that times out says
             # `unsupported`, and the worktree still has no index of its own.
-            own = os.path.join(codemap_store.index_dir(top), codemap_store.STATE_NAME)
-            if not os.path.isfile(own) and _main_checkout_has_index(top):
+            if not _has_index(top) and _main_checkout_has_index(top):
                 print(MAIN_HAS_INDEX)
             return 0
         if args.command == "query":
             return _query(top, " ".join(args.text))
-        if args.command == "update":
-            result = codemap_index.update(top)
+        if args.command in ("update", "seed"):
+            main = _main_checkout(top) if args.command == "seed" and not _has_index(top) else None
+            # seed with an index of its own, or none to start from, is update.
+            result = codemap_index.seed(top, main) if main is not None and _has_index(main) \
+                else codemap_index.update(top)
             if result is None:      # no index: only `build` makes one
                 _print_status(codemap_index.status(top))
                 return 0

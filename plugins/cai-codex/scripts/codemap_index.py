@@ -98,12 +98,13 @@ def _parse(top_real, facts):
     return record, ex.symbols, None
 
 
-def _write(top, facts, previous, scanned_at_ns):
+def _write(top, facts, previous, scanned_at_ns, always=False):
     """Writes the whole index for `facts`, reusing `previous` records for files
     whose hash is unchanged and which were not partial. `scanned_at_ns` is when
     the inventory behind `facts` started; every record describes its file as of
     then, which is what lets the next inventory trust one unread (#448).
-    Returns the Result."""
+    `always`: `previous` is another checkout's, so matching it is no reason to
+    skip the write. Returns the Result."""
     reuse_files, reuse_symbols = {}, {}
     if previous is not None:
         retry = {entry["path"] for entry in previous.state.get("partial", [])}
@@ -135,7 +136,7 @@ def _write(top, facts, previous, scanned_at_ns):
         all_symbols.extend(syms)
     all_symbols.sort(key=lambda s: (s["path"], s["start_line"], s["qualified_name"]))
     head = _head(top)
-    if not touched and _unchanged(previous, records, reparsed, partial, head):
+    if not always and not touched and _unchanged(previous, records, reparsed, partial, head):
         # The usual case for a dispatch after the last one: rewriting every
         # file would only move built_at, at a cost that grows with the repo.
         shards = sum(1 for name in previous.state["artifacts"] if name.startswith("packages/"))
@@ -220,6 +221,24 @@ def update(top: str) -> Optional[Result]:
             return None
     facts = inventory.inventory(top, *_trusted(previous), listed=listed)
     return _write(top, facts, previous, scanned_at_ns)
+
+
+def seed(top: str, source: str) -> Optional[Result]:
+    """Writes `top`'s index from `source`'s: records of files with the same
+    bytes are reused, the rest are parsed. None, with nothing written, when
+    `source` has no index. A damaged one raises, since rebuilding it is not
+    this checkout's to do."""
+    scanned_at_ns = time.time_ns()
+    listed = inventory.list_tracked(top)
+    if store.tracked_inside(top):
+        raise store.IndexUnreadable(store.TRACKED_REASON)
+    previous = store.load(source)
+    if previous is None:
+        return None
+    # Not _trusted(previous): its sizes and mtimes describe `source`'s files,
+    # and one that happened to match would vouch for bytes this tree lacks.
+    facts = inventory.inventory(top, listed=listed)
+    return _write(top, facts, previous, scanned_at_ns, always=True)
 
 
 def _unsupported(reason):
