@@ -47,7 +47,14 @@ CAI_TRACK_SINCE = (1, 58, 0)
 
 # The efforts a sample's model-choice.json holds, by release. v1.58.0 is the
 # first that could save one; an older file has no `efforts` key.
-EFFORTS = {"v1.58.0": {"chore": "low"}, "v1.59.0": {"chore": "low"}}
+EFFORTS = {"v1.58.0": {"chore": "low"}, "v1.59.0": {"chore": "low"},
+           "v2.0.0": {"chore": "low"}}
+
+# The (stage, outcome) pairs a sample's ledger holds. v2.0.0's ledger.py no
+# longer takes `intake` or `discover` (merged into `design`, #478), so its
+# sample holds one record; every earlier release wrote the three in LEDGER.
+LEDGER = [("intake", "passed"), ("discover", "skipped"), ("design", "failed")]
+LEDGER_SINCE_MERGE = {"v2.0.0": [("design", "failed")]}
 
 # A drive letter or a home directory: what a path from the machine that
 # generated a sample would start with.
@@ -110,8 +117,8 @@ def test_every_line_of_an_old_ledger_is_a_record(version, tmp_path):
 
     assert ledger.malformed_lines(str(track)) == []
     assert len(records) == len(lines)
-    assert [(r["stage"], r["outcome"]) for r in records] == [
-        ("intake", "passed"), ("discover", "skipped"), ("design", "failed")]
+    assert [(r["stage"], r["outcome"]) for r in records] == LEDGER_SINCE_MERGE.get(
+        version, LEDGER)
 
 
 @pytest.mark.parametrize("version", releases("pending"))
