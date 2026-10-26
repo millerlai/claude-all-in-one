@@ -416,7 +416,8 @@ Units all green is not done:
    every heading of the diagnosis template, `design_probe.py`'s
    `DIAGNOSIS_HEADINGS`, not only a `## Failing test` heading — the one
    the probe's not-applicable branch used to check alone — and is still
-   not judged by filename) or a detail design whose
+   not judged by filename), or a `-design.md` whose sections are Diagnosis
+   and Detail with no Stance (a bug taken to Detail), or a detail design whose
    `## Reference` resolves to at least one diagnosis and no resolved
    document carries a `## Use cases / Issues` heading (the same condition
    that branch checks) — there are no `UC`/`R` ids to fill in. Write one row

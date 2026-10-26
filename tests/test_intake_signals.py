@@ -109,6 +109,28 @@ def test_a_cited_high_row_still_fails_the_short_path():
     assert not any("evidence" in label for label in bad), bad
 
 
+HIGH_ROWS = [GOOD_ROWS[0], GOOD_ROWS[1], ("Undo cost", "high", "no rollback, deploy.sh:9")]
+CHOSEN = "Short path: chosen by the person over Undo cost (2026-10-25)\n\n"
+
+
+def test_a_high_row_the_person_kept_on_the_short_path_passes():
+    # The person decides at the long path's opening menu (design 2026-10-25);
+    # the line under the table is the record that they did.
+    text = intake(signal_text=signals(HIGH_ROWS).rstrip("\n") + "\n" + CHOSEN)
+    assert failing(text) == [], failing(text)
+    kept = [label for ok, label in design_probe.PROBES["intake"](
+        design_probe.sections(text), text, (".", ".")) if ok and "person" in label]
+    assert kept and "Undo cost" in kept[0], kept
+
+
+def test_the_person_s_line_does_not_waive_a_row_it_does_not_name():
+    rows = [("Blast radius", "high", "every caller, a.py:1")] + HIGH_ROWS[1:]
+    text = intake(signal_text=signals(rows).rstrip("\n") + "\n" + CHOSEN)
+    bad = failing(text)
+    assert any(label.startswith("signals_short_path") and "Blast radius" in label
+               for label in bad), bad
+
+
 def test_an_unanswerable_row_with_a_reason_and_no_citation_passes():
     rows = [GOOD_ROWS[0], GOOD_ROWS[1],
             ("Undo cost", "unanswerable", "no deploy config in this repo to read")]

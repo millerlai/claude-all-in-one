@@ -180,9 +180,9 @@
         "  relevant lines, then read those files yourself and decide what they mean.",
         "  A scout's summary is a pointer, not evidence.",
         "- **Official documentation** — for any tool, framework, or platform the",
-        "  design stands on, fetch the vendor's own docs yourself with",
-        "  `WebSearch`/`WebFetch` (`explorer` cannot: its tools are Read/Grep/Glob",
-        "  only), then interpret them. Record the URL and the sentence taken."
+        "  design stands on, fetch the vendor's own docs (`explorer`'s tools are",
+        "  Read/Grep/Glob only, so this needs a chore-tier subagent with web access),",
+        "  then interpret it yourself. Record the URL and the sentence taken."
       ],
       "replacement": [
         "- **This project** — locate and quote the relevant lines yourself with",
@@ -1020,6 +1020,39 @@
         "of this section describes."
       ],
       "why": "AC6/C6: the feasibility ledger records \"Codex's question tool closes a question on its own: UNVERIFIED\", so the generated text drops the Claude-specific recognition signal (naming AskUserQuestion and the away-from-keyboard wording) and states only that a result reporting no answer is what this section treats as a timeout."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "**2 to 4:** ask one multiSelect question with one option per finding, labelled",
+        "`<k>. <Severity> <path:line>` — for example `3. Major src/app.py:42` — where",
+        "`<k>` is the finding's number on the list; the comment text stays out of the",
+        "label, because it is a third party's. The result joins the ticked labels with",
+        "`, ` and appends any free text after them with no marker, so match each label",
+        "whole, never by splitting on commas."
+      ],
+      "replacement": [
+        "**2 to 4:** list the Blockers and Majors as numbered text, each as",
+        "`<k>. <Severity> <path:line>` — for example `3. Major src/app.py:42` — where",
+        "`<k>` is the finding's number on the list; the comment text stays out of the",
+        "label, because it is a third party's. Ask the person to type the numbers to fix, or `none`."
+      ],
+      "why": "I6/D10: the Codex question tool cannot take several ticks (discover.md:105), so the multiSelect shape becomes a numbered text list the person answers with numbers; the rest of the section (the free-text rules, `none`, Minor numbers) reads the same either way."
+    },
+    {
+      "target": "skills/track/references/approval-gates.md",
+      "anchor": [
+        "every one of them. To fix none, tick none (or write `none` in the free-text",
+        "entry when a menu with nothing ticked will not submit); to fix a Minor, write",
+        "its list number in the free-text entry. Say in the question that a fix is",
+        "committed to this branch."
+      ],
+      "replacement": [
+        "every one of them. To fix none, the person types `none`; to fix a Minor, the person types",
+        "its list number too. Say in the question that a fix is",
+        "committed to this branch."
+      ],
+      "why": "I6/D10: follows the override above — on Codex the reply is typed text, so there is nothing to tick."
     },
     {
       "target": "skills/track/references/approval-gates.md",

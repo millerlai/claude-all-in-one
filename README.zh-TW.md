@@ -38,7 +38,7 @@ flowchart TB
     S3 -.-> VE
     S4 -.-> SH
 
-    DE(["designer · think<br/>Read Grep Glob<br/>+ Write, WebSearch, WebFetch"])
+    DE(["designer · think<br/>+ Write"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
     VE(["verifier · build<br/>測試 + git 讀取 + Agent"])
     SH(["shipper · build<br/>git + gh"])

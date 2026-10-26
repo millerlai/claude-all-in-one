@@ -343,8 +343,10 @@ Chose …, because <evidence> rules out the rest. **Found out when:** …
 
 <!--
   What this elaborates: the Stance and Decisions sections above, in this same
-  file. The probe reads the use cases from the Stance section and looks for
-  each only inside this Detail section.
+  file -- or, for a bug taken from its diagnosis straight to Detail, the
+  Diagnosis section (name that instead). The probe reads the use cases from
+  the Stance section and looks for each only inside this Detail section; a
+  Diagnosis numbers none, so it asks for its failing test instead.
 
   The `AC:` line is written by the main session, not by the designer: after
   the designer reports, the main session writes the track's `intake.md`,

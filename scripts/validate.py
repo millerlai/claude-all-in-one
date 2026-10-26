@@ -2509,12 +2509,9 @@ def _track_stages():
         # `Write`, and RETIRED_IMPERATIVES below keeps stage-discover.md from
         # quietly asking for them again.
         #
-        # The web tools are what intake needed (#335: it handed a web lookup
-        # on to discover and nobody did it), and the merged stage runs on
-        # designer, so designer is granted them: reading a page writes nothing.
+        # designer has no web tools: an outside lookup is done in this stage by
+        # a dispatched subagent with web access (#335), never deferred.
         "design": [
-            ("WebSearch", lambda tools: re.search(r"\bWebSearch\b", tools) is not None),
-            ("WebFetch", lambda tools: re.search(r"\bWebFetch\b", tools) is not None),
             ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
             ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
             # stage-design.md runs design_probe.py and mmdc; designer.md's own
@@ -3231,7 +3228,9 @@ def _track_references():
          ["`unanswerable` does **not** count as high here",
           "**No row `high`** → the **short path**",
           "Step 5's approval is Gate 1: one menu, fingerprinting `intake.md`",
-          "design_probe.py --kind intake"]),
+          "design_probe.py --kind intake",
+          "the **long path is recommended**",
+          "`Short path: chosen by the person over <Row>[, <Row>]"]),
         # U4 (R4, I7): the long path writes one -design.md, and the AC: line is
         # added in a fixed order, or intake_unchanged has nothing to compare.
         ("R4", "stage-design.md says the long path is one -design.md, edited in place, "
@@ -3260,11 +3259,14 @@ def _track_references():
           "The long path asks once here, not twice",
           "the modes then run with no second cost stop"]),
         ("R5", "approval-gates.md's stop list no longer holds the intake approval, the "
-               "cost stop, the lane or the triage menu, and still holds both gates",
+               "cost stop or the lane, and still holds both gates and the triage menu",
          folded_section(gates_ref, "## The other stops"),
-         ["The intake approval, the separate cost-sizing stop, the parallel-lane question, "
-          "the detected test-command menu and the triage menu are not on this list",
+         ["The intake approval, the separate cost-sizing stop, the parallel-lane question "
+          "and the detected test-command menu are not on this list: each is decided without asking",
+          "- Gate 2's triage menu, inside a track once the pull request is open",
+          "`evidence-split`: which findings are worth fixing is the person's call",
           "- Gate 1 and Gate 2's push — `gate`",
+          "offers the long path (recommended) or the short path anyway",
           "there is no second cost stop after it",
           "the long path's fixed stops are four"]),
         # I3: on the short path the signed document is intake.md, and the message
@@ -3272,7 +3274,8 @@ def _track_references():
         ("I3", "approval-gates.md's short-path Gate 1 message lists each Signals row's "
                "verdict and evidence and the unanswerable ones with their reason",
          folded_section(gates_ref, "## Gate 1"),
-         ["`Row: verdict — evidence`, and names each `unanswerable` row with its reason,"]),
+         ["`Row: verdict — evidence`, and names each `unanswerable` row with its reason,",
+          "A `high` row the person kept on the short path"]),
         ("R5", "stage-build.md Step 0.5 opens the parallel lane by itself and says so in "
                "one line",
          folded_section(build_ref, "## Step 0.5"),

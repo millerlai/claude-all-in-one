@@ -122,13 +122,19 @@ DIAGNOSIS_MAX_LINES = 100
 SIGNALS_HEADER = "| Row | Verdict | Evidence |"
 SIGNAL_ROWS = ("Blast radius", "Found out when", "Undo cost")
 SIGNAL_VERDICTS = ("low", "high", "unanswerable")
+SHORT_PATH_CHOSEN = re.compile(
+    r"^Short path: chosen by the person over (.+?) \(\d{4}-\d{2}-\d{2}\)\s*$", re.M)
 # The long path's single `-design.md`: these four `## ` sections, in this order,
 # each holding what the mode of the same name used to write as its own file.
 # Decisions is meaningless without the stance it serves, and Detail without
-# both; Diagnosis is there only when a bug escalated, so nothing needs it.
+# both, or -- for a bug taken from its diagnosis straight to Detail -- the
+# Diagnosis alone. Nothing needs the Diagnosis otherwise: it is there only when
+# a bug escalated or went on to Detail. Each need is a list of alternatives.
 DESIGN_SECTIONS = ("Diagnosis", "Stance", "Decisions", "Detail")
-DESIGN_NEEDS = {"Decisions": ("Stance",), "Detail": ("Stance", "Decisions")}
+DESIGN_NEEDS = {"Decisions": (("Stance",),),
+                "Detail": (("Stance", "Decisions"), ("Diagnosis",))}
 SAME_FILE_STANCE = "## Stance section"
+SAME_FILE_DIAGNOSIS = "## Diagnosis section"
 DECIDED = re.compile(r"^\s*(?:[-*]\s+)?(?:\*\*)?Decided:", re.M)
 
 # The templates are the shape the design commands write to, so they are the
@@ -421,7 +427,7 @@ def decisions_probes(secs, text, roots, upstream=None):
 
     if upstream is not None:
         parsed = upstream
-        yield True, "reference_resolves (the %s of this same file)" % SAME_FILE_STANCE
+        yield True, "reference_resolves (the %s of this same file)" % (upstream[0][0] if upstream else SAME_FILE_STANCE)
     else:
         resolved = []
         for cand in re.findall(r"[\w./\\-]+\.md",
@@ -548,7 +554,7 @@ def detail_probes(secs, text, roots, upstream=None):
 
     if upstream is not None:
         parsed = upstream
-        yield True, "reference_resolves (the %s of this same file)" % SAME_FILE_STANCE
+        yield True, "reference_resolves (the %s of this same file)" % (upstream[0][0] if upstream else SAME_FILE_STANCE)
     else:
         resolved = []
         for cand in re.findall(r"[\w./\\-]+\.md", COMMENT.sub("", secs.get("Reference", ""))):
@@ -712,10 +718,15 @@ def intake_probes(secs, text, roots):
     evidence, and the verification levels `verify` plans from. Every missing or
     wrong item is its own FAIL, so the person who reads the line knows which
     row to fix."""
+    # A high row recommends the long path; the person decides at that path's
+    # opening menu, and the line they leave under the table is the record.
+    kept_by_person = set()
     if "Signals" not in secs:
         yield False, "signals_section (no ## Signals section)"
         rows = []
     else:
+        for m in SHORT_PATH_CHOSEN.finditer(COMMENT.sub("", secs["Signals"])):
+            kept_by_person.update(r.strip() for r in m.group(1).split(","))
         table = [ln.strip() for ln in COMMENT.sub("", secs["Signals"]).splitlines()
                  if ln.strip().startswith("|")]
         header = table[0] if table else ""
@@ -756,9 +767,13 @@ def intake_probes(secs, text, roots):
                 name, "cited" if CITE.search(evidence)
                 else "%s with no file:line or URL" % verdict)
         if verdict == "high":
-            # A recognised value, so this says why instead of "not one of ...".
-            yield False, ("signals_short_path (row %s is high -- this change "
-                          "belongs on the long path)" % name)
+            if name in kept_by_person:
+                yield True, ("signals_short_path (row %s is high, kept on the "
+                             "short path by the person's choice)" % name)
+            else:
+                # A recognised value, so this says why instead of "not one of ...".
+                yield False, ("signals_short_path (row %s is high -- this change "
+                              "belongs on the long path)" % name)
 
     # Imported here: verify_plan pulls in the test-command resolvers, which a
     # caller of the other kinds never needs.
@@ -800,16 +815,24 @@ def design_probes(secs, text, roots):
     yield found == want, "section_order (found %s; want %s)" % (
         ", ".join(found), ", ".join(want))
 
-    for name, needs in DESIGN_NEEDS.items():
+    for name, options in DESIGN_NEEDS.items():
         if name in secs:
-            lacking = [n for n in needs if n not in secs]
+            # The first alternative whose sections are all there satisfies it;
+            # none does, so the first one's gaps are what the FAIL names.
+            lacking = next(([] for needs in options
+                            if all(n in secs for n in needs)),
+                           [n for n in options[0] if n not in secs])
             yield not lacking, "section_needs (%s needs %s%s)" % (
-                name, ", ".join(needs),
+                name, " or ".join(", ".join(needs) for needs in options),
                 "; missing " + ", ".join(lacking) if lacking else "")
 
     bodies = {n: promote(secs[n]) for n in present}
     parsed = {n: sections(bodies[n]) for n in present}
     stance = [(SAME_FILE_STANCE, parsed["Stance"])] if "Stance" in parsed else []
+    # Detail with no Stance reads the Diagnosis the way a stand-alone detail
+    # design read a diagnosis it referenced: no UC/R ids, its approval checked.
+    if not stance and "Detail" in parsed and "Diagnosis" in parsed:
+        stance = [(SAME_FILE_DIAGNOSIS, parsed["Diagnosis"])]
     for name in present:
         extra = {"upstream": stance} if name in ("Decisions", "Detail") else {}
         for ok, label in SECTION_PROBES[name](parsed[name], bodies[name], roots, **extra):

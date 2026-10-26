@@ -52,13 +52,14 @@ When the brief carries a line starting `codemap: fresh`, "The codemap index is
 not a fourth source", under the evidence rule below, says how to use it.
 
 Facts from outside this repo — how other products handle the same request, what
-a vendor's documentation promises — are part of the same look: search and fetch
-them yourself with `WebSearch`/`WebFetch`, recording the URL and the sentence
-relied on. Never defer one to `/cai:discover`: it is a standalone command that
-nobody runs for you inside a track, so a lookup handed on there is a lookup
-nobody does (#335). If one fails — the tool is refused or the page will not
-load — name the query or URL among the Report's deviations, so the person can
-see it was not done.
+a vendor's documentation promises — are part of the same look: dispatch a
+chore-tier subagent with web access to search and fetch them (your own tools
+cannot reach the web, and `explorer`'s are Read/Grep/Glob only), recording the
+URL and the sentence relied on. Never defer one to `/cai:discover`: it is a
+standalone command that nobody runs for you inside a track, so a lookup handed
+on there is a lookup nobody does (#335). If one fails — the subagent is
+refused or the page will not load — name the query or URL among the Report's
+deviations, so the person can see it was not done.
 
 ## Step 2 — Route it: broken, or never there
 
@@ -168,7 +169,13 @@ split exists to remove.
   menu, fingerprinting `intake.md`. When all three rows are `unanswerable`,
   say so in the Report, so the Gate 1 menu can show the person that the
   short path was taken on no evidence either way.
-- **Any row `high`** → the **long path**: "Pick a mode" onward, unchanged.
+- **Any row `high`** → the **long path is recommended**: "Pick a mode" onward,
+  unchanged, once the person agrees at Step 5's menu. The person decides there
+  (see "The long path asks once here"): if they choose the short path, it
+  proceeds as the first bullet says, and `## Signals` carries one line directly
+  under its table, `Short path: chosen by the person over <Row>[, <Row>]
+  (<YYYY-MM-DD>)`, naming each `high` row they kept; the probe then accepts
+  those rows.
 - **Broken** (Step 2 said yes) → Diagnosis, unchanged; its intake carries no
   `## Signals` section.
 
@@ -200,9 +207,13 @@ whatever was inferred from it.
 **The long path asks once here, not twice.** The one menu carries the problem
 statement, the criteria, the route with its evidence, the `Signals` rows
 (each verdict with its evidence) that sent the request long, and the four
-cost lines of "Say what it will cost, then wait". Its yes covers the route and
-the cost together, and the modes then run with no second cost stop. The short
-path has no separate requirement approval at all: Step 5's approval is Gate 1.
+cost lines of "Say what it will cost, then wait". It states the reasons — each
+`## Signals` row judged `high`, with its evidence — and offers the choice
+explicitly: take the long path (recommended), or take the short path anyway.
+Which one is the person's preference, so the menu is `evidence-split`. Its yes
+to the long path covers the route and the cost together, and the modes then
+run with no second cost stop. The short path has no separate requirement
+approval at all: Step 5's approval is Gate 1.
 
 End the requirement with a `## Verification levels` section: the heading
 verbatim, then a table with the header `| AC | level | check |` verbatim and
@@ -271,7 +282,8 @@ Detail each write their own section into **one** file,
 `${CLAUDE_PLUGIN_ROOT}/templates/design.md.tpl`: `## Stance`, then
 `## Decisions`, then `## Detail`, in that order, each mode editing the file in
 place and never rewriting what an earlier mode wrote. A bug that escalates to
-Stance adds `## Diagnosis` ahead of them — its root cause becomes that section.
+Stance, or goes from its diagnosis to Detail, adds `## Diagnosis` ahead of
+them — its root cause becomes that section.
 Inside a section every heading is one level deeper than in the stand-alone
 template of the same mode, and nothing else about the section changes.
 
@@ -286,9 +298,11 @@ ceiling. The cost is that the part to sign no longer sits on a page of its own
 that Gate 1 fingerprints the whole file, so an edit to any section after
 sign-off is caught ("What the fingerprint covers now" below).
 
-A bug that does not escalate still writes its own `-diagnosis.md`, and a
-diagnosis taken straight to Detail writes a stand-alone `-detail.md` that names
-it. The older multi-file shapes (`-stance.md`, `-decisions.md`, `-detail.md`,
+A bug that goes straight to `build` still writes only its own `-diagnosis.md`.
+A diagnosis followed by Detail writes one `-design.md` instead: the diagnosis
+moves into its `## Diagnosis` section and `## Detail` follows it, so there is
+no stand-alone `-diagnosis.md` or `-detail.md` to keep in step. The older
+multi-file shapes (`-stance.md`, `-decisions.md`, `-detail.md`,
 `-high-level.md`) stay readable and checkable, so a track signed off in one
 is not disturbed.
 
@@ -324,9 +338,9 @@ Three sources count, and nothing else does:
   relevant lines, then read those files yourself and decide what they mean.
   A scout's summary is a pointer, not evidence.
 - **Official documentation** — for any tool, framework, or platform the
-  design stands on, fetch the vendor's own docs yourself with
-  `WebSearch`/`WebFetch` (`explorer` cannot: its tools are Read/Grep/Glob
-  only), then interpret them. Record the URL and the sentence taken.
+  design stands on, fetch the vendor's own docs (`explorer`'s tools are
+  Read/Grep/Glob only, so this needs a chore-tier subagent with web access),
+  then interpret it yourself. Record the URL and the sentence taken.
 - **Neither** — write `UNVERIFIED`, and name the design decision that stops
   standing up if the guess turns out wrong.
 
@@ -506,9 +520,10 @@ full, and lower them when the answer is no.
    `docs/design/<YYYY-MM-DD>-<topic>-diagnosis.md`, date from `date +%F`.
    Copy `${CLAUDE_PLUGIN_ROOT}/templates/design-diagnosis.md.tpl`, fill it
    in, delete the HTML-comment guidance as you answer it. Do not add or
-   rename headings. (If Step 4 escalates, this document is not kept as a file:
-   its content becomes the `## Diagnosis` section of the `-design.md` that
-   Stance mode writes, the same headings one level deeper.)
+   rename headings. (If Step 4 escalates, or Detail follows, this document is
+   not kept as a file: its content becomes the `## Diagnosis` section of the
+   `-design.md` that Stance mode or Detail mode writes, the same headings one
+   level deeper.)
 
    `## Root cause` answers one question beyond naming the cause: **what would
    still be true if you fixed the line the stack trace points at?** "The same
@@ -552,7 +567,7 @@ full, and lower them when the answer is no.
    the design row's document, and the Approve fingerprints it. Going to
    Detail, it is a stop inside `design`, like the stance approval — the date
    goes into `## Status`, no ledger row — and Gate 1 comes after Detail, on
-   the detail design the design row then names. With Detail after it the menu
+   the `-design.md` the design row then names. With Detail after it the menu
    has the stance approval's three options; going to `build` this stop is
    Gate 1 and has four. Say which in the report, as `Next: Detail` or
    `Next: build`, so the main session asks the right menu.
@@ -715,7 +730,8 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    `## Decisions` sections of the track's `-design.md`. Any failing, stop and
    say which. (A legacy high-level design instead: `## Status` approved,
    `## Open questions` empty or every entry answered, use cases numbered.)
-   (An approved diagnosis instead: `## Status` approved with a date, which
+   (An approved diagnosis instead — the `## Diagnosis` section of the
+   `-design.md`, whose `### Status` reads approved with a date, which
    the probe's `diagnosis_is_approved` line checks. It numbers no use cases,
    so the probe passes traceability as not applicable; build starts from its
    `## Failing test`, and this document names the first test path there --
@@ -731,10 +747,12 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    the Stance and Decisions sections of the file, and carries an
    `AC: <intake.md path> sha256 <hex>` placeholder that you leave as it is —
    the main session fills it in ("The `AC:` line" below). Taking an approved
-   diagnosis straight to Detail instead, write the stand-alone
-   `docs/design/<YYYY-MM-DD>-<topic>-detail.md` from
-   `${CLAUDE_PLUGIN_ROOT}/templates/design-detail.md.tpl`, same `<topic>` as
-   the diagnosis. Fill it in, same heading discipline as the modes above.
+   diagnosis straight to Detail instead, move the diagnosis into a
+   `docs/design/<YYYY-MM-DD>-<topic>-design.md` copied from the same template
+   — its content becomes the `## Diagnosis` section, headings one level deeper,
+   `### Status` kept as approved, and the stand-alone `-diagnosis.md` is not
+   kept — then add `## Detail` after it; its `### Reference` names the
+   Diagnosis section. Fill it in, same heading discipline as the modes above.
 2. **Four tables before any prose:** the `## Reference` block (path + status
    line the probe follows), the traceability table (every `UC`/`R` id vs.
    what satisfies it here), the glossary (every load-bearing term, its
@@ -768,7 +786,7 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    worse than an open question.
 8. **Check, then review.**
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind design --project-dir <target project dir> <the document>`
-   (`--kind detail` for the stand-alone detail design of a diagnosis)
+   (`--kind detail` only for the stand-alone detail design of an older track)
    first, fix and re-run until 0. Then `plan-review` (see "The gate every
    mode shares" for how it runs) with the detail skeleton, lens 8 first. Blocker/Major → fix and re-probe *and* re-review;
    section 4 → `AskUserQuestion`; Minor → leave documented. At most three
@@ -841,8 +859,8 @@ the gate exists to avoid. Act on what it returns as the mode's step says.
 Standing alone you are the main session and invoke the skill yourself.
 
 The long path's three modes all run `--kind design` on the one `-design.md`;
-the other kinds are `diagnosis` for a bug that did not escalate, `detail` for
-the stand-alone detail design of a diagnosis, `intake` for the short path,
+the other kinds are `diagnosis` for a bug that went straight to `build`,
+`detail` for the stand-alone detail design of an older track, `intake` for the short path,
 `delta`, and `stance`, `decisions` and `hld` for the older shapes. What the
 person signs is whichever entrance ran — a root cause, or a stance and its
 answered Tier 1 entries — never the build spec, which is written for whoever
@@ -854,9 +872,10 @@ to sign again** after it changes.
 On the long path that is the one `-design.md`, whichever of its sections ran
 last. On the short path nothing else was written, so it is the track's
 `intake.md` itself; `preflight.py` maps that exact filename to `--kind
-intake`. On the diagnosis path it is the `-diagnosis.md`, or the stand-alone
-`-detail.md` when Detail followed it, whose `## Reference` names the
-diagnosis. `preflight.py` reads that cell, picks the kind off the suffix, and
+intake`. On the diagnosis path it is the `-diagnosis.md`, or the one
+`-design.md` (sections Diagnosis and Detail, no Stance) when Detail followed
+it; an older track's stand-alone `-detail.md` names the diagnosis in its
+`## Reference`. `preflight.py` reads that cell, picks the kind off the suffix, and
 runs the matching probe; Gate 1's Approve fingerprints the same file. Not
 because the person reads the build spec line by line — they sign the
 entrance's sections, above — but because it is what `build` acts on, so
@@ -869,7 +888,8 @@ fixed: you report; the main session writes `intake.md` from the report's
 `## Intake document`; the main session computes that file's sha256 and adds one
 line, `AC: <intake.md path> sha256 <hex>` — in `-design.md` under the Detail
 section's `### Reference` when Detail exists, otherwise at the end of the last
-section present; in a stand-alone `-detail.md` under its `## Reference`; in
+section present; in an older track's stand-alone `-detail.md` under its
+`## Reference`; in
 `-diagnosis.md` at the end of `## Failing test`; only then does Gate 1 take its fingerprint. You leave the placeholder
 alone and write no digest. `preflight.py build`'s `intake_unchanged` compares
 the line with `intake.md` as it stands, and refuses a missing line or a

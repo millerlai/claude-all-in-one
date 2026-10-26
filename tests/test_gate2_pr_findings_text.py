@@ -14,7 +14,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 GATES = os.path.join("skills", "track", "references", "approval-gates.md")
 
 SUBSECTIONS = ["Inside a track: who runs what", "After the PR opens",
-               "Fixing the Blockers and Majors", "A fix round", "The merge"]
+               "The triage menu", "A fix round", "The merge"]
 
 
 def _read(plugin_root):
@@ -160,28 +160,61 @@ def test_a_minor_the_person_names_is_quoted_into_the_verify_brief():
 
 
 @pytest.mark.parametrize("plugin_root", ["plugins/cai", "plugins/cai-codex"])
-def test_blockers_and_majors_are_fixed_without_a_menu(plugin_root):
-    # U5 (D10): the triage menu is gone. Verify fixes every Blocker and Major
-    # test-first, so asking only repeated the severity ranking; the push stays
-    # asked at Gate 2.
-    sec = _sub(SUBSECTIONS[2], plugin_root)
+def test_triage_menu_shape_follows_the_number_of_blockers_and_majors(plugin_root):
+    flat = _flat(_sub(SUBSECTIONS[2], plugin_root))
+    assert "**2 to 4:**" in flat and "**1, or more than 4:**" in flat
+    # S3: labels `<k>. <Severity> <path:line>`; whole-label match, no comma split.
+    assert "`<k>. <Severity> <path:line>`" in flat
+    assert "`3. Major src/app.py:42`" in flat
+    if plugin_root == "plugins/cai":  # Codex has no ticked labels to match
+        assert "never by splitting on commas" in flat
+    # The comment is a third party's text and stays out of the label.
+    assert "the comment text stays out of the label" in flat
+    # No option is marked, the question carries the recommendation.
+    assert "an exception to a single recommended option" in flat
+    assert "one of two exceptions" not in flat
+    # The cannot-submit-empty fallback (C14 is untested) and the none rule.
+    if plugin_root == "plugins/cai":
+        assert "write `none` in the free-text entry" in flat
+    else:
+        assert "the person types `none`" in flat
+    # Free text is list numbers or one `none`; anything else asks again.
+    assert "only as list numbers" in flat and "a single `none`" in flat
+    assert "the union of the ticked options and the numbers" in flat
+    assert "`none` next to anything else" in flat
+    assert "never guess which one was meant" in flat
+
+
+def test_claude_triage_menu_is_multiselect_and_codex_lists_numbers_as_text():
+    assert "multiSelect" in _flat(_sub(SUBSECTIONS[2]))
+    codex = _flat(_sub(SUBSECTIONS[2], "plugins/cai-codex"))
+    assert "multiSelect" not in codex
+    assert "type the numbers to fix, or `none`" in codex
+    # I6: the token is Claude Code's menu parameter, so it may not turn up
+    # anywhere else in the generated file either (the other-stops list
+    # mentioned the shape by name).
+    assert "multiSelect" not in _read("plugins/cai-codex")
+    # The other-stops list still names the exception to a single recommended
+    # option (I5), now without the Claude-only word.
+    assert "except when the triage list has two to four findings" in _flat(_read("plugins/cai"))
+
+
+def test_triage_menu_two_option_shape_has_one_recommended_option_and_a_cap():
+    sec = _sub(SUBSECTIONS[2])
+    rows = _table_rows(sec)
+    assert any(r.startswith("| Fix every Blocker/Major (recommended)")
+               for r in rows)
+    assert any(r.startswith("| Fix none") for r in rows)
+    assert sum("(recommended)" in r for r in rows) == 1
     flat = _flat(sec)
-    assert "There is no menu here" in flat
-    assert "Start a fix round (below) for every Blocker and Major" in flat
-    assert "a fix is committed to this branch" in flat
-    assert "the round ends at Gate 2's push menu" in flat
-    assert not _table_rows(sec)
-    assert "multiSelect" not in flat and "(recommended)" not in flat
-    # A Minor is still fixed only when the person asks, by list number.
-    assert "A Minor is `no fix` unless the person asks for it" in flat
-    assert "`unchecked`" in flat  # still not something to fix
-    assert "multiSelect" not in _read(plugin_root)
+    assert "committed to this branch" in flat
+    assert "list numbers" in flat
+    assert "`unchecked`" in flat  # still not a valid pick
 
 
-def test_the_fix_round_is_skipped_when_the_cap_is_used_up():
+def test_triage_menu_is_skipped_when_the_cap_is_used_up():
     flat = _flat(_sub(SUBSECTIONS[1]))
     assert "`fix_rounds` is below 2" in flat
-    assert "a fix round for every Blocker and Major, with no menu asking whether" in flat
 
 
 def test_a_fix_round_goes_through_verify_and_commits_in_the_main_session():
@@ -329,21 +362,22 @@ def test_the_skill_and_stage_ship_say_the_merge_is_confirmed_by_the_prompt():
         assert "The merge is one more confirmation, not a menu" in ship, root
 
 
-def test_the_triage_menu_is_named_as_not_one_of_the_other_stops():
+def test_the_triage_menu_is_listed_among_the_other_stops():
     text = _read("plugins/cai")
-    other = _flat(text[text.index("## The other stops"):text.index("## A menu that")])
-    assert "the detected test-command menu and the triage menu are not on this list" in other
-    assert "Gate 2's triage menu" not in other
-    assert "| Triage menu |" not in other
+    other = text[text.index("## The other stops"):text.index("## A menu that")]
+    assert "triage menu" in other
+    assert "(recommended)" in other[other.index("triage menu"):][:900]
 
 
-def test_the_timeout_table_covers_the_push_menu_and_the_merge_prompt():
+def test_the_timeout_table_covers_the_push_menu_triage_and_the_merge_prompt():
     text = _read("plugins/cai")
     table = text[text.index("## A menu that closes on its own"):]
     assert "| Gate 2's push menu (the squash included) | None of it runs. |" \
         in table
-    # U5: there is no triage menu left to time out.
-    assert "The triage menu" not in table
+    assert ("| The triage menu (Gate 2, after the PR opens) | Left "
+            "unanswered, even when the result lists ticked options: no "
+            "verify runs, nothing is committed, and the "
+            "merge is not run until it is answered. |") in table
     # I4: the permission prompt is not a menu and is not claimed to time out.
     assert ("| Gate 2's merge, the bash guard's permission prompt | Not a "
             "menu. Whether it ever closes on its own is untested; a merge "
@@ -436,10 +470,10 @@ def test_the_script_gets_the_full_hash_and_a_dead_run_is_not_a_clean_list():
 
 def test_no_menu_when_there_is_no_open_pr_and_that_rule_comes_first():
     flat = _flat(_sub(SUBSECTIONS[1]))
-    start = flat.index("**What next.**")
+    start = flat.index("**Which menu.**")
     which = flat[start:]
     assert "no `pr` line" in which
-    assert which.index("no menu") < which.index("a fix round for every Blocker")
+    assert which.index("no menu") < which.index("the triage menu")
 
 
 def test_a_fix_round_records_verify_and_a_refused_squash():
@@ -459,7 +493,7 @@ def test_fix_round_failure_sentences_are_pinned_whole():
 
 def test_merge_menu_lists_what_was_not_fixed_and_the_guard_cases():
     flat = _flat(_sub(SUBSECTIONS[4]))
-    assert "including any a fix round left unfixed" in flat
+    assert "including any the person chose not to fix" in flat
     assert "every `unchecked` line" in flat
     assert "A re-look that still found no check runs is not one of these" \
         in flat

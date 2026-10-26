@@ -287,6 +287,35 @@ def test_detail_without_decisions_fails(tmp_path):
     assert any(label.startswith("section_needs") and "Detail" in label for label in bad), bad
 
 
+def diagnosis_detail_doc(status="approved 2026-10-25"):
+    """A bug taken from its diagnosis straight to Detail: one file, no Stance."""
+    det = (detail()
+           .replace("The `## Stance` and `## Decisions` sections of this file",
+                    "The `## Diagnosis` section of this file")
+           .replace("| UC1 | the collector | covered |",
+                    "| tests/test_bar.py::test_double_press | the queue | covered |"))
+    return ("# t — design\n\n" + DIAGNOSIS.replace("approved 2026-10-25", status, 1)
+            + "\n" + det)
+
+
+def test_a_diagnosis_followed_by_detail_in_one_file_exits_0(tmp_path):
+    done = run_probe(tmp_path, diagnosis_detail_doc())
+    assert done.returncode == 0, done.stdout
+    assert "FAIL" not in done.stdout
+    assert "diagnosis_is_approved" in done.stdout
+
+
+def test_a_draft_diagnosis_blocks_the_detail_after_it(tmp_path):
+    bad = failing(diagnosis_detail_doc(status="draft"), tmp_path)
+    assert any(label.startswith("diagnosis_is_approved") and "still draft" in label
+               for label in bad), bad
+
+
+def test_detail_with_neither_stance_and_decisions_nor_a_diagnosis_fails(tmp_path):
+    bad = failing("# t — design\n\n" + detail(), tmp_path)
+    assert any(label.startswith("section_needs") and "Detail" in label for label in bad), bad
+
+
 def test_decisions_without_stance_fails(tmp_path):
     bad = failing("# t — design\n\n" + decisions(), tmp_path)
     assert any(label.startswith("section_needs") and "Decisions" in label for label in bad), bad
@@ -481,6 +510,41 @@ def test_a_signed_design_file_with_a_matching_ac_line_builds(tmp_path):
     assert "PASS intake_unchanged" in done.stdout
     assert "PASS intake_document" in done.stdout
     assert "PASS artifact_unchanged" in done.stdout
+
+
+def signed_diagnosis_detail(tmp_path, ac=None):
+    """A bug taken from its diagnosis to Detail: one -design.md with no Stance
+    and no Decisions, the AC line under Detail's Reference, signed at Gate 1."""
+    project(tmp_path)
+    track = make_track(tmp_path, "x-design.md")
+    line = ac if ac is not None else "AC: intake.md sha256 %s" % sha(track / "intake.md")
+    document = tmp_path / "x-design.md"
+    document.write_text(diagnosis_detail_doc().replace("AC: intake.md sha256 %s", line),
+                        encoding="utf-8")
+    sign(track, document)
+    return track, document
+
+
+def test_a_signed_diagnosis_and_detail_file_with_a_matching_ac_line_builds(tmp_path):
+    track, _ = signed_diagnosis_detail(tmp_path)
+    done = run_build(track, tmp_path)
+    assert done.returncode == 0, done.stdout
+    assert "PASS intake_unchanged (intake.md matches the AC: line" in done.stdout
+    assert "PASS artifact_unchanged" in done.stdout
+    assert "FAIL" not in done.stdout
+
+
+def test_a_diagnosis_and_detail_file_with_no_ac_line_fails_build(tmp_path):
+    track, _ = signed_diagnosis_detail(tmp_path, ac="no line here")
+    done = run_build(track, tmp_path)
+    assert done.returncode == 2
+    assert any(ln.startswith("FAIL intake_unchanged") for ln in done.stdout.splitlines())
+
+
+def test_tier1_drafts_owes_nothing_to_a_diagnosis_and_detail_file(tmp_path):
+    checks = preflight.tier1_drafts(diagnosis_detail_doc(), "x-design.md", "x-design.md",
+                                    str(tmp_path), str(tmp_path))
+    assert all(ok for ok, _ in checks), checks
 
 
 def test_editing_the_stance_section_after_sign_off_is_caught(tmp_path):
