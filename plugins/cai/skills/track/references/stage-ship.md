@@ -12,7 +12,8 @@ offers it instead.
 
 **Gate 2's push is asked as a menu**, quoting the exact commands about to
 run — never a sentence the person types a word back into.
-`references/approval-gates.md` holds the options. The merge is one more
+`references/approval-gates.md` holds the options for the main session; a
+dispatched subagent drafts and has no use for them. The merge is one more
 confirmation, not a menu: the bash guard's permission prompt, which on Codex
 is a denial that hands the command to the person.
 
@@ -43,6 +44,18 @@ reported.
 A claim you cannot ground gets cut, not softened. "Also improves error
 handling" with no hunk behind it is not a weaker claim than the ones that
 have one; it is the one that will be wrong.
+
+**Reading budget.** Grounding is bounded by the diff, not by the repository.
+Read `git log` and `git diff --stat` first, then each file's diff once —
+not again for each claim; open a file or run a search outside the diff only
+to confirm a name or path a claim quotes. A claim about what the rest of the
+code does or does not do — "no other caller", "now unused", "matches the
+existing convention" — needs a repo-wide search to ground, so it is cut; say
+what the hunk shows instead. When the diff is large, write from the commit
+subjects and the files the stat lists, and open a hunk only for a claim that
+names one. Past about 40 tool calls, stop checking: cut each claim still
+ungrounded and hand the draft back. A draft that takes a hundred calls
+has checked the repository, not the diff.
 
 **When this stage runs as a dispatched subagent, the main session applies
 this rule again to its output before using it** — re-derive each claim from
@@ -102,7 +115,19 @@ Read `git log <BASE>..HEAD --pretty=format:'%h %s%n%b'` and the diff stat.
 Compose one conventional commit message in English: `type(scope): summary`,
 imperative mood, ≤72 chars, then 2–6 body bullets summarizing the *net*
 change — not a replay of intermediate commits, and not fixup/WIP noise.
-Every bullet is a claim; the grounding rule above applies to each one. When
+Every bullet is a claim; the grounding rule above applies to each one.
+
+**Write at the level of behaviour.** A bullet says what a person using the
+change can now do, or no longer suffers — not which function, constant or
+parameter was edited; those stay in the diff. Tests get one line at the same
+level: the main behaviours they now check ("rejects an expired login token"),
+never a count, a list of test names or assertions, or the error-handling and
+edge-case tests, unless the change is about those. Report the run as "tests
+pass", with no number. When the issue's acceptance criteria or the design asks
+for something more specific — every modified existing test listed, say — do
+that, and name the criterion that asked.
+
+When
 the dispatch names a ticket number, reference it as `Refs #<number>` and
 never with a closing keyword — closing stays with `/cai:track done`. A
 dispatch with no ticket number leaves the message unaffected.
@@ -156,7 +181,8 @@ before and after it. The two commands below run only after "Run them".
 
 One paragraph, written for someone who was not in this conversation: what
 changed, why (the requirement it satisfies, not the mechanism), and
-anything a caller needs to do differently. Pull the "why" from the design
+anything a caller needs to do differently. Tests and detail follow Step 4's
+*Write at the level of behaviour*. Pull the "why" from the design
 document this track produced, if one exists, rather than re-deriving it
 from the diff — but the *what* still comes from the diff under the
 grounding rule, since a design document describes a plan and this paragraph

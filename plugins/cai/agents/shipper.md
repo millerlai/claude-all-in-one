@@ -37,6 +37,15 @@ with no shortcuts.
   it fits in: a call that times out is moved to the background rather than
   killed, and outlives your report. Name any still running in the report so
   the main session can stop it.
+- Do not open `approval-gates.md`: it is the main session's menu text, and a
+  draft dispatch needs nothing from it. Open `pending-questions.md` only when
+  you have a question to hand up. Ground claims within `stage-ship.md`'s
+  reading budget — the diff once, no repo-wide searches — and stop checking
+  after about 40 tool calls.
+- Write the commit message and PR body at the level of behaviour
+  (`stage-ship.md` Step 4): what a person can now do, no test counts or test
+  lists, no function or constant names. The exception is an acceptance
+  criterion in the issue or design that asks for more; then do it and name it.
 - Report exactly what the procedure asks for at each step; do not improvise
   a different git sequence because it looks equivalent.
 - Every sentence you write into a commit message, release note, or PR body
