@@ -1,5 +1,39 @@
 # Changelog
 
+## v2.0.0 — 2026-10-26
+
+This release merges the track's intake, discover and design stages into one `design` stage, removes the `intake` skill, asks fewer questions, and makes the ship stage's draft faster and shorter.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v1.60.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 1.60.0 to 2.0.0. Re-running `/cai:setup` is not needed: nothing it installs changed.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`. Re-running `$setup` is not needed.
+- **`/cai:intake` (Codex: `$intake`) no longer exists.** Use `/cai:track`, whose first stage is now `design`; `/cai:discover` stays as a standalone command.
+- An in-progress track keeps its saved state and ledger. A track begun before this release keeps its six-row `state.md`; its `intake` and `discover` rows are folded into `design`, so `/cai:track status` reports `next: design` for one that had not reached it. A track that already signed Gate 1 is not asked to add the new `AC:` line, because adding it would change the fingerprint it signed. (#478)
+
+### Track: one design stage
+
+- A track now runs `design` → `build` → `verify` → `ship`. `design` takes over what `intake`, `discover` and `design` did. (#478)
+- **Short path.** When none of the three hard-to-undo signals (blast radius, when it would be found out, undo cost) is backed by evidence as high, `design` writes only the track's `intake.md`, with a `## Signals` table, and Gate 1 signs that. (#478)
+- **Long path.** When a signal is high, the opening menu states each high row and its evidence and recommends the long path; you decide, and choosing the short path anyway is recorded in `intake.md`. The long path writes one sectioned `docs/design/<date>-<topic>-design.md`. Gate 1 fingerprints the whole file, so editing any section after sign-off blocks `build`. (#478)
+- On the long path `build` also refuses to start when `intake.md` changed after you signed, or the signed document lacks the line recording its digest. (#478)
+
+### Fewer questions
+
+- A decision is put to you as a top-tier question only when undoing it is costly and neither the evidence nor the stance separates the options; the long path's fixed stops drop from five to four. (#478)
+- `build` opens parallel lanes from the design's work breakdown instead of asking, and adopts a detected test command without a menu. Gate 2's triage menu is unchanged. (#478)
+- Answers that the evidence could not settle are kept in the main checkout's `.cai/answers.md`, so a later track in the same project is not asked the same thing again. A project's worktrees now share one `.cai/cai.json`. (#478)
+
+### Shells left running
+
+- Subagents no longer leave background shells behind after handing back. `implementer` and `verifier` are told not to use heredocs or `sleep` polling in Bash and to stop their background commands before reporting; `test-runner` and `shipper` bound long or waiting commands; and the track's main session stops any background command a report names. (#478)
+
+### Ship
+
+- The ship stage's draft (the squash message and PR description) reads the diff once instead of searching the repository, and on a large diff writes from commit subjects and the diffstat. Drafts now say what a person can do after the change, with one line for tests and no counts or name lists unless an acceptance criterion asks for them. (#479)
+
 ## v1.60.0 — 2026-10-24
 
 This release tells you when a track's new worktree has no codemap index although the main checkout does.
