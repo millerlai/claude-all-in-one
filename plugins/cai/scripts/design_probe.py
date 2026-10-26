@@ -12,7 +12,7 @@ tokens.
 The definitions of "filled" and "item" come from the SDD design note under
 docs/, so that a probe two people run returns the same number.
 
-Usage:  design_probe.py --kind hld|detail|delta [--project-dir DIR] <document>
+Usage:  design_probe.py --kind hld|detail|delta|intake|design [--project-dir DIR] <document>
 Exit:   0 every probe passed, 2 at least one failed.
 """
 import argparse
@@ -116,6 +116,26 @@ STANCE_MAX_LINES = 80
 # stance has. It is still a ceiling -- what is signed here is one root cause,
 # and a root cause that needs three pages is usually two causes.
 DIAGNOSIS_MAX_LINES = 100
+# The short path's `## Signals` table: the cost test's three rows, in the order
+# stage-design.md lists them, each with one verdict from the table's Low/High
+# columns plus the answer for a row the evidence cannot settle.
+SIGNALS_HEADER = "| Row | Verdict | Evidence |"
+SIGNAL_ROWS = ("Blast radius", "Found out when", "Undo cost")
+SIGNAL_VERDICTS = ("low", "high", "unanswerable")
+SHORT_PATH_CHOSEN = re.compile(
+    r"^Short path: chosen by the person over (.+?) \(\d{4}-\d{2}-\d{2}\)\s*$", re.M)
+# The long path's single `-design.md`: these four `## ` sections, in this order,
+# each holding what the mode of the same name used to write as its own file.
+# Decisions is meaningless without the stance it serves, and Detail without
+# both, or -- for a bug taken from its diagnosis straight to Detail -- the
+# Diagnosis alone. Nothing needs the Diagnosis otherwise: it is there only when
+# a bug escalated or went on to Detail. Each need is a list of alternatives.
+DESIGN_SECTIONS = ("Diagnosis", "Stance", "Decisions", "Detail")
+DESIGN_NEEDS = {"Decisions": (("Stance",),),
+                "Detail": (("Stance", "Decisions"), ("Diagnosis",))}
+SAME_FILE_STANCE = "## Stance section"
+SAME_FILE_DIAGNOSIS = "## Diagnosis section"
+DECIDED = re.compile(r"^\s*(?:[-*]\s+)?(?:\*\*)?Decided:", re.M)
 
 # The templates are the shape the design commands write to, so they are the
 # source of truth for the lists above. validate.py asserts the two agree.
@@ -123,7 +143,8 @@ TEMPLATES = {"hld": "design-high-level.md.tpl", "detail": "design-detail.md.tpl"
              "delta": "design-delta.md.tpl",
              "stance": "design-stance.md.tpl",
              "decisions": "design-decisions.md.tpl",
-             "diagnosis": "design-diagnosis.md.tpl"}
+             "diagnosis": "design-diagnosis.md.tpl",
+             "design": "design.md.tpl"}
 
 
 def sections(text):
@@ -398,25 +419,33 @@ def diagnosis_probes(secs, text, roots):
         "within_one_page (%d line(s), ceiling %d)" % (n, DIAGNOSIS_MAX_LINES)
 
 
-def decisions_probes(secs, text, roots):
+def decisions_probes(secs, text, roots, upstream=None):
+    """`upstream` is how `--kind design` hands over the stance: (label,
+    sections) pairs from the same file, in place of the .md files that
+    ## Reference names. Left None, the document is read as it always was."""
     yield probe_headings(secs, DECISIONS_HEADINGS)
 
-    resolved = []
-    for cand in re.findall(r"[\w./\\-]+\.md",
-                           COMMENT.sub("", secs.get("Reference", ""))):
-        # A sibling of this document is the likely shape, so look there first.
-        p = resolve(cand, *reversed(roots))
-        if p:
-            resolved.append(p)
-    ref = resolved[0] if resolved else None
-    yield ref is not None, "reference_resolves (%s)" % (
-        ref or "## Reference names no readable .md")
+    if upstream is not None:
+        parsed = upstream
+        yield True, "reference_resolves (the %s of this same file)" % (upstream[0][0] if upstream else SAME_FILE_STANCE)
+    else:
+        resolved = []
+        for cand in re.findall(r"[\w./\\-]+\.md",
+                               COMMENT.sub("", secs.get("Reference", ""))):
+            # A sibling of this document is the likely shape, so look there first.
+            p = resolve(cand, *reversed(roots))
+            if p:
+                resolved.append(p)
+        ref = resolved[0] if resolved else None
+        yield ref is not None, "reference_resolves (%s)" % (
+            ref or "## Reference names no readable .md")
 
-    if resolved:
         parsed = []
         for p in resolved:
             with open(p, encoding="utf-8") as fh:
                 parsed.append((p, sections(fh.read())))
+
+    if parsed:
         # The stance is whichever referenced file carries every heading of the
         # stance template, not whichever is listed first -- a diagnosis or an
         # intake ahead of it in that list is not a stance, and picking it by
@@ -427,7 +456,7 @@ def decisions_probes(secs, text, roots):
         if stance is None:
             yield False, ("stance_is_approved (no referenced .md is a stance -- "
                           "none of %d carries every ## heading of the stance "
-                          "template)" % len(resolved))
+                          "template)" % len(parsed))
         else:
             ok = is_approved(stance)
             # Weighing options against a trade nobody has agreed to is how a
@@ -517,28 +546,36 @@ def citation_problem(row, roots):
     return None
 
 
-def detail_probes(secs, text, roots):
+def detail_probes(secs, text, roots, upstream=None):
+    """`upstream`: see decisions_probes. Under `--kind design` it is the same
+    file's stance, so the use cases are read from there and looked for in
+    `text`, which is the Detail section alone."""
     yield probe_headings(secs, DETAIL_HEADINGS)
 
-    resolved = []
-    for cand in re.findall(r"[\w./\\-]+\.md", COMMENT.sub("", secs.get("Reference", ""))):
-        # A sibling of this document is the likely shape, so look there first.
-        p = resolve(cand, *reversed(roots))
-        if p:
-            resolved.append(p)
-    hld = resolved[0] if resolved else None
-    yield hld is not None, "reference_resolves (%s)" % (
-        hld or "## Reference names no readable .md")
+    if upstream is not None:
+        parsed = upstream
+        yield True, "reference_resolves (the %s of this same file)" % (upstream[0][0] if upstream else SAME_FILE_STANCE)
+    else:
+        resolved = []
+        for cand in re.findall(r"[\w./\\-]+\.md", COMMENT.sub("", secs.get("Reference", ""))):
+            # A sibling of this document is the likely shape, so look there first.
+            p = resolve(cand, *reversed(roots))
+            if p:
+                resolved.append(p)
+        hld = resolved[0] if resolved else None
+        yield hld is not None, "reference_resolves (%s)" % (
+            hld or "## Reference names no readable .md")
 
-    if resolved:
-        # Filled only on the branch where traceability passes as not applicable:
-        # beside a stance that numbers use cases, the diagnosis is not what
-        # build starts from, so its two lines below are not asked of it.
-        diagnosed = []
         parsed = []
         for p in resolved:
             with open(p, encoding="utf-8") as fh:
                 parsed.append((p, sections(fh.read())))
+
+    if parsed:
+        # Filled only on the branch where traceability passes as not applicable:
+        # beside a stance that numbers use cases, the diagnosis is not what
+        # build starts from, so its two lines below are not asked of it.
+        diagnosed = []
         # The traceability source is the first upstream that actually numbers
         # use cases, not whichever the ## Reference lists first -- a diagnosis
         # or a decisions document ahead of it in that list numbers nothing on
@@ -676,9 +713,150 @@ def delta_probes(secs, text, roots):
     yield bool(imp), "impact_has_rows (%d)" % len(imp)
 
 
+def intake_probes(secs, text, roots):
+    """The short path's `intake.md`: the three cost-test rows, each judged with
+    evidence, and the verification levels `verify` plans from. Every missing or
+    wrong item is its own FAIL, so the person who reads the line knows which
+    row to fix."""
+    # A high row recommends the long path; the person decides at that path's
+    # opening menu, and the line they leave under the table is the record.
+    kept_by_person = set()
+    if "Signals" not in secs:
+        yield False, "signals_section (no ## Signals section)"
+        rows = []
+    else:
+        for m in SHORT_PATH_CHOSEN.finditer(COMMENT.sub("", secs["Signals"])):
+            kept_by_person.update(r.strip() for r in m.group(1).split(","))
+        table = [ln.strip() for ln in COMMENT.sub("", secs["Signals"]).splitlines()
+                 if ln.strip().startswith("|")]
+        header = table[0] if table else ""
+        yield re.sub(r"\s+", " ", header) == SIGNALS_HEADER, \
+            "signals_header (want exactly %s)" % SIGNALS_HEADER
+        rows = [[c.strip() for c in ln.strip("|").split("|")] for ln in table[1:]
+                if not _is_separator(ln)]
+        yield len(rows) == len(SIGNAL_ROWS), \
+            "signal_rows (%d data row(s), want exactly %d)" % (len(rows), len(SIGNAL_ROWS))
+
+        names = [r[0] for r in rows]
+        for want in SIGNAL_ROWS:
+            if want not in names:
+                yield False, "signal[%s] (row missing)" % want
+        if all(w in names for w in SIGNAL_ROWS):
+            yield names[:len(SIGNAL_ROWS)] == list(SIGNAL_ROWS), \
+                "signal_order (found %s; want %s)" % (", ".join(names), ", ".join(SIGNAL_ROWS))
+
+    for r in rows:
+        name = r[0]
+        if name not in SIGNAL_ROWS:
+            continue
+        if len(r) != 3:
+            yield False, "signal[%s] (not three cells: Row | Verdict | Evidence)" % name
+            continue
+        verdict, evidence = r[1], r[2]
+        if verdict not in SIGNAL_VERDICTS:
+            yield False, "signal[%s] verdict (%r is not one of %s)" % (
+                name, verdict, ", ".join(SIGNAL_VERDICTS))
+        elif verdict == "unanswerable":
+            # Nothing to cite is the meaning of the word, so the reason takes
+            # the citation's place; a bare placeholder is no reason.
+            yield filled(evidence, short_ok=True), "signal[%s] reason (%s)" % (
+                name, "given" if filled(evidence, short_ok=True)
+                else "unanswerable with no reason")
+        else:
+            yield bool(CITE.search(evidence)), "signal[%s] evidence (%s)" % (
+                name, "cited" if CITE.search(evidence)
+                else "%s with no file:line or URL" % verdict)
+        if verdict == "high":
+            if name in kept_by_person:
+                yield True, ("signals_short_path (row %s is high, kept on the "
+                             "short path by the person's choice)" % name)
+            else:
+                # A recognised value, so this says why instead of "not one of ...".
+                yield False, ("signals_short_path (row %s is high -- this change "
+                              "belongs on the long path)" % name)
+
+    # Imported here: verify_plan pulls in the test-command resolvers, which a
+    # caller of the other kinds never needs.
+    import verify_plan
+    levels = verify_plan.read_levels(text)
+    yield levels["status"] != "invalid", "verification_levels (%s)" % (
+        "; ".join(levels["problems"]) or levels["status"])
+
+
+def promote(body):
+    """A section's body with every heading one level up (`###` -> `##`), so the
+    probe written for the stand-alone document reads it unchanged: its line
+    ceiling counts this section only, and its `### ` Tier entries are the
+    `#### ` ones here. Fenced blocks are left alone."""
+    out, fenced = [], False
+    for line in body.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and re.match(r"^###+\s", line):
+            line = line[1:]
+        out.append(line)
+    return "\n".join(out)
+
+
+def design_probes(secs, text, roots):
+    """The single design document: its order and prerequisites, then each
+    present section through the probe of its mode. A label carries the section
+    it came from, because `headings_complete` alone would not say which of four
+    sections lost a heading."""
+    present = [n for n in DESIGN_SECTIONS if n in secs]
+    if not present:
+        yield False, ("design_sections (no ## %s section)"
+                      % ", ## ".join(DESIGN_SECTIONS))
+        return
+
+    found = [m for m in re.findall(r"^##\s+(\S.*?)\s*$", text, re.M)
+             if m in DESIGN_SECTIONS]
+    want = [n for n in DESIGN_SECTIONS if n in found]
+    yield found == want, "section_order (found %s; want %s)" % (
+        ", ".join(found), ", ".join(want))
+
+    for name, options in DESIGN_NEEDS.items():
+        if name in secs:
+            # The first alternative whose sections are all there satisfies it;
+            # none does, so the first one's gaps are what the FAIL names.
+            lacking = next(([] for needs in options
+                            if all(n in secs for n in needs)),
+                           [n for n in options[0] if n not in secs])
+            yield not lacking, "section_needs (%s needs %s%s)" % (
+                name, " or ".join(", ".join(needs) for needs in options),
+                "; missing " + ", ".join(lacking) if lacking else "")
+
+    bodies = {n: promote(secs[n]) for n in present}
+    parsed = {n: sections(bodies[n]) for n in present}
+    stance = [(SAME_FILE_STANCE, parsed["Stance"])] if "Stance" in parsed else []
+    # Detail with no Stance reads the Diagnosis the way a stand-alone detail
+    # design read a diagnosis it referenced: no UC/R ids, its approval checked.
+    if not stance and "Detail" in parsed and "Diagnosis" in parsed:
+        stance = [(SAME_FILE_DIAGNOSIS, parsed["Diagnosis"])]
+    for name in present:
+        extra = {"upstream": stance} if name in ("Decisions", "Detail") else {}
+        for ok, label in SECTION_PROBES[name](parsed[name], bodies[name], roots, **extra):
+            yield ok, "%s [%s]" % (label, name)
+
+    # The Detail section's own gate (stage-design.md, Detail step 0): an open
+    # Tier 1 entry is an architecture question the build spec would settle by
+    # accident. Asked only once Detail exists -- the person answers Tier 1 one
+    # entry at a time, so a missing `Decided:` is normal until then.
+    if "Detail" in parsed and "Decisions" in parsed:
+        open_ = [t[:28] for t, b in entries(parsed["Decisions"].get("Tier 1", ""))
+                 if not DECIDED.search(b)]
+        yield not open_, "tier1_decided (%s)" % (
+            "Tier 1 entry without a Decided: line: " + ", ".join(open_[:3])
+            if open_ else "every Tier 1 entry is decided")
+
+
+SECTION_PROBES = {"Diagnosis": diagnosis_probes, "Stance": stance_probes,
+                  "Decisions": decisions_probes, "Detail": detail_probes}
+
 PROBES = {"stance": stance_probes, "decisions": decisions_probes,
           "diagnosis": diagnosis_probes, "hld": hld_probes,
-          "detail": detail_probes, "delta": delta_probes}
+          "detail": detail_probes, "delta": delta_probes,
+          "intake": intake_probes, "design": design_probes}
 
 
 def main():

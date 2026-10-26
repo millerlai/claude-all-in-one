@@ -105,7 +105,7 @@ def test_work_intervals_returns_explicit_gap_and_reliable_intervals():
     assert gaps == [{"stage": "build", "run_id": "run", "reason": "source-lost"}]
 
 
-def test_runs_union_within_stage_only_and_all_six_stages():
+def test_runs_union_within_stage_only_and_all_four_stages():
     rows = run() + activity()
     retry = [dict(row, run_id="retry", event_id="retry-" + row["event_id"]) for row in rows]
     for row in retry:
@@ -121,7 +121,7 @@ def test_runs_union_within_stage_only_and_all_six_stages():
     result = timing_report.track_timing(rows, [])
     assert list(result) == ledger.stage_ids()
     assert result["build"]["elapsed_ms"] == result["verify"]["elapsed_ms"] == 30000
-    assert result["intake"]["timing_status"] == "no-data"
+    assert result["ship"]["timing_status"] == "no-data"
 
 
 def test_reruns_with_disjoint_work_accumulate_in_one_stage():

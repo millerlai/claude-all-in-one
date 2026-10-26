@@ -70,9 +70,13 @@ def resolve(track_root):
 
 def table_stage_ids(state_path):
     """The stage id in each of state.md's table rows, in file order. The
-    definition of "a row" lives in preflight.data_rows() and only there."""
+    definition of "a row" lives in preflight.data_rows() and only there.
+    Retired stages are left out: a track begun before a merge still has
+    their rows, and they must not read as a disagreement with stages.json."""
+    retired = ledger.retired_stage_ids()
     with open(state_path, encoding="utf-8") as fh:
-        return [cells[0] for cells in preflight.data_rows(fh.read())]
+        return [cells[0] for cells in preflight.data_rows(fh.read())
+                if cells[0] not in retired]
 
 
 def bad_statuses(track_dir, order):
@@ -130,6 +134,9 @@ def pending_lines(track_dir):
         data = pending.load(path)
     except pending.PendingError as exc:
         return ["pending: %s; ignored" % exc]
+    if data["stage"] in ledger.retired_stage_ids():
+        return ["pending: %s is for %s, which is retired; ignored"
+                % (pending.FILE_NAME, data["stage"])]
     row = preflight.state_row(track_dir, data["stage"])
     status = row[1] if row and len(row) > 1 else ""
     if status in ("done", "skipped"):

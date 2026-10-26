@@ -160,8 +160,8 @@ def probes(text):
         if blocks else "no option to check")
 
     # The marker, not the closing sentence, is what says which option was
-    # picked: it is the same literal stage-design.md and stage-intake.md
-    # already ask for, and it survives being read in any language.
+    # picked: it is the same literal stage-design.md already asks for, and it
+    # survives being read in any language.
     marked = [title[:24] for title, _, _ in blocks if RECOMMENDED.search(title)]
     yield len(marked) == 1, "one_recommended (%s)" % (
         "; ".join(marked) if marked else "no option title carries `(recommended)`")

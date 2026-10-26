@@ -57,6 +57,7 @@ def _records(events):
 
 def _intervals(events):
     intervals = {stage: [] for stage in ledger.stage_ids()}
+    retired = ledger.retired_stage_ids()
     gaps = []
     activities = {}
     for event in events:
@@ -81,7 +82,7 @@ def _intervals(events):
             if len(runs) != 1:
                 reason = "binding-ambiguous" if runs else "binding-missing"
             else:
-                intervals[begin[0]["stage"]].append((begin[0]["at_ms"], end[0]["at_ms"]))
+                intervals[ledger.folded(begin[0]["stage"], retired)].append((begin[0]["at_ms"], end[0]["at_ms"]))
                 continue
         gaps.append(_gap(rows[0], reason))
     return intervals, gaps
@@ -143,8 +144,10 @@ def track_timing(events: list[dict], problems: list[str]) -> dict[str, dict]:
     intervals, activity_gaps = _intervals(records)
     gaps += activity_gaps + _run_gaps(records)
     reasons = {stage: set(problems) for stage in ledger.stage_ids()}
+    retired = ledger.retired_stage_ids()
     for gap in gaps:
-        stages = [gap["stage"]] if gap["stage"] in reasons else reasons
+        gap_stage = ledger.folded(gap["stage"], retired)
+        stages = [gap_stage] if gap_stage in reasons else reasons
         for stage in stages:
             reasons[stage].add(gap["reason"])
     # An unsupported version prevents interpreting any part of that file as format 1.
@@ -156,7 +159,8 @@ def track_timing(events: list[dict], problems: list[str]) -> dict[str, dict]:
             intervals[stage] = []
     result = {}
     for stage in ledger.stage_ids():
-        present = any(row.get("stage") == stage for row in events if isinstance(row, dict))
+        present = any(ledger.folded(row.get("stage"), retired) == stage
+                      for row in events if isinstance(row, dict))
         status = "incomplete" if reasons[stage] else "complete" if present else "no-data"
         elapsed = union_ms(intervals[stage]) if intervals[stage] or status == "complete" else None
         result[stage] = {"elapsed_ms": elapsed, "timing_status": status,

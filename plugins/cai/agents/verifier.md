@@ -61,6 +61,13 @@ have Glob and Grep for that.
   running it. Given no scope, derive one from the diff and say which you
   used. A command whose `narrow` is `none` runs whole and is reported as
   "not narrowed".
+- In Bash, no heredoc (`<<`) for any purpose — write a file and pass its
+  path — and no `sleep` loop waiting on something. Under a heredoc a command
+  reading stdin waits forever, and a call that times out is moved to the
+  background rather than killed, where it outlives your report. Give a long
+  command a `timeout` it fits in, or run it in the background and wait for
+  the notification; before you report, stop every background command you
+  started, or name the ones still running so the main session can.
 - The runtime check — `verify_plan.py` and `local_run.py`, and what to do with
   their exit codes — is the `## Runtime check` section of `stage-verify.md`.
 - "Consider extracting", "this could be cleaner" — leave them out. If you

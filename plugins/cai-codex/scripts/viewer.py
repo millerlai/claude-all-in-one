@@ -727,7 +727,7 @@ const STRINGS_ZH_HANT = {
   "timing.run-closed": "執行已關閉"
 };
 const STRINGS = {'en': STRINGS_EN, 'zh-Hant': STRINGS_ZH_HANT};
-const STAGES = ['intake','discover','design','build','verify','ship'];
+const STAGES = __STAGES__;
 // A human gate sits in front of these two stages (after design; before ship's irreversible steps).
 const GATED = new Set(['build','ship']);
 const META = {
@@ -1254,6 +1254,16 @@ setInterval(tick, 1000);
 </body>
 </html>
 """
+
+
+def with_stages(html):
+    """`html` with the page's stage list taken from stages.json. Done once at
+    import, not per request, because the page's own tests run the template's
+    JS as it stands and need a real list in it."""
+    return html.replace("__STAGES__", json.dumps(track_state.stage_ids()))
+
+
+PAGE_HTML = with_stages(PAGE_HTML)
 
 
 class ViewerServer(http.server.ThreadingHTTPServer):

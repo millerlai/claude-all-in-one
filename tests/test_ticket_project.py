@@ -30,11 +30,9 @@ import fake_gh
 
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(ticket.__file__))
 
-STAGE_IDS = ["intake", "discover", "design", "build", "verify", "ship"]
+STAGE_IDS = ["design", "build", "verify", "ship"]
 
-SIX_ROWS = [
-    ("intake", "done", "docs/design/x-intake.md", "signed off"),
-    ("discover", "skipped", "—", "reason: closed at the program layer"),
+FOUR_ROWS = [
     ("design", "done", "docs/design/x-detail.md", "HLD and detail both signed off"),
     ("build", "passed", "—", ""),
     ("verify", "", "", ""),
@@ -42,7 +40,7 @@ SIX_ROWS = [
 ]
 
 
-def make_state_md(track_dir, rows=SIX_ROWS):
+def make_state_md(track_dir, rows=FOUR_ROWS):
     lines = ["# fixture", "", "branch: feat/fixture", "started: 2026-08-29", "",
              "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]

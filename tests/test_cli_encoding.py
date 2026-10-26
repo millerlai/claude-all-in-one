@@ -18,8 +18,7 @@ import ledger
 SCRIPTS = os.path.dirname(ledger.__file__)
 REASON = "三個未知都在別的 repo"
 
-ROWS = [("intake", "done", "—", ""), ("discover", "", "", ""),
-        ("design", "", "", ""), ("build", "", "", ""),
+ROWS = [("design", "done", "—", ""), ("build", "", "", ""),
         ("verify", "", "", ""), ("ship", "", "", "")]
 
 
@@ -42,7 +41,7 @@ def run(script, *args):
 
 def test_track_state_status_prints_utf8(tmp_path):
     rows = list(ROWS)
-    rows[1] = ("discover", "skipped", "—", REASON)
+    rows[1] = ("build", "skipped", "—", REASON)
     root, _ = make_track(tmp_path, rows)
 
     done = run("track_state.py", "status", "--track-root", root)
@@ -52,7 +51,7 @@ def test_track_state_status_prints_utf8(tmp_path):
 
 def test_ledger_show_prints_utf8(tmp_path):
     _, track = make_track(tmp_path)
-    ledger.append(track, "discover", "failed", note=REASON)
+    ledger.append(track, "design", "failed", note=REASON)
 
     done = run("ledger.py", "show", "--track-dir", track)
     assert done.returncode == 0, done.stderr
@@ -76,8 +75,8 @@ def test_options_lint_quotes_the_option_title_in_utf8(tmp_path):
 def test_preflight_quotes_the_notes_in_utf8(tmp_path):
     _, track = make_track(tmp_path)
     for _ in range(5):
-        ledger.append(track, "discover", "failed", note=REASON)
+        ledger.append(track, "design", "failed", note=REASON)
 
-    done = run("preflight.py", "discover", "--track-dir", track)
+    done = run("preflight.py", "design", "--track-dir", track)
     assert done.returncode == 2
     assert REASON in done.stdout.decode("utf-8")

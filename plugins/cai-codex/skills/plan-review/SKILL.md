@@ -288,10 +288,53 @@ absorbed the older `## Sequence`: one table carrying each unit, what blocks it,
 and what "done" means for it answers both the ordering question and the question
 a single-threaded sequence never could, which is who can start now.
 
+**Single design document** — the long path's one file, written section by
+section (stance, then decisions, then detail) and reviewed against the section
+skeleton above that matches whichever section was just written:
+
+```md
+## Diagnosis    only when a bug escalated into a feature; its root cause, as the Diagnosis skeleton
+## Stance       the Stance skeleton
+## Decisions    the Decisions skeleton
+## Detail       the Detail skeleton
+```
+
+Inside each section the headings are one level deeper (`###`, and `####` for
+a Tier entry or a traceability table), and only Diagnosis and Stance carry a
+`### Status`. Decisions is complete when every Tier 1 entry has a `Decided:`
+line; Detail has no status of its own, because Gate 1 fingerprints the whole
+file. Findings specific to this one: a section present while the section it
+depends on is absent (Decisions without Stance, Detail without either); an
+edit to an earlier section made while writing a later one (each mode adds its
+own section and leaves the rest alone); and a Detail section that does not
+carry the stance's use-case ids itself, since the probe looks for them only
+there.
+
+**Short-path `intake.md`** — a change with no hard-to-undo signal; this one
+file is what Gate 1 signs and what `verify` reads its criteria from:
+
+```md
+## Problem statement        what is wanted, for whom, in the user's terms
+## Acceptance criteria      AC1, AC2, ... each an observable outcome and how to check it
+## Recommended approach     the approach chosen, and why it beat the others
+## Signals                  three rows — Blast radius, Found out when, Undo cost — each low, high or unanswerable, with evidence
+## Verification levels      one row per AC: test, local-run, deployed or manual, and the check
+```
+
+Only `## Signals` and `## Verification levels` are read by a program; the
+other three headings name the parts and may be worded differently.
+Findings specific to this one: a `high` or `low` row with no `file:line` or URL
+behind it; an `unanswerable` row with no reason; and a row judged `low` that a
+single sentence of the approach contradicts (a second component, a data
+migration, a published format). A row the evidence cannot settle is not `high`
+on the short path; the review asks whether the document should have gone the
+long way, and puts that question in section 4.
+
 Anything a document needs beyond its own skeleton, the document should justify.
 
-Both skeletons are shaped to be checkable rather than merely conventional.
-`<plugin-root>/scripts/design_probe.py --kind hld|detail <doc>` reads either one
+All of these are shaped to be checkable rather than merely conventional.
+`<plugin-root>/scripts/design_probe.py --kind hld|detail|design|intake <doc>`
+reads the matching one
 and answers the questions that have a single answer — headings present and
 filled, every capability carrying an id and a citation, every capability cited
 by some option, no recommendation resting on something unverified, every use
@@ -317,7 +360,7 @@ and nothing you find by reading closes a hole it has already named.
   code.
 - The plan is already agreed and the question is whether the *code* matches it
   — that is a code review.
-- The requirements themselves are the unknown. That is the `discover` stage (`$discover`);
+- The requirements themselves are the unknown. That is `$discover`;
   come back here once there is something to trace against.
 - There is no document yet and one is needed. `$design` writes them in
   order — stance, then decisions, then detail; each gathers the evidence

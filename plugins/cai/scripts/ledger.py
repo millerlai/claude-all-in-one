@@ -102,6 +102,27 @@ def stage_ids():
         return [row["id"] for row in json.load(fh)["stages"]]
 
 
+# A retired stage's rows, journal events and ledger records live on in tracks
+# begun before the stage was merged away; readers fold them into this one.
+MERGED_INTO = "design"
+
+
+def retired_stage_ids():
+    """Stage ids stages.json lists under `retired`; () when it has none.
+    Raises like stage_ids() when the file cannot be read."""
+    with open(STAGES_JSON, encoding="utf-8") as fh:
+        return tuple(json.load(fh).get("retired", ()))
+
+
+def folded(stage, retired=None):
+    """`stage`, or MERGED_INTO when it is retired. Callers looping over
+    records pass `retired` read once, so a long ledger is not one stages.json
+    read per record (#322)."""
+    if retired is None:
+        retired = retired_stage_ids()
+    return MERGED_INTO if stage in retired else stage
+
+
 def _path(track_dir):
     return os.path.join(track_dir, LEDGER_NAME)
 

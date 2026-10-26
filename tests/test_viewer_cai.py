@@ -10,7 +10,7 @@ import os
 
 import viewer
 
-STAGE_IDS = ["intake", "discover", "design", "build", "verify", "ship"]
+STAGE_IDS = ["design", "build", "verify", "ship"]
 
 
 def _state_md(statuses):
@@ -55,8 +55,7 @@ def _setup_project(tmp_path):
 
 def test_session_id_match_gives_confirmed_track(tmp_path):
     project_root, track_root = _setup_project(tmp_path)
-    statuses = {"intake": ("done", "—", ""), "discover": ("done", "—", ""),
-                "design": ("done", "x-decisions.md", ""), "build": ("", "—", ""),
+    statuses = {"design": ("done", "x-decisions.md", ""), "build": ("", "—", ""),
                 "verify": ("", "—", ""), "ship": ("", "—", "")}
     _write_track(track_root, "feat-a", statuses,
                  ledger_records=[_ledger_record("design", "sess-123")])
@@ -67,7 +66,6 @@ def test_session_id_match_gives_confirmed_track(tmp_path):
     assert result["name"] == "feat-a"
     assert result["certainty"] == "confirmed"
     assert [{"id": s["id"], "status": s["status"]} for s in result["stages"]] == [
-        {"id": "intake", "status": "done"}, {"id": "discover", "status": "done"},
         {"id": "design", "status": "done"}, {"id": "build", "status": ""},
         {"id": "verify", "status": ""}, {"id": "ship", "status": ""}]
     assert result["current"] == "build"
@@ -86,7 +84,7 @@ def test_stages_read_one_summary_and_preserve_status(tmp_path, monkeypatch):
     monkeypatch.setattr(viewer.timing_report, "timing_report", report)
     stages = viewer._build_stages(str(track))
     assert calls == [str(track)]
-    assert stages[3] == {"id": "build", "status": "failed", **summary["build"]}
+    assert stages[1] == {"id": "build", "status": "failed", **summary["build"]}
 
 
 def test_stages_missing_and_corrupt_journals_are_read_only(tmp_path):

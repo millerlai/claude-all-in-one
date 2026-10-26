@@ -39,6 +39,6 @@
 - Prefer the cai plugin agents when they match. Each one already carries its own
   tier, so name the agent and let its frontmatter decide the model — do not
   restate the model in prose. The track skill's stages dispatch to
-  `cai_architect` (intake, discover) → `cai_designer` (design) → `cai_implementer` (build)
-  → `cai_verifier` (verify) → `cai_shipper` (ship); `cai_explorer`, `cai_test-runner`, and
-  `cai_reviewer` are called in from other skills as needed.
+  `cai_designer` (design) → `cai_implementer` (build) → `cai_verifier` (verify) →
+  `cai_shipper` (ship); `cai_architect`, `cai_explorer`, `cai_test-runner`, and `cai_reviewer` are
+  called in from other skills as needed.

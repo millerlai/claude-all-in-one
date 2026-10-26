@@ -54,7 +54,19 @@ UNTRACKED_BASELINE_NAME = "untracked-at-start.json"
 # carries no separate field for this -- the filename is the convention.
 SUFFIX_KIND = {"-diagnosis.md": "diagnosis", "-stance.md": "stance",
                "-decisions.md": "decisions", "-high-level.md": "hld",
-               "-detail.md": "detail", "-delta.md": "delta"}
+               "-detail.md": "detail", "-delta.md": "delta",
+               "-design.md": "design"}
+# The short path's design row names `intake.md` itself, which has no `-<kind>`
+# suffix to match. The whole basename is compared, so `my-intake.md` is not one.
+NAME_KIND = {"intake.md": "intake"}
+
+
+def document_kind(artifact):
+    """The design-row file's kind, or None when it matches nothing."""
+    base = os.path.basename(artifact.replace("\\", "/"))
+    if base in NAME_KIND:
+        return NAME_KIND[base]
+    return next((k for suffix, k in SUFFIX_KIND.items() if artifact.endswith(suffix)), None)
 
 
 def resolve(rel, *bases):
@@ -108,6 +120,19 @@ def left_open_items(state_text):
     return out
 
 
+def retired_rows(track_dir):
+    """Ids of state.md's rows that stages.json lists as retired; [] when
+    state.md is missing. Read through data_rows(), not track_state's
+    table_stage_ids(), which hides exactly these rows -- a track that still
+    has them was begun before the stage was merged away."""
+    path = os.path.join(track_dir, "state.md")
+    if not os.path.isfile(path):
+        return []
+    retired = ledger.retired_stage_ids()
+    with open(path, encoding="utf-8") as fh:
+        return [cells[0] for cells in data_rows(fh.read()) if cells[0] in retired]
+
+
 def state_row(track_dir, stage_id):
     """The stage table row in state.md, as a list of trimmed cells, or None
     when state.md is missing or names no such row. Not being able to read it
@@ -127,12 +152,19 @@ def state_row(track_dir, stage_id):
 def intake_document(track_dir):
     """Checks for the file `verify` reads its acceptance criteria from (#376).
 
-    Only once the intake row is `done`: the main session writes `intake.md`
-    when intake passes (stage-intake.md Step 5), and a skipped or unfinished
-    intake owes none. A missing file used to be silent -- verify_plan.py just
-    planned from nothing. A legacy intake (no `## Verification levels`, exit 4
-    of `verify_plan.py levels`) is not blocked; an invalid table (exit 5) is."""
-    row = state_row(track_dir, "intake")
+    Run by `build`: the main session writes `intake.md` when the design stage
+    reports (stage-design.md, "Hand the requirement back"), so it exists once
+    the design row is `done` and not before. A missing file used to be silent
+    -- verify_plan.py just planned from nothing. A legacy intake (no
+    `## Verification levels`, exit 4 of `verify_plan.py levels`) is not
+    blocked; an invalid table (exit 5) is.
+
+    A track begun before intake was merged into design still has that row, and
+    keeps the rule it started under: the file is owed only when the intake row
+    is `done`, since a skipped intake owes none and its design row says
+    nothing about one."""
+    owner = "intake" if retired_rows(track_dir) else "design"
+    row = state_row(track_dir, owner)
     if row is None or (row[1] if len(row) > 1 else "") != "done":
         return []
     path = os.path.join(track_dir, verify_plan.INTAKE_NAME)
@@ -140,17 +172,92 @@ def intake_document(track_dir):
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
     except (OSError, UnicodeDecodeError) as exc:
-        return [(False, "intake_document (intake is done but %s cannot be read: %s -- "
-                        "the main session writes the intake report there, "
-                        "stage-intake.md Step 5)" % (path, exc))]
+        return [(False, "intake_document (%s is done but %s cannot be read: %s -- "
+                        "the main session writes the design report's intake document "
+                        "there, stage-design.md)" % (owner, path, exc))]
     levels = verify_plan.read_levels(text)
     if levels["status"] == "invalid":
         return [(False, "intake_document (%s: %s)" % (path, "; ".join(levels["problems"])))]
     return [(True, "intake_document (%s, verification levels %s)" % (path, levels["status"]))]
 
 
+# One line, written by the main session after it saves `intake.md` and before
+# Gate 1 takes the fingerprint: Gate 1 binds a single file, and `intake.md` is
+# not that file on the long or the bug path.
+AC_LINE = re.compile(r"^[ \t]*AC:[ \t]*(\S+)[ \t]+sha256[ \t]+([0-9a-fA-F]{64})[ \t]*$", re.M)
+
+
+def intake_unchanged(track_dir, project_dir):
+    """Proves `intake.md` is the one the person signed for, when the design row
+    names a document that is not `intake.md` itself.
+
+    The recorded digest lives in the design document, so it is inside Gate 1's
+    fingerprint; the digest of `intake.md` as it stands now is compared with it.
+    Nothing is returned when the design row names no readable document: the
+    other build checks already say so."""
+    row = state_row(track_dir, "design")
+    artifact = row[2] if row is not None and len(row) > 2 else ""
+    if not artifact or artifact == "—":
+        return []
+    doc = resolve(artifact, project_dir, track_dir)
+    if doc is None:
+        return []
+
+    kind = document_kind(artifact)
+    if kind == "intake":
+        return [(True, "intake_unchanged (the design row is intake.md itself, "
+                       "which Gate 1's own fingerprint covers)")]
+    # A stand-alone -detail.md is the design row of the diagnosis -> Detail
+    # route; only a track begun before the merge (retired rows) signed one
+    # without the line.
+    if kind not in ("design", "diagnosis") and not (kind == "detail"
+                                                    and not retired_rows(track_dir)):
+        return [(True, "intake_unchanged (not checked: %s is a %s document, signed "
+                       "before intake.md was fingerprinted this way)"
+                 % (artifact, kind or "legacy"))]
+
+    with open(doc, encoding="utf-8") as fh:
+        text = design_probe.COMMENT.sub("", fh.read())
+    # Where the line sits: anywhere in a design file (its last section may be
+    # Stance or Decisions, not Detail), under `## Reference` in a stand-alone
+    # detail document, at the end of `## Failing test` in a diagnosis.
+    if kind == "design":
+        held = text
+    else:
+        held = design_probe.sections(text).get(
+            "Reference" if kind == "detail" else "Failing test", "")
+    found = AC_LINE.search(held)
+    if found is None:
+        if retired_rows(track_dir):
+            # Adding the line now would change the fingerprint Gate 1 took
+            # before the upgrade, so a track signed then is left as it was.
+            return [(True, "intake_unchanged (signed off before the upgrade: %s has no AC: "
+                           "line, and adding one would change Gate 1's fingerprint)" % artifact)]
+        where = {"design": "at the end of the last section (under the Detail "
+                           "section's ### Reference when there is one)",
+                 "detail": "under ## Reference"}.get(kind, "at the end of ## Failing test")
+        return [(False, "intake_unchanged (%s has no `AC: <intake.md path> sha256 <hex>` "
+                        "line %s -- the main session adds it after saving intake.md and "
+                        "before Gate 1; then re-sign Gate 1)" % (artifact, where))]
+
+    recorded = found.group(2).lower()
+    try:
+        with open(os.path.join(track_dir, verify_plan.INTAKE_NAME), "rb") as fh:
+            current = hashlib.sha256(fh.read()).hexdigest()
+    except OSError as exc:
+        return [(False, "intake_unchanged (%s records an intake.md digest, but it cannot "
+                        "be read: %s)" % (artifact, exc))]
+    if recorded != current:
+        return [(False, "intake_unchanged (intake.md changed after sign-off: %s != %s -- "
+                        "re-sign Gate 1)" % (recorded, current))]
+    return [(True, "intake_unchanged (intake.md matches the AC: line in %s)" % artifact)]
+
+
 def design(track_dir, project_dir):
-    return intake_document(track_dir) + _design(track_dir, project_dir)
+    # The three checks the retired intake stage ran come first: design is now
+    # the first stage, so it is where a track is refused on main, under a
+    # reserved name. `intake.md` is not asked for -- this stage writes it.
+    return _start_checks(track_dir, project_dir) + _design(track_dir, project_dir)
 
 
 def _design(track_dir, project_dir):
@@ -176,14 +283,10 @@ def _design(track_dir, project_dir):
         # artifact_unchanged checks.
         return [(True, "artifact_named (no design document yet -- this stage writes it)")]
 
-    kind = None
-    for suffix, k in SUFFIX_KIND.items():
-        if artifact.endswith(suffix):
-            kind = k
-            break
+    kind = document_kind(artifact)
     if kind is None:
         return [(False, "artifact_kind (%s matches none of %s)"
-                 % (artifact, ", ".join(sorted(SUFFIX_KIND))))]
+                 % (artifact, ", ".join(sorted([*SUFFIX_KIND, *NAME_KIND]))))]
 
     # Citations inside the document are project-root relative (design_probe's
     # own roots convention), so look there first and fall back to the track
@@ -192,6 +295,11 @@ def _design(track_dir, project_dir):
     if doc is None:
         return [(False, "artifact_exists (%s not found)" % artifact)]
 
+    return probe_checks(kind, doc, project_dir)
+
+
+def probe_checks(kind, doc, project_dir):
+    """design_probe.py's PASS/FAIL lines for one document, as (ok, label)."""
     done = subprocess.run(
         [sys.executable, DESIGN_PROBE, "--kind", kind, "--project-dir", project_dir, doc],
         capture_output=True, text=True)
@@ -399,7 +507,7 @@ def current_branch(cwd):
     off a protected branch. Not knowing is a reason to block, not to continue.
 
     symbolic-ref still answers on an unborn HEAD (a freshly-init'd repo with
-    no commits), which is what intake needs before the first commit exists."""
+    no commits), which is what design needs before the first commit exists."""
     done = git(cwd, "symbolic-ref", "--short", "HEAD")
     if done is None:
         return UNKNOWN_BRANCH
@@ -417,7 +525,7 @@ def active_tracks(track_root):
                   if n != "done" and os.path.isdir(os.path.join(track_root, n)))
 
 
-def intake(track_dir, project_dir):
+def _start_checks(track_dir, project_dir):
     repo = is_git_repo(project_dir)
     if repo is GIT_DID_NOT_ANSWER:
         branch_check = (False, "not_main_branch (git did not answer)")
@@ -442,7 +550,7 @@ def intake(track_dir, project_dir):
 def track_ignored(track_dir, project_dir):
     """Whether git ignores this track's own files. Reports, never blocks.
 
-    It reports at `intake` because that is where the fix is one line, while
+    It reports at `design` (the first stage) because that is where the fix is one line, while
     the bill arrives at `ship`: that stage requires a clean working tree, and
     a track whose state.md and ledger are tracked makes the tree dirty simply
     by existing. What the person sees then is `clean_tree (working tree has
@@ -469,16 +577,6 @@ def track_ignored(track_dir, project_dir):
                   "does not block ship (#198), but committing one and then "
                   "changing it does, and ship's clean_tree will name it "
                   "without saying why it's there)" % track_dir)
-
-
-def discover(track_dir, project_dir):
-    row = state_row(track_dir, "intake")
-    if row is None:
-        return [(False, "state_md (cannot read state.md or find the intake row)")]
-    status = row[1] if len(row) > 1 else ""
-    ok = status in ledger.COUNTS_AS_FINISHED
-    return [(ok, "intake_status (intake row's status is %s)" % (status or "empty")),
-            *intake_document(track_dir)]
 
 
 def _tier1_id(title, position):
@@ -517,7 +615,12 @@ def options_drafts(text, artifact, track_dir):
 
     Entries decided before this track's first ledger record owe no local
     draft. Ambiguous dates keep the draft requirement."""
-    if not artifact.endswith("-decisions.md"):
+    if artifact.endswith("-design.md"):
+        # The single design file keeps its Tier 1 entries one level deeper, in
+        # its `## Decisions` section; promoted, they read as a decisions file.
+        section = design_probe.sections(text).get("Decisions", "")
+        text = design_probe.promote(section)
+    elif not artifact.endswith("-decisions.md"):
         return [(True, "options_drafts (artifact is not a decisions document)")]
 
     tier1 = design_probe.entries(design_probe.sections(text).get("Tier 1", ""))
@@ -614,6 +717,16 @@ def tier1_drafts(text, artifact, doc, track_dir, project_dir):
 
 
 def build(track_dir, project_dir):
+    # Spliced in after the two ledger checks rather than inside _build: every
+    # one of its early returns starts with them, and the file is owed
+    # whichever document the design row names -- `verify` plans from it, not
+    # from that document.
+    checks = _build(track_dir, project_dir)
+    return (checks[:2] + intake_document(track_dir)
+            + intake_unchanged(track_dir, project_dir) + checks[2:])
+
+
+def _build(track_dir, project_dir):
     # Computed first so they survive the early returns below: both start from
     # the ledger, so they still speak when state.md is the thing that is
     # broken -- and "the design changed after sign-off" (or was never signed
@@ -646,7 +759,14 @@ def build(track_dir, project_dir):
 
     with open(doc, encoding="utf-8") as fh:
         text = fh.read()
+    kind = document_kind(artifact)
     drafts = tier1_drafts(text, artifact, doc, track_dir, project_dir)
+    if kind == "intake":
+        # The short path's signed document is `intake.md`, and no other kind is
+        # probed here: design already probed those before Gate 1. This one
+        # carries the Signals the person approved, so a row lost since is
+        # named before build starts rather than discovered during it.
+        drafts = drafts + probe_checks(kind, doc, project_dir)
     has_breakdown = "## Work breakdown" in text
     if has_breakdown:
         return [unchanged, signed_off, (True, "work_breakdown (%s)" % artifact), *drafts]
@@ -664,8 +784,6 @@ def build(track_dir, project_dir):
     # work breakdown exists, and goal/SKILL.md routes the same document to
     # its whole-document lane. A gate stricter than the stage behind it is
     # the gate that is wrong.
-    kind = next((k for suffix, k in SUFFIX_KIND.items()
-                 if artifact.endswith(suffix)), None)
     if kind == "detail":
         return [unchanged, signed_off, (False, "work_breakdown (%s is a detail design and "
                                    "has no ## Work breakdown heading)" % artifact),
@@ -1346,8 +1464,7 @@ def ship(track_dir, project_dir):
             open_items_decided(track_dir)]
 
 
-STAGES = {"design": design, "intake": intake, "discover": discover,
-          "build": build, "verify": verify, "ship": ship}
+STAGES = {"design": design, "build": build, "verify": verify, "ship": ship}
 
 
 class ArgParser(argparse.ArgumentParser):

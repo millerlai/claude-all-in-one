@@ -32,12 +32,19 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import answers  # noqa: E402
+import ledger  # noqa: E402
 import preflight  # noqa: E402
 STAGES_JSON = os.path.join(HERE, "..", "skills", "track", "stages.json")
 FILE_NAME = "pending.md"
 FORMAT = 1
 MAX_ROUND = 3
-LABELS = ("Background", "Options", "Blocks")
+LABELS = ("Background", "Options", "Blocks", "Why asked")
+# What a `Why asked:` value starts with. Only the first is a question the
+# evidence could not settle, so only its answer is remembered per project
+# (answers.py); the rest are consent the person gives every time.
+WHY_VALUES = ("evidence-split", "gate", "irreversible", "outward")
+WHY_LINE = re.compile(r"^\s*Why asked:[ \t]*(.*)$", re.M)
 
 ASCII_NUMBER = re.compile(r"[0-9]+")
 TITLE = "# pending questions"
@@ -79,6 +86,13 @@ def read_input(path):
     return text.replace("\r\n", "\n").rstrip("\n")
 
 
+def why_asked(question_text):
+    """The `Why asked:` value of a saved question, or None for a file an old
+    release wrote, which has no such line."""
+    m = WHY_LINE.search(question_text)
+    return m.group(1).strip() if m else None
+
+
 def extract_questions(report):
     """Each question of the report's last `## Pending questions` section, as
     the exact lines the stage wrote, numbered 1..N."""
@@ -106,6 +120,9 @@ def extract_questions(report):
         for label in LABELS:
             if not re.search(r"^\s*%s:" % label, item, re.M):
                 raise PendingError("question %d has no `%s:` line" % (n, label))
+        if not why_asked(item).startswith(WHY_VALUES):
+            raise PendingError("question %d: `Why asked:` must start with one of %s"
+                               % (n, ", ".join(WHY_VALUES)))
         questions.append(item)
     return questions
 
@@ -220,7 +237,10 @@ def _path(track_dir):
 def _finished(track_dir, stage):
     """True when state.md says `stage` is done or skipped: its round can no
     longer be resumed, and `track_state.py status` already calls the file
-    stale and ignores it, so the writer must not let it block a later stage."""
+    stale and ignores it, so the writer must not let it block a later stage.
+    A retired stage has no row to be done, and its round can never resume."""
+    if stage in ledger.retired_stage_ids():
+        return True
     try:
         row = preflight.state_row(track_dir, stage)
     except (OSError, UnicodeDecodeError):
@@ -269,6 +289,26 @@ def answer(track_dir, number, answer_file):
     q["answer"] = text
     write_atomic(path, render(data["stage"], data["round"], data["questions"],
                               data["report"]))
+    return _remember(track_dir, q["text"], text)
+
+
+def _remember(track_dir, question, answer):
+    """The `answers:` line to print. Only an `evidence-split` answer is
+    appended to the project's answers.md; the answer is saved either way, so a
+    failed append costs the reuse and nothing else."""
+    why = why_asked(question)
+    if why is None:
+        return "answers: not recorded (no Why asked line)"
+    if not why.startswith("evidence-split"):
+        return "answers: not recorded (Why asked: %s)" % why
+    # <project>/.cai/track/<feature>, as track_state.py derives it.
+    track = os.path.abspath(track_dir)
+    project = os.path.dirname(os.path.dirname(os.path.dirname(track)))
+    try:
+        written = answers.append(project, os.path.basename(track), question, answer)
+    except OSError as exc:
+        return "answers: not appended (%s)" % exc
+    return "answers: appended to %s" % written
 
 
 def clear(track_dir, stage):
@@ -322,8 +362,9 @@ def main(argv=None):
                   args.stop)
             print("wrote %s" % os.path.join(args.track_dir, FILE_NAME))
         elif args.command == "answer":
-            answer(args.track_dir, args.question, args.answer_file)
+            line = answer(args.track_dir, args.question, args.answer_file)
             print("recorded the answer to question %d" % args.question)
+            print(line)
         else:
             print(clear(args.track_dir, args.stage))
     except PendingError as exc:

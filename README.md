@@ -6,26 +6,28 @@ A [Claude Code](https://claude.com/claude-code) plugin — with a generated
 Codex CLI counterpart, `cai-codex` — that installs a working set of everyday
 capabilities into every project on your machine: cheaper model routing, safer
 git, and a shared set of behavioural rules. Its centre is `/cai:track`, which
-carries one feature through six SDLC stages and keeps its state on disk, so a
+carries one feature through four SDLC stages and keeps its state on disk, so a
 new session can resume it where the last one stopped.
 
 ## How it fits together
 
 Four layers, plus one underneath all of them.
 
-- **The track.** `/cai:track <feature>` carries one feature through six SDLC
+- **The track.** `/cai:track <feature>` carries one feature through four SDLC
   stages, keeping state in `.cai/track/<feature>/state.md` so a new session
   with no memory of this conversation can resume it.
-- **The six stages.** `intake`, `discover`, `design`, `build`, `verify`,
-  `ship` — each also runs alone, track or no track. Exactly two stop for a
-  human sign-off, both as a menu you pick from: after `design`, before any code
-  exists, and before the irreversible steps inside `ship` — merging, tagging,
-  publishing.
+- **The four stages.** `design`, `build`, `verify`, `ship` — each also runs
+  alone, track or no track. `design` takes a short path (a change with nothing
+  hard to undo stops at the track's `intake.md`) or a long one (one sectioned
+  design document). Exactly two stop for a human sign-off, both as a menu you
+  pick from: after `design`, before any code exists, and before the
+  irreversible steps inside `ship` — merging, tagging, publishing.
+  `/cai:discover` is a standalone command, never a stage.
 - **The tools.** Reachable any time, with no track running — see
   [Commands](#commands).
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards, the smell-to-refactoring routing table, the
-  six stage procedures, and a template for each kind of design document.
+  four stage procedures, and a template for each kind of design document.
 
 Underneath all of it, small scripts (`preflight.py`, `track_state.py`,
 `design_probe.py`, `options_lint.py`, `validate.py`) settle what a
@@ -48,23 +50,18 @@ config:
 flowchart TB
     START(["/cai:track feature"]) --> S1
 
-    S1["intake<br/>a problem statement you can check"] --> S2
-    S2["discover<br/>what nobody knows yet"] --> S3
-    S3["design<br/>diagnosis or stance, then<br/>decisions, then detail"] --> HG1
-    HG1[/"human gate · menu<br/>sign off, no code exists yet"/] --> S4
-    S4["build<br/>the work breakdown, unit by unit"] --> S5
-    S5["verify<br/>four lenses over the diff"] --> S6
-    S6["ship<br/>one commit, plus a release note"] --> HG2
+    S1["design<br/>short path: intake.md only<br/>long path: one sectioned design document"] --> HG1
+    HG1[/"human gate · menu<br/>sign off, no code exists yet"/] --> S2
+    S2["build<br/>the work breakdown, unit by unit"] --> S3
+    S3["verify<br/>four lenses over the diff"] --> S4
+    S4["ship<br/>one commit, plus a release note"] --> HG2
     HG2[/"human gate · menu<br/>before merge, tag, publish"/] --> DONE(["/cai:track done"])
 
-    S1 -.-> AR
-    S2 -.-> AR
-    S3 -.-> DE
-    S4 -.-> IM
-    S5 -.-> VE
-    S6 -.-> SH
+    S1 -.-> DE
+    S2 -.-> IM
+    S3 -.-> VE
+    S4 -.-> SH
 
-    AR(["architect · think<br/>Read Grep Glob<br/>+ WebSearch, WebFetch"])
     DE(["designer · think<br/>+ Write"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
     VE(["verifier · build<br/>tests + git reads + Agent"])
@@ -76,26 +73,23 @@ flowchart TB
     classDef build fill:#e6eef3,stroke:#4a7c94,color:#1f3f4d
     classDef ends fill:#ffffff,stroke:#9aa5b1,color:#33404d
 
-    class S1,S2,S3,S4,S5,S6 stage
+    class S1,S2,S3,S4 stage
     class HG1,HG2 human
-    class AR,DE think
+    class DE think
     class IM,VE,SH build
     class START,DONE ends
 ```
 
-Why `architect` appears twice, and why an agent is picked by tool grant rather
-than by tier: [REFERENCE.md](REFERENCE.md#what-the-stage-diagram-cannot-show).
+Why an agent is picked by tool grant rather than by tier: [REFERENCE.md](REFERENCE.md#what-the-stage-diagram-cannot-show).
 
 ## Commands
 
-The six stages, each also runnable on its own:
+The four stages, each also runnable on its own:
 
 | Command | What it does |
 |---|---|
 | `/cai:track <feature>` | Create or resume a track. Also `status`, `skip <stage> --reason "<why>"`, and `done`. |
-| `/cai:intake` | Turn a request into an acceptance-testable problem statement before any code exists. |
-| `/cai:discover` | Surface what you don't know before writing code. |
-| `/cai:design` | Write a design document for review — diagnosis, stance, decisions, detail, or delta. |
+| `/cai:design` | Turn a request into an acceptance-testable problem statement and, when something is hard to undo, a design document for review — diagnosis, stance, decisions, detail, or delta. |
 | `/cai:build` | Build a design's work breakdown unit by unit, test-first. |
 | `/cai:verify` | Four read-only review lenses over a diff, then fix Blockers and Majors test-first. |
 | `/cai:ship` | Squash to one conventional commit and write a release note; stops before merge, tag or publish until a person confirms. |
@@ -104,6 +98,7 @@ Tools, reachable any time:
 
 | Command | What it does |
 |---|---|
+| `/cai:discover` | Surface what you don't know before writing code. Standalone: the track's `design` stage recommends it but never runs it. |
 | `/cai:debug` | Find the root cause of a bug before proposing any fix. |
 | `/cai:fix` | Fix a GitHub issue, the issues you pick from a list, a pull request's review threads, or one Jira ticket, and push the result with no stop in between: it pushes, opens pull requests and replies to review threads itself, and never merges. |
 | `/cai:fix-unclaim` | Clear one named local session claim left by `/cai:fix`, without waiting for it to expire. |
@@ -149,7 +144,7 @@ subagents, and the guard and hooks that are always on:
 `/cai:viewer` opens a local-only web page (by default `127.0.0.1:7788`) that
 lists every running Claude Code and Codex main session: which are waiting for
 your answer, which have finished and wait for instructions, and which are still
-running. A session that belongs to a `cai` track also shows its six stages and
+running. A session that belongs to a `cai` track also shows its stages and
 the time recorded in each. Filter by *Needs you*, *cai track* or *Other
 agents*, switch theme and language (English / 繁體中文), and optionally have it
 chime when a session needs you. The page only shows; you answer in the

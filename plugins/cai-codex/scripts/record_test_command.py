@@ -62,10 +62,12 @@ def record(project_dir, commands):
     cleaned = [c.strip() for c in commands]
     if not cleaned or any(not c or "\r" in c or "\n" in c for c in cleaned):
         raise ValueError("commands must be non-empty single-line strings")
-    path = os.path.join(project_dir, resolver.CONFIG_REL)
+    # The project's one cai.json, not this worktree's own (see cai_paths.config_path).
+    path, _ = cai_paths.config_path(project_dir, merge=True)
     data = _load(path)
     data.setdefault("test", {})["commands"] = cleaned
-    cai_paths.ensure_dir(project_dir)
+    # path may be the main checkout's, so make that one's .cai/ and .gitignore.
+    cai_paths.ensure_dir(os.path.dirname(os.path.dirname(path)))
     write_config(path, data)
     return path
 
@@ -81,6 +83,10 @@ def main(argv=None):
     # Before reading: a cai.json still under .claude/ holds keys this write keeps.
     for line in cai_paths.migrate(root):
         print("record_test_command: %s" % line, file=sys.stderr)
+    # record() asks again and merges nothing more; this call is the one whose
+    # note gets printed.
+    for line in cai_paths.config_path(root, merge=True)[1]:
+        print(line, file=sys.stderr)
     try:
         path = record(root, args.commands)
     except ConfigProblem as exc:

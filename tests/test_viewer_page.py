@@ -152,12 +152,12 @@ def _track_page_eval(expression, language="en"):
 def _complete_track(values, name="example"):
     return {"name": name, "stages": [
         {"id": stage, "timing_status": "complete", "elapsed_ms": ms}
-        for stage, ms in zip(("intake", "discover", "design", "build", "verify", "ship"), values)
+        for stage, ms in zip(("design", "build", "verify", "ship"), values)
     ]}
 
 
 def test_track_total_sums_canonical_stages_before_rounding():
-    track = _complete_track([600000, 660000, 720000, 780000, 840000, 1620000])
+    track = _complete_track([1260000, 780000, 840000, 2340000])
     track["stages"].reverse()
     track["stages"].append({"id": "extra", "timing_status": "complete", "elapsed_ms": 9000000})
     before = json.dumps(track)
@@ -165,8 +165,8 @@ def test_track_total_sums_canonical_stages_before_rounding():
         "Total Time: 01:27:00 of the track - example"
     assert _track_page_eval("(() => {const t = " + before +
                             "; trackTimingLabel(t); return t;})()") == track
-    tracks = [_complete_track([0] * 6), _complete_track([600, 0, 0, 0, 0, 0]),
-              _complete_track([600, 600, 0, 0, 0, 0])]
+    tracks = [_complete_track([0] * 4), _complete_track([600, 0, 0, 0]),
+              _complete_track([600, 600, 0, 0])]
     labels = _track_page_eval(json.dumps(tracks) + ".map(trackTimingLabel)")
     assert labels == ["Total Time: " + time + " of the track - example"
                       for time in ("00:00:00", "00:00:00", "00:00:01")]
@@ -177,7 +177,7 @@ def test_track_clock_boundaries_and_safe_integer_limit():
     assert _track_page_eval(json.dumps(values) + ".map(trackClockFmt)") == [
         "00:00:00", "00:00:59", "01:00:00", "01:27:00", "25:00:00", "100:00:00",
         "2501999792:59:00"]
-    track = _complete_track([9007199254740991, 0, 0, 0, 0, 0])
+    track = _complete_track([9007199254740991, 0, 0, 0])
     assert "2501999792:59:00" in _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")")
     track["stages"][1]["elapsed_ms"] = 1
     assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == \
@@ -190,12 +190,12 @@ def test_track_clock_boundaries_and_safe_integer_limit():
     ("zh-Hant", "總時間：{}，追蹤：example", "至少 {} · 資料不完整", "無資料", "資料不完整", "至少 {}"),
 ])
 def test_track_total_reliability_and_languages(language, outer, lower, no_data, incomplete, at_least):
-    stages = _complete_track([0] * 6)["stages"]
-    cases = [[], [{"id": "intake"}],
-             [{"id": "intake", "timing_status": "no-data", "elapsed_ms": None}],
-             [{"id": "intake", "timing_status": "incomplete"}], stages,
-             stages[:1], [{"id": "intake", "timing_status": "incomplete", "elapsed_ms": 70000}],
-             [{"id": "intake", "timing_status": "complete", "elapsed_ms": 70000},
+    stages = _complete_track([0] * 4)["stages"]
+    cases = [[], [{"id": "design"}],
+             [{"id": "design", "timing_status": "no-data", "elapsed_ms": None}],
+             [{"id": "design", "timing_status": "incomplete"}], stages,
+             stages[:1], [{"id": "design", "timing_status": "incomplete", "elapsed_ms": 70000}],
+             [{"id": "design", "timing_status": "complete", "elapsed_ms": 70000},
               {"id": "build", "timing_status": "incomplete"}]]
     tracks = [{"name": "example", "stages": case} for case in cases]
     # Stages not run yet make the sum a lower bound, not incomplete data (#348).
@@ -213,7 +213,7 @@ def test_track_total_reliability_and_languages(language, outer, lower, no_data, 
 def test_coverage_only_stage_is_a_lower_bound_not_incomplete_data(language, outer, at_least, lower, reason):
     # #348: no shipped source writes a coverage proof, so every measured stage
     # carries coverage-missing; that alone says "lower bound", not "broken data".
-    coverage = {"id": "intake", "elapsed_ms": 70000, "timing_status": "incomplete",
+    coverage = {"id": "design", "elapsed_ms": 70000, "timing_status": "incomplete",
                 "timing_reasons": ["coverage-missing"]}
     gap = {"id": "build", "elapsed_ms": 5000, "timing_status": "incomplete",
            "timing_reasons": ["coverage-missing", "event-missing"]}
@@ -249,7 +249,7 @@ def test_stage_time_of_an_hour_or_more_shows_hours():
     {"timing_status": None, "elapsed_ms": 1000},
 ])
 def test_track_total_rejects_invalid_measurements(bad_stage):
-    invalid = {"id": "intake", "timing_status": "complete", **bad_stage}
+    invalid = {"id": "design", "timing_status": "complete", **bad_stage}
     track = {"name": "example", "stages": [invalid]}
     assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == \
         "Total Time: Incomplete data of the track - example"
@@ -260,15 +260,15 @@ def test_track_total_rejects_invalid_measurements(bad_stage):
 
 def test_track_total_nonfinite_values_and_duplicate_stage_order():
     assert _track_page_eval("[NaN, Infinity, -Infinity].map(ms => trackTimingLabel("
-                            "{name:'example',stages:[{id:'intake',timing_status:'complete',elapsed_ms:ms}]}))") == [
+                            "{name:'example',stages:[{id:'design',timing_status:'complete',elapsed_ms:ms}]}))") == [
         "Total Time: Incomplete data of the track - example"] * 3
-    track = _complete_track([1000, 2000, 0, 0, 0, 0])
-    track["stages"].append({"id": "intake", "timing_status": "complete", "elapsed_ms": 5000})
+    track = _complete_track([1000, 2000, 0, 0])
+    track["stages"].append({"id": "design", "timing_status": "complete", "elapsed_ms": 5000})
     expected = "Total Time: At least 00:00:02 · Incomplete data of the track - example"
     assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == expected
     track["stages"].reverse()
     assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == expected
-    track["stages"] = [stage for stage in track["stages"] if stage["id"] == "intake"]
+    track["stages"] = [stage for stage in track["stages"] if stage["id"] == "design"]
     assert _track_page_eval("trackTimingLabel(" + json.dumps(track) + ")") == \
         "Total Time: Incomplete data of the track - example"
     assert _track_page_eval("stageTimingReasons({timing_reasons:['trackTotal']})") == "Reason unknown"
@@ -277,7 +277,7 @@ def test_track_total_nonfinite_values_and_duplicate_stage_order():
 @pytest.mark.parametrize("language,prefix", [("en", "Total Time:"), ("zh-Hant", "總時間：")])
 def test_track_total_in_actual_card_identity_and_safe_name(language, prefix):
     name = '<img src=x onerror="bad()"> & \' {time} {name}'
-    track = _complete_track([600000, 660000, 720000, 780000, 840000, 1620000], name)
+    track = _complete_track([1260000, 780000, 840000, 2340000], name)
     rows = [{"key": key, "state": "unknown", "project": "p", "platform": "codex",
              "since": 0, "sessionId": key, "aliveCertainty": "inferred", "track": t}
             for key, t in (("first", track), ("second", track), ("none", None))]

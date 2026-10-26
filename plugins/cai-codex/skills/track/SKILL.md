@@ -1,6 +1,6 @@
 ---
 name: track
-description: "One feature carried through every SDLC stage — intake, discover, design, build, verify, ship — with its state kept in .cai/track/ so a later session can resume where it stopped. Usage: $track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
+description: "One feature carried through every SDLC stage — design, build, verify, ship — with its state kept in .cai/track/ so a later session can resume where it stopped. Usage: $track [<feature>|status|skip <stage> --reason \"<why>\"|done]"
 argument-hint: "[<feature> [--here]|status|skip <stage> --reason \"<why>\"|done|cancel --reason \"<why>\"]"
 ---
 > `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
@@ -37,7 +37,7 @@ Reject `current` and `done` as names; an argument with `://` or only digits is
 a ticket, not a name — `references/ticket-mirror.md`. If `.cai/track/<feature>/`
 already exists, this is a resume: skip straight to the next unfinished
 stage `track_state.py status` names. Otherwise this is a new track. Before creating
-anything, run `<cai> track_start --track-dir .cai/track/<feature> --project-dir <project root>`, adding `--in-place` when the person typed `--here`, and relay what it prints. Exit 2 means stop, create nothing, and report exactly what it printed. With `--in-place` on `main`/`master` it pulls and branches to `track/<feature>` first, so intake never blocks on it. Exit 3 means the track gets its own git worktree, so several tracks can run side by side, one session each — the person's `$track` command is the request for that worktree. Its line names the one `EnterWorktree` call to make: `enter-worktree: name <n>` sets `name` to `<n>`, `enter-worktree: path <dir>` sets `path` to `<dir>`. Then start this section again from its first sentence, now inside the worktree: a track already there resumes, otherwise `track_start.py` exits 0 there. If the call fails, stop and report its error as it is; `--here` is the person's way to start without a worktree. If `EnterWorktree` is not among your tools at all, say so in one line and run `track_start.py` again with `--in-place`.
+anything, run `<cai> track_start --track-dir .cai/track/<feature> --project-dir <project root>`, adding `--in-place` when the person typed `--here`, and relay what it prints. Exit 2 means stop, create nothing, and report exactly what it printed. With `--in-place` on `main`/`master` it pulls and branches to `track/<feature>` first, so design never blocks on it. Exit 3 means the track gets its own git worktree, so several tracks can run side by side, one session each — the person's `$track` command is the request for that worktree. Its line names the one `EnterWorktree` call to make: `enter-worktree: name <n>` sets `name` to `<n>`, `enter-worktree: path <dir>` sets `path` to `<dir>`. Then start this section again from its first sentence, now inside the worktree: a track already there resumes, otherwise `track_start.py` exits 0 there. If the call fails, stop and report its error as it is; `--here` is the person's way to start without a worktree. If `EnterWorktree` is not among your tools at all, say so in one line and run `track_start.py` again with `--in-place`.
 
 Create `.cai/track/<feature>/state.md`, then `.cai/track/current`, then
 start the first stage below. The table: `| stage | status | artifact | note |`,
@@ -61,10 +61,10 @@ For the stage about to run:
    there before dispatching the stage's own agent, if any.
    Before handing the work over, run `<cai> timing begin
    --track-dir .cai/track/<feature> --stage <stage> --platform codex` and put the line
-   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first.
+   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first. Also run `<cai> answers path --project-dir <top>` and put `answers: <path>` in the dispatch prompt.
 3. **Record.** Once the report is back — a `## Pending questions` one too — first run
    `<cai> timing end --track-dir .cai/track/<feature> --run <run_id>`
-   (the value from step 2's line; a failure changes nothing). Then every attempt goes in the ledger, not only the ones that
+   (the value from step 2's line; a failure changes nothing). A command the report names as still running in the background, stop with TaskStop, or name it to the person when you cannot. Then every attempt goes in the ledger, not only the ones that
    worked — a stage whose failures leave no trace cannot say how many times
    it has been tried, or why it failed last time:
 
@@ -97,8 +97,8 @@ For the stage about to run:
 When `.cai/cai.json` enables ticket mirroring, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/ticket-mirror.md` for this stage: before dispatch in step 2, and after every `state.md` write above, including `$track skip`.
 Before `build`'s dispatch in step 2, you — the main session, not a subagent — settle the test command as `<cai-root>/skills/track/references/test-command.md`'s `## Before build` says. A missing one never stops the stage, and that section also says what `verify`'s dispatch carries after a skip.
 Before `build`'s and `verify`'s dispatch, you — the main session, not a subagent — quote in the brief the `commit_answer` line `preflight.py` printed; whoever commits, you included for what `verify` changed, runs `preflight.py` again right before every commit and acts on the line that run prints, as `<cai-root>/skills/track/references/approval-gates.md`'s Gate 1 and "Verify's changes, inside a track" say; under a track no menu asks whether to commit.
-Before `intake`, `discover` or `design`'s dispatch in step 2, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/codemap-brief.md`, which adds at most one line to the dispatch prompt, or tells the person once that a new worktree has no index of its own, and never stops the stage.
-When `intake` reports, you — the main session, not the read-only `cai_architect` — write the body of its `## Intake document` section, verbatim, to `.cai/track/<feature>/intake.md` before the approval menu, then record that path as the stage's `--artifact` and in its `state.md` row; `verify` plans from that file and `preflight.py` (`discover`, `design`) blocks without it.
+Before `design`'s dispatch in step 2, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/codemap-brief.md`, which adds at most one line to the dispatch prompt, or tells the person once that a new worktree has no index of its own, and never stops the stage.
+When `design` reports, you — the main session, not `cai_designer`, which writes only the design document — write the body of its `## Intake document` section, verbatim, to `.cai/track/<feature>/intake.md` before the approval menu; `verify` plans from that file and `preflight.py build` blocks without it. The stage's `--artifact` and `state.md` row name the design document, or `intake.md` itself on the short path, as `references/stage-design.md` says.
 A report ending in `## Pending questions` is not an outcome: before step 3, you — the main session, not a subagent — follow `<cai-root>/skills/track/references/pending-questions.md`, because no subagent can ask the person directly here either.
 A `pending:` section in `track_state.py status` means an earlier round of questions was never finished: ask its first `open` question as `references/pending-questions.md` says, then re-dispatch with its saved report, instead of running the stage again. After step 3 records `passed`, `failed` or `skipped`, run `<cai> pending clear --track-dir .cai/track/<feature> --stage <stage>`.
 ## Human gates

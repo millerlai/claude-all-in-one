@@ -369,13 +369,13 @@ def test_other_stops_and_reference_run_name_the_stop(tree):
     assert "`## Open items before ship`" in other
     table = _flat(raw[raw.index("\n### The reference run's stops\n"):
                       raw.index("\n## A menu that closes on its own\n")])
-    assert "six at most" in table
-    assert "seven at most" not in table
+    assert "five at most" in table  # U5: the lane stop went; the triage menu stays
+    assert "six at most" not in table
     assert "at least one open item" in table
     rows = [ln for ln in table.split(" | ") if ln.strip()]
-    assert re.search(r"\| 2 \| Open items before ship[^|]* \| "
+    assert re.search(r"\| 1 \| Open items before ship[^|]* \| "
                      r"`approval-gates.md` ", table)
-    assert "| 6 | Merge, the guard's permission prompt |" in table
+    assert "| 5 | Merge, the guard's permission prompt |" in table
     assert rows
 
 

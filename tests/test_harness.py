@@ -14,8 +14,7 @@ def test_plugin_scripts_are_importable():
     # stage_ids() reads stages.json relative to the script's own location, so
     # a passing call proves both halves: the module imported, and it found the
     # data file beside it rather than beside the test.
-    assert track_state.stage_ids() == [
-        "intake", "discover", "design", "build", "verify", "ship"]
+    assert track_state.stage_ids() == ["design", "build", "verify", "ship"]
 
 
 # --- Major-5: the suite must never write to the developer's real central

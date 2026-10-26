@@ -34,14 +34,23 @@ separately from the thing they look attached to.
 
 ## Gate 1 — the design sign-off, after `design` and before any code
 
-**What is being signed.** The `design` stage writes more than one document
-(`stage-design.md`), and they are not all signed here. What a person signs is
-the **stance** and the **answered Tier 1 decisions** — the two that were
-written to be read in full. The build spec is not signed: it is written for
+**What is being signed on the short path.** The signed document is `intake.md`
+itself: the problem statement, the acceptance criteria, the approach and its
+`## Signals`. The message above the menu lists every `## Signals` row as
+`Row: verdict — evidence`, and names each `unanswerable` row with its reason,
+so the person sees what the "no hard-to-undo signal" call rests on, not just
+the call. A `high` row the person kept on the short path (the `Short path:
+chosen by the person` line under the table) is listed like any other row.
+
+**What is being signed on the long path.** The `design` stage writes one
+`-design.md` (`stage-design.md`), and not all of it is signed here. What a
+person signs is its **Stance** section and the **answered Tier 1 entries** of
+its Decisions section — the parts written to be read in full. The Detail
+section (the build spec) is not signed: it is written for
 whoever builds, nobody reviews it line by line, and pretending otherwise is
-how a signature comes to mean "I gave up reading". Name the stance and
-decisions documents in the menu's message; name the build spec as the thing
-this authorises, not as the thing being read.
+how a signature comes to mean "I gave up reading". Name the document and those
+two parts in the menu's message; name the Detail section as the thing this
+authorises, not as the thing being read.
 
 That split is also what keeps re-signing possible. A change to a signed
 document invalidates the signature, so what gets signed has to stay small
@@ -62,8 +71,16 @@ lists, which of them its `Alongside` column pairs, the verify command each
 has to pass, and anything the documents leave for build to ask. With no
 `## Work breakdown`, say that build cuts the units itself and that the count
 is not known yet. Under a track this is the cost check: build's first pass
-does not stop when it has nothing to ask (`stage-build.md` Step 0.5), so a
-long pass is agreed to here or not at all.
+asks nothing under a track (`stage-build.md` Step 0.5), so a long pass is
+agreed to here or not at all.
+
+Before asking, when the design row names a `-design.md`, `-detail.md` or `-diagnosis.md`,
+save the report's `intake.md`, compute its sha256, and add the line
+`AC: <intake.md path> sha256 <hex>` to that document (in `-design.md` under the
+Detail section's `### Reference` when Detail exists, otherwise at the end of the
+last section present; in a stand-alone `-detail.md` under its `## Reference`;
+in `-diagnosis.md` at the end of `## Failing test`) — the Approve's fingerprint is taken afterwards, and
+`preflight.py build` refuses a missing line or a changed `intake.md`.
 
 Say the documents' paths and those four lines, then ask. Nothing in `build`
 starts until this is answered: `preflight.py build` refuses to start unless a `passed` record with
@@ -762,18 +779,39 @@ is only the shape — a menu, never a sentence to type a word back into. None
 of them spends one of `pending-questions.md`'s three rounds: that file's
 "What counts as a round" is the definition, and these are its stops:
 
-- `stage-intake.md` Step 5 — the problem statement, the route Step 2 derived
-  (broken, or never there) with its evidence, and the recommended approach,
-  before anything is designed.
-- `stage-design.md`'s cost-sizing — the four lines, before a pass that reads
-  a whole directory.
-- `stage-design.md`'s stance approval, at the end of Stance mode. Decisions
+A stop is kept only for one of four reasons, and each entry below names its
+own: `evidence-split` (the evidence and the stance cannot separate the options,
+so it turns on the person's preference or an unwritten requirement),
+`irreversible`, `outward`, or `gate` (one of the two human gates). Everything
+else is decided from the evidence, written as one line of what was chosen and
+on what grounds, and open to being overturned at Gate 1. The intake approval,
+the separate cost-sizing stop, the parallel-lane question and the detected
+test-command menu are not on this list: each is decided without asking.
+
+- Gate 1 and Gate 2's push — `gate`. Gate 1 is also the only stop on the short
+  path; a change with no hard-to-undo signal asks nothing before it.
+- `stage-design.md` Step 5 on the long path — `evidence-split`: whether the
+  request is worth the long path is the person's call. One menu carries the
+  problem statement, the acceptance criteria, the route Step 2 derived (broken,
+  or never there) with its evidence, the `Signals` rows that sent it long, the
+  recommended approach, and the four cost lines; it gives the reasons (each
+  `high` row with its evidence) and offers the long path (recommended) or the
+  short path anyway. A `high` row the person keeps on the short path is listed
+  at Gate 1 like any other row; there is no second cost stop
+  after it. With the stance question, the stance approval and Gate 1, the long
+  path's fixed stops are four. The diagnosis sign-off below is on a different
+  entrance and is not counted in them.
+- `stage-design.md`'s stance trade-off question, in Stance mode —
+  `evidence-split`: the trade a system makes is the person's preference.
+- `stage-design.md`'s stance approval — `evidence-split`: what it signs is the
+  trade the person chose, at the end of Stance mode. Decisions
   mode refuses to start on a `draft`, so this is a real stop — but it is
   inside the `design` stage, not after it, which is why it is here and not a
   third gate. Three options — Approve, Changes requested, Reject — and the
   same writer: the date goes into `## Status` when a person picks Approve,
   never when the stage decides its own work is done.
-- `stage-design.md`'s diagnosis sign-off, when Detail follows it. The root
+- `stage-design.md`'s diagnosis sign-off, when Detail follows it — `gate` on
+  the direct-to-build entrance, `evidence-split` otherwise. The root
   cause is approved there, in `## Status`, with no ledger row; Gate 1 comes
   after Detail, on the detail design. Going straight to `build`, the same
   stop is Gate 1 itself. When Detail follows, the menu is the stance
@@ -784,38 +822,44 @@ of them spends one of `pending-questions.md`'s three rounds: that file's
   stop, and Gate 1 asks again after the detail design. An extra approving
   option commits nothing; a missing one would leave a direct-to-build sign-off
   without its commit answer.
-- `stage-design.md`'s Tier 1 entries, in Decisions mode — one menu per entry,
+- `stage-design.md`'s Tier 1 entries, in Decisions mode — `evidence-split`,
+  each with its one sentence on why the evidence cannot separate the options;
+  one menu per entry,
   in dependency order, re-running the cost test on what remains after each
   answer. These are ordinary choices between ways forward, so unlike the two
   gates they **do** carry a `(recommended)` when the evidence supports one.
-- `stage-build.md` Step 0.5 — under a track, the parallel lane; standing
-  alone, commit per unit as well, asked first. One decision at most under a
-  track and up to two standing alone, one menu per turn; all handed up from
-  build's first pass in one hand-up, before any unit starts. With no lane
-  pair there is nothing to hand up and the first pass does not stop. The
-  lane is asked only when the commit answer is yes and the `Alongside`
-  column names a pair of units.
+- `stage-build.md` Step 0.5 — standing alone only, commit per unit, asked
+  first and as one menu: `irreversible`, since it is the person's consent to
+  commit. Under a track nothing is asked there: the commit answer is
+  Gate 1's, and the parallel lane opens by itself when that answer is yes and
+  the `Alongside` column names a pair of units.
 - `test-command.md`'s `## Before build` — which test command build uses, or
   Skip, asked by the main session before build's first dispatch and never
-  handed up. An ordinary choice, so it carries a `(recommended)`. A command
-  already declared in `.cai/cai.json`, or a skip already in the track's
-  notes, means no menu. Not counted against `pending-questions.md`'s rounds.
+  handed up, and only when the resolver finds several candidates or none, or
+  the declaration is invalid (`evidence-split`: the evidence cannot say which
+  command the person means). A single detected command is adopted and
+  recorded without a menu. An ordinary choice, so it carries a
+  `(recommended)`. A command already declared in `.cai/cai.json`, or a skip
+  already in the track's notes, means no menu. Not counted against
+  `pending-questions.md`'s rounds.
 - Gate 2's triage menu, inside a track once the pull request is open
-  (`### The triage menu` above) — whether to fix the Blockers and Majors the
-  pull request carries. An ordinary choice, so it carries a `(recommended)`:
-  Fix every Blocker/Major — except when the triage list has two to four
-  findings, where the question states the recommendation and no option is
-  marked. It sits inside Gate 2, not beside it, and is not
+  (`### The triage menu` above) — `evidence-split`: which findings are worth
+  fixing is the person's call. An ordinary choice, so it carries a
+  `(recommended)`: Fix every Blocker/Major — except when the triage list has
+  two to four findings, where the question states the recommendation and no
+  option is marked. It sits inside Gate 2, not beside it, and is not
   counted against `pending-questions.md`'s rounds.
-- `## Open items before ship` above — one menu for every open item build or
+- `## Open items before ship` above — `evidence-split`: one menu for every
+  open item build or
   verify left unfixed, grouped by severity, before `ship`'s first draft, and
   again at `/cai:track done` for any still undecided; a `filing` item is
   asked on its own. No option is marked `(recommended)`. It is asked by
   the main session and is not counted against `pending-questions.md`'s rounds.
-- `ticket-mirror.md`'s claim menu, when `/cai:track <ticket>` finds other cai
+- `ticket-mirror.md`'s claim menu — `evidence-split`: whether another session
+  is still working on the ticket cannot be read from the evidence. Asked when `/cai:track <ticket>` finds other cai
   claims on the ticket, before any directory exists. An ordinary choice: it
   recommends the first "Resume <name>" when one is offered, otherwise Stop.
-- `ticket-mirror.md`'s close menu at `/cai:track done` — asked only after
+- `ticket-mirror.md`'s close menu at `/cai:track done` — `outward`: asked only after
   `done`'s refusal check passed and the directory moved, so the track has
   already finished, and its answer writes nothing to `state.md` or the
   ledger. "Close #<number>" and "Leave it open", no `(recommended)` (the
@@ -827,22 +871,20 @@ here is the shape and the free-text slot, not a vocabulary.
 
 ### The reference run's stops
 
-Stops are counted on one run: ticket mirroring on, a design with no gaps, the
-one Step 0.5 question a track can ask asked, at least one open item before
-ship, one fix round, then a merge. The table counts
-the stops from Step 0.5 to the merge, six at most; Gate 1, intake, the
-ticket-name menu and the test-command menu before build also wait in that
+Stops are counted on one run: ticket mirroring on, a design with no gaps, at
+least one open item before ship, one fix round, then a merge. The table counts
+the stops after build starts, to the merge, five at most; Gate 1, the
+ticket-name menu and a test-command menu before build also wait in that
 run and are not counted here. The quotation
 beside each file name can be found word for word in that file.
 
 | # | Stop | Defined in | Asked when |
 |---|---|---|---|
-| 1 | Step 0.5 parallel lane | `stage-build.md` "The parallel lane itself." | Only when the commit answer is yes and two units' sides of the ownership map do not intersect. |
-| 2 | Open items before ship, one menu for every item | `approval-gates.md` "One menu for every item, in one turn." | Only when build or verify left an open item undecided, which the reference run has. |
-| 3 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
-| 4 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
-| 5 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
-| 6 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
+| 1 | Open items before ship, one menu for every item | `approval-gates.md` "One menu for every item, in one turn." | Only when build or verify left an open item undecided, which the reference run has. |
+| 2 | Gate 2 push menu, the squash included | `approval-gates.md` "The squash and the pull-request text ride in this one menu." | After the shipper has drafted both texts. |
+| 3 | Triage menu | `approval-gates.md` "The shape depends on how many Blockers and Majors the list carries" | When the open pull request carries a Blocker or Major and fewer than two fix rounds ran. |
+| 4 | Fix round push menu | `approval-gates.md` "to draft the new squash message and the new PR body" | After a fix round, before its push. |
+| 5 | Merge, the guard's permission prompt | `approval-gates.md` "the bash guard's permission prompt is the one place the person agrees" | At the merge: a platform that can ask raises the prompt, one that cannot has the guard deny it and the person runs the command themselves. |
 
 ## A menu that closes on its own
 
@@ -867,9 +909,8 @@ in this file does about one:
 | The open-items menus before ship (`## Open items before ship`) | The item stays `undecided` and ship waits. Asked again after the person next writes. |
 | The open-items menus at `done` | `done` stops before ticket mirroring and the move; nothing is written. |
 | Gate 2's merge, the bash guard's permission prompt | Not a menu. Whether it ever closes on its own is untested; a merge that did not run is recorded as `### The merge` says, never retried. |
-| Step 0.5 commit per unit, standing alone with no track | Treated as no, so the parallel lane stays off. Under a track there is no such menu: the answer is Gate 1's. |
-| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |
-| The test command before build (`test-command.md`) | Treated as Skip: nothing is written to `.cai/cai.json`, no detected command is used, and build starts with `Test command: skipped (the menu timed out)`. |
+| Step 0.5 commit per unit, standing alone with no track | Treated as no, so the parallel lane stays off and units run sequentially. Under a track there is no such menu: the answer is Gate 1's. |
+| The test command before build (`test-command.md`, exit 3, 4 or 5) | Treated as Skip: nothing is written to `.cai/cai.json`, and build starts with `Test command: skipped (the menu timed out)`. |
 | The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |
 | The claim menu (`ticket-mirror.md`) | Nothing is created, pointed or resumed, and `.cai/track/current` is not written. Left unanswered. |
 | Closing the ticket at `/cai:track done` (`ticket-mirror.md`) | `transition` does not run. Left unanswered: asked again when the person next writes in this session; a new session never asks it, since the track is already under `done/` and `current` is cleared. |
@@ -887,14 +928,15 @@ the same as if the person had never touched the menu — a partial draft is not
 a pick. When a result reports nothing selected, Claude never substitutes the
 `(recommended)` option as if the person had chosen it — a recommendation is a
 suggestion for a person to accept, not a default Claude reaches for on a
-timeout's behalf. That is not the same as the two rows above that already use
-whichever option a timeout does report selected, recommended label or not.
+timeout's behalf. That is not the same as the track-directory row above, which
+already uses whichever option a timeout does report selected, recommended label
+or not.
 
 Because a timed-out menu can pass silently otherwise, the run says one line
 per menu that timed out, naming the stop and the outcome applied above. At
-the two stops where a selected option is used rather than left unanswered —
-the parallel lane and the track-directory name — that line also names the
-option used, since the result reporting an option "selected" may just be
+the stop where a selected option is used rather than left unanswered — the
+track-directory name — that line also names the option used,
+since the result reporting an option "selected" may just be
 reporting wherever the cursor happened to be resting, not a real choice.
 Nothing here turns the setting on, and the track does not need it on to run;
 it only has to know what to do the day it happens to be.

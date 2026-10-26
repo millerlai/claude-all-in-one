@@ -1,6 +1,7 @@
-"""#309: intake no longer caps how many tracks may be open at once. The cap
+"""#309: starting a track no longer caps how many may be open at once. The cap
 blocked a sixth feature for no reason a person could act on -- how many
-features they carry is theirs to decide."""
+features they carry is theirs to decide. (The start checks ran in the intake
+stage then; they run in `design` now that intake is merged into it.)"""
 import os
 import subprocess
 import sys
@@ -18,14 +19,19 @@ def init_repo(path):
     return path
 
 
-def test_intake_passes_with_many_active_tracks(tmp_path):
+def test_design_passes_with_many_active_tracks(tmp_path):
     repo = init_repo(tmp_path / "repo")
     root = repo / ".cai" / "track"
     for i in range(10):
         (root / ("f%d" % i)).mkdir(parents=True)
+    (root / "f-new").mkdir()
+    (root / "f-new" / "state.md").write_text(
+        "| stage | status | artifact | note |\n|---|---|---|---|\n"
+        "| design | | | |\n| build | | | |\n| verify | | | |\n| ship | | | |\n",
+        encoding="utf-8")
 
     done = subprocess.run(
-        [sys.executable, PREFLIGHT_PY, "intake", "--track-dir", str(root / "f-new"),
+        [sys.executable, PREFLIGHT_PY, "design", "--track-dir", str(root / "f-new"),
          "--project-dir", str(repo)],
         capture_output=True, text=True, encoding="utf-8")
 

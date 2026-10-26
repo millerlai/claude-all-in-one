@@ -174,3 +174,17 @@ then `python -m pytest --cov --cov-report=xml` and
   commit. When passing a person's answer to a stage agent, always start a
   fresh dispatch that quotes the question and the answer verbatim
   (`pending-questions.md` step 2). Never relay it by resuming the agent.
+- **Leaving stuck shells behind after a subagent hands back.** A Bash call
+  that times out is moved to the background, not killed, and a subagent's
+  background shells outlive its hand-back. Users have reported a pile of
+  these after track runs; the merge-pre-build-stages run (2026-10-25) left
+  two: a foreground `until grep …; do sleep 3; done` poll whose condition
+  never came true, and a heredoc (`python - <<'EOF'`), which the Bash tool
+  runs without its usual `< /dev/null`, so anything reading stdin waits
+  forever. Every subagent brief says: no heredoc in Bash for any purpose
+  (write a file with Write and pass its path), no `sleep` polling in the
+  foreground (`run_in_background` and wait for the notification), and stop
+  every background shell it started before handing back. After each
+  hand-back, check for leftover `bash.exe` processes whose command line
+  carries this session's shell snapshot; stop the ones you started with
+  TaskStop, and name the rest to the person with their PIDs.

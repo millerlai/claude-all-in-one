@@ -232,7 +232,7 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_3833_under_its_3836_ceiling():
+def test_always_on_budget_is_3816_under_its_3836_ceiling():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
@@ -293,10 +293,13 @@ def test_always_on_budget_is_3833_under_its_3836_ceiling():
     # description that grows has to raise the ceiling and say why.
     # 3836 -> 3833 on 2026-10-22: track's description names `.cai/track/`
     # where it named `.claude/track/`; the ceiling stays at 3836.
+    # 3833 -> 3816 on 2026-10-25: track's description no longer lists intake and
+    # discover (-18), and designer's now says it writes the requirement too (+1);
+    # the ceiling stays at 3836.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 3833
+    assert int(m.group(1)) == 3816
 
 
 # --- the added line itself carries the load-bearing instruction ------------

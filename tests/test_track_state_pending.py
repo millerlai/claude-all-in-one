@@ -19,35 +19,32 @@ import track_state
 
 SCRIPT = os.path.join(os.path.dirname(track_state.__file__), "track_state.py")
 
-ROWS = [("intake", "done", "—", ""), ("discover", "skipped", "—", "not needed"),
-        ("design", "done", "—", ""), ("build", "in-progress", "—", "unit 2 of 4"),
-        ("verify", "", "", ""), ("ship", "", "", "")]
-OTHER_ROWS = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-              ("design", "", "", ""), ("build", "", "", ""),
+ROWS = [("design", "done", "—", ""), ("build", "in-progress", "—", "unit 2 of 4"),
+        ("verify", "skipped", "—", "not needed"), ("ship", "", "", "")]
+OTHER_ROWS = [("design", "", "", ""), ("build", "", "", ""),
               ("verify", "", "", ""), ("ship", "", "", "")]
 
-# Captured from track_state.py on main before any of this change existed.
+# What track_state.py prints for ROWS when there is no pending.md: the output
+# it had before pending.md existed (captured on main then, re-cut for four rows).
 BASELINE = (
     "current: billing\n"
-    "intake     done\n"
-    "discover   skipped  (reason: not needed)\n"
     "design     done\n"
     "build      in-progress\n"
-    "verify     \n"
+    "verify     skipped  (reason: not needed)\n"
     "ship       \n"
     "\n"
     "next: build\n"
     "skipped:\n"
-    "  discover: not needed\n"
+    "  verify: not needed\n"
     "other active tracks: other\n"
     "  other  stopped at: design (not started)\n")
 
 REPORT = (
     "## Pending questions\n"
     "1. Commit per unit?\n"
-    "   Background: a\n   Options: b\n   Blocks: c\n"
+    "   Background: a\n   Options: b\n   Blocks: c\n   Why asked: gate - r\n"
     "2. Parallel lane?\n"
-    "   Background: a\n   Options: b\n   Blocks: c\n")
+    "   Background: a\n   Options: b\n   Blocks: c\n   Why asked: gate - r\n")
 
 
 def _state(rows):
@@ -210,7 +207,7 @@ def test_a_malformed_file_costs_one_line_only(root, capsys, monkeypatch):
     assert out.replace(extra[0], "") == BASELINE
 
 
-@pytest.mark.parametrize("stage, status", [("design", "done"), ("discover", "skipped")])
+@pytest.mark.parametrize("stage, status", [("design", "done"), ("verify", "skipped")])
 def test_a_file_for_a_finished_stage_is_stale_and_ignored(root, capsys, monkeypatch, stage, status):
     _pending_file(root, stage=stage)
     monkeypatch.setattr(preflight, "git", lambda *a, **k: pytest.fail("git was asked"))

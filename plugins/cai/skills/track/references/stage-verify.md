@@ -140,8 +140,8 @@ convention files. With both, compare against both.
 When the dispatch brief names a requirement, that is the requirement. When it
 names none, under a track it is the documents the design row of the track's
 state table (`.cai/track/<feature>/`) names, plus the numbered acceptance
-criteria in `.cai/track/<feature>/intake.md` (`.cai/track/current`
-holds the feature name). Read them yourself; the dispatch brief does not have
+criteria in the `intake.md` the design stage wrote,
+`.cai/track/<feature>/intake.md` (`.cai/track/current` holds the feature name). Read them yourself; the dispatch brief does not have
 to carry them. When none can be read, conformance has no requirement and Step
 3's `Not covered` says so.
 

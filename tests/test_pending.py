@@ -22,10 +22,12 @@ REPORT = (
     "   Background: workflow.md says never commit (stage-build.md:196)\n"
     "   Options: (a) yes (recommended) - costs 4 commits; (b) no\n"
     "   Blocks: the commit after unit 1\n"
+    "   Why asked: gate - committing is the person's call every time\n"
     "2. Parallel lane?\n"
     "   Background: units depend linearly\n"
     "   Options: (a) no (recommended); (b) yes\n"
     "   Blocks: nothing\n"
+    "   Why asked: outward - a lane touches the shared branch\n"
 )
 
 
@@ -65,11 +67,12 @@ def test_start_writes_the_documented_file_verbatim(track, tmp_path):
     q1 = ("1. Commit per unit?\n"
           "   Background: workflow.md says never commit (stage-build.md:196)\n"
           "   Options: (a) yes (recommended) - costs 4 commits; (b) no\n"
-          "   Blocks: the commit after unit 1")
+          "   Blocks: the commit after unit 1\n"
+          "   Why asked: gate - committing is the person's call every time")
     assert text.startswith("# pending questions\nformat: 1\nstage: build\n"
                            "round: 1\nquestions: 2\n\n"
-                           "## question 1 [open] (4 lines)\n" + q1 + "\n\n"
-                           "## question 2 [open] (4 lines)\n2. Parallel lane?\n")
+                           "## question 1 [open] (5 lines)\n" + q1 + "\n\n"
+                           "## question 2 [open] (5 lines)\n2. Parallel lane?\n")
     assert text.endswith("\n## report (%d lines)\n%s" % (
         len(REPORT.rstrip("\n").split("\n")), REPORT))
     assert _only_pending(track) == ["pending.md"]
@@ -77,7 +80,7 @@ def test_start_writes_the_documented_file_verbatim(track, tmp_path):
 
 def test_load_round_trips_questions_report_and_chinese_text(track, tmp_path):
     report = ("## Pending questions\n1. 要不要 commit？\n   Background: 見 a.py:1\n"
-              "   Options: (a) 是\n   Blocks: 單元 1\n")
+              "   Options: (a) 是\n   Blocks: 單元 1\n   Why asked: gate - 要問\n")
     assert _start(track, tmp_path, report).returncode == 0
     data = pending.load(str(track / "pending.md"))
     assert (data["format"], data["stage"], data["round"]) == (1, "build", 1)
@@ -117,13 +120,20 @@ def test_crlf_input_is_stored_with_lf(track, tmp_path):
     ("## Report\nno section here\n", "no `## Pending questions`"),
     ("## Pending questions\n", "no numbered question"),
     ("## Pending questions\nprose first\n1. q\n   Background: b\n"
-     "   Options: o\n   Blocks: x\n", "text before question 1"),
-    ("## Pending questions\n1. q\n   Background: b\n   Options: o\n", "no Blocks"),
-    ("## Pending questions\n1. q\n   Options: o\n   Blocks: x\n", "no Background"),
-    ("## Pending questions\n2. q\n   Background: b\n   Options: o\n"
-     "   Blocks: x\n", "starts at 2"),
+     "   Options: o\n   Blocks: x\n   Why asked: gate - r\n", "text before question 1"),
     ("## Pending questions\n1. q\n   Background: b\n   Options: o\n"
-     "   Blocks: x\n3. r\n   Background: b\n   Options: o\n   Blocks: x\n", "gap"),
+     "   Why asked: gate - r\n", "no Blocks"),
+    ("## Pending questions\n1. q\n   Options: o\n   Blocks: x\n"
+     "   Why asked: gate - r\n", "no Background"),
+    ("## Pending questions\n1. q\n   Background: b\n   Options: o\n   Blocks: x\n",
+     "no Why asked"),
+    ("## Pending questions\n1. q\n   Background: b\n   Options: o\n   Blocks: x\n"
+     "   Why asked: because\n", "bad Why asked value"),
+    ("## Pending questions\n2. q\n   Background: b\n   Options: o\n"
+     "   Blocks: x\n   Why asked: gate - r\n", "starts at 2"),
+    ("## Pending questions\n1. q\n   Background: b\n   Options: o\n"
+     "   Blocks: x\n   Why asked: gate - r\n3. r\n   Background: b\n   Options: o\n"
+     "   Blocks: x\n   Why asked: gate - r\n", "gap"),
     ("", "empty report"),
 ])
 def test_unusable_report_is_refused_and_nothing_is_written(track, tmp_path, report, why):
@@ -363,6 +373,72 @@ def test_report_and_answer_read_from_stdin_match_the_file_path_form(tmp_path):
     assert reply.returncode == 0, reply.stderr
     assert (by_stdin / "pending.md").read_bytes() == (by_file / "pending.md").read_bytes()
     assert _only_pending(by_stdin) == ["pending.md"]
+
+
+SPLIT = ("## Pending questions\n1. Which db?\n   Background: b\n   Options: o\n"
+         "   Blocks: x\n   Why asked: evidence-split - both fit the repo\n")
+
+
+@pytest.fixture
+def proj_track(tmp_path):
+    """<project>/.cai/track/<feature>, the layout answer() derives the project from."""
+    d = tmp_path / "proj" / ".cai" / "track" / "feat"
+    d.mkdir(parents=True)
+    return d
+
+
+def _answer(track, tmp_path, n=1, text="Postgres"):
+    return _run("answer", "--track-dir", str(track), "--question", str(n),
+                "--answer-file", _write(tmp_path, "a%d.md" % n, text))
+
+
+def test_an_evidence_split_answer_is_appended_to_answers_md(proj_track, tmp_path):
+    assert _start(proj_track, tmp_path, SPLIT).returncode == 0
+    done = _answer(proj_track, tmp_path)
+    assert done.returncode == 0, done.stderr
+    target = tmp_path / "proj" / ".cai" / "answers.md"
+    assert "answers: appended to %s" % target in done.stdout.splitlines()
+    row = target.read_text(encoding="utf-8").splitlines()[-1]
+    assert row.endswith("| feat | 1. Which db? | Postgres |"), row
+    assert pending.load(str(proj_track / "pending.md"))["questions"][0]["answer"] == "Postgres"
+
+
+def test_a_gate_answer_is_saved_but_not_recorded(proj_track, tmp_path):
+    assert _start(proj_track, tmp_path).returncode == 0   # q1 is `gate`
+    done = _answer(proj_track, tmp_path, 1, "yes")
+    assert done.returncode == 0, done.stderr
+    assert "answers: not recorded (Why asked: gate - committing is the person's call "\
+        "every time)" in done.stdout.splitlines()
+    assert not (tmp_path / "proj" / ".cai" / "answers.md").exists()
+    assert pending.load(str(proj_track / "pending.md"))["questions"][0]["answer"] == "yes"
+
+
+def test_an_old_file_without_why_asked_still_loads_and_answers(proj_track, tmp_path):
+    old = ("## Pending questions\n1. Old?\n   Background: b\n   Options: o\n   Blocks: x\n")
+    questions = [{"text": "1. Old?\n   Background: b\n   Options: o\n   Blocks: x",
+                  "answer": None}]
+    (proj_track / "pending.md").write_text(
+        pending.render("build", 1, questions, old), encoding="utf-8")
+    assert len(pending.load(str(proj_track / "pending.md"))["questions"]) == 1
+    done = _answer(proj_track, tmp_path)
+    assert done.returncode == 0, done.stderr
+    assert "answers: not recorded (no Why asked line)" in done.stdout.splitlines()
+    assert not (tmp_path / "proj" / ".cai" / "answers.md").exists()
+
+
+def test_a_failed_append_is_reported_and_the_answer_stays_saved(proj_track, tmp_path,
+                                                                monkeypatch, capsys):
+    import answers
+
+    def boom(*args):
+        raise OSError("disk full")
+    monkeypatch.setattr(answers, "append", boom)
+    assert _start(proj_track, tmp_path, SPLIT).returncode == 0
+    code = pending.main(["answer", "--track-dir", str(proj_track), "--question", "1",
+                         "--answer-file", _write(tmp_path, "a.md", "Postgres")])
+    assert code == 0
+    assert "answers: not appended (disk full)" in capsys.readouterr().out.splitlines()
+    assert pending.load(str(proj_track / "pending.md"))["questions"][0]["status"] == "answered"
 
 
 def test_empty_stdin_is_refused_like_an_empty_file(track):

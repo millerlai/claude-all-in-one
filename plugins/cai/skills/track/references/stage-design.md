@@ -15,15 +15,245 @@ Standing alone you are the main session — ask directly.
 
 The failure this stage exists to catch is a design that arrives already
 committed — plausible, detailed, and resting on an architecture nobody was
-asked about, or on a capability nobody checked was actually available.
+asked about, or on a capability nobody checked was actually available. Its
+first half catches the failure before that one: starting to build before anyone
+agreed on what "done" means. A request arrives as a sentence; Steps 1–5 turn it
+into a problem statement precise enough that a later stage can check whether
+its acceptance criteria were actually met, and only then does a mode start.
 
-## Pick a mode, and say which
+Steps 1–5 run once, when the request is new. Delta starts from a branch that
+exists, and Decisions and Detail start from an approved entrance, so none of
+those three runs Steps 2–5; each still reads `cai-context.md` as Step 1 says.
+
+**When `.cai/track/<feature>/intake.md` already exists** — the main session
+saved it after an earlier pass of this stage reported, or the track began
+before intake was merged into this stage and its intake finished — start from
+it: read it, do not ask the interview again, do not propose approaches again,
+and go to "Pick a mode". The route comes from the brief, which quotes the
+earlier report's route or the intake row's note; when it carries none, run
+Step 2 once on the document's problem statement.
+
+## Step 1 — Explore the context
+
+Before asking anything, look. Map the area the request touches yourself by
+reading it — related code, existing conventions, anything that already
+half-solves this — and dispatch `explorer` for what a scout can locate faster
+(the evidence rule below says what a scout's answer is worth). A
+question asked without having looked first spends the person's time on
+something you could have found yourself.
 
 If `<top>/.cai/cai-context.md` exists — `<top>` being the path your brief
 names or, if it names none, what `git rev-parse --show-toplevel` prints —
 read it first and use its terms. If it does not exist, or neither gives you
 `<top>`, say nothing about it and do not suggest creating one. Read only
 that one file, and never write it.
+
+When the brief carries a line starting `codemap: fresh`, "The codemap index is
+not a fourth source", under the evidence rule below, says how to use it.
+
+Facts from outside this repo — how other products handle the same request, what
+a vendor's documentation promises — are part of the same look: dispatch a
+chore-tier subagent with web access to search and fetch them (your own tools
+cannot reach the web, and `explorer`'s are Read/Grep/Glob only), recording the
+URL and the sentence relied on. Never defer one to `/cai:discover`: it is a
+standalone command that nobody runs for you inside a track, so a lookup handed
+on there is a lookup nobody does (#335). If one fails — the subagent is
+refused or the page will not load — name the query or URL among the Report's
+deviations, so the person can see it was not done.
+
+## Step 2 — Route it: broken, or never there
+
+A request does not say which it is, and its wording is not evidence. "Add a
+retry" sounds like a feature; its root cause is often a misconfigured pool,
+where the retry treats the symptom. A ticket's title is written by whoever
+noticed the problem, not by whoever knows its cause.
+
+So route on evidence, with one test:
+
+> **Can you write a test that fails now and would pass if an existing promise
+> held?**
+
+A promise is an existing test, the documentation, a spec, or an invariant in
+a stance document. **Never anyone's expectation** — an expectation nobody
+wrote down is a requirement, and that answers the question the other way.
+
+- **Yes** → it is broken. The **Diagnosis** mode runs, and that failing test
+  is its entry condition, already written.
+- **No, because nothing ever promised it** → it was never there. The
+  **Stance** mode runs.
+
+The best part of this test is that running it is not overhead: whichever way
+it comes out, that test had to be written. Routing is the first piece of the
+work, not a ceremony in front of it.
+
+**Both at once is normal.** "Login is slow" can be an N+1 query (broken) and
+a caching layer nobody ever built (never there) in the same ticket. Split
+it: the half you can write a failing test for goes one way, the half you
+cannot goes the other. Forced down one road, the second half silently looks
+finished when the first is.
+
+**Report the route with its evidence**, not as a label: the test you wrote or
+the reason you could not, and which promise it tests against. Three
+counter-checks, none of which needs judgement:
+
+- Called a bug, but no failing test can be written → it is not a bug.
+- Called a feature, but an existing test or the documentation already
+  promises the opposite → it is a bug.
+- Either way, if the cause later lands on an invariant, diagnosis escalates
+  to stance (Diagnosis step 4). That escalation is one-way and gets
+  recorded.
+
+## Step 3 — Ask one question at a time
+
+Whatever is still ambiguous after exploring goes to the user, following the
+interview move (`stage-discover.md`, move C):
+
+- Open with the count and the ordering — "4 open questions, ordered by
+  blast radius."
+- **Ask one question at a time and wait.** A numbered list of questions is
+  not an interview; it gets one vague answer covering none of them.
+- Order by whether the answer changes the shape of the work, not by what is
+  easiest to answer. Cheap cosmetic questions go last or get dropped.
+- Offer a default with each question ("I'd assume X — correct me"), so a
+  shrug still moves things forward.
+
+Skip this step when the request already reads unambiguous — interviewing
+someone who already answered is noise.
+
+## Step 4 — Propose 2–3 approaches
+
+Once the request is unambiguous, propose 2–3 approaches. Each one carries:
+
+- what it does, concretely;
+- its trade-offs — what it costs, what it constrains later;
+- how it fails — the situation where this would be the wrong choice.
+
+Mark at most one **(recommended)**, and say why from the trade-offs above —
+never from preference alone. This is the same option-weighing the Decisions
+mode runs before an architecture choice, sized for a raw request rather than a
+full feasibility table.
+
+Lay each approach out in `option-explainer.md`'s six-field shape: a title line,
+then the six numbered, one field per item. Not a paragraph with them run
+together — every field is still there and none of them can be found (#73).
+Write the approaches to `<scratchpad>/options-approaches.md` and check them
+before they go anywhere:
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py <the options, as a file>`,
+exit 0 or fix what it names.
+
+When you cannot name two real approaches without a survey of the option space,
+or an unknown would change the amount of work, say so in the Report and
+recommend the person run `/cai:discover`. Do not run it yourself: it is a
+standalone command, and a track no longer has a stage for it.
+
+## Judge the signals — short path or long
+
+Between Step 4 and Step 5, and only for a request Step 2 did not route to
+Diagnosis, judge the three rows of the cost test table (under "The three
+tests") **for the change as a whole**, not choice by choice, each with its
+evidence: a `file:line` or a URL you read. A row is `high` only with evidence
+for high, `low` only with evidence for low, and a row the evidence settles
+neither way is `unanswerable`.
+
+`unanswerable` does **not** count as high here. The cost test's own "anything
+unanswerable counts as high" governs one choice inside the long path, where
+asking costs one question; applied to the whole change it would send every
+request with a gap in the record down the long path, which is the cost this
+split exists to remove.
+
+- **No row `high`** → the **short path**. The `## Intake document` of Step 5
+  gains a `## Signals` section, and no mode runs, no other document is
+  written, and no cost stop happens ("Say what it will cost, then wait"
+  applies to the long path only). The design
+  row's artifact is `intake.md` itself, and Step 5's approval is Gate 1: one
+  menu, fingerprinting `intake.md`. When all three rows are `unanswerable`,
+  say so in the Report, so the Gate 1 menu can show the person that the
+  short path was taken on no evidence either way.
+- **Any row `high`** → the **long path is recommended**: "Pick a mode" onward,
+  unchanged, once the person agrees at Step 5's menu. The person decides there
+  (see "The long path asks once here"): if they choose the short path, it
+  proceeds as the first bullet says, and `## Signals` carries one line directly
+  under its table, `Short path: chosen by the person over <Row>[, <Row>]
+  (<YYYY-MM-DD>)`, naming each `high` row they kept; the probe then accepts
+  those rows.
+- **Broken** (Step 2 said yes) → Diagnosis, unchanged; its intake carries no
+  `## Signals` section.
+
+`## Signals` is a table with the header `| Row | Verdict | Evidence |`
+verbatim and exactly three data rows, in this order. `Verdict` is `low`,
+`high` or `unanswerable`; `Evidence` is a `file:line` or URL, or — only on an
+`unanswerable` row — the reason nothing could be read. It sits before
+`## Verification levels`, which stays last.
+
+| Row | Verdict | Evidence |
+|---|---|---|
+| Blast radius | low | one caller, src/foo.py:12 |
+| Found out when | low | the unit test fails, tests/test_foo.py:3 |
+| Undo cost | unanswerable | no deploy config in this repo to read |
+
+`python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind intake <the
+intake document, as a file>` checks it, exit 0 or fix what it names.
+
+## Step 5 — Hand the requirement up
+
+**Do not start the design yet.** Hand back the problem statement, the
+acceptance criteria it implies, and the recommended approach, then stop. Give
+every acceptance criterion a stable id (AC1, AC2, ...), retained through
+design, build, and verification. Each criterion states an observable outcome
+and how to check it; do not renumber approved criteria. A mode only starts
+once the user has said yes to this. Typing the request is not agreement to
+whatever was inferred from it.
+
+**The long path asks once here, not twice.** The one menu carries the problem
+statement, the criteria, the route with its evidence, the `Signals` rows
+(each verdict with its evidence) that sent the request long, and the four
+cost lines of "Say what it will cost, then wait". It states the reasons — each
+`## Signals` row judged `high`, with its evidence — and offers the choice
+explicitly: take the long path (recommended), or take the short path anyway.
+Which one is the person's preference, so the menu is `evidence-split`. Its yes
+to the long path covers the route and the cost together, and the modes then
+run with no second cost stop. The short path has no separate requirement
+approval at all: Step 5's approval is Gate 1.
+
+End the requirement with a `## Verification levels` section: the heading
+verbatim, then a table with the header `| AC | level | check |` verbatim and
+exactly one row per acceptance criterion. `level` is one of `test`,
+`local-run`, `deployed`, `manual`. `check` for `local-run` is either an HTTP
+check, `<METHOD> <path> <status>` with an optional quoted string the response
+body must contain, or `e2e <name>`; for `deployed` and `manual` it is the steps
+a person follows. Write a literal `|` inside a cell as `\|`.
+
+| AC | level | check |
+|---|---|---|
+| AC1 | test | tests/test_levels.py |
+| AC2 | local-run | GET /health 200 "ok" |
+| AC3 | deployed | open the preview URL and confirm the banner shows |
+| AC4 | manual | read the README section and confirm it names all four levels |
+
+That yes is a menu, not a word to type: the approaches from Step 4 become the
+options, `references/approval-gates.md` holds the shape, and the person who
+puts it is the main session (this stage's runner has no interactive tool).
+
+**Hand the whole document back as its own section** so the main session can
+save it unedited: a `## Intake document` section holding the problem
+statement, the numbered acceptance criteria, the recommended approach, on the
+short path the `## Signals` table, and the `## Verification levels` table
+above, in that order, the table last. The
+section runs to the end of the reply, or to a `## Pending questions` section
+if there is one. Inside a track the main session writes its body, verbatim,
+to `.cai/track/<feature>/intake.md` before it asks for approval, so the
+person can open the full text; `verify` and `preflight.py build` read it from
+there (`verify_plan.py`'s `INTAKE_NAME`). You write no track file yourself.
+Standing alone there is no track directory: give the same section in the
+conversation and ask the approval directly.
+
+**Hand the route up with it**, in the same breath as the problem statement:
+which entrance the mode will take, and the evidence Step 2 produced for it. A
+route inferred later, from the shape of the request, is the guess Step 2
+exists to replace. Once the approval is in, the main session dispatches this
+stage again; that pass finds `intake.md` and goes to "Pick a mode".
+
+## Pick a mode, and say which
 
 - **Diagnosis** — something is broken. Names the root cause and the fix, one
   page. Entry condition below; it is not "someone called it a bug".
@@ -37,44 +267,57 @@ that one file, and never write it.
 - **Delta** — the branch is already built. Recovers the decisions from the
   diff and the commits instead of deciding anything.
 
-**Diagnosis and Stance are the two entrances, and one test picks between
-them** — the same one `stage-intake.md` runs to route the work:
-
-> Can you write a test that fails now and would pass if an existing promise
-> held?
-
-A promise is an existing test, the documentation, a spec, or an invariant.
-Never anyone's expectation: an expectation nobody wrote down is a
-requirement, and requirements are Stance's problem.
-
-- **Yes** → something is broken. Diagnosis.
-- **No, because nothing ever promised it** → it was never there. Stance.
-
-Do not route on the words the request arrived in. "Add a retry" sounds like a
-feature and its root cause is often a misconfigured pool, where the retry
-treats the symptom — and the ticket's wording never says so.
+**Diagnosis and Stance are the two entrances, and Step 2's route picks
+between them**: broken is Diagnosis, never there is Stance. There is no second
+test here — a requirement nobody wrote down is Stance's problem, and the route
+was already reported with its evidence.
 
 After either entrance, the rest is shared: Decisions where choices survive,
 then Detail. Delta only applies when code already exists and nobody wrote
 down why it looks the way it does.
 
-**Why these are three documents and not one.** A document that has to be read
-before a decision and a document that has to be complete enough to build from
-pull in opposite directions: the first fails by being long, the second by
-being short. One file serving both ends up too long to read and still not
-enough to build from — which is what the old single high-level design became,
-and why it stopped being reviewed in full.
+**Why the long path is one document, in sections.** Stance, Decisions and
+Detail each write their own section into **one** file,
+`docs/design/<YYYY-MM-DD>-<topic>-design.md`, copied from
+`${CLAUDE_PLUGIN_ROOT}/templates/design.md.tpl`: `## Stance`, then
+`## Decisions`, then `## Detail`, in that order, each mode editing the file in
+place and never rewriting what an earlier mode wrote. A bug that escalates to
+Stance, or goes from its diagnosis to Detail, adds `## Diagnosis` ahead of
+them — its root cause becomes that section.
+Inside a section every heading is one level deeper than in the stand-alone
+template of the same mode, and nothing else about the section changes.
+
+What keeps the sections from becoming the old high-level design is that a
+section is still checked as the page it would have been alone: `--kind design`
+promotes each section's headings one level and runs that mode's own probe on
+it, so the stance's one-page ceiling counts the Stance section only. The
+person signs the Diagnosis and Stance sections and the answered Tier 1
+entries; Detail is for the builder, who reads it end to end, and carries no
+ceiling. The cost is that the part to sign no longer sits on a page of its own
+— the person reads down to the next `## ` heading and stops — and the gain is
+that Gate 1 fingerprints the whole file, so an edit to any section after
+sign-off is caught ("What the fingerprint covers now" below).
+
+A bug that goes straight to `build` still writes only its own `-diagnosis.md`.
+A diagnosis followed by Detail writes one `-design.md` instead: the diagnosis
+moves into its `## Diagnosis` section and `## Detail` follows it, so there is
+no stand-alone `-diagnosis.md` or `-detail.md` to keep in step. The older
+multi-file shapes (`-stance.md`, `-decisions.md`, `-detail.md`,
+`-high-level.md`) stay readable and checkable, so a track signed off in one
+is not disturbed.
 
 **High-level** is that old shape, still accepted (`--kind hld`) so documents
 already signed off stay passable. Do not write a new one.
 
 ## Say what it will cost, then wait
 
-Before any mode starts, four lines: the document path and the headings it
+On the long path only — the short path stops once, at Gate 1 — before any
+mode starts, four lines: the document path and the headings it
 will carry; how much of the target directory has to be read and how many
 documentation sources fetched; what is already unclear enough that you will
-have to ask; and what this will not decide. Then wait for a go — asked as a
-menu, never as a sentence to type a word back into
+have to ask; and what this will not decide. The four lines ride in Step 5's
+hand-up and are asked in its one menu, never as a second stop after it; the
+menu is never a sentence to type a word back into
 (`references/approval-gates.md`).
 
 Detail mode is the longest and the one most worth sizing — it reads the whole
@@ -199,11 +442,18 @@ survivor of its options (Tier 2, scanned) while the passenger is three-rows-
 high (Tier 1, answered), and the pair gets waved through together. On a solo
 project there is no second reviewer to catch that.
 
-- **Tier 1 — answered.** High cost, *and* the options differ in substance.
-  Ask one at a time. At most `TIER1_MAX` (5).
-- **Tier 2 — scanned.** High cost, *but* the evidence leaves one live option.
-  Three lines each, shown all at once; the person answers nothing unless they
-  want to overturn something. At most `TIER2_MAX` (10).
+- **Tier 1 — answered.** High cost, *and* the evidence and the stance cannot
+  separate the options: the choice turns on the person's preference or on a
+  requirement nobody wrote down. Ask one at a time. At most `TIER1_MAX` (5).
+  Every Tier 1 entry carries one sentence saying why the evidence cannot
+  separate the options; the same sentence is the `Why asked: evidence-split`
+  line when the entry is handed up.
+- **Tier 2 — scanned.** High cost, *but* the evidence can point at a
+  recommended option — even when the others are not fully ruled out — so the
+  designer decides. Three lines each, shown all at once; the person answers
+  nothing unless they want to overturn something. At most `TIER2_MAX` (10).
+  Tier 2 and Tier 3 entries say what was chosen and on what grounds, in a
+  line or two, never laid out as a comparison; only a Tier 1 entry is.
 
 **The bar for Tier 2 is a citation, not a preference.** If the grounds are not
 a `file:line` or a documentation URL, the entry does not qualify: get the
@@ -270,7 +520,10 @@ full, and lower them when the answer is no.
    `docs/design/<YYYY-MM-DD>-<topic>-diagnosis.md`, date from `date +%F`.
    Copy `${CLAUDE_PLUGIN_ROOT}/templates/design-diagnosis.md.tpl`, fill it
    in, delete the HTML-comment guidance as you answer it. Do not add or
-   rename headings.
+   rename headings. (If Step 4 escalates, or Detail follows, this document is
+   not kept as a file: its content becomes the `## Diagnosis` section of the
+   `-design.md` that Stance mode or Detail mode writes, the same headings one
+   level deeper.)
 
    `## Root cause` answers one question beyond naming the cause: **what would
    still be true if you fixed the line the stack trace points at?** "The same
@@ -298,7 +551,8 @@ full, and lower them when the answer is no.
 5. **Check, then review.**
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind diagnosis <the document>`
    until it exits 0, then `plan-review` against it (how it runs: see
-   "The gate every mode shares").
+   "The gate every mode shares"). Once it is a section of a `-design.md`, the
+   same probe runs as `--kind design`.
 
 6. **Stop.** `## Status` stays `draft`. What the person signs here is **the
    root cause**, not the fix: a wrong cause makes every fix downstream of it
@@ -313,7 +567,7 @@ full, and lower them when the answer is no.
    the design row's document, and the Approve fingerprints it. Going to
    Detail, it is a stop inside `design`, like the stance approval — the date
    goes into `## Status`, no ledger row — and Gate 1 comes after Detail, on
-   the detail design the design row then names. With Detail after it the menu
+   the `-design.md` the design row then names. With Detail after it the menu
    has the stance approval's three options; going to `build` this stop is
    Gate 1 and has four. Say which in the report, as `Next: Detail` or
    `Next: build`, so the main session asks the right menu.
@@ -324,10 +578,15 @@ full, and lower them when the answer is no.
    the platform, the library — settle it under the evidence rule first. A
    stance written from what you remember is a guess a person is being asked to
    sign.
-2. **Write the trade, all four parts.** Unless the person named a path:
-   `docs/design/<YYYY-MM-DD>-<topic>-stance.md`, date from `date +%F`. Copy
-   `${CLAUDE_PLUGIN_ROOT}/templates/design-stance.md.tpl`, fill it in, delete
-   the HTML-comment guidance as you answer it. Do not add or rename headings.
+2. **Write the trade, all four parts.** This mode creates the track's one
+   design document. Unless the person named a path:
+   `docs/design/<YYYY-MM-DD>-<topic>-design.md`, date from `date +%F`. Copy
+   `${CLAUDE_PLUGIN_ROOT}/templates/design.md.tpl` and keep its `## Stance`
+   section — plus `## Diagnosis` when this track escalated from a bug, with the
+   root cause moved into it — deleting `## Decisions` and `## Detail`: their
+   modes add them back from the template, in place and in order. Fill the
+   Stance section in, delete the HTML-comment guidance as you answer it. Do not
+   add or rename headings.
    - `## Optimises for` is one or two sentences. Optimising for everything
      rules out nothing, and a stance that rules out nothing deletes no options
      later — which is the entire job it has.
@@ -353,35 +612,40 @@ full, and lower them when the answer is no.
    `mmdc -i <the document> -o <scratchpad>/check.md`. A sentence under it says
    what to look at — a diagram with no reading is decoration.
 5. **Check, then review.**
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind stance <the document>`
-   until it exits 0. It enforces the one-page ceiling; over it, cut, do not
-   reword. Then `plan-review` against the document (see "The gate every
-   mode shares" for how it runs).
-6. **Stop.** `## Status` stays `draft`. Only the person's approval changes it
-   to `approved <YYYY-MM-DD>`, through the menu in
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind design <the document>`
+   until it exits 0. It enforces the one-page ceiling on the Stance section
+   alone; over it, cut, do not reword. Then `plan-review` against the document
+   (see "The gate every mode shares" for how it runs).
+6. **Stop.** The Stance section's `### Status` stays `draft`. Only the
+   person's approval changes it to `approved <YYYY-MM-DD>`, through the menu in
    `references/approval-gates.md`. Decisions mode reads that line and refuses
    to start on a draft.
 
 ## Mode: Decisions
 
-0. **The gate.** Open the stance document and check, in the file: `## Status`
-   reads `approved` with a date, `## Invariants` is non-empty,
-   `## Use cases / Issues` numbers its entries. Any failing, stop and say
-   which. Weighing options against a trade nobody agreed to is how a stance
+0. **The gate.** Open the stance — the `## Stance` section of the track's
+   `-design.md`, or the stance document of a track signed in the older shape —
+   and check, in the file: `### Status` (`## Status` there) reads `approved`
+   with a date, `Invariants` is non-empty, `Use cases / Issues` numbers its
+   entries. Any failing, stop and say which. Weighing options against a trade nobody agreed to is how a stance
    gets replaced one implementation detail at a time.
 1. **Feasibility, before any option.** Every capability this design needs,
    settled under the evidence rule in a table: `C1`, `C2`, …, Capability,
    Verdict (`verified`/`UNVERIFIED`/`infeasible`), Evidence. The ids are
    load-bearing — the probe fails a capability no entry cites, and a Tier 2
    entry resting on one that is not `verified`.
-2. **List every choice, then run the three tests on each**, in order. Write to
-   `docs/design/<YYYY-MM-DD>-<topic>-decisions.md`, same `<topic>` as the
-   stance. Copy `${CLAUDE_PLUGIN_ROOT}/templates/design-decisions.md.tpl`,
-   same heading discipline.
+2. **List every choice, then run the three tests on each**, in order. Write
+   into the same `-design.md`, adding the `## Decisions` section after
+   `## Stance` — copy that section from
+   `${CLAUDE_PLUGIN_ROOT}/templates/design.md.tpl`; Tier entries are `####`
+   headings there. Same heading discipline, and the Stance section is not
+   touched.
    - conflict test → `## Ruled out`, with the invariant it hit;
    - origin test → `## Requirement gaps`, with a veto condition or a
      verification path;
-   - cost test → `## Tier 1`, `## Tier 2`, or `## Tier 3`.
+   - cost test → `## Tier 1`, `## Tier 2`, or `## Tier 3`; Tier 1 only when
+     the evidence and the stance cannot separate the options, and then with
+     the one sentence saying why.
 3. **Draw every Tier 1 entry.** One small Mermaid diagram per entry, showing
    the options side by side — this is the one place a person is asked to hold
    two designs in their head at once, and two pictures do that faster than two
@@ -390,7 +654,7 @@ full, and lower them when the answer is no.
    entry a test catches tomorrow is scanned, one that surfaces after a
    migration is not. Unknown counts as late, not as low.
 5. **Check, then ask.**
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind decisions <the document>`
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind design <the document>`
    until it exits 0 — budgets, citations and diagrams are all mechanical, so
    fix them before spending any reading on review. Then `plan-review` (see
    "The gate every mode shares" for how it runs), then
@@ -458,13 +722,16 @@ runs Stance then Decisions instead. The procedure below is unchanged.
 
 ## Mode: Detail
 
-0. **The gate.** Open the documents this elaborates and check, in the files:
-   the stance's `## Status` reads `approved` with a date and its
-   `## Use cases / Issues` numbers its entries; the decisions document's
-   `## Tier 1` entries each carry a `Decided:` line. Any failing, stop and say
-   which. (A legacy high-level design instead: `## Status` approved,
+0. **The gate.** Open what this elaborates and check, in the file: the
+   stance's status reads `approved` with a date and its
+   `Use cases / Issues` numbers its entries; the decisions' `Tier 1` entries
+   each carry a `Decided:` line (the probe's `tier1_decided` line checks it
+   once `## Detail` exists). On the long path these are the `## Stance` and
+   `## Decisions` sections of the track's `-design.md`. Any failing, stop and
+   say which. (A legacy high-level design instead: `## Status` approved,
    `## Open questions` empty or every entry answered, use cases numbered.)
-   (An approved diagnosis instead: `## Status` approved with a date, which
+   (An approved diagnosis instead — the `## Diagnosis` section of the
+   `-design.md`, whose `### Status` reads approved with a date, which
    the probe's `diagnosis_is_approved` line checks. It numbers no use cases,
    so the probe passes traceability as not applicable; build starts from its
    `## Failing test`, and this document names the first test path there --
@@ -474,10 +741,18 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    otherwise settle by accident, one implementation detail at a time.
 1. **Ground it in the real directory.** Read the target project directory;
    every claim about existing code resolves to a real `file:line` you have
-   opened. Write to `docs/design/<YYYY-MM-DD>-<topic>-detail.md`, same
-   `<topic>` as the stance, or the diagnosis. Copy
-   `${CLAUDE_PLUGIN_ROOT}/templates/design-detail.md.tpl`, fill it in, same
-   heading discipline as the modes above.
+   opened. On the long path, add the `## Detail` section after
+   `## Decisions` in the same `-design.md`, copied from
+   `${CLAUDE_PLUGIN_ROOT}/templates/design.md.tpl`; its `### Reference` names
+   the Stance and Decisions sections of the file, and carries an
+   `AC: <intake.md path> sha256 <hex>` placeholder that you leave as it is —
+   the main session fills it in ("The `AC:` line" below). Taking an approved
+   diagnosis straight to Detail instead, move the diagnosis into a
+   `docs/design/<YYYY-MM-DD>-<topic>-design.md` copied from the same template
+   — its content becomes the `## Diagnosis` section, headings one level deeper,
+   `### Status` kept as approved, and the stand-alone `-diagnosis.md` is not
+   kept — then add `## Detail` after it; its `### Reference` names the
+   Diagnosis section. Fill it in, same heading discipline as the modes above.
 2. **Four tables before any prose:** the `## Reference` block (path + status
    line the probe follows), the traceability table (every `UC`/`R` id vs.
    what satisfies it here), the glossary (every load-bearing term, its
@@ -510,7 +785,8 @@ runs Stance then Decisions instead. The procedure below is unchanged.
    rule, one at a time, biggest blast radius first. A confident guess is
    worse than an open question.
 8. **Check, then review.**
-   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail --project-dir <target project dir> <the document>`
+   `python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind design --project-dir <target project dir> <the document>`
+   (`--kind detail` only for the stand-alone detail design of an older track)
    first, fix and re-run until 0. Then `plan-review` (see "The gate every
    mode shares" for how it runs) with the detail skeleton, lens 8 first. Blocker/Major → fix and re-probe *and* re-review;
    section 4 → `AskUserQuestion`; Minor → leave documented. At most three
@@ -582,42 +858,64 @@ requirements — not your conclusions: a review by the author is the one thing
 the gate exists to avoid. Act on what it returns as the mode's step says.
 Standing alone you are the main session and invoke the skill yourself.
 
-Each mode has its own `--kind`: `diagnosis`, `stance`, `decisions`, `detail`,
-`delta`, and `hld` for the legacy shape. What the person signs is whichever
-entrance ran — a root cause, or a stance and its answered Tier 1 entries —
-never the build spec, which is written for whoever builds and is not reviewed
-line by line. That is why the first two have
-ceilings and the third does not: **what a person signs has to stay small
-enough to sign again** after it changes.
+The long path's three modes all run `--kind design` on the one `-design.md`;
+the other kinds are `diagnosis` for a bug that went straight to `build`,
+`detail` for the stand-alone detail design of an older track, `intake` for the short path,
+`delta`, and `stance`, `decisions` and `hld` for the older shapes. What the
+person signs is whichever entrance ran — a root cause, or a stance and its
+answered Tier 1 entries — never the build spec, which is written for whoever
+builds and is not reviewed line by line. That is why those sections have
+ceilings and Detail does not: **what a person signs has to stay small enough
+to sign again** after it changes.
 
-**Which path goes in the track's `design` row:** the document `build` reads —
-the detail design when Detail mode ran, otherwise the last document this
-stage wrote. A detail design's `## Reference` names the stance and the
-decisions it elaborates, so a reader who starts there reaches all three. On
-the diagnosis path it names the diagnosis instead, and reaches that one.
-`preflight.py` reads that cell, picks the kind off the suffix, and runs the
-matching probe; Gate 1's Approve fingerprints the same file. Not because the
-person reads the build spec line by line — they sign the entrance's
-documents, above — but because it is what `build` acts on, so editing it
-after the Approve re-opens the gate.
+**Which path goes in the track's `design` row:** the document `build` reads.
+On the long path that is the one `-design.md`, whichever of its sections ran
+last. On the short path nothing else was written, so it is the track's
+`intake.md` itself; `preflight.py` maps that exact filename to `--kind
+intake`. On the diagnosis path it is the `-diagnosis.md`, or the one
+`-design.md` (sections Diagnosis and Detail, no Stance) when Detail followed
+it; an older track's stand-alone `-detail.md` names the diagnosis in its
+`## Reference`. `preflight.py` reads that cell, picks the kind off the suffix, and
+runs the matching probe; Gate 1's Approve fingerprints the same file. Not
+because the person reads the build spec line by line — they sign the
+entrance's sections, above — but because it is what `build` acts on, so
+editing it after the Approve re-opens the gate.
 
-**A known gap in that arrangement.** The ledger fingerprints one file, so
-editing the *stance* or the decisions document after sign-off does not trip
-`preflight.py build` the way editing the document in the design row does.
-The probe still catches the case that matters — the stance's `## Status`
-going back to `draft` — but a reworded invariant under an unchanged status
-is not caught. Until the ledger can carry more than one artifact, treat an
-edit to either after sign-off as re-opening the gate, and say so rather than
-relying on a check that will not fire.
+**The `AC:` line, and the order it is written in.** Gate 1 fingerprints one
+file, and on the long and the diagnosis path that file is not `intake.md`, so
+`intake.md` would otherwise be free to change after sign-off. The order is
+fixed: you report; the main session writes `intake.md` from the report's
+`## Intake document`; the main session computes that file's sha256 and adds one
+line, `AC: <intake.md path> sha256 <hex>` — in `-design.md` under the Detail
+section's `### Reference` when Detail exists, otherwise at the end of the last
+section present; in an older track's stand-alone `-detail.md` under its
+`## Reference`; in
+`-diagnosis.md` at the end of `## Failing test`; only then does Gate 1 take its fingerprint. You leave the placeholder
+alone and write no digest. `preflight.py build`'s `intake_unchanged` compares
+the line with `intake.md` as it stands, and refuses a missing line or a
+different digest. On the short path the design row is `intake.md`, and Gate 1's
+fingerprint already covers it.
+
+**What the fingerprint covers now.** Gate 1 fingerprints the whole
+`-design.md`, so editing the Stance or Decisions section after sign-off trips
+`artifact_unchanged` in `preflight.py build` the way editing any other part
+does — the gap the three-file arrangement had is closed for the long path.
+What remains is an older multi-file track (`-stance.md`, `-decisions.md` next to
+a `-detail.md`): the ledger fingerprints one of those files, so an edit to the
+others does not trip the check. For those, treat an edit after sign-off as
+re-opening the gate, and say so rather than relying on a check that will not
+fire.
 
 ## When to skip this stage entirely
 
 A design document that nobody needed is the most expensive kind, because it
 reads exactly like one that was needed. Each of these belongs somewhere else:
 
-- **The change is small enough that a code review would settle it.** A
-  feasibility table over a two-file change is ceremony, and ceremony is what
-  makes someone skip this stage the time it would have mattered.
+- **The change is small enough that a code review would settle it.** It takes
+  the short path (see "Judge the signals"): no mode runs and no feasibility
+  table is written, because a feasibility table over a two-file change is
+  ceremony, and ceremony is what makes someone skip this stage the time it
+  would have mattered.
 - **The decisions are already made and you want them written down.** That is
   dictation, not design — write the document, but skip the option-weighing
   this stage exists for rather than staging a choice nobody is making.
@@ -626,7 +924,7 @@ reads exactly like one that was needed. Each of these belongs somewhere else:
   Diagnosis mode is for a broken thing whose *cause* is worth a person's
   confirmation; a document proving what everyone can already see is the same
   ceremony this list exists to prevent.
-- **The requirements themselves are the unknown.** Run `discover` first, then
+- **The requirements themselves are the unknown.** Run `/cai:discover` first, then
   come back — this stage traces a design against requirements, and it has
   nothing to trace against yet.
 - **Decisions mode only:** the stance is still `draft`. Weighing options
@@ -651,10 +949,13 @@ of the ledger's `--note`; you write no track file at all.
 - which mode ran
 - where the document landed
 - what `plan-review` returned
+- when Steps 1–5 ran: the problem statement that was agreed, and which
+  questions were skipped and why
 - any deviation from this procedure
 
 Evidence goes in the artifact this stage already produces, never pasted
-in here. 4000 characters is the ceiling for this section: the largest
+in here. The `## Intake document` section of Step 5 sits outside this ceiling
+too: the main session saves it as the track's `intake.md`. 4000 characters is the ceiling for this section: the largest
 note any finished track has written is 1941 characters, measured across
 30 rows in five tracks, and a report carries those fields plus what never
 reaches that cell. The number is the user's call, 2026-09-08. A

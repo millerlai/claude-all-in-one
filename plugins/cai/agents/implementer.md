@@ -27,5 +27,12 @@ a subagent definition; spawn only what that file names.
   - Added → green (`classDef added fill:#d4edda,stroke:#28a745,color:#155724`)
   - Modified → amber (`classDef modified fill:#fff3cd,stroke:#ffc107,color:#856404`)
   - Existing/unchanged → gray (`classDef existing fill:#e9ecef,stroke:#adb5bd,color:#495057`)
+- In Bash, no heredoc (`<<`) for any purpose — write a file and pass its
+  path — and no `sleep` loop waiting on something. Under a heredoc a command
+  reading stdin waits forever, and a call that times out is moved to the
+  background rather than killed, where it outlives your report. Give a long
+  command a `timeout` it fits in, or run it in the background and wait for
+  the notification; before you report, stop every background command you
+  started, or name the ones still running so the main session can.
 - Summarize changes as: files touched, behavior change, test status, and each spec
   item mapped to where it landed — with any deviation called out.

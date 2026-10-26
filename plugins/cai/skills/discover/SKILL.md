@@ -4,10 +4,12 @@ description: An unknown that would change the work, surfaced before implementati
 argument-hint: "<what is unclear>"
 ---
 
-Run the discover stage for: $ARGUMENTS
+Run the discover procedure for: $ARGUMENTS
 
-The procedure lives in one place, read by whoever runs this stage — a
-track's subagent or this command:
+This is a standalone command, not a stage of `/cai:track`: a track's `design`
+stage recommends it when the option space is unexplored, and never runs it.
+
+The procedure lives in one place, read by this command:
 `${CLAUDE_PLUGIN_ROOT}/skills/track/references/stage-discover.md`. First, if
 `<top>/.cai/codemap/state.json` exists, follow
 `${CLAUDE_PLUGIN_ROOT}/skills/track/references/codemap-brief.md` yourself,

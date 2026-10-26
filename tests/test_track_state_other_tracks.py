@@ -11,8 +11,7 @@ import ledger
 SCRIPTS = os.path.dirname(ledger.__file__)
 TRACK_STATE = os.path.join(SCRIPTS, "track_state.py")
 
-FULL_ROWS = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-             ("design", "done", "—", ""), ("build", "done", "—", ""),
+FULL_ROWS = [("design", "done", "—", ""), ("build", "done", "—", ""),
              ("verify", "done", "—", ""), ("ship", "done", "—", "")]
 
 
@@ -46,8 +45,7 @@ def run(root):
 
 
 def test_other_track_shows_where_it_stopped(tmp_path):
-    stopped_at_design = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-                          ("design", "", "", ""), ("build", "", "", ""),
+    stopped_at_design = [("design", "", "", ""), ("build", "", "", ""),
                           ("verify", "", "", ""), ("ship", "", "", "")]
     root = make_root(tmp_path, "first", FULL_ROWS, [("second", stopped_at_design)])
 
@@ -57,8 +55,7 @@ def test_other_track_shows_where_it_stopped(tmp_path):
 
 
 def test_other_track_in_progress_shows_status(tmp_path):
-    in_progress = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-                   ("design", "done", "—", ""), ("build", "in-progress", "—", "unit 3 of 5"),
+    in_progress = [("design", "done", "—", ""), ("build", "in-progress", "—", "unit 3 of 5"),
                    ("verify", "", "", ""), ("ship", "", "", "")]
     root = make_root(tmp_path, "first", FULL_ROWS, [("second", in_progress)])
 
@@ -84,7 +81,7 @@ def test_other_track_without_state_md(tmp_path):
 
 
 def test_other_track_with_bad_table_does_not_change_exit(tmp_path):
-    short_rows = FULL_ROWS[:5]  # missing "ship" -- disagrees with stages.json
+    short_rows = FULL_ROWS[:3]  # missing "ship" -- disagrees with stages.json
     root = make_root(tmp_path, "first", FULL_ROWS, [("second", short_rows)])
 
     done = run(root)
@@ -101,8 +98,7 @@ def test_no_other_tracks_output_unchanged(tmp_path):
 
 
 def test_exit2_path_still_prints_no_next_even_with_other_tracks(tmp_path):
-    illegal = [("intake", "passed", "—", ""), ("discover", "done", "—", ""),
-               ("design", "done", "—", ""), ("build", "done", "—", ""),
+    illegal = [("design", "passed", "—", ""), ("build", "done", "—", ""),
                ("verify", "done", "—", ""), ("ship", "done", "—", "")]
     root = make_root(tmp_path, "first", illegal, [("second", FULL_ROWS)])
 

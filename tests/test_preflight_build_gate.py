@@ -8,6 +8,7 @@ editing the heading in, landed after sign-off and tripped artifact_unchanged
 on the next run. These tests hold both halves shut.
 """
 import os
+import hashlib
 import json
 import subprocess
 import sys
@@ -147,23 +148,41 @@ Pick Option A if you would rather not weigh it, because it costs the least and i
 """
 
 
+INTAKE = ("# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
+          "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look |\n")
+
+
+def with_ac_line(name, text):
+    """A new track's stand-alone -detail.md carries the AC: line for its
+    intake.md under ## Reference (preflight.intake_unchanged); these tests are
+    about other checks, so the line is added here."""
+    if not name.endswith("-detail.md"):
+        return text
+    digest = hashlib.sha256(INTAKE.encode("utf-8")).hexdigest()
+    if "## Reference\n" not in text:
+        return text + "\n## Reference\nAC: intake.md sha256 %s\n" % digest
+    return text.replace("## Reference\n",
+                        "## Reference\nAC: intake.md sha256 %s\n" % digest, 1)
+
+
 def make_track(tmp_path, artifact):
-    """A track sitting at `build`, with intake/discover/design all done and
-    the design row naming `artifact`."""
+    """A track sitting at `build`, with design done and the design row naming
+    `artifact`, and the `intake.md` the design stage's report became."""
     track = tmp_path / "track"
     track.mkdir(exist_ok=True)  # the drift test remakes it once per kind
-    rows = [("intake", "done", "—", ""), ("discover", "done", "—", ""),
-            ("design", "done", artifact, ""), ("build", "", "", ""),
+    rows = [("design", "done", artifact, ""), ("build", "", "", ""),
             ("verify", "", "", ""), ("ship", "", "", "")]
     lines = ["# fixture", "", "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
     (track / "state.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # Bytes, so the digest with_ac_line records is the one on disk on Windows too.
+    (track / "intake.md").write_bytes(INTAKE.encode("utf-8"))
     return str(track)
 
 
 def write_doc(tmp_path, name, text):
     doc = tmp_path / name
-    doc.write_text(text, encoding="utf-8")
+    doc.write_text(with_ac_line(name, text), encoding="utf-8")
     return str(doc)
 
 
@@ -627,7 +646,7 @@ def test_build_reuses_earlier_signed_decisions_without_local_drafts(tmp_path, mo
                     "- **Decided:** A, chosen by the user, 2026-09-25.\n")
     track = make_track(tmp_path, "d-decisions.md")
     monkeypatch.setattr(ledger, "_now", lambda: "2026-09-26T00:00:00Z")
-    ledger.append(track, "intake", "passed")
+    ledger.append(track, "design", "passed")
     ledger.append(track, "design", "passed", artifact=doc, gate="human")
     done = run(track, str(tmp_path))
     assert done.returncode == 0, done.stdout
@@ -705,8 +724,8 @@ def test_a_separator_character_in_the_approve_note_still_signs_off(tmp_path):
 def test_forty_usage_problems_still_let_gate_1_pass_with_full_artifact_path(
         tmp_path, monkeypatch):
     (tmp_path / "docs" / "design").mkdir(parents=True)
-    doc = write_doc(tmp_path, "docs/design/x-diagnosis.md", HLD)
-    track = make_track(tmp_path, "docs/design/x-diagnosis.md")
+    doc = write_doc(tmp_path, "docs/design/x-high-level.md", HLD)
+    track = make_track(tmp_path, "docs/design/x-high-level.md")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-t7")
     n = 40
@@ -728,8 +747,8 @@ def test_forty_usage_problems_still_let_gate_1_pass_with_full_artifact_path(
 
 def test_forty_models_still_collapse_and_keep_the_full_artifact_path(tmp_path, monkeypatch):
     (tmp_path / "docs" / "design").mkdir(parents=True)
-    doc = write_doc(tmp_path, "docs/design/x-diagnosis.md", HLD)
-    track = make_track(tmp_path, "docs/design/x-diagnosis.md")
+    doc = write_doc(tmp_path, "docs/design/x-high-level.md", HLD)
+    track = make_track(tmp_path, "docs/design/x-high-level.md")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sess-t8")
     orchestration = _worst_case_models(20)

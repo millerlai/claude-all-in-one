@@ -51,8 +51,7 @@ def make_track(tmp_path):
     the same shape test_preflight_merge_check.py's make_track uses."""
     track = tmp_path / "track"
     track.mkdir()
-    rows = [("intake", "", "—", ""), ("discover", "", "", ""),
-            ("design", "", "", ""), ("build", "", "", ""),
+    rows = [("design", "", "", ""), ("build", "", "", ""),
             ("verify", "done", "—", ""), ("ship", "", "", "")]
     lines = ["# fixture", "", "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Puts a new track on a feature branch before intake's preflight ever runs.
+"""Puts a new track on a feature branch before the first stage's preflight ever runs.
 Zero deps.
 
-`$track <feature>` used to create `state.md` and go straight to intake,
-which FAILs `not_main_branch` whenever the branch is `main`/`master`
-(preflight.intake()) -- `rules/workflow.md` says to branch first, but
+`$track <feature>` used to create `state.md` and go straight to the first
+stage, which FAILs `not_main_branch` whenever the branch is `main`/`master`
+(preflight.py design) -- `rules/workflow.md` says to branch first, but
 nothing in the track procedure did it, so every first attempt on `main` was
 recorded `blocked` and the branch was made by hand (#193). This script is
 that step: on `main`/`master` it fast-forwards from upstream (skipped, with a
 message, when there is none) and switches to `track/<feature>`; on any other
-branch, or a detached HEAD, it leaves things alone. Preflight intake is
+branch, or a detached HEAD, it leaves things alone. Preflight design is
 unchanged and still blocks on `main` as the backstop.
 
 On `main`/`master` the default since #467 is a worktree instead, so several
@@ -85,7 +85,7 @@ def write_baseline(track_dir, project_dir):
 
     Called on every exit-0 path below, not only the branch this script just
     created -- most tracks start already on a feature branch
-    (`preflight.py intake`'s guidance), and that path used to write nothing,
+    (`preflight.py design`'s guidance), and that path used to write nothing,
     which made the common case the one with no baseline instead of the rare
     one (#198 critique).
 

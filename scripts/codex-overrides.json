@@ -677,11 +677,11 @@
       "target": "skills/track/references/stage-build.md",
       "anchor": [
         "subagent, and the platform removes `AskUserQuestion` from every subagent",
-        "whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends"
+        "whatever `tools:` says. Step 2's row that sends architecture decisions to"
       ],
       "replacement": [
         "subagent, and no subagent can ask the person directly here either.",
-        "Step 0.5's answers, and Step 2's row that sends"
+        "Step 2's row that sends architecture decisions to"
       ],
       "why": "I8: subagents never ask on Codex either."
     },
@@ -1067,16 +1067,6 @@
     {
       "target": "skills/track/references/approval-gates.md",
       "anchor": [
-        "| Step 0.5 parallel lane | Whichever option the result reports as selected, still gated by `stage-build.md` Step 4's three conditions; sequential when the result reports nothing selected. |"
-      ],
-      "replacement": [
-        "| Step 0.5 parallel lane | Left unanswered; no parallel lane is started; execution stays sequential. |"
-      ],
-      "why": "An unsubmitted cursor selection on timeout is not an answer to the lane question."
-    },
-    {
-      "target": "skills/track/references/approval-gates.md",
-      "anchor": [
         "| The track-directory name (`ticket-mirror.md`) | Whichever name the result reports as selected; left unanswered when the result reports nothing selected. |"
       ],
       "replacement": [
@@ -1090,8 +1080,9 @@
         "a pick. When a result reports nothing selected, Claude never substitutes the",
         "`(recommended)` option as if the person had chosen it — a recommendation is a",
         "suggestion for a person to accept, not a default Claude reaches for on a",
-        "timeout's behalf. That is not the same as the two rows above that already use",
-        "whichever option a timeout does report selected, recommended label or not."
+        "timeout's behalf. That is not the same as the track-directory row above, which",
+        "already uses whichever option a timeout does report selected, recommended label",
+        "or not."
       ],
       "replacement": [
         "a pick. No timeout counts as a submitted answer, even if the result reports a cursor-selected option.",
@@ -1103,9 +1094,9 @@
       "target": "skills/track/references/approval-gates.md",
       "anchor": [
         "per menu that timed out, naming the stop and the outcome applied above. At",
-        "the two stops where a selected option is used rather than left unanswered —",
-        "the parallel lane and the track-directory name — that line also names the",
-        "option used, since the result reporting an option \"selected\" may just be",
+        "the stop where a selected option is used rather than left unanswered — the",
+        "track-directory name — that line also names the option used,",
+        "since the result reporting an option \"selected\" may just be",
         "reporting wherever the cursor happened to be resting, not a real choice."
       ],
       "replacement": [

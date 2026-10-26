@@ -1,11 +1,13 @@
-"""preflight's `discover` and `ship` gates over ledger.COUNTS_AS_FINISHED.
+"""preflight's `ship` gate over ledger.COUNTS_AS_FINISHED, and `build`'s
+intake_document check on a track begun when intake was still a stage.
 
-Both used to gate on `bool(status)`, which let anything non-empty through --
+Both gates used to be `bool(status)`, which let anything non-empty through --
 `passed` and `in-progress` included, neither of which means the stage is
 done (#61). The gate is `status in ledger.COUNTS_AS_FINISHED`, exactly
 `("done", "skipped")`, not `status in ledger.STATUSES`: STATUSES' first
 element is the empty string, so membership of it would be looser than the
-`bool(status)` it replaces, not stricter.
+`bool(status)` it replaces, not stricter. (The `discover` gate went with the
+discover stage; the fixtures below keep the six rows an old track still has.)
 """
 import os
 import subprocess
@@ -41,16 +43,6 @@ def run(stage, track, project):
         capture_output=True, text=True, encoding="utf-8")
 
 
-# --- discover: exit code and PASS/FAIL both carry the answer ---------------
-
-@pytest.mark.parametrize("status", ["passed", "in-progress"])
-def test_discover_blocks_statuses_that_are_not_finished(tmp_path, status):
-    track = make_track(tmp_path, status, "")
-    done = run("discover", track, str(tmp_path))
-    assert done.returncode == 2, done.stdout
-    assert "FAIL intake_status" in done.stdout
-
-
 VALID_INTAKE = ("# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
                 "| AC | level | check |\n|---|---|---|\n| AC1 | manual | look |\n")
 LEGACY_INTAKE = "# Intake\n\nAC1: it works.\n"
@@ -58,17 +50,9 @@ BAD_TABLE_INTAKE = ("# Intake\n\nAC1: it works.\n\n## Verification levels\n\n"
                     "| AC | level | check |\n|---|---|---|\n| AC1 | bogus | look |\n")
 
 
-@pytest.mark.parametrize("status", ["done", "skipped"])
-def test_discover_passes_finished_statuses(tmp_path, status):
-    track = make_track(tmp_path, status, "")
-    (tmp_path / ("track-%s-empty" % status) / "intake.md").write_text(
-        VALID_INTAKE, encoding="utf-8")
-    done = run("discover", track, str(tmp_path))
-    assert done.returncode == 0, done.stdout
-    assert "PASS intake_status" in done.stdout
-
-
 # --- intake_document (#376): a done intake owes a readable intake.md --------
+# Checked by `build` now, and on a track that still has an intake row only when
+# that row is `done` (the rule it was begun under).
 
 def _intake_track(tmp_path, content):
     track = make_track(tmp_path, "done", "")
@@ -77,38 +61,33 @@ def _intake_track(tmp_path, content):
     return track
 
 
-@pytest.mark.parametrize("stage", ["discover", "design"])
-def test_done_intake_without_intake_md_blocks(tmp_path, stage):
-    done = run(stage, _intake_track(tmp_path, None), str(tmp_path))
+def test_done_intake_without_intake_md_blocks(tmp_path):
+    done = run("build", _intake_track(tmp_path, None), str(tmp_path))
     assert done.returncode == 2, done.stdout
     assert "FAIL intake_document" in done.stdout
 
 
-@pytest.mark.parametrize("stage", ["discover", "design"])
-def test_done_intake_with_invalid_table_blocks(tmp_path, stage):
-    done = run(stage, _intake_track(tmp_path, BAD_TABLE_INTAKE), str(tmp_path))
+def test_done_intake_with_invalid_table_blocks(tmp_path):
+    done = run("build", _intake_track(tmp_path, BAD_TABLE_INTAKE), str(tmp_path))
     assert done.returncode == 2, done.stdout
     assert "FAIL intake_document" in done.stdout
 
 
-@pytest.mark.parametrize("stage", ["discover", "design"])
-def test_done_intake_with_legacy_document_does_not_block(tmp_path, stage):
-    done = run(stage, _intake_track(tmp_path, LEGACY_INTAKE), str(tmp_path))
+def test_done_intake_with_legacy_document_does_not_block(tmp_path):
+    done = run("build", _intake_track(tmp_path, LEGACY_INTAKE), str(tmp_path))
     assert "PASS intake_document" in done.stdout
     assert "FAIL intake_document" not in done.stdout
 
 
-def test_skipped_intake_owes_no_document(tmp_path):
-    done = run("discover", make_track(tmp_path, "skipped", ""), str(tmp_path))
+def test_done_intake_with_a_valid_document_passes(tmp_path):
+    done = run("build", _intake_track(tmp_path, VALID_INTAKE), str(tmp_path))
+    assert "PASS intake_document" in done.stdout
+
+
+@pytest.mark.parametrize("status", ["skipped", "", "in-progress"])
+def test_an_intake_that_is_not_done_owes_no_document(tmp_path, status):
+    done = run("build", make_track(tmp_path, status, ""), str(tmp_path))
     assert "intake_document" not in done.stdout
-
-
-def test_discover_blocks_an_empty_status(tmp_path):
-    track = make_track(tmp_path, "", "")
-    done = run("discover", track, str(tmp_path))
-    assert done.returncode == 2, done.stdout
-    assert "FAIL intake_status" in done.stdout
-    assert "is empty" in done.stdout
 
 
 # --- ship: verify_status is one check among three, so only the label is

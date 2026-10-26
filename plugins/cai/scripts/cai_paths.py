@@ -12,10 +12,14 @@ conflicted with every other branch. `migrate` moves them across once.
 
 Exit 0 done, 2 the directory could not be made (the last line says why)."""
 import argparse
+import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
+
+import tool_path
 
 CAI_DIR = ".cai"
 SELF_IGNORE = ".gitignore"
@@ -56,7 +60,8 @@ def _tracked(top, rel):
     # the person's locale.
     env = dict(os.environ, LC_ALL="C", LANGUAGE="C")
     try:
-        done = subprocess.run(["git", "ls-files", "-z", "--", rel.replace(os.sep, "/")],
+        done = subprocess.run([tool_path.resolve("git", top), "ls-files", "-z", "--",
+                               rel.replace(os.sep, "/")],
                               cwd=top, capture_output=True, timeout=30, env=env)
     except (OSError, subprocess.SubprocessError):
         return "unknown"
@@ -98,6 +103,106 @@ def migrate(top):
                else "git could not say whether it tracks the original")
         lines.append("copied %s; %s, so it is left for you to remove" % (shown, why))
     return lines
+
+
+def _git(cwd, *args):
+    """Completed git process, or None when git cannot run. English messages
+    and bytes decoded by the caller, as _tracked does."""
+    env = dict(os.environ, LC_ALL="C", LANGUAGE="C")
+    try:
+        return subprocess.run([tool_path.resolve("git", cwd), *args], cwd=cwd, capture_output=True,
+                              timeout=10, env=env)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def main_checkout(project_dir):
+    """The main checkout's top when project_dir is a linked worktree, else
+    (None, the reason it stays put). Returns (top, None) on success."""
+    found = []
+    for flag in ("--git-dir", "--git-common-dir"):
+        done = _git(project_dir, "rev-parse", flag)
+        if done is None or done.returncode != 0:
+            return None, "not a git work tree -- nothing to copy"
+        out = done.stdout.decode("utf-8", "replace").strip()
+        found.append(os.path.realpath(os.path.join(project_dir, out)))
+    git_dir, common = found
+    if os.path.normcase(git_dir) == os.path.normcase(common):
+        return None, "not a linked worktree -- the archive stays where it is"
+    if os.path.basename(common) != ".git":
+        return None, "the main repository is bare -- no checkout to copy into"
+    return os.path.dirname(common), None
+
+
+def _read_object(path):
+    """The JSON object in `path`, {} when there is no file, None when it
+    cannot be read or holds anything but an object."""
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8-sig") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def config_path(project_dir, key=None, merge=False):
+    """(the cai.json to read or write, note lines this call produced).
+
+    A linked worktree starts with no cai.json because `.cai/` ignores itself,
+    so what an earlier worktree recorded was invisible. There the answer is
+    the main checkout's file.
+
+    merge=False (every reader) never writes: a worktree file something other
+    than the main session can write must not be promoted into the main
+    checkout's allowlist by being read. When `key` is given, the main file is
+    a JSON object (or absent) lacking it and the worktree's own file holds it,
+    the worktree's own path comes back, with a note.
+
+    merge=True (only the recorders, run by the main session) first merges
+    every top-level key the worktree's file has and the main one lacks into
+    the main one (main wins on a conflict). Anywhere else, or when either file
+    cannot be trusted as a JSON object, nothing is merged and a missing file
+    is still just a path."""
+    own = os.path.join(project_dir, CONFIG)
+    top, _ = main_checkout(project_dir)
+    if top is None:
+        return own, []
+    shared = os.path.join(top, CONFIG)
+    mine = _read_object(own)
+    if not merge:
+        theirs = _read_object(shared)
+        if (key is not None and theirs is not None and key not in theirs
+                and mine and key in mine):
+            return own, ["cai_paths: %s read from %s; the main checkout's cai.json has none"
+                         % (key, own)]
+        return shared, []
+    if not mine:
+        return shared, []
+    # Read just before writing: a second worktree merging at once is seen,
+    # and only what is still missing is added.
+    theirs = _read_object(shared)
+    if theirs is None:
+        return shared, []
+    lacking = sorted(k for k in mine if k not in theirs)
+    if not lacking:
+        return shared, []
+    theirs.update({k: mine[k] for k in lacking})
+    try:
+        ensure_dir(top)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(shared), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+                json.dump(theirs, fh, indent=2, ensure_ascii=False)
+                fh.write("\n")
+            os.replace(tmp, shared)
+        except OSError:
+            os.remove(tmp)
+            raise
+    except OSError:
+        return shared, []
+    return shared, ["cai_paths: merged %s from %s into %s" % (", ".join(lacking), own, shared)]
 
 
 def main(argv=None):

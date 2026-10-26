@@ -75,7 +75,7 @@ def _record(track, *items, branch="track/x"):
 def _state(track, design_doc=None, left_open=()):
     """state.md with a design row naming the approved document, so the real
     preflight.commit_answer reads the ledger; `left_open` is (stage, text)."""
-    rows = [("intake", "done", "—", ""), ("design", "done", design_doc or "—", ""),
+    rows = [("design", "done", design_doc or "—", ""),
             ("build", "done", "—", ""), ("verify", "done", "—", ""),
             ("ship", "", "", "")]
     def note(stage):

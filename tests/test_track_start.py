@@ -1,7 +1,7 @@
-"""track_start.py: putting a new track on a feature branch before intake's
-preflight ever runs.
+"""track_start.py: putting a new track on a feature branch before the first
+stage's (design's) preflight ever runs.
 
-`preflight.py:358-366` FAILs `not_main_branch` whenever the branch is
+`preflight.py` FAILs `not_main_branch` whenever the branch is
 `main`/`master`, and nothing in the track procedure branched first
 (#193). These tests run track_start.start() against real git repositories
 rather than mocking git, the same choice test_branch_sweep.py and
@@ -233,13 +233,13 @@ def test_git_not_answering_stops(tmp_path, monkeypatch):
     assert "git did not answer" in message
 
 
-def test_intake_preflight_passes_after_track_start(tmp_path):
+def test_design_start_checks_pass_after_track_start(tmp_path):
     repo = init_repo(tmp_path / "repo")
     track_dir = track_dir_for(tmp_path, "feat-j")
     code, _ = track_start.start(track_dir, str(repo))
     assert code == 0
 
-    checks = preflight.intake(track_dir, str(repo))
+    checks = preflight._start_checks(track_dir, str(repo))
     branch_check = checks[0]
     assert branch_check[0] is True, branch_check
 

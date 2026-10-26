@@ -6,12 +6,11 @@ no track underneath it. The procedure below is the same either way.
 
 **Asking is the one thing that is not.** Dispatched by the track you are a
 subagent, and the platform removes `AskUserQuestion` from every subagent
-whatever `tools:` says. Step 0.5's answers, and Step 2's row that sends
-architecture decisions to the user, then mean: finish what the answer does
-not block and end the report with the `## Pending questions` section
-`references/pending-questions.md` specifies. Step 0.5 blocks every unit, so
-under a track the first pass stops there when it has a question to hand up:
-no unit starts until the answers come back; with none, it does not stop.
+whatever `tools:` says. Step 2's row that sends architecture decisions to
+the user then means: finish what the answer does not block and end the
+report with the `## Pending questions` section
+`references/pending-questions.md` specifies. Step 0.5 asks nothing under a
+track, so the first pass does not stop there.
 Standing alone you are the main session — ask directly.
 
 Long runs do not fail gracefully. A session limit, a token limit, or a
@@ -59,7 +58,7 @@ before reading anything:
 A non-zero exit means building against a document already known to be
 wrong — say so and stop.
 
-## Step 0.5 — Say what it will cost, then get up to two answers
+## Step 0.5 — Say what it will cost, then get one answer standing alone
 
 Four lines first, before anything is dispatched: how many units, which of
 them can run alongside another, the verify command each will have to pass,
@@ -70,18 +69,13 @@ sit above the menu (`references/approval-gates.md`); yours come from the
 schedule you cut, so your report names any line that differs from the
 design's.
 
-Then up to two answers standing alone and at most one under a track, once for the
-whole run and not per unit, before anything is started. Under a track the
-first pass is Step 0, those four lines, and Step 1's state table (the lane
-question needs its `Alongside` column); when there is a lane question to ask
-it then ends with that question in one `## Pending questions` report and
-nothing else done: no unit starts, no commit is made.
-With no question to hand up, the first pass does not stop: it carries on from
-Step 1 and puts the four lines in its report. That is one hand-up, a stop that
-`references/pending-questions.md` does not count as one of its three rounds,
-and the main session re-dispatches you with the answer. Up to two decisions
-standing alone and at most one under a track, one menu per turn —
-`references/approval-gates.md` holds the shape, and none is a sentence the
+Then one answer standing alone, and none under a track, once for the whole
+run and not per unit, before anything is started. The parallel lane below is
+no longer asked: it is decided from the schedule. Under a track the first pass
+is Step 0, those four lines, and Step 1's state table; it does not stop, and
+carries on from Step 1 with the four lines and the lane decision in its report.
+Standing alone the commit question is one menu —
+`references/approval-gates.md` holds the shape, and it is not a sentence the
 person types a word back into:
 
 - **Commit per unit.** `workflow.md` says never commit unless asked; this
@@ -113,21 +107,19 @@ person types a word back into:
   plainly — and every change stays in the working tree, build's and
   verify's: `ship`'s Step 1 stops on the tracked ones (`clean_tree`) and
   the person commits.
-- **The parallel lane itself.** Asked only when the `Alongside` column names a
-  pair of units whose sides of the ownership map do not intersect, the tree
-  is not a linked worktree (Step 4's condition 4), and the commit answer is
-  yes; otherwise — no such pair, a commit answer that is not yes,
-  or a linked worktree — there is no menu, and the four lines say "sequential" in one
-  line. Buys wall-clock, costs a worktree per lane plus a merge. For three or
-  four small units it is not worth it. Recommend, let the user decide,
-  default to sequential.
+- **The parallel lane itself is not asked.** Lanes open on their own when the
+  commit answer is yes and the schedule's `Alongside` column names a pair of
+  units (Step 4 still checks the ownership map and the linked worktree
+  before it opens one); otherwise units run one at a time. The report says
+  which was chosen and why, in one line. It buys wall-clock and costs a
+  worktree per lane plus a merge.
 
 A Step 0.5 menu that closes on its own leaves that answer unmade, not
 defaulted: `references/approval-gates.md`'s new section names the fallback
 each takes — commit per unit, asked only standing alone, is treated as no,
-so the parallel lane stays off and falls back to sequential. The run states
-which menus timed out, by name, and build proceeds on whichever fallback
-applies.
+so the parallel lane is not opened and units run sequentially. The run
+states which menus timed out, by name, and build proceeds on whichever
+fallback applies.
 
 ## Step 1 — Turn the schedule into a state table
 
@@ -194,7 +186,7 @@ item 5 says. A blocked unit's uncommitted edits stay out of every later commit: 
 unit by its own paths, never `git add -A` or `git commit -a`, and name them
 under "In flight" if the run stops. When nothing that can run is left, end the report with the question under `##
 Pending questions` (`references/pending-questions.md`), its `Blocks:` line
-naming the blocked units. The main session re-dispatches you with the answer,
+naming the blocked units and its `Why asked:` line the reason it is asked. The main session re-dispatches you with the answer,
 and the table says where to resume. Standing alone you are the main session —
 ask directly, with the same units held back meanwhile.
 
@@ -205,7 +197,7 @@ units that cannot run in parallel, and possibly a boundary the design drew
 wrong, which goes to the user: both units are `blocked` and the question is
 handed up, as above.
 Without a detail design, locate the paths named by `## Fix` or by the
-approved intake criteria and signed decisions in the current source, and
+approved `intake.md` criteria and signed decisions in the current source, and
 assign each affected path to a unit explicitly. This substitutes for
 `## Implementation spec`; do not invent a missing section.
 
@@ -245,7 +237,7 @@ For each unit, in schedule order:
    When there is no detail design, do not invent missing sections. On the
    diagnosis path, quote `## Fix`, `## Failing test`, and
    `## Invariants preserved` from the diagnosis for the contract, proof,
-   and constraints. On a decisions-only path, quote intake's numbered
+   and constraints. On a decisions-only path, quote `intake.md`'s numbered
    acceptance criteria and the signed decisions applicable to this unit.
    Carry any stated budgets verbatim; if none are stated, say so. The
    dependency interfaces and allowed/forbidden files are still required.
@@ -424,7 +416,8 @@ Units all green is not done:
    every heading of the diagnosis template, `design_probe.py`'s
    `DIAGNOSIS_HEADINGS`, not only a `## Failing test` heading — the one
    the probe's not-applicable branch used to check alone — and is still
-   not judged by filename) or a detail design whose
+   not judged by filename), or a `-design.md` whose sections are Diagnosis
+   and Detail with no Stance (a bug taken to Detail), or a detail design whose
    `## Reference` resolves to at least one diagnosis and no resolved
    document carries a `## Use cases / Issues` heading (the same condition
    that branch checks) — there are no `UC`/`R` ids to fill in. Write one row
@@ -447,12 +440,12 @@ Units all green is not done:
    design, it is not the fingerprinted file, but is still the human-approved
    root cause.
    When the design has no `UC`/`R` ids and is not a diagnosis, trace every
-   numbered acceptance criterion from the approved intake (AC1, AC2, ...)
+   numbered acceptance criterion from the approved `intake.md` (AC1, AC2, ...)
    instead. Each row names the criterion, the `file:line` satisfying it,
    and the test/check with its observed result. A criterion without a
    satisfying location is unimplemented, not silently omitted. If a legacy
-   intake has no ids, assign AC1, AC2, ... in its original order in the
-   table, quote each criterion verbatim, and leave the signed intake
+   `intake.md` has no ids, assign AC1, AC2, ... in its original order in the
+   table, quote each criterion verbatim, and leave the signed `intake.md`
    unchanged. The conformance lens checks these same criteria.
 
    An AC at the `local-run` level also gets a row in this baseline table, from
@@ -599,7 +592,7 @@ Units all green is not done:
    verify stage, which runs next over this same diff, and a second pass of the
    four lenses would only repeat it. Standing alone there is no verify stage after this
    one. Run `stage-verify.md` over the whole branch, passing the design
-   document and the approved intake as the requirements its conformance
+   document and the approved `intake.md` as the requirements its conformance
    lens reviews against (including the AC rows when no UC/R ids exist), and
    the glossary record Step 6.2 kept in `implementation-notes.md`. Fix
    Blocker/Major per that stage's rules; leave Minor documented; its

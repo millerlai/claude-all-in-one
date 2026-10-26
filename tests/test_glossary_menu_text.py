@@ -280,10 +280,13 @@ def test_no_glossary_menu_left_in_gates_or_pending_questions(tree):
 @pytest.mark.parametrize("tree", TREES)
 def test_step_0_5_and_the_reference_run_keep_their_counts(tree):
     # Coverage m1: the counts the stop budget rests on.
-    assert ("up to two answers standing alone and at most one under a track"
+    # U5: the lane question went, so Step 0.5 asks one answer standing alone and
+    # none under a track, and the reference run counts five stops (the person
+    # kept Gate 2's triage menu).
+    assert ("one answer standing alone, and none under a track"
             in _step_0_5(tree))
     gates = _flat(tree, "approval-gates.md")
-    assert "The table counts the stops from Step 0.5 to the merge, six at most" in gates
+    assert "The table counts the stops after build starts, to the merge, five at most" in gates
 
 
 @pytest.mark.parametrize("tree", TREES)

@@ -13,7 +13,7 @@ when you want to know exactly what a piece does.
 
 Four layers, plus one underneath all of them.
 
-- **The track.** `/cai:track <feature>` carries one feature through six SDLC
+- **The track.** `/cai:track <feature>` carries one feature through four SDLC
   stages, keeping state in `.cai/track/<feature>/state.md` so a new session
   with no memory of this conversation can resume it. `/cai:track status` names
   where it stopped; `/cai:track skip <stage> --reason "<why>"` records why a
@@ -31,12 +31,18 @@ Four layers, plus one underneath all of them.
   names any file this track and another worktree's track both change, as a
   warning that blocks nothing; in Claude Code, the other track's session can
   be told through [cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging).
-- **The six stages.** `intake`, `discover`, `design`, `build`, `verify`,
-  `ship`. Each stage's procedure is a reference file under
+- **The four stages.** `design`, `build`, `verify`, `ship`. Each stage's
+  procedure is a reference file under
   `skills/track/references/stage-*.md`, read two ways: by the subagent the
-  track dispatches, and by that stage's own thin skill (`/cai:intake`,
-  `/cai:discover`, `/cai:design`, `/cai:build`, `/cai:verify`, `/cai:ship`)
-  when someone wants to run just that stage, track or no track. Exactly two
+  track dispatches, and by that stage's own thin skill (`/cai:design`,
+  `/cai:build`, `/cai:verify`, `/cai:ship`)
+  when someone wants to run just that stage, track or no track. `design` is
+  the old intake, discover and design in one: a change with no hard-to-undo
+  signal backed by evidence stops at the track's `intake.md` (the short
+  path), anything else writes one sectioned design document (the long path).
+  `stages.json` lists `intake` and `discover` under `retired`, so tracks
+  begun earlier still read. `/cai:discover` remains as a standalone command
+  that `design` recommends but never runs. Exactly two
   stages stop for a human sign-off: after `design`, before any code exists,
   and before the irreversible operations inside `ship` — merging, tagging,
   publishing. Both arrive as a menu you pick from, never as a prompt asking
@@ -48,7 +54,7 @@ Four layers, plus one underneath all of them.
   `/cai:options`, `/cai:usage`, `/cai:models`, `/cai:viewer`.
 - **The knowledge.** Reference files that cost nothing until something reads
   them: 72 named refactoring cards under `refactoring-catalog/`, the
-  smell-to-refactoring routing table, the six stage procedures above, and a
+  smell-to-refactoring routing table, the four stage procedures above, and a
   template for each kind of design document — diagnosis, stance, decisions,
   detail, delta.
 
@@ -68,9 +74,9 @@ The diagram itself is in [`README.md`](README.md#how-it-fits-together).
 
 Two things the diagram cannot show. Every stage runs `preflight.py` first — a
 check that costs nothing and refuses before any model is called; the shape of
-that is in [`MANUAL.md`](MANUAL.md). And `architect` appears twice because
-`intake` and `discover` both only read: one agent, two callers, which is the
-test for whether an agent deserves its own file at all.
+that is in [`MANUAL.md`](MANUAL.md). And no stage dispatches `architect`
+any more: `plan-review` and `debug` call it in, read-only, when a question
+needs a second opinion.
 
 Agent choice follows tool grant, not tier. `design` needs an agent that can
 `Write`, `ship` one that can run `git` — picking by tier alone is how an
@@ -81,10 +87,8 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | Command | What it does |
 |---|---|
 | `/cai:track <feature>` | Create or resume a track — on `main`, in its own worktree unless you add `--here`. Refuses `current` and `done` as names. Also `status` (`status --all`: one row per worktree, for tracks running side by side), `skip <stage> --reason "<why>"`, and `done`. |
-| `/cai:intake` | Turn a request into an acceptance-testable problem statement before any code exists: explore context, ask one question at a time, propose 2-3 approaches, wait for approval. User-invoked only. |
-| `/cai:discover` | Surface what you don't know before writing code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Also fires on its own when the codebase is unfamiliar or the result will be judged by look and feel. |
-| `/cai:design` | Write a design document for review. Two entrances, picked by one test — can you write a test that fails now and would pass if an existing promise held? Yes: **diagnosis** (root cause and fix, one page). No, because nothing ever promised it: **stance** (what this optimises for and what it gives up, one page). Then **decisions** (the choices that follow, routed so only what needs a person reaches one), **detail** (what gets built from), or **delta** (recovers the decisions already made in a built branch). User-invoked only. |
-| `/cai:build` | Build a detail design's work breakdown unit by unit, test-first, verifying and committing each one before the next starts — or cut your own checkpointed units with no design doc. With a detail design that has a glossary, it adds that design's project terms to `.cai/cai-context.md` itself — which intake, design, debug and refactor read when it exists — replacing a definition of the same name in place, and lists every term written, every definition replaced and every term the shipped glossary check rejected in its report; a definition that check rejects is never written. User-invoked only. |
+| `/cai:design` | Turn a request into an acceptance-testable problem statement (explore context, ask only what evidence cannot decide, propose 2-3 approaches), then — when something is hard to undo — write a design document for review. Two entrances, picked by one test — can you write a test that fails now and would pass if an existing promise held? Yes: **diagnosis** (root cause and fix, one page). No, because nothing ever promised it: **stance** (what this optimises for and what it gives up, one page). Then **decisions** (the choices that follow, routed so only what needs a person reaches one) and **detail** (what gets built from) — on the long path these are sections of one `docs/design/<date>-<topic>-design.md`, not files of their own — or **delta** (recovers the decisions already made in a built branch). User-invoked only. |
+| `/cai:build` | Build a detail design's work breakdown unit by unit, test-first, verifying and committing each one before the next starts — or cut your own checkpointed units with no design doc. With a detail design that has a glossary, it adds that design's project terms to `.cai/cai-context.md` itself — which design, debug and refactor read when it exists — replacing a definition of the same name in place, and lists every term written, every definition replaced and every term the shipped glossary check rejected in its report; a definition that check rejects is never written. User-invoked only. |
 | `/cai:verify` | Dispatch four read-only reviewers (correctness, conformance, coverage, security) over a branch diff in parallel, reconcile their findings, then fix Blockers and Majors with a failing test before and a passing one after. |
 | `/cai:ship` | Squash a branch into one conventional commit, write a release note, and stop before merging, tagging, or publishing until a person confirms. User-invoked only. |
 
@@ -93,10 +97,11 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | Command | What it does |
 |---|---|
 | `/cai:refactor` | Restructure code without changing its behaviour: the safety-net loop, the smell routing table, and the mechanics for all 72 named refactorings, on the `build` tier. |
+| `/cai:discover` | Surface what you don't know before writing code — a blindspot pass, a vocabulary ladder, an interview, an option space, or a mock, whichever unknown would change the most work. Also fires on its own when the codebase is unfamiliar or the result will be judged by look and feel. Standalone: the track's `design` stage recommends it but never runs it. |
 | `/cai:debug` | Find the root cause of a bug before proposing any fix — a failing test, a crash, a stack trace, something that used to work and stopped. |
 | `/cai:fix` | Fixes a GitHub issue, the open issues you pick from a list, a pull request's review threads, or one Jira ticket, and takes the result all the way out: a branch per issue, a push, a pull request that closes it, or a reply on each review thread. It pushes, opens pull requests and replies itself, and never merges. An issues URL asks once which issues to fix; a Jira ticket needs `acli` signed in the official way first and nothing is written back to Jira. Text from an issue, a comment or a ticket is quoted, never run. Before working on an item it records a session claim so two sessions do not fix the same one; the claim is local only (see below). User-invoked only. |
 | `/cai:fix-unclaim` | Clears one named local session claim left by `/cai:fix` without waiting for it to expire. Takes exactly four arguments: the issue or ticket URL, then the platform, session and start time copied from the blocked item's `detail`. It deletes the claim only when all four match and nothing else; the claim may belong to a session that is still active. User-invoked only. |
-| `/cai:codemap` | Builds, refreshes, checks or queries a disposable index of the repository's tracked files and their top-level symbols (Python, Go, TypeScript/JavaScript) under `.cai/codemap/`, which ignores itself in git. `/cai:codemap build` is the only thing that creates it; once it exists the track adds its state line to the `intake`, `discover` and `design` briefs, and a read-side agent uses it only when that line says `codemap: fresh`, citing the original `file:line` all the same. No script of it needs anything but the standard library. User-invoked only. |
+| `/cai:codemap` | Builds, refreshes, checks or queries a disposable index of the repository's tracked files and their top-level symbols (Python, Go, TypeScript/JavaScript) under `.cai/codemap/`, which ignores itself in git. `/cai:codemap build` is the only thing that creates it; once it exists the track adds its state line to the `design` brief (and a standalone `/cai:discover` follows it too), and a read-side agent uses it only when that line says `codemap: fresh`, citing the original `file:line` all the same. No script of it needs anything but the standard library. User-invoked only. |
 | `/cai:git` | Runs git and `gh` operations on the `chore` tier instead of the main session model. Confirms what it will touch before acting, never stages files you didn't name. |
 | `/cai:chore` | Runs any mechanical one-off — renames, formatting, lookups — on the `chore` tier, and reports back if the task turns out to need real reasoning. |
 | `/cai:quiz` | Quizzes you on your own branch diff before you merge it: a report on the non-obvious behaviours, then questions you have to answer — none of them answerable from the report alone. |
@@ -162,7 +167,7 @@ stage or by one of the tools above.
 | `security-reviewer` | `build` | The `verify` stage's fourth lens: shell execution, what reaches an argument vector, secrets in what is kept, guard bypass — those four and no fifth. |
 | `refactoring-detector` | `build` | Parallel smell analysis across module groups during a refactoring scan. |
 | `verifier` | `build` | The `verify` stage. |
-| `architect` | `think` | The `intake` and `discover` stages. |
+| `architect` | `think` | Read-only second opinions that `plan-review` and `debug` call in; no stage dispatches it. |
 | `designer` | `think` | The `design` stage. |
 
 ## Also always on
@@ -279,7 +284,7 @@ the project turns it on in `.cai/cai.json`:
 ```
 
 Then start a track from the issue itself — `/cai:track
-https://github.com/<owner>/<repo>/issues/123`. `intake` reads the issue as
+https://github.com/<owner>/<repo>/issues/123`. `design` reads the issue as
 its starting request and routes it by evidence, not by its wording; every
 passing stage and every skip rewrites one comment on the issue; and
 `/cai:track done` asks whether to close it. It uses the `gh` CLI against the
@@ -306,7 +311,7 @@ another's. It would change if a second person needed to sign off a design
 on the PR rather than in the session.
 
 **No fleet of background agents opening pull requests.** A track is one
-lane through six stages: the main session runs it, dispatches one subagent
+lane through four stages: the main session runs it, dispatches one subagent
 per stage, and stops at two human gates. There is no issue-to-PR path where
 agents pick work up unattended. It would change if a stage ever needed to
 fan out past five subagents with merge logic between them, if the flow grew
@@ -329,7 +334,7 @@ with automatic triggers when a control band is breached, scheduled scans, an
 agent sitting on-call — all of it assuming a running service with a signal to
 watch and an on-call rotation to page. This plugin has neither. What it keeps
 instead: `/cai:track done` runs `track_state.py left-open` and prints the
-track's `Left open` items in a form that pastes straight into `/cai:intake`
+track's `Left open` items in a form that pastes straight into `/cai:track`
 to start the next track — it opens no issue and schedules nothing on its
 own. It would change if cai ever ran against a live service with a signal
 worth watching.
@@ -388,8 +393,8 @@ entry, and trust it; restart Codex.
 
 ### Use
 
-`$track <feature>` carries one feature through the same six stages as
-`/cai:track`, intake to ship. Every other skill works the same way with a
+`$track <feature>` carries one feature through the same four stages as
+`/cai:track`, design to ship. Every other skill works the same way with a
 `$` instead of `/cai:` — `$design`, `$verify`, `$git`, `$chore`, and the
 rest. See [`plugins/cai-codex/README.md`](plugins/cai-codex/README.md)'s
 Usage section for the human gates, the ship push approval, and

@@ -44,8 +44,7 @@ def make_track(tmp_path, name="track"):
     make_track uses."""
     track = tmp_path / name
     track.mkdir(parents=True)
-    rows = [("intake", "", "—", ""), ("discover", "", "", ""),
-            ("design", "", "", ""), ("build", "", "", ""),
+    rows = [("design", "", "", ""), ("build", "", "", ""),
             ("verify", "done", "—", ""), ("ship", "", "", "")]
     lines = ["# fixture", "", "| stage | status | artifact | note |", "|---|---|---|---|"]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
