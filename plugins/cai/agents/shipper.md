@@ -33,6 +33,10 @@ with no shortcuts.
 - When the dispatch says a PR is already open, Step 7 updates it with
   `gh pr edit` — never a second `gh pr create` — and inside a track the merge
   is not yours: the main session runs it after its own menu.
+- Give a command that waits, such as `gh pr checks --watch`, a Bash `timeout`
+  it fits in: a call that times out is moved to the background rather than
+  killed, and outlives your report. Name any still running in the report so
+  the main session can stop it.
 - Report exactly what the procedure asks for at each step; do not improvise
   a different git sequence because it looks equivalent.
 - Every sentence you write into a commit message, release note, or PR body

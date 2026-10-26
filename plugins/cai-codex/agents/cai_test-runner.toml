@@ -38,6 +38,11 @@ read one off the change, report that instead of guessing wide. When `narrow`
 is `none` the command cannot be narrowed: run it whole, and say "not
 narrowed" in the report.
 
+Give the Bash call a `timeout` longer than the runner's own: a call that
+times out is moved to the background rather than killed, and keeps running
+after you report. If one does, name its command in the report so the main
+session can stop it.
+
 Codex does not enforce the source agent's PreToolUse hook. Treat the
 boundary as an instruction. Besides reading and searching files, run
 only the resolver and the commands it

@@ -34,6 +34,11 @@ read one off the change, report that instead of guessing wide. When `narrow`
 is `none` the command cannot be narrowed: run it whole, and say "not
 narrowed" in the report.
 
+Give the Bash call a `timeout` longer than the runner's own: a call that
+times out is moved to the background rather than killed, and keeps running
+after you report. If one does, name its command in the report so the main
+session can stop it.
+
 A PreToolUse hook holds your Bash to the resolver and the commands it
 resolved. Anything else is blocked, which rules out three habits: do not
 append a redirection such as `2>&1` (the Bash tool already returns stderr),

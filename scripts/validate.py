@@ -3283,6 +3283,36 @@ def _track_references():
           "commit answer is yes and the schedule's `Alongside` column names a pair of units",
           "The report says which was chosen and why, in one line"]),
     ]
+    # Shells a subagent leaves running: a timed-out Bash call is moved to the
+    # background, not killed, and outlives the hand-back (users reported a pile
+    # of them after track runs). Each agent that can start one says how not to,
+    # and the track's main session stops what a report names.
+    def folded_file(path):
+        return " ".join(read_text(path).split()) if os.path.isfile(path) else ""
+    AGENTS = f"{PLUGIN}/agents"
+    no_stuck_shell = ["In Bash, no heredoc (`<<`) for any purpose",
+                      "no `sleep` loop waiting on something",
+                      "before you report, stop every background command you started"]
+    PINS += [
+        ("Shells", "implementer.md forbids heredocs and sleep polls and stops its "
+                   "background commands",
+         folded_file(f"{AGENTS}/implementer.md"), no_stuck_shell),
+        ("Shells", "verifier.md forbids heredocs and sleep polls and stops its "
+                   "background commands",
+         folded_file(f"{AGENTS}/verifier.md"), no_stuck_shell),
+        ("Shells", "test-runner.md bounds its Bash call and names one left running",
+         folded_file(f"{AGENTS}/test-runner.md"),
+         ["Give the Bash call a `timeout` longer than the runner's own",
+          "name its command in the report so the main session can stop it"]),
+        ("Shells", "shipper.md bounds a waiting command and names one left running",
+         folded_file(f"{AGENTS}/shipper.md"),
+         ["such as `gh pr checks --watch`, a Bash `timeout` it fits in",
+          "Name any still running in the report so the main session can stop it"]),
+        ("Shells", "track/SKILL.md stops a background command a stage report names",
+         folded_file(f"{PLUGIN}/skills/track/SKILL.md"),
+         ["A command the report names as still running in the background, stop with "
+          "TaskStop, or name it to the person when you cannot."]),
+    ]
     for ac, label, section, phrases in PINS:
         missing = [p for p in phrases if p not in section]
         check("%s: %s%s" % (ac, label, " -- missing: %s" % "; ".join(missing) if missing else ""),
