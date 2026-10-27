@@ -1,10 +1,22 @@
 # cross-track-glossary — decisions
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+已整併 2026-10-08 的詞彙清理立場。舊 CONTEXT.md、.claude/cai-context.md 路徑，以及逐詞選單均已過時；現行位置是 .cai/cai-context.md，由建置步驟從細部設計詞彙表擷取、檢查並記錄後寫入，不逐詞提問，見 [`plugins/cai/skills/track/references/stage-build.md:467`](../../plugins/cai/skills/track/references/stage-build.md#L467)。後續規則優先；原 S2、S4、S5、D2、D4 與後續 I3 只作歷史追溯。
+
+已併入並移除的同主題文件：`2026-09-25-cross-track-glossary-stance.md`、`2026-10-08-refine-context-md-file-stance.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 名詞（第一次出現的英文詞，先給中文意思）：track 是一個功能從 intake 走到 ship 的流程，stage 是其中一段，依序是 intake（定需求）、discover（找未知）、design（設計）、build（實作）、verify（審查）、ship（合併出貨）。Detail design 是可以直接照著寫程式的細部設計，它的 `## Glossary`（詞彙表）每列是「詞｜定義｜Where it lives（在程式裡的位置）」。PR 是 pull request，合併前的審查單位。main session 是本人直接對話的 Claude；subagent 是它派出去、沒有提問工具的子代理；派工時交給 subagent 的說明叫 brief。讀取點（read point）是開頭先讀 `<top>/CONTEXT.md` 的四個程序步驟（AC1）；`<top>` 是專案頂層目錄，也就是 `git rev-parse --show-toplevel` 印出的那個（stance:5）。選單（menu）是 2–4 個選項、外加一個自由輸入（free text）欄的提問。錨點（anchor）是 `scripts/codex-overrides.json` 用來定位原文的那幾行，覆寫項（override）是其中一筆「anchor 換成 replacement」的資料。Tier 1 要本人回答，Tier 2 列出來給人掃過，Tier 3 只記錄。origin test（來源測試）問的是：一個選項會失敗，是因為技術事實，還是因為對人行為的假設；需求缺口（requirement gap）是失敗條件建立在「人會怎麼做」的選擇；否決條件（veto condition）是改寫成能直接刪掉選項的需求。conformance lens 是 verify 裡逐條對照需求的審查角度。deny list 是 `gen-codex.py` 禁止出現在 Codex 產出裡的字串清單。rewrap 是不改字、只重新換行。待答問題（`## Pending questions`）是 subagent 答不了、交給 main session 代問的問題；重新派工（re-dispatch）是問完之後，main session 帶著答案再派一次同一個 stage 的 agent。T1–T6 是 `## Tier 3` 表格下方的逐字文字，build 照抄。
 
 ## Reference
 
-- Stance: `docs/design/2026-09-25-cross-track-glossary-stance.md` — status: approved 2026-09-25。下文的 `stance:N` 指這個檔的第 N 行。
+- Stance: `docs/design/2026-09-25-cross-track-glossary-decisions.md` — status: approved 2026-09-25。下文的 `stance:N` 指這個檔的第 N 行。
 - Intake：`.claude/track/cross-track-glossary/intake.md`（AC1–AC12 已核准）。Round 2 的取捨題答案是「A：只改文字 (Recommended)」，確立 S5：凡需要新 script、新 `validate.py` 檢查或 `tests/` case 的選項，一律進 `## Ruled out`。
 - 補一個 stance 漏列的同步點，不動任何不變式：`codex-overrides.json:753-761` 的錨點是 `CLAUDE-project.md.tpl:25`，這一行就在 AC8 要加句子的 `## Conventions` 註解裡（`:24-26`）。S6 只列了 `:735`、`:745`。錨點必須恰好出現一次（C8），所以 AC8 的句子只能從 `:26` 接著寫（見 Tier 3）。
 - 查證 stance 與 intake 留下的兩件事：`track/SKILL.md` 本文照 `validate.py:2122-2123` 的算法是 128 行（C7；intake.md:72 記的 129 不對）。`CLAUDE-project.md.tpl` 沒有任何 CRLF（C10），`codex-overrides.json:740` 的 why 欄寫錯了，只記錄不修。Round 3 只有 D1 一條 Tier 1；README 那題（stance R6）過不了 origin test，改列 `## Requirement gaps` 的 G2。
@@ -235,3 +247,109 @@ T6 — 第三個選單的訊息形狀（範例用中文，實際用本人的語�
 
 選項：照提議併入 (recommended)／全部不併入
 ```
+
+
+## 整併補充：cross-track-glossary-stance
+
+來源為原 `2026-09-25-cross-track-glossary-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+目標是讓專案自己的詞在 track 之間留下來。每個詞寫進 `<top>/CONTEXT.md` 之前，它的詞名加一句理由，都已經出現在一則本人回答過的選單訊息裡。做到這點只改文字、加一個模板，不新增 script 或檢查。怎麼算成功：AC1–AC12 各自指得到一段新文字；`git diff --stat` 裡唯一的 `.py` 改動是 AC9 的 `validate.py:1951` 訊息標籤，`tests/` 底下沒有任何檔案被改。
+
+#### Sacrifices
+
+- **四個讀取點沒有機械保證會同步。** 有人刪掉其中一句，`validate.py` 照樣全綠；`GATE_POINTERS`（`validate.py:1946-1959`）那種釘點這次不加。
+- **詞彙表內容沒有程式把關**（AC10）。實作名詞被分錯組、定義寫成規格，只能靠人看選單訊息與 PR diff 抓。
+- **build 開始多問一題**：Step 0.5 從兩個決定變三個（`stage-build.md:61-62`），每題各佔一次對話。
+- **沒有 Detail design 的工作不累積詞**：diagnosis 直接進 build、Delta、`--kind hld`、獨立的 `/cai:build`（AC6）。debug、refactor 只讀不寫。
+- **同名詞以新定義取代舊定義**；舊的只留在 build report 與 git 歷史（AC4）。
+- **`_Avoid_`（來源格式裡每個詞底下「不要用的同義詞」那一行）不自動產生**，由人事後手寫（intake 第 2 題）。
+
+#### Invariants
+
+**This system's:**
+
+- S1 — `CONTEXT.md` 只是詞彙表：詞加一兩句定義，只收專案獨有的概念；不放決策、規格，也沒有 Where it lives 欄（`CONTEXT-FORMAT.md:28-29`、`domain-modeling/SKILL.md:64`；AC4、AC7）。
+- S2 — 詞名與一句理由沒出現在本人回答過的選單訊息裡，就不寫入。取代既有定義時，新舊定義並列在同一則訊息（AC2）。build 不把實作名詞放進「提議併入」組（intake 更正 1）；本人用自由輸入移進去的詞照寫。
+- S3 — 唯一的寫入點是 build 的 Step 6，在 verify 之前（`stage-build.md:255`），所以寫入一定經過 verify 與 PR（intake 第 1 題）。其他 stage、skill，以及 `/cai:track done`，都不寫（AC10）。
+- S4 — 讀取點遇到檔案不存在時：不提，也不建議建立（`domain.md:11`；AC1）。只讀 `<top>/CONTEXT.md` 這一個檔。
+- S5 — 不新增 script、`validate.py` 檢查或 `tests/` case。改動只落在這幾處：prose、`templates/CONTEXT.md.tpl`、`codex-overrides.json` 的資料項、`validate.py:1951` 的標籤字串、版本號，以及重新產生的 `plugins/cai-codex/`（AC9、AC10、AC12）。
+- S6 — 釘住的句子照 AC 改，而且同一次改完：`stage-build.md:9` 與它的錨點 `codex-overrides.json:475`、`:479`（錨點必須恰好出現一次，`gen-codex.py:246-248`）。下列都不動：`validate.py:1881` 規定的 `state.md` 次數（維持 3）、`tests/test_project_template_guard.py:24` 的錨點、`codex-overrides.json:735` 與 `:745` 錨定的兩行（AC3、AC8、AC9）。
+
+**Cross-project:**
+
+- 本 repo `CLAUDE.md` 的「Who a file is for」與「Before pushing」兩節，以及 `.gitattributes:11` 的 LF 規定。
+- 常駐文字的字數上限 `validate.py:297`（所有 description 都不動）、`track/SKILL.md` 的行數上限 `validate.py:2118`、`RETIRED_IMPERATIVES`（`validate.py:1918-1925`）。
+- 使用者的 rules，以 `CLAUDE.md:7-13` 匯入的版本為準，包括 `workflow.md` 的「沒被要求就不 commit」。
+- 平台限制：subagent 沒有 `AskUserQuestion`（`pending-questions.md:8-11`）；選單只能有 2–4 個選項（`approval-gates.md:11`）；各 agent 的工具範圍以它自己的 frontmatter 為準（`architect.md:7`、`designer.md:8`、`implementer.md:6`、`shipper.md:7`）。
+
+#### Rejected stances
+
+- **在文字之外再加一個小機制。** 做法是讓 `validate.py` 仿照 `GATE_POINTERS`，要求四個讀取點與 `stage-build.md` 都含有 `CONTEXT.md`，或加一個印出 `<top>` 的 script。好處是讀取句被刪掉時會被抓到。代價有三個。第一，S5 失效，範圍超出 AC10 與 AC12。第二，它只抓得到「句子不見了」，抓不到「句子改錯了」，`validate.py:1906-1910` 自己就這麼說。第三，印 `<top>` 的 script 幫不了 architect，因為 architect 沒有 Bash（`architect.md:7`）。這個選項以 pending question 交上，還沒被否決。
+- **build 自己決定，不另外問。** 這個做法影響範圍最小，下列句子全都不用動：`stage-build.md:9`、`:54`、`:61-62`，`approval-gates.md:148-149`，錨點 `:475` 與 `:479`，`validate.py:1951`。但它違反 S2 與已核准的 AC2：一個 subagent 的判斷，會寫進之後每條 track 都要讀的檔。
+- **整張 Glossary 照搬。** 違反 S1：模板本身就會收檔名、函式名這類名詞（`design-detail.md.tpl:55-57`）。
+- **讓 `CONTEXT.md` 也記決策。** 違反 S1。來源把決策放在另一個地方（`domain-modeling/SKILL.md:66-74`），而 cai 的決策本來就寫在 stance 與 decisions 文件裡。
+- **逐詞勾選的選單。** 選單最多 4 個選項（`approval-gates.md:11`），詞一超過 4 個就排不下。所以改成整組選，個別調整走自由輸入（AC2）。
+
+#### Out of scope
+
+- 新句子的實際措辭、`CONTEXT.md.tpl` 的確切內容、build 單元怎麼切：交給 Decisions 的 Tier 3，或交給 build。
+- `CONTEXT-MAP.md`（一個 repo 有多個 context 時用的索引）與 ADR（架構決策紀錄）：這次都不引入。
+- `_Avoid_` 欄（intake 第 2 題）、端到端驗證（AC11）、詞彙表正確性的檢查（AC10）、版本號（AC12 已定）。
+- `procedure-scan.md:36` 在 shipped 檔裡寫了 repo 內部路徑（intake 更正 5）：這次只記錄，不修。
+- `docs/` 被 git 忽略；這份文件在 ship 時要用 `git add -f`。
+
+
+## 整併補充：refine-context-md-file-stance
+
+來源為原 `2026-10-08-refine-context-md-file-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+詞彙表裡每一條都是沒讀過任何一條 track 的人也看得懂的專案詞：定義先過一支隨 plugin 出貨的檢查，再由本人逐詞勾選，本 repo 與使用者專案一樣。怎麼算成功：`validate.py` 用同一支檢查掃 `<top>/.claude/cai-context.md` 全部 PASS（AC4、AC5）；Step 0.5 每個詞彙選單最多 4 個詞、沒有任何一項標 recommended（AC2）。
+
+#### Sacrifices
+
+- **build 多問幾題**：通過檢查的詞每 4 個一個選單、每個選單各佔一個對話回合，取代現在整組一次選（`plugins/cai/skills/track/references/stage-build.md:101-103`）；參考執行的停點上限「seven at most」（`approval-gates.md:480-482`）目前只把詞彙算一個停點（`:492`）。
+- **誤擋不能硬放**：檢查判錯的合法定義——例如列出四個值的 `CONTEXT.md:86`，或以中文標點數句子數錯——只能改寫到通過為止，沒有人工放行（`intake.md:140`，round 2 答 (a)）。
+- **詞變少**：檔名、函式、欄位、狀態字串、agent 名稱與日常用語不再收（AC9）；要查它們得回去讀程式。
+- **不再只改文字**：多一支 script、它的 tests 與一項 `validate.py` 檢查要維護，樣式（pattern）要跟著寫法調整；舊 stance 用 S5 換到的簡單就此放棄。
+- **檔案不在專案頂層顯眼處**：搬進以點開頭的 `.claude/` 目錄（`intake.md:134`）；使用者專案若讓 git 忽略 `.claude/`，PR 裡就看不到它（`intake.md:93`，交 Decisions）。
+- **本 repo 這次的 88 條不逐詞問**：去留由 Gate 1 簽核 detail design 裡的整張表決定，那張表是 Gate 1 這一次要整段讀完的例外（`discover.md:7-8`、`:26-30`）；I3 的逐詞選單不管這一次清理。
+
+#### Invariants
+
+**This system's:**
+
+- I1（沿用 S1，換路徑）`<top>/.claude/cai-context.md` 只是詞彙表：詞名加一兩句說它是什麼，只收本專案獨有的概念；不放決策編號、track 文件路徑、規則、帶單位的數字或程式行為的複本（`CONTEXT.md:3-4`；AC4、AC9）。一個詞名在整個檔、跨所有節只出現一次，也只有一個意思（AC5）。
+- I2（收窄 S2）build 寫入的每一條定義——提議的、取代舊定義的、本人自由輸入的——都在同一次執行裡通過檢查，寫進檔的文字與通過檢查的文字逐字相同。被拒的詞永遠不是選項，只連同檢查印出的理由列在選單文字裡；自由輸入沒通過就不寫，build report 點名並附理由（AC1、AC2、AC4）。在使用者專案一樣擋。
+- I3（沿用 S2 其餘部分）詞名沒當過本人回答過的選單的選項，就不寫入；取代既有定義時新舊並列；逾時自動關閉的選單不併入它的任何一個詞（AC2）。唯一例外是本 repo 這次清理，權源是 Gate 1（Sacrifices 末條）。
+- I4（沿用 S3）唯一寫入點是 build 的 Step 6.2，在 verify 之前；其他 stage 與 skill 都不寫。build 只寫新路徑（AC8）。
+- I5（取代 S4）讀取點讀 `<top>/.claude/cai-context.md`，不存在就不提、不建議建立；對 `<top>/CONTEXT.md` 的退路只照 Decisions 的決定。不是 cai 寫的 `<top>/CONTEXT.md` 不當詞彙表讀、不搬、不改；build 不經選單不改使用者既有的條目，檢查只管 build 要寫的定義（`intake.md:92`）。
+- I6（取代 S5）一支檢查、一份樣式：build 與 `validate.py` 呼叫同一支 script，`validate.py` 不另寫一套（AC4）。它從 UTF-8 檔讀定義、以 UTF-8 輸出，從不經命令列參數收定義（原因見 Cross-project 末條）。
+- I7 釘住的文字同一次改完，不該動的不動：`stage-build.md` 的 Step 1 與 Step 6 標題不改名、`state.md` 字樣維持 3 次（`scripts/validate.py:2455`）、第 9–10 行不動；`approval-gates.md` 保留「exception to `epistemics.md`」（`scripts/validate.py:2561-2562`）；每個多選選單都有對應的 Codex override（`discover.md:16-20`）。
+
+**Cross-project:**
+
+- 本 repo `CLAUDE.md` 的 "Who a file is for"（出貨檔不得假設本 repo 的版面；`plugins/cai-codex/` 只由 `scripts/gen-codex.py` 產生）與 "Before pushing"（validate、pytest、改動行 90% 覆蓋、Linux CI）。
+- 使用者 rules，以 `CLAUDE.md:8-14` 匯入的版本為準，包括 `workflow.md` 的「沒被要求就不 commit」與 `coding.md` 的 Simplicity first。
+- 平台：subagent 沒有 `AskUserQuestion`（`pending-questions.md:8-11`）；選單只能有 2–4 個選項（`approval-gates.md:9-11`）；Codex 的提問工具不能多勾（`scripts/codex-overrides.json:1019`）。
+- 環境：本機 Bash tool 會打壞非 ASCII 的命令列參數（memory `bash-tool-mangles-non-ascii-argv.md:11-13`）；Windows 的管線輸出預設 ANSI code page（`plugins/cai/scripts/options_lint.py:181-187`）。
+
+#### Rejected stances
+
+- **維持 S5，只改文字、靠更清楚的規則與人審**：代價最小，但這 88 條全是走過人審選單才進來的（issue #326 "Why it ends up this way" 第 2 點，正好推翻舊 stance `:64` 的假設）；本人在 round 1 選了要機械檢查（`intake.md:135`）。
+- **檢查只警告，本人仍可勾被拒的詞**：誤擋零代價，但本人在 round 2 選了「不能勾，只能給新定義」（`intake.md:140`），而且等於把 I2 交回人審。
+- **檢查只放 `validate.py`、只管本 repo**：使用者專案照樣累積同類條目（issue #326："Cleaning this file alone does not hold"），違反 AC4。
+- **檔案留在 `<top>/CONTEXT.md`，或改放 `cai.json` 的 `"context"` 鍵**：前者把 cai 的產物放在別人專案的頂層（`intake.md:130`）；後者是本人自己提的另一案，最後選了 `.claude/cai-context.md`（`intake.md:134`）。
+- **逐詞，但用編號清單讓本人打字回答**（issue 決定 2 的例子）：本人選了每 4 詞一個多選選單（`intake.md:136`）；只有 Codex 因平台限制仍走編號文字。
+- **清理拆成第二條 track**：檢查一上線就讓本 repo 的檔案 FAIL，而搬家與清理改的是同一批句子（`intake.md:77`）。
+
+#### Out of scope
+
+- 新句子的確切措辭、檢查的樣式、節名，以及 script、它的測試檔、模板的名稱：交 Decisions（命名排進 Tier 1）與 Detail。
+- `_Avoid_` 行、`CONTEXT-MAP.md`、ADR：照舊不引入（舊 stance `:22`、`:107`）。git 歷史裡的舊定義不追改。
+- 誤擋時的人工放行：不做（Rejected stances 第二條）。
+- subagent 能不能無提示寫入 `.claude/`（`discover.md:24`）與 PR 內文放不放得下 88 條新舊對照：要實際執行才知道，交 build 第一個寫檔單元確認。
+- `docs/` 被 git 忽略；這份文件在 ship 時要 `git add -f`（`intake.md:80`）。

@@ -1,113 +1,61 @@
-# checker CLI contract — what the four probe scripts actually share
+# 檢查器命令列介面契約
 
-Maintainer reference, Ours side (`CLAUDE.md:28-32`): no shipped component reads
-this file, so it stays out of `plugins/cai/`. Its job is to stop the next
-change to any of the four scripts from silently breaking one of the others
-without a shared contract written down anywhere. It is prose, not a probe —
-nothing runs it, and it goes stale exactly as fast as the four scripts drift
-from it; a change to any of D1-D5 below should update this file in the same
-commit, and a reviewer who finds it out of date should treat the code as the
-truth.
+2026-10-27 對照目前程式更新。命令列介面（CLI）指腳本接收參數、輸出結果及結束碼的方式；標準輸出（stdout）供呼叫端讀取，標準錯誤（stderr）放使用錯誤等訊息；探針（probe）是一項回傳通過與否及標籤的檢查。
 
-The four scripts: `plugins/cai/scripts/options_lint.py`,
-`plugins/cai/scripts/design_probe.py`, `plugins/cai/scripts/preflight.py`,
-`plugins/cai/scripts/provenance.py`.
+本文件供維護者使用，只描述下列四支腳本，不替其他檢查器訂規則。原先引用的設計行號與已不存在的設計文件已移除；要改此契約時，先對照腳本的 `main` 與實際呼叫端。
 
-## What they actually share
+## 共同部分
 
-Only two things, verified against today's code
-(`.claude/track/output-schema-validator/discover.md:25-36`):
+- 執行檢查後，每項結果以 `PASS ` 或 `FAIL ` 開頭，後面接標籤；標籤可能含換行，不能假定一行就是一項。
+- 所有探針通過時結束碼為 `0`，至少一項失敗時為 `2`。
+- 結束碼 `2` 不保證執行過檢查：其中兩支也用它表示參數錯誤。
+- 不存在或未使用的輸入是否算錯，依腳本而異。
 
-1. **stdout, one line per probe**: `"PASS " + label` or `"FAIL " + label`.
-2. **exit code**: `0` when every probe passed, `2` when at least one failed.
+## D1 — 參數錯誤與檢查失敗
 
-Nothing else is common — usage errors, encoding, and what happens on an
-absent input all diverge. A caller that assumes more than these two things
-will break on at least one of the four scripts.
+| 腳本 | 參數錯誤 | 檢查失敗 | 實作依據 |
+|---|---|---|---|
+| `options_lint.py` | `2` | `2` | [main](../../plugins/cai/scripts/options_lint.py)，使用標準 `argparse.ArgumentParser` |
+| `design_probe.py` | `2` | `2` | [main](../../plugins/cai/scripts/design_probe.py)，使用標準 `argparse.ArgumentParser` |
+| `preflight.py` | `1` | `2` | [ArgParser、main](../../plugins/cai/scripts/preflight.py)，也以 `1` 回報未知階段 |
+| `provenance.py` | `1` | `2` | [ArgParser、main](../../plugins/cai/scripts/provenance.py) |
 
-## D1 — usage error exit code collides with "a probe failed"
+`argparse` 是 Python 的參數解析程式庫；後兩支自訂錯誤處理，因此結束碼不同。呼叫端要區分錯誤原因，不能只讀結束碼。
 
-`options_lint.py` and `design_probe.py` have no `ArgParser` subclass, so
-argparse's own `error()` exits `2` — the same code a real FAIL produces
-(`plugins/cai/scripts/options_lint.py:189`,
-`plugins/cai/scripts/design_probe.py:597-599` use the stock
-`argparse.ArgumentParser`). `preflight.py` and `provenance.py` both carry an
-`ArgParser` subclass that routes a usage mistake to exit `1` instead
-(`plugins/cai/scripts/preflight.py:492-498`,
-`plugins/cai/scripts/provenance.py:299-306`).
+## D2 — 輸出編碼
 
-**Consequence**: a caller that shells out to `options_lint.py` or
-`design_probe.py` and treats `exit 2` as "there is a FAIL to show the user"
-will show a wrong-flag typo as if it were a real finding. `preflight.py`'s own
-`build()` sidesteps this for `options_lint.py` entirely by calling
-`probes(text)` in-process rather than through the CLI — see
-`docs/design/2026-09-17-output-schema-validator-detail.md`'s `Implementation
-spec` section — so this divergence never reaches that caller.
+`options_lint.py`、`preflight.py`、`provenance.py` 在 `main` 將標準輸出與標準錯誤設為 UTF-8，也就是可保存中文等字元的文字編碼。`design_probe.py` 只設定無法編碼字元的替代行為，沒有固定輸出編碼。
 
-## D2 — stdout encoding is not uniformly forced
+`preflight.py` 的 `probe_checks` 仍以 `subprocess.run(..., text=True)` 呼叫 `design_probe.py`，未指定輸出解碼方式，兩端依執行環境處理。修改其中一邊時必須同時檢查呼叫端，不能從其他三支推論它的行為。
 
-`options_lint.py:186-187`, `preflight.py:506-507`, and `provenance.py:314-315`
-all call `sys.stdout.reconfigure(encoding="utf-8")` before printing.
-`design_probe.py:589` calls `sys.stdout.reconfigure(errors="replace")` only —
-no `encoding=` — so it inherits whatever the console's own encoding is.
+## D3 — 摘要不是固定格式
 
-**Consequence**: `preflight.py:126-134`'s existing subprocess call to
-`design_probe.py` passes `text=True` without `encoding=`, so both sides
-happen to agree on the console locale today; changing either side's encoding
-handling independently would break that agreement. This is why stance's `##
-Out of scope` keeps `preflight.py:126-134` untouched this round.
+檢查完成時通常印出 `-- <種類>: N probe(s) failed`。`provenance.py` 可能在後面加上修正提示。讀取探針結果時應辨識 `PASS `／`FAIL ` 前綴，不能把摘要當成固定長度的資料列。
 
-## D3 — the summary line's shape is not fixed
+## D4 — 標籤可能含多行
 
-`provenance.py:358` can append `" -- hint; <hint>"` to its summary line when
-it has something actionable to say; the other three always print the plain
-`"-- <kind>: %d probe(s) failed"` shape
-(`options_lint.py:204`, `design_probe.py:617`, `preflight.py:531`). A parser
-that expects the summary line to always match one fixed pattern will not
-match `provenance.py`'s hinted form.
+`preflight.py` 的 `ledger_attempts` 會在標籤中帶入嘗試記錄的備註，備註可能含換行。要將結果再加工時，應優先使用腳本內回傳的布林值與標籤；逐行解析輸出無法保證保留完整標籤。
 
-## D4 — a label can carry embedded newlines
+## D5 — 輸入不存在
 
-`preflight.py`'s own `ledger_attempts` probe (`plugins/cai/scripts/preflight.py:165-176`)
-puts a person's ledger note — which can itself contain `\n` — inside a
-single probe's label. A line-oriented parser that assumes "one line, one
-probe" will silently drop the continuation lines of that label. No other
-probe in any of the four scripts does this today, but a caller aggregating
-output from more than one script has to allow for it.
-
-## D5 — "the input isn't there" means opposite things
-
-`options_lint.py:196-198` and `design_probe.py:601-602` both treat a missing
-document as a FAIL, exit `2`. `provenance.py:322-334` treats a missing ledger
-(or an empty one) as "the feature is not in use" — zero output, exit `0`.
-`preflight.py`'s own per-stage probes side with `provenance.py`'s convention
-wherever an absent artifact is a legitimate state rather than an error (for
-example `options_drafts()`'s silent-pass shape, described in the same detail
-document referenced above, when the design artifact is not a decisions
-document or `## Tier 1` is empty).
-
-**Consequence**: a caller cannot infer which convention a given script uses
-from the other three; it has to know, per script, which one applies.
-
-## Scenario → checker
-
-Which checker actually runs for a given situation, and where that call
-lives — not a description of what could run it, a citation to what does.
-
-| Scenario | Which one runs | Called by, at file:line |
+| 腳本 | 未找到輸入時的行為 | 實作依據 |
 |---|---|---|
-| Can a track stage start? | `preflight.py`'s own per-stage probes | `plugins/cai/scripts/preflight.py:488-489` (`STAGES`), e.g. `:343` for `build()` |
-| Does a stance/decisions/hld/detail/delta/diagnosis document meet its own shape rules? | `design_probe.py` | `plugins/cai/scripts/preflight.py:126-134` (design gate, subprocess); also invoked directly from the author's own prose instructions, e.g. `plugins/cai/skills/track/references/stage-design.md:306` |
-| Does a six-field option draft meet the shape `option-explainer.md` asks for? | `options_lint.py` | `plugins/cai/scripts/preflight.py`'s `options_drafts()`, called in-process from `build()` (the three returns at `:377`, `:395`, `:397` in the detail design above); also invoked directly from `plugins/cai/skills/track/references/pending-questions.md`'s Step 0 and `plugins/cai/skills/track/references/stage-design.md:373` (legacy High-level mode) |
-| Do the citations a rule-provenance ledger claims still resolve? | `provenance.py` | `plugins/cai/skills/track/references/stage-verify.md:38` (verify stage, unconditional, once) |
+| `options_lint.py` | 輸出 `FAIL draft not readable`，結束碼 `2` | `main` 捕捉讀取或解碼錯誤 |
+| `design_probe.py` | 輸出 `FAIL document not found`，結束碼 `2` | `main` 的檔案存在檢查 |
+| `provenance.py` | 缺少、無法讀取或沒有條目的來源紀錄視為未使用；沒有輸出，結束碼 `0` | `main` 的提早返回 |
+| `preflight.py` | 由階段與探針決定；合法缺席可通過，必要產物缺失則阻擋 | 各階段函式與 `main` |
 
-## Path convention this contract assumes
+## 誰呼叫哪一支
 
-`options_drafts()` (see the detail design above) looks for one draft file per
-`## Tier 1` entry in a decisions document, at
-`<track-dir>/options-<id>.md`, where `<id>` is that entry's `### ` heading's
-first whitespace-separated token with only `[A-Za-z0-9_.-]` kept (falling
-back to the entry's 1-based position if that empties it out). Both
-`pending-questions.md` and `stage-design.md`'s legacy High-level mode name
-this same path so a person writing a draft and a script looking for one agree
-on where it lives.
+| 情境 | 檢查器 | 現行呼叫位置 |
+|---|---|---|
+| 工作流程某階段能否開始 | `preflight.py` | [工作流程技能](../../plugins/cai/skills/track/SKILL.md) 的階段開工程序；`preflight.py` 的 `STAGES` 選擇檢查 |
+| 設計文件形狀 | `design_probe.py` | `preflight.py` 的 `probe_checks`，以及 [設計程序](../../plugins/cai/skills/track/references/stage-design.md) |
+| 選項草稿是否有六欄 | `options_lint.py` | `preflight.py` 的 `options_drafts` 在同一行程呼叫 `probes`；[待答問題程序](../../plugins/cai/skills/track/references/pending-questions.md) 亦直接呼叫腳本 |
+| 規則的引文與重述是否仍成立 | `provenance.py` | [審查程序](../../plugins/cai/skills/track/references/stage-verify.md) Step 0.5，以及 `scripts/validate.py` |
+
+## 選項草稿的路徑約定
+
+`preflight.py` 的 `options_drafts` 為每項第一層待決事項（Tier 1）尋找 `<track-dir>/options-<id>.md`。`<track-dir>` 是該工作流程目錄，`<id>` 由標題第一個詞保留英數字與 `_`、`.`、`-` 後取得；沒有可用字元時退回項目位置。清理後識別碼相同的兩項會失敗，不能共用一份草稿冒充兩份。
+
+它也支援單份 `-design.md` 內的 `Decisions` 章節；舊 `-detail.md` 的上游草稿由 `tier1_drafts` 尋找。早於本次工作流程的已決事項可依記錄日期沿用。完整判斷以 [options_drafts 與 tier1_drafts](../../plugins/cai/scripts/preflight.py) 為準。

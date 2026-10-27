@@ -1,8 +1,20 @@
 # option-explainer with ELI5 — detail design
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+六欄選項與白話比喻規則仍在使用。早期驗收清單的模型輸出與「發布後才能跑」只記錄當時結果，不代表本次已重跑；現行規則以 [`plugins/cai/rules/option-explainer.md:20`](../../plugins/cai/rules/option-explainer.md#L20) 為準。
+
+已併入並移除的同主題文件：`2026-08-29-option-explainer-with-eli5-T1-T7-checklist.md`、`2026-08-29-option-explainer-with-eli5-high-level.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 ## Reference
 
-High Level Design doc: docs/design/2026-08-29-option-explainer-with-eli5-high-level.md
+High Level Design doc: docs/design/2026-08-29-option-explainer-with-eli5-detail.md
 Status: approved 2026-08-29
 
 上游輸入（**歷史文件，本次不修改正文**）：
@@ -833,7 +845,7 @@ What is wrong with it:
 +# this list drops to 15. `options` is an addition rather than a leftover: the
 +# always-on rule it backs (rules/option-explainer.md) has to fit in 45 lines,
 +# and the skeleton, dimension library and worked example do not
-+# (docs/design/2026-08-29-option-explainer-with-eli5-high-level.md,
++# (docs/design/2026-08-29-option-explainer-with-eli5-detail.md,
 +# Decision 2). It carries `disable-model-invocation: true`, so it costs the
 +# always-on budget below nothing.
 +SKILL_NAMES = ["build", "chore", "debug", "design", "discover", "git", "goal",
@@ -1067,3 +1079,426 @@ HLD 中文欄名不是字面一對一，覆核 UC10 時要多一次對照；對�
 範圍因此比 HLD 寫下的交付形狀略大——HLD 沒點名 `README.md`。這是刻意接受的擴張：
 兩處都**沒有任何自動檢查**，不改就是第三個「假綠」，而且沒有東西會提醒下一個人。
 兩處都必須列入 unit 3 的人工確認項。
+
+
+## 整併補充：option-explainer-with-eli5-T1-T7-checklist
+
+來源為原 `2026-08-29-option-explainer-with-eli5-T1-T7-checklist.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+### T1–T7 行為驗收清單（unit 4）
+
+**怎麼跑**：在**這個 repo 的目錄下**開一個**全新 session**（不要沿用寫這套規則的那個），
+逐條貼提示詞，照下面的檢查點打勾。
+
+**規則目前只在這個 repo 裡活著。** 生效的是 `D:\project\claude-all-in-one\CLAUDE.md`
+第 14 行新增的 `@plugins/cai/rules/option-explainer.md`——那是 repo 自己的 CLAUDE.md，
+只對工作目錄在此的 session 有效。使用者全域的 `~/.claude/rules/` 目前仍是 7 支、沒有
+`option-explainer.md`；`~/.claude/CLAUDE.md` 也還寫著「七支」。要讓規則在其他專案生效
+得跑 `/cai:setup` 重新複製 `plugins/cai/rules/`——**但那會改動全域設定，屬於 ship 之後
+的事，不要在驗收階段做**。
+
+副作用要知道：在這個 repo 跑，session 會同時載入 repo 的其他六支規則與「Working on this
+repo」那段，環境比一般專案重。這是規則唯一活著的地方，所以是可接受的取捨；若某條測試
+的結果看起來受了其他規則影響（特別是 T6），把那個懷疑一起回報。
+
+> **每一條各開一個全新 session — 但 T6 例外，見下。** 2026-08-29 第一次實測時 T1–T3
+> 跑在同一個 session，T1 的「小型部落格」情境與 T2 的未答問題都跟到了 T3，導致 T3 的
+> 「未提供專案規模」前提不成立、結果無法判定。這些測試量的是**模型在沒有前文的情況下**
+> 會不會自發遵守常駐規則；同一個 session 裡的第二個問題已經有前文了。
+>
+> **T6 反過來：它必須有前文。** 提示詞「這三個做法我都可以接受，你選一個」在全新
+> session 裡沒有指涉對象，模型只會反問你在說哪三個——那測到的是它會不會亂猜，不是
+> 規則有沒有過度套用。T6 測的是**選項已經攤開、使用者才授權決斷**的情境，所以它天生
+> 是一個兩回合的測試，跑在 T7 之後（見 T6 段）。
+
+#### 已知的實測結果（2026-08-29 第一輪）
+
+| | 結果 | 判定 |
+|---|---|---|
+| T1 | 符合預期 | **PASS** |
+| T2 | 反問專案細節（是這個 repo 還是那個部落格） | **R5 生效**（規則 L15）。不是 T2 原本要測的收斂，但不是缺陷。FR-6「資訊不足先問」由此證明有交付 |
+| T3 | 第一輪直接給答案（作廢）；**改寫提示詞後重測：只問一題就停** | **PASS**。原第三個勾選項「附預設值」已刪除——規則與 FR-6 都沒有這項要求，是我從 stage-intake.md 誤植 |
+| T4 | 沒有 `/cai:options` | **ship 前測不了**，非缺陷 |
+| T5 | 先宣告四個面向再列選項，兩者同組六欄同順序 | **PASS** |
+| T7 | 三個做法各三個判準全過（C 的拼字檢查類比靠近邊界） | **PASS** |
+| T6 | 第一句即單一答案，未重列六欄、未反問 | **PASS**（檢查點外：它接著自行開始實作，屬 workflow 層、非本規則職責） |
+
+**為什麼不能由寫規則的 session 跑**：那個 session 知道標準答案，會照著規則的措辭作答，
+測到的是「模型記不記得剛寫過什麼」，不是「常駐規則有沒有改變模型的自發行為」。
+
+**注意 T4 的提示詞已改**：spec 原文寫 `/expand`，但本 repo 沒有那個指令（`commands/` 已
+退役），補救入口併進了 `/cai:options`。
+
+---
+
+#### T1 — 基本形狀
+
+**提示詞**：我要做一個小型部落格，資料庫用什麼好？
+
+- [ ] 列出 2–3 個選項（不是四個以上，也不是直接給答案）
+- [ ] **先宣告 2–4 個比較維度**，再列選項
+- [ ] 每個選項六欄齊備
+- [ ] 每個首次出現的術語都有白話註解，且註解沒有引入新術語
+- [ ] 結尾有預設建議，並說明該建議失效的前提
+
+#### T2 — 收斂
+
+**提示詞**：這個專案要不要導入 TypeScript？
+
+- [ ] **只有兩個選項**，或直接給結論
+- [ ] 沒有為了湊數而生出第三個選項
+- [ ] 若收斂了，有說明為什麼
+
+#### T3 — 資訊不足先問
+
+> **spec 原本的提示詞「幫我選一個狀態管理套件」已作廢，不要用。** 兩個理由：
+> 1. 「幫我選一個」字面上就是授權決斷，正好撞上規則 L2–3 的排除條款
+>    （`If the user has already said "you pick", decide and answer — do not list`）。
+>    模型照規則直接回答是**正確**的，這條測不到 R5。2026-08-29 實測時模型還把觸發
+>    條件講了出來：「你說『幫我選一個』，所以我直接給答案，不攤選項。」
+> 2. spec 寫 T3 時還沒有「授權即決斷」這條規則，T3 與 T6 因此在用相同措辭測相反的事。
+
+**提示詞（改寫版）**：狀態管理套件有哪些選擇？
+
+**這條必須在一個乾淨的 session 裡跑，而且是那個 session 的第一個問題。**
+只要前面問過任何帶專案規模的問題（例如 T1 的「小型部落格」），規模就已經給了，
+「資訊不足」的前提就不存在，這條就作廢。
+
+- [x] **先問一題**，不直接列選項
+- [x] 只問一題，不是一串
+
+> **原本這裡還有第三條「問題附了一個預設值（我會假設 X）」，已刪除——那不是需求。**
+> 規則檔 L15 全文是 `Missing a fact the choice turns on? Ask one question — one — and
+> stop there.`，spec FR-6 是「資訊不足以判斷時，先提問而非先編選項；一次最多問一題」。
+> 兩處都沒有要求附預設值（grep 規則檔、SKILL.md、三支 references 與 spec 皆無）。
+> 那句要求來自 `stage-intake.md` 的訪談程序，是另一份文件在管另一件事，誤植進來會變成
+> 拿需求沒寫的標準扣分。
+
+**2026-08-29 重測結果：PASS。** 模型先讀了 repo（確認沒有 `package.json`、沒有
+`.tsx/.vue/.svelte`），據此說明無法從專案推斷生態系，然後只問「哪個生態系」一題就停住。
+
+觀察（不扣分，但記下）：它在問題的選項描述裡點了套件名（Zustand、Jotai、Pinia、
+Riverpod…）。嚴格讀 FR-6「先提問而非先編選項」，這是個邊界。判斷為不算——那些名字是
+用來讓人認出自己的生態系，沒有附六欄、也沒有給任何推薦。這是判斷，不是規則明文擋掉的。
+
+#### T4 — 事後補救入口 ⚠️ **ship 之後才跑得了**
+
+> 2026-08-29 實測 `/cai:options` 不存在，原因不是實作有問題，是**載入的 plugin 是
+> cache 那份**：`~/.claude/plugins/cache/claude-all-in-one/cai/1.15.0/skills/` 只有 15 個
+> skill，沒有 `options`。repo 裡的 `plugins/cai/skills/options/` 是原始碼，不是被載入的
+> 東西；cache 從 GitHub 裝，而這次改動還沒 commit、沒 push。
+>
+> **所以這條要等 ship（commit + push + 重裝或更新 plugin）之後才測得了。**
+> 在那之前它必然失敗，且失敗不代表任何事。
+
+**做法**：先貼一段充滿術語、看不懂的技術回覆（隨便找一段都行），然後打
+`/cai:options`（**不是 spec 寫的 `/expand`**，本 repo 沒有那個指令）。
+
+- [ ] 指令**確實生效**（這是 `disable-model-invocation: true` 保留 slash command 的實證）
+- [ ] 輸出術語表
+- [ ] 輸出同軸對照表
+- [ ] 六欄描述
+- [ ] 沒有只是把原文換句話說
+
+#### T5 — 同軸對比
+
+**提示詞**：Redis 和 Memcached 差在哪？
+
+- [x] 兩者用**同一組維度**描述，不是各講各的賣點
+- [x] 沒有出現「A 講效能、B 講生態」這種異軸並列
+
+**2026-08-29 結果：PASS。** 先宣告四個面向（資料形狀／重開後還在不在／能不能吃滿多
+核心／附帶什麼）再列選項，兩者用同一組六欄同一順序描述；四個面向在兩邊都有著落。
+沒有並排表格是對的——`template.md` 寫明兩個選項時表格可省，六欄不可省。
+
+順帶生效的三條：術語先解釋且註解未引入新術語；給了預設建議與失效條件；結尾主動標註
+「以上是通用知識，不是從這個 repo 查證來的」，那是 `epistemics.md` 的
+`Label unverified claims as assumptions`。**三條常駐規則沒有打架**——這是 T6 想確認的
+同一件事的正面證據。
+
+觀察（不扣分）：六欄在輸出裡被翻成中文（「字面上是什麼」「實際會改變什麼」「要付
+什麼」「可逆性」「什麼時候該選它」）。這是對的，`communication.md` 要求繁中回應。但
+規則檔只把標籤釘在英文，**沒有釘中文譯法**，不同 session 可能翻得不一樣。UC10 管的是
+四個原始檔一致、不管輸出呈現，所以不是缺陷；但它是 FM3「六欄漂移」漂在輸出層的變體。
+
+#### T6 — 反向測試（規則有沒有過度觸發）⚠️ **需要前文，不要單獨開 session**
+
+**做法**：**接在 T7 後面，同一個 session 的第二回合。** T7 會生出幾個做法，那就是 T6
+需要的前文。
+
+**第二回合的提示詞**：這幾個做法我都可以接受，你選一個
+
+> 用「這幾個」而不是 spec 原文的「這三個」——T7 實際生出幾個選項無法預先知道，寫死
+> 三個會在只出現兩個時變成一句假話，模型就得先處理你數錯了這件事，而不是處理授權。
+
+- [x] **直接給單一答案**，不再列選項
+- [x] 沒有把六欄重列一遍
+- [x] 沒有反過來問你「你比較在意哪個面向」之類的問題（那也是不接受授權）
+
+**2026-08-29 結果：PASS。** 第一句就是「選 B：mypy 寬鬆設定起步」，沒有重列六欄、
+沒有反問。規則 L2–3 的「授權即決斷」在**選項已經在桌上**的情境下也成立——這正是 T6
+要測而 T3 測不到的那一半。
+
+**檢查點外的觀察（不影響 T6 判定）**：它接著開始動手了——跑 shell、發現 mypy 未安裝，
+然後說「先裝 mypy 跑基準線」。使用者只說「你選一個」，那是授權**做決定**，不是授權
+**開始實作**。這不是 option-explainer 的問題：該規則的職責到 `decide and answer` 為止，
+L2–3 照做了。越界的是範圍判斷，屬於 `workflow.md` 那一層，且是既有行為，非本次改動
+引入。記在這裡是因為它會在真實使用中出現，不是因為它該由本規則負責。
+
+> **為什麼不能單獨開 session**：全新 session 裡沒有「這幾個做法」的指涉對象，模型只會
+> 反問你在說什麼。那測到的是它會不會亂猜，不是規則有沒有過度套用。
+>
+> 另外，「授權即決斷」這條排除在**沒有前文時也會生效**——2026-08-29 的 T3 已經證明
+> （模型直接作答，並主動說明「你說『幫我選一個』，所以我直接給答案，不攤選項」）。
+> T6 要測的是**另一個情境**：選項已經在桌上時，模型會不會又攤一次。
+
+> T6 這次多背一個責任：它同時是「新規則沒有和 `plugins/cai/rules/communication.md:4`–5
+> 的簡潔優先、`plugins/cai/rules/epistemics.md:12` 的『何時停下來問』打架」的證據。
+> 如果 T6 失敗，問題可能不在新規則本身，而在三條常駐規則的分工線。
+
+#### T7 — ELI5 專測（新增）
+
+**提示詞**：我這個 Python 專案要不要導入型別檢查工具？講一下有哪些做法。
+
+（刻意選一個術語密度高、很容易只寫「一句話定義」就交差的題目）
+
+對**每一個選項**的 ELI5 欄逐項判斷：
+
+- [x] **判準 1**：整段不含任何專有名詞、縮寫、套件名。出現 `mypy`、`type hint`、`CI`
+      任一者即為**否**
+- [x] **判準 2**：含且只含一個日常生活類比。沒有類比、或整段只是換句話說，即為**否**
+- [x] **判準 3**：與同一選項的 `What it literally is` 措辭不重複。兩行並排，若刪掉任一行
+      不損失資訊，即為**否**
+
+**三項全為是才算過。** 任一項為否，依規則檔的要求**改寫該欄**，不得以加註解或加形容詞
+的方式補救。
+
+**2026-08-29 結果：PASS**，三個做法各三個判準全過。
+
+| | 判準1 | 判準2 | 判準3 |
+|---|---|---|---|
+| A 不導入 | 過 | 過（小廚房、鹽罐糖罐） | 過 |
+| B mypy | 過（ELI5 裡沒出現 mypy） | 過（校稿員、整本書） | 過 |
+| C pyright | 過（沒出現 pyright、VS Code） | **邊界**（拼字檢查） | 過 |
+
+C 的類比是三者最弱：拼字檢查是**用軟體工具比喻軟體工具**，不算日常生活。判準 2 的用意
+是「不要用技術概念換句話說」，拼字檢查對會打字的人夠普及，判為過，但它靠近邊界。
+A 的小廚房與 B 的校稿員才是這條判準想要的形狀。
+
+其餘同時生效的：先查證專案現況才作答（18 個 `.py`、4347 行、164 個 `def` 只有 2 個標了
+回傳型別、全 stdlib）；先宣告四個維度再列選項；給了預設建議與失效條件；標明兩點不確定
+（時間是估計值、新一代檢查器未查證）。
+
+**T7 順帶發現一件與本 track 無關但屬實的事**：`.github/workflows/validate.yml:14` 只跑
+`python scripts/validate.py`，**CI 不跑 pytest**，所以 `tests/` 底下 42 個測試在 PR 上
+沒有把關。已查證。不在本次交付範圍，記在這裡以免遺失。
+
+---
+
+#### 回報
+
+把每條的結果告訴我（過 / 沒過 + 沒過的話實際輸出長什麼樣），我寫進
+`.claude/track/option-explainer-with-eli5/state.md` 的 verify note。
+
+`ship` 之前不需要全過——沒過的項目照實記錄，是資訊不是阻擋。真正該擋的是
+**T6 沒過**：那代表規則會在使用者已經授權決斷時還硬套模板，那是讓每個安裝者都變吵的
+迴歸，比少一欄嚴重得多。
+
+
+## 整併補充：option-explainer-with-eli5-high-level
+
+來源為原 `2026-08-29-option-explainer-with-eli5-high-level.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Use cases / Issues
+
+> **編號慣例**：本文件用 `UC<n>` 統一編號使用情境與工程議題。**刻意不沿用 spec 那套
+> 以大寫 R 開頭的規則編號**——spec 的常駐規則本身就用那個字母
+> （`docs/design/2026-08-29-option-explainer-spec.md:164` 起的七條）。兩套編號同形會
+> 讓 detail 階段的追溯表指錯對象，因為那張表是用同一個正規式抓 id 的。
+
+行為面（每一條都指向 spec §8.1 的驗收測試編號）：
+
+- UC1 — **事前入口**：使用者要在兩個以上的技術方案之間做選擇。成功判準：輸出先宣告
+  2–4 個共用比較維度、每個選項填滿六欄、結尾有預設建議與其失效前提。對應 T1、T5。
+- UC2 — **事後補救入口**：上一則回覆已經丟出看不懂的選項，使用者主動要求展開。成功
+  判準：`/cai:options` 100% 生效，輸出術語表、同軸對照表、六欄描述，且不重述原文。對應 T4。
+- UC3 — **反向情境**：使用者已明確授權「你選一個」。成功判準：直接給單一答案，不再
+  列選項、不套模板。對應 T6，這是確認規則沒有過度觸發的那一條。
+- UC4 — **資訊不足**：缺少關鍵判斷資訊時，先問一題，不先編選項。對應 T3。
+- UC5 — **湊數選項**：選項實質差異過小或有明顯劣選時，主動收斂並說明理由。對應 T2。
+- UC6 — **ELI5 可自檢**：ELI5 欄的品質由三個是/否判斷決定，不由「五歲小孩也懂」這種
+  無法驗證的形容詞決定。成功判準：新增的 T7 逐項通過那三個判準。對應 T7（新增）。
+
+結構面（工程議題，由 `python scripts/validate.py` 與 `python -m pytest` 判定）：
+
+- UC7 — 常駐層必須隨 `/cai:setup` 送到每一個安裝者手上，且被 repo 根 `CLAUDE.md`
+  的 import 清單納入。成功判準：新規則檔存在於 `plugins/cai/rules/`，且 import 清單
+  有它。
+- UC8 — always-on description 預算不得因為這次新增而上升。成功判準：
+  `ALWAYS_ON_CEILING` 維持 5468 不變，且預算檢查通過。
+- UC9 — 常駐規則檔行數 ≤ 45，且放寬的理由寫在規則檔內。成功判準：人工讀該檔的註記。
+- UC10 — 六欄清單在四個地方完全一致：常駐規則的必填欄位、`references/template.md`
+  的骨架、`references/good-bad.md` 的**正例**、以及 skill 補救入口的硬性要求。成功判準：
+  四份清單逐欄比對相同。這條專門擋 spec §5.5 與 §6.2 沒跟著改的漏。
+- UC11 — spec 有九處會因為加入 ELI5 而裂開（見「High-level design / 九處裂縫」），
+  detail 階段必須逐一指定改寫後的內容。成功判準：detail 文件對九處各有一筆對應。
+- UC12 — 結構檢查全綠：`SKILL_NAMES` 更新為 16 個名字、`plugins/cai/commands/` 仍不
+  存在、新 SKILL.md 不含 `plugins/cai/scripts/` 字串與 model family 名稱、所有 `/cai:`
+  與 `${CLAUDE_PLUGIN_ROOT}` 引用都解析得到、無 BOM、`.cmd` 維持純 ASCII。
+
+#### Feasibility
+
+| Id | Capability | Verdict | Evidence |
+|---|---|---|---|
+| C1 | 帶 `disable-model-invocation: true` 的元件，其 description 不計入 always-on 預算 | verified | `scripts/validate.py:214` 的加總以 `if "disable-model-invocation: true" not in read_text(p)` 過濾，見 `scripts/validate.py:214`–216；設計意圖寫在 `scripts/validate.py:198` 起的註解 |
+| C2 | 預算上限是硬閘門，值為 5468，設計目標 4673 | verified | `scripts/validate.py:210` `ALWAYS_ON_CEILING = 5468`；`scripts/validate.py:219` 的 `check(... always_on_total <= ALWAYS_ON_CEILING)` |
+| C3 | 帶該 flag 的 skill 仍可被使用者以 `/cai:<name>` 呼叫 | verified | `scripts/validate.py:175`–176 註解明寫「keeps their descriptions out of the always-on budget while leaving them user-invocable」；`plugins/cai/skills/design/SKILL.md:5` 帶 flag 而 `plugins/cai/skills/design/SKILL.md:3` 的 description 寫著 `Usage: /cai:design`；`docs/design/2026-08-29-capability-gap-analysis.md:243` 記錄 `cai:design` 在 88 個 session log 中實際被呼叫過 1 次 |
+| C4 | `skills/` 目錄名是寫死白名單，新增 skill 不同步改就直接失敗 | verified | `scripts/validate.py:166` 的 `SKILL_NAMES` 共 15 個名字，`scripts/validate.py:170` 斷言 `skill_dirs == SKILL_NAMES`；`scripts/validate.py:162` 起的註解說設計目標是 14 個，方向是往下收 |
+| C5 | `plugins/cai/commands/` 被斷言不存在，spec 的 `commands/expand.md` 在本 repo 無法成立 | verified | `scripts/validate.py:188` `check(f"{PLUGIN}/commands is gone", not os.path.isdir(...))`；理由在 `scripts/validate.py:185`–187：同名 command 與 skill 會產生 slash command 衝突 |
+| C6 | `/cai:setup` 把整個 `rules/` 目錄複製到 `~/.claude/rules/`，新增一支就等於發給每個安裝者 | verified | `plugins/cai/skills/setup/SKILL.md:27`–28「copy every `.md` file from `<plugin-root>/rules/` into it」；`scripts/validate.py:224` 以 glob 收集 `rules/*.md` |
+| C7 | repo 根 `CLAUDE.md` 以 `@` import 七支規則中的六支，而**沒有任何自動檢查**驗證這份清單 | verified | `CLAUDE.md:8`–13 是那六行 import；`scripts/validate.py:222`–244 是全檔唯一觸及 `rules/` 的區塊，只做「目錄非空」與「template 不重述 rules 條目」兩件事 |
+| C8 | `rules/` 目前七支合計 178 行，最長一支 43 行 | verified | ripgrep 逐行計數：workflow 40、model-selection 43、documentation 36、memory 11、communication 5、epistemics 22、coding 21，合計 178；最長者末行為 `plugins/cai/rules/model-selection.md:43` |
+| C9 | Skill 自動觸發在本安裝上實測不可靠：15 支 configured、僅 4 支曾被呼叫 | verified | `docs/design/2026-08-29-capability-gap-analysis.md:240` 的表（skills 15/4/11、agents 9/4/5）；spec 自己也承認「Skill 低觸發」於 `docs/design/2026-08-29-option-explainer-spec.md:570` |
+| C10 | `skills/*/SKILL.md` 不得含 `plugins/cai/scripts/` 字串；`skills/*/references/*.md` 會被掃 model family 名稱；`rules/*.md` 不在該掃描範圍 | verified | `scripts/validate.py:479`–482 是前者；`scripts/validate.py:1133`–1136 的 glob 只含 agents、skills SKILL.md、skills references、catalog，不含 `rules/`，理由在 `scripts/validate.py:1129` |
+| C11 | SKILL.md 內每個 `/cai:<name>` 與 `${CLAUDE_PLUGIN_ROOT}/<path>` 都必須解析得到 | verified | `scripts/validate.py:135`–136 的兩條 regex，`scripts/validate.py:152`–160 逐檔檢查；可解析名單由 `scripts/validate.py:141` 的 `invocable_names()` 從 `skills/` 目錄名產生，所以 `skills/options/` 一旦存在，`/cai:options` 即合法 |
+| C12 | `templates/CLAUDE.md.tpl` 不得與任何 rules 檔共用 `- ` 條目，且其散文逐一列舉了七支規則的名字 | verified | `scripts/validate.py:239`–242 的 bullet 交集檢查；`plugins/cai/templates/CLAUDE.md.tpl:5`–6 列舉「communication, epistemics, coding, workflow, model selection, memory, documentation」 |
+| C13 | 既有常駐規則已經有兩條與本設計方向相反或相鄰：簡潔優先、以及「何時該停下來問」 | verified | `plugins/cai/rules/communication.md:4`–5「surface uncertainty/assumptions/alternatives only when they'd change the conclusion or action」；`plugins/cai/rules/epistemics.md:12`「Then name the options; don't pick silently」；兩者都經 `plugins/cai/skills/setup/SKILL.md:27` 發給使用者 |
+| C14 | spec 的 L1 規則區塊正好 39 行，貼著它自訂的 40 行上限 | verified | `docs/design/2026-08-29-option-explainer-spec.md:159` 至 197 為 fence 內容（fence 本身在 158 與 198），197−159+1 = 39；上限寫在 `docs/design/2026-08-29-option-explainer-spec.md:73` |
+| C15 | `disable-model-invocation` 的**官方文件語意**（它是否只關掉 model 自動觸發、而確定保留 slash command） | verified | 官方 skills 文件 https://code.claude.com/docs/en/skills.md 的 frontmatter reference：「Set to `true` to prevent Claude from **automatically loading this skill**. Use for workflows you want to trigger manually with `/name`. Also prevents the skill from being preloaded into subagents.」；同文件 "Control who invokes a skill" 段：「**Only you can invoke the skill.** Use this for workflows with side effects... like `/commit`, `/deploy`」。design 階段以 `claude-code-guide` 查證 |
+| C16 | 帶 flag 的 skill，其 description **在平台端**是否仍進入常駐 context | UNVERIFIED | 官方文件只說 description 供 Claude 判斷「何時套用 skill」（同上文件 frontmatter reference），**沒有說明帶 flag 後 description 的去留**。這不影響驗收：`ALWAYS_ON_CEILING` 是本 repo 自訂的尺，按 flag 排除（`scripts/validate.py:214`–216），所以驗收標準第 4 條是機械保證的。真正未證實的是「這把尺量的是不是平台的真實成本」——那是該檢查本來就有的性質（已套用於 6 支 main-line skill 與 72 支 catalog alias），非本次改動引入 |
+
+**關於現況預算數字的出處**：intake 階段回報 `python scripts/validate.py` 印出
+`always-on description budget: 5451 chars (design target: 4673)`，也就是距 C2 的
+5468 只剩 17 字元。本階段沒有可執行 shell 的工具，未重跑該指令，因此這個數字以
+「intake 回報」的身分出現，不列為 C 列的 verified 證據。設計並不依賴它為真：真正
+承重的是 C1（flag 讓新 description 成本為 0）與 C2（上限維持 5468）。即使餘裕不是
+17 而是 170，做法 B 的結論不變。
+
+**C9 的反向讀法必須一起記下**：`docs/design/2026-08-29-capability-gap-analysis.md:252`–260
+自己指出這把尺的盲點——那 11 支「從未被呼叫」的 skill 有一部分是因為 `cai:track`
+本身沒被跑過，而不是因為它們沒用；且 track 的 stage 是**讀 reference 檔**而非 Skill
+呼叫，在這個計數法下永遠是 0。所以 C9 支持的結論只有一句：**不能把自動觸發當成唯一
+防線**。它不足以證明「skill 一定不會被觸發」。
+
+#### Architecture decisions
+
+Decision 1–4 是 **intake 階段已裁決**的項目，這裡把當時的選項與代價寫下來供覆核，
+不重新開放。Decision 5 沒有裁決，交給 Open questions。
+
+標記慣例：一列標 `(recommended)` 表示它是本文件在該題上支持的選項，且它依賴的每個
+capability 都是 verified。
+
+##### Decision 1 — 常駐層放在哪裡
+
+| Option | Rests on | Costs | Fails when |
+|---|---|---|---|
+| A 新增 `plugins/cai/rules/option-explainer.md` 並加進 repo 根 `CLAUDE.md` 的 import 清單 **(recommended)** | C6, C7, C8, C12 | 每個安裝者的每個 session 都多載入最多 45 行，是既有 178 行的約 25%；import 清單無自動檢查，漏加不會被擋；`templates/CLAUDE.md.tpl` 的規則列舉散文變成過時 | 使用者只想在單一專案試用、不想改變全體安裝者的常駐內容時 |
+| B 只貼進 repo 根 `CLAUDE.md`，不進 `rules/` | C6, C7 | 常駐成本只落在這個 checkout；但 `/cai:setup` 不會發給任何人，等於這個功能只有本 repo 的維護者拿得到，與「讓 AI 解釋清楚選項」的受眾完全錯位 | 目的本來就只是自用時 |
+| C 寫進 `templates/CLAUDE.md.tpl` | C12 | 只影響**新**安裝者的 `~/.claude/CLAUDE.md` 初始內容，既有使用者不會拿到；且 tpl 與 rules 的 `- ` 條目不得重疊，規則本身是條列式，會直接撞上該檢查 | 只想影響全新安裝、且規則不是條列式時 |
+
+**Chosen:** A — intake 已裁決。理由是受眾：這條規則要在「AI 正要丟出選項」的那一刻
+生效，而那一刻在每個安裝者的每個 session 都可能發生，只有 `rules/` 這條路徑（C6）
+覆蓋得到。代價（常駐體積 +25%）由 Decision 4 的行數上限承接。
+
+##### Decision 2 — 第二層做成什麼形狀
+
+| Option | Rests on | Costs | Fails when |
+|---|---|---|---|
+| A 照 spec：獨立 `skills/option-explainer/` + `commands/expand.md` | C5 | 不可行——`commands/` 被斷言不存在，且理由是同名 command 與 skill 的 slash command 衝突已經發生過一次 | 永遠不成立於本 repo |
+| B 單一 skill `skills/options/`，帶 `disable-model-invocation: true`，入口 `/cai:options`，同時服務事前與事後 **(recommended)** | C1, C2, C3, C4, C10, C11 | 放棄語意自動觸發：使用者不打 `/cai:options` 就只剩 L1 常駐規則；白名單從 15 加到 16，與 `scripts/validate.py:162` 起註解所寫「往 14 收」的方向相反，需要在該處說明為何加 | 若使用者從不記得這個指令存在，第二層等於不存在，全部壓力回到 L1 |
+| C 一般 skill（不帶 flag），保留語意自動觸發 | C2, C9 | description 進 always-on 預算，而預算上限是硬閘門且現況幾乎沒有餘裕；要塞進去必須先砍別支的 description，那是一筆與本需求無關的改動 | 若預算餘裕充足、且自動觸發實測可靠，這才是較好的選項 |
+| D 只做 L1，不做第二層 | C9 | 範例與維度庫塞不進 45 行，而 spec 認為範例的約束力最強；且 UC2 的補救入口消失，L1 一漏就沒有第二次機會 | 若 L1 規則實測幾乎不漏，多的一層就只是維護負擔 |
+
+**Chosen:** B — intake 已裁決。決定性的是兩件事：C5 讓 A 直接出局；C9 的實測
+（15 支 skill 只有 4 支曾被呼叫）說明把可靠度押在自動觸發上沒有依據，既然如此，
+自動觸發帶來的預算成本（C2）就買不到對應的東西，於是 C 也出局。B 用 flag 把成本
+降為 0（C1）並保留使用者主動入口（C3）。
+
+**C15 已於 design 階段查證為真**：官方 skills 文件明文「Use for workflows you want to
+trigger manually with `/name`」與「Only you can invoke the skill」，Option B 不倒塌，
+`/cai:options` 打得出來。原本標為「本設計唯一建立在未查證平台語意上的地方」的風險已
+關閉。
+
+**剩下的是 C16，而它不承重**：官方文件沒有說明帶 flag 後 description 在平台端是否仍
+進入常駐 context。這不改變任何選項的排序——驗收標準第 4 條盯的是本 repo 自訂的
+`ALWAYS_ON_CEILING`，而該檢查按 flag 排除（`scripts/validate.py:214`–216），所以 B 對
+那條閘門的效果是機械保證的。C16 為假只代表本 repo 這把尺量的不是平台真實成本，而那是
+該檢查本來就有的性質（已套用於 6 支 main-line skill 與 72 支 catalog alias），不是本次
+改動引入的，也不該由本次改動負責修。
+
+##### Decision 3 — ELI5 用什麼形狀進欄位表
+
+| Option | Rests on | Costs | Fails when |
+|---|---|---|---|
+| A 六欄，「一句話定義」與 ELI5 職責切開 **(recommended)** | C13, C14 | 欄位從五變六，四個地方的清單都要同步（UC10）；規則區塊行數必破 40（C14），需 Decision 4 承接 | 當兩欄的差異在實作時說不清楚，模型會把它們寫成同一句話的兩種說法 |
+| B 六欄但職責合併（「白話定義（含比喻）」一欄） | C13 | 行數壓力較小，但把「限一句、不含術語」與「必須有比喻、不得重複」兩組互斥約束塞進一欄，自檢會互相打架 | 當使用者其實只需要一句白話、比喻反而變成贅字時 |
+| C 維持五欄，把 ELI5 降為對「一句話定義」的措辭要求 | C13 | 幾乎不增加行數；但 ELI5 就變回一條風格建議，正是 spec §1.3 判定為無效的那種軟性要求 | 當常駐體積是唯一的硬限制時，這是唯一塞得下的選項 |
+
+**Chosen:** A — intake 已裁決。B 的失敗模式（互斥約束同居一欄）與 C 的失敗模式
+（退回風格建議）都指向同一件事：ELI5 要能被自檢，就必須有自己的欄位與自己的判準。
+與 `plugins/cai/rules/communication.md:4`–5 的簡潔優先原則（C13）的張力，由 UC3 的
+反向測試 T6 把關——授權即決斷時不套模板。
+
+##### Decision 4 — 常駐規則檔的行數上限
+
+| Option | Rests on | Costs | Fails when |
+|---|---|---|---|
+| A 上限放寬為 45 行，並在檔內註明放寬理由 **(recommended)** | C8, C14 | 成為 `rules/` 最長的一支（現況最長 43 行），使常駐總量從 178 增至約 223；註明理由本身也佔行數 | 當實際寫下來仍然超過 45，代表欄位或自檢設計過重，該回頭砍而不是再放寬 |
+| B 硬守 spec 的 40 行 | C14 | 39 行只剩 1 行餘裕，加一個欄位加三個自檢判準至少需要 5–6 行，必然得砍掉既有規則的內容（例如術語規則的退化路徑，或自檢清單的某幾項），砍哪一條沒有依據 | 當常駐 token 成本是真正的瓶頸時 |
+| C 不設上限 | C8 | 失去 NFR-1 的成本閘門；常駐內容一旦沒有上限，之後每次「再加一條就好」都沒有東西擋 | 當這份規則不常駐、只按需載入時 |
+
+**Chosen:** A — intake 已裁決。45 這個數字的來源是算術而非偏好：C14 的 39 行 + 一個
+新欄位（1 行）+ 三個是/否自檢（3 行）+ 「一句話定義」與 ELI5 職責切分所需的補充
+（1–2 行）= 44–45。放寬理由寫在檔內，是為了讓下一個想再放寬的人先讀到這次的算術。
+
+##### Decision 5 — ELI5 在失效模式表裡的歸屬
+
+| Option | Rests on | Costs | Fails when |
+|---|---|---|---|
+| A ELI5 是 FR-1 的強化，不新增 F 編號 | C13, C14 | 失效模式表維持 F1–F5 不動，改動最小；但 FR 表會出現「一個 F 編號對到兩條 FR」的不對稱，且 ELI5 在 §9.1 退化路徑裡沒有天然位置——它會跟著術語規則一起被降級 | 當「懂了每個字卻不知道這東西在幹嘛」實際上是獨立於 F1 的失效，把它綁在 F1 底下會讓它跟著術語規則的退化路徑一起被砍掉 |
+| B 新增 F6「懂了每個字，但不知道這東西在幹嘛」 | C13, C14 | 失效模式表、FR 對應表、§9.1 退化路徑三處都要改；換到的是 ELI5 有獨立編號、獨立退化順位，可被單獨保留或單獨放棄 | 當 F6 與 F1 在實際輸出上分不開，多一個編號只是多一份維護負擔 |
+
+**Chosen:** B — 使用者於 design 階段裁決（2026-08-29）。新增失效模式
+**F6「懂了每個字，但不知道這東西在幹嘛」**，ELI5 對應到一條新的 FR，取得獨立編號與
+獨立退化順位。
+
+連帶裁決的 §9.1 退化順序（`docs/design/2026-08-29-option-explainer-spec.md:579` 至 584
+的改寫目標）：
+
+1. 同軸對比（核心，最後放棄）
+2. 預設建議
+3. **ELI5** ← 新增的順位
+4. 術語規則（可退化為只解釋最關鍵的 2–3 個術語）
+5. 必填欄位（可退化為只填「具體會發生什麼」）
+
+也就是空間不夠時，**寧可少解釋幾個術語，也要保住那段類比**。選 B 而非 A 的代價是三處
+表格要改（失效模式表、FR 對應表、§9.1）；換到的是 ELI5 不會跟著術語規則一起被降級——
+而那正是 A 的失敗模式。
+
+#### Open questions
+
+- ~~**OQ1 — ELI5 屬於既有的 F1，還是需要一個新的 F6？**~~
+  **已答（2026-08-29，使用者裁決）**：新增 F6「懂了每個字，但不知道這東西在幹嘛」。
+  詳見 Decision 5。
+- ~~**OQ2（依附 OQ1）— ELI5 在 §9.1 退化路徑裡排第幾？**~~
+  **已答（2026-08-29，使用者裁決）**：排在預設建議之後、術語規則之前，即第 3 順位。
+  空間不夠時寧可少解釋幾個術語，也要保住那段類比。驗收標準第 12 條照這個順序對照。
+  詳見 Decision 5。
+
+#### Out of scope
+
+- 不做 spec §10.2 的自動化評分腳本（未定義術語密度、維度一致性的機器可讀分數）。
+- 不改變 AI 的技術判斷，只改變呈現方式——沿用 spec §2.3 的排除項。
+- 不新增獨立的 `/cai:expand` skill；補救入口併入 `/cai:options`。
+- 不照 spec §7.3 的三階段導入（先補救指令、再常駐規則、再 skill），一次交付兩層。
+- 不在本文件寫出規則檔的逐字內容、SKILL.md 的 description 原文、或三支 references
+  的內文。那些是 detail 階段的產出，包含 `SKILL_NAMES` 那一行的實際 diff 也是。
+- **不修改 spec 檔本身。** 它以「歷史輸入」的身分留在 `docs/design/`，九處裂縫的改寫
+  發生在新交付物裡，不回頭改 spec。這是本文件自行採取的假設而非裁決；代價是 spec 從
+  此與實作不一致，讀到它的人可能照著五欄版本實作。若不接受，處理方式應該是在 spec
+  頂端加一行指向本文件的 superseded 註記，那筆改動需要另行授權。
+- 本文件寫出了 `plugins/cai/rules/option-explainer.md` 與 `plugins/cai/skills/options/`
+  這兩個尚不存在的路徑。stage-design 的高階模式原則上不寫尚不存在的檔案路徑，這裡是
+  刻意的例外：這兩個路徑是 intake 已裁決的**元件邊界**（哪一層放在會被 `/cai:setup`
+  發送的目錄裡、哪一層放在按需載入的目錄裡），而不是實作細節。檔案的**內容**仍然全部
+  留給 detail 階段。

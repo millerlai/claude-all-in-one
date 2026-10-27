@@ -1,8 +1,20 @@
 # debug-verify-conventions — decisions
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+規範檔作為獨立審查輸入的決策仍有效；兩個平台讀取的檔案不同。現行程序見 [`plugins/cai/skills/track/references/stage-verify.md:195`](../../plugins/cai/skills/track/references/stage-verify.md#L195)。舊代理工具限制與需另輪代跑的假設只適用當時版本。
+
+已併入並移除的同主題文件：`2026-09-25-debug-verify-conventions-stance.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 ## Reference
 
-- Stance: `docs/design/2026-09-25-debug-verify-conventions-stance.md` — status: approved 2026-09-25。下文的 `stance:N` 指這個檔的第 N 行。
+- Stance: `docs/design/2026-09-25-debug-verify-conventions-decisions.md` — status: approved 2026-09-25。下文的 `stance:N` 指這個檔的第 N 行。
 - Intake：`.claude/track/improvement/intake.md`（AC1–AC9 已核准）。Round 2 的取捨題答案是「A：只改文字 (Recommended)」，確立了 S5：凡是需要新 script、`validate.py` 檢查或 `tests/` case 的選項，都進 `## Ruled out`。
 - 更正 stance 一處行號：本 repo `CLAUDE.md` 的 `@import` 在 `CLAUDE.md:8-14`，不是 stance 寫的 `:7-13`（`:5-6` 是說明句）。不影響任何不變式。
 - Round 4（2026-09-25）：D1–D4 已由本人逐題回答，答案記在各條的 `Decided:`；重跑成本測試的結果寫在 `## Tier 1` 開頭。本 track 跳過 Detail，`build` 從這份文件、stance 與 intake.md 的 AC1–AC9 自己切單元；要動哪些檔、哪些句子一字不改、要跑哪些檢查，寫在 `## Tier 3` 最後幾列。
@@ -274,3 +286,53 @@ flowchart LR
 | 改動檔案範圍 | 只動這些：`plugins/cai/skills/debug/SKILL.md`；新增 `plugins/cai/skills/debug/references/feedback-loops.md`；`plugins/cai/skills/track/references/stage-verify.md`（Step 0、Step 1 的 `:53` 與 `:57-60`、Step 2 一條 bullet）；`plugins/cai/skills/track/references/stage-design.md`（Diagnosis step 1 的新段）；`scripts/codex-overrides.json`（D9 兩條）；`plugins/cai/.claude-plugin/plugin.json`（版本）；`plugins/cai-codex/` 只由 gen-codex 重產 | 另動 `agents/*.md`、`pending-questions.md`、`track/SKILL.md`、`rules/`、`validate.py`、`tests/`、`docs/rule-provenance.md` | 本 track 的 verify：`git diff --stat` 沒有 `.py`，也沒有 `tests/` 底下的檔（stance:11） |
 | 一字不改的句子怎麼守 | build 前後各用 Grep 工具查一次：S1 的 `debug/SKILL.md:68` 整行、`## After three fixes fail`、五個 Step 標題、AC3 的 `:46-47`「one variable, not a bundle」；S7 的 `stage-verify.md:3-5`（`codex-overrides.json:5-9` 的 anchor）、`:47-48` 的「Four and not more」句（`docs/rule-provenance.md:26`）、`validate.py:2083-2084`、`:2087`、`:2091` 釘住的三段文字 | 只靠讀 diff | 下一次 `python scripts/validate.py`（provenance 與 `:2081-2091` 會 FAIL）或 `python scripts/gen-codex.py`（anchor 對不上會 exit 1） |
 | build 要跑的檢查 | `python scripts/validate.py` 全 PASS、exit 0；`python -m pytest` 通過；`python scripts/gen-codex.py` exit 0，再跑 `python scripts/gen-codex.py --release <大於 0.2.11 的版本>`；用 Grep 工具（不用 `grep.exe`）查產出的 `plugins/cai-codex/skills/track/references/stage-verify.md`、`plugins/cai-codex/skills/track/references/stage-design.md`、`plugins/cai-codex/skills/debug/SKILL.md`，`CLAUDE.md`、`AskUserQuestion`、`~/.claude` 都是 0 筆（2026-09-25 的現況就是 0）；`debug/SKILL.md` 不超過 120 行；`plugin.json` 版本大於 1.29.1，升 patch 還是 minor 由 build 決定（intake.md:42） | 只跑 `validate.py` | build 跑這些指令的當下 |
+
+
+## 整併補充：debug-verify-conventions-stance
+
+來源為原 `2026-09-25-debug-verify-conventions-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+`/cai:debug` 的每一步，以及 conformance lens 的每條規範 finding，都要停在讀者能在回覆或報告上直接核對的證據：一條本次跑過的指令加上已 redact 的輸出，或一個 `檔案:行號`。做到這點只改文字，不新增 script 或檢查。怎麼算成功：AC1–AC8 各自能指到一段新文字；`git diff --stat` 裡沒有 `.py` 檔，也沒有 `tests/` 底下的檔。
+
+#### Sacrifices
+
+- **沒有機械保證。** 三個會漂移的地方都沒有程式在守：debug 步驟標題與各處編號引用是否一致（intake:37 已承認「目前沒有檢查會抓到漏改」）；`SKILL.md` 是否在 120 行內（AC5 明說這是預算，不是檢查）；Codex 版 `stage-verify.md` 會不會再多出 `CLAUDE.md`。第三個的原因是 deny list 只掃 `rules/` 與 `agents/`（`scripts/gen-codex.py:291`、`:303`），現成漏網的例子是 `plugins/cai-codex/skills/track/references/stage-discover.md:127`。漂移只有在有人讀到時才會被發現。
+- **簡單 bug 變慢。** 沒有現成失敗測試的 bug（CLI 輸出、HTTP 回應）要先有一條跑過、會失敗的指令，才能開始想假說。
+- **沒寫下、或寫在另外兩個檔以外的慣例，review 看不到。** 來源 skill 有一份 Fowler smell baseline（`code-review/SKILL.md:38-56`），這裡不帶進來。
+- **`debug/SKILL.md` 從 96 行長到最多 120 行**，而且建 loop 的方法要另開一個 references 檔才看得到。
+- **conformance 會多出規範型 finding，多半是 Minor**（差距文件 :180 的預估，UNVERIFIED，沒有量過）。
+
+#### Invariants
+
+**This system's:**
+
+- S1 — debug 的 Step 1–5 編號不變，`## After three fixes fail` 的標題不變（`stage-design.md:247` 引用它）；`debug/SKILL.md:68` 原句不變，因為它是 `codex-overrides.json:392-399` 的 anchor，而 anchor 必須恰好出現一次（`gen-codex.py:246-248`）。
+- S2 — debug 的每個完成條件都要在回覆裡（在 track 裡則是 diagnosis 文件）留下可核對的東西：指令、已 redact 的輸出、或寫明試過什麼並停下（AC1）。規範 finding 一定引 `檔案:行號`，引不到就不算 finding（AC6）。
+- S3 — 規範是 conformance 的第二個比對依據，不是第五個 lens。「Four and not more」（`stage-verify.md:46-48`）是釘住的句子（`docs/rule-provenance.md:26`）。
+- S4 — 規範按檔案界定，不按標題：專案根目錄（「根目錄」指什麼見 R8）的 `CLAUDE.md` 與 `.claude/CLAUDE.md`（AC6）。repo 的 verification 指令已經會擋的，不報（做不做得到見 R10）。
+- S5 — 不新增 script、`validate.py` 檢查或 `tests/` case。改動只落在 prose、一個 `plugins/cai/skills/debug/references/` 檔、`codex-overrides.json` 的資料項。
+- S6 — 不在使用者的 repo 新增檔案；任何 skill 或 agent 的 description 都不改（intake:7）。
+- S7 — AC7 列的句子一字不改：`docs/rule-provenance.md:26` 登記的那句、`validate.py:2081-2091` 釘住的三句、`codex-overrides.json:4-9` 的 anchor 段。
+
+**Cross-project:**
+
+- 本 repo `CLAUDE.md` 的「Who a file is for」（Theirs／Ours；改了 `plugins/cai/` 就重產 `cai-codex`，並跑 `--release`）與「Before pushing」（`validate.py` 加 `pytest`；改了被引用的 rule 句子要同步 ledger；description ratchet `validate.py:297`；不准有 BOM）。
+- 使用者的 rules（`epistemics.md`、`coding.md` 的 Simplicity／Surgical、`workflow.md`），以 `CLAUDE.md:7-13` 匯入的版本為準。
+- 平台限制：subagent 沒有 `AskUserQuestion`（`references/pending-questions.md:8-11`）；各 agent 的工具範圍以它自己的 frontmatter 為準（`designer.md:8`、`test-runner.md:6`、`reviewer.md:6`、`verifier.md:7`）；Codex 讀的專案規範檔是 `AGENTS.md`（`codex-overrides.json:615`，D11）。
+
+#### Rejected stances
+
+- **在文字之外，再加程式釘住。** 用 `validate.py` 檢查去守 Sacrifices 第一條列的三處漂移。這樣換到的是漂移會被機械抓到，代價是 S5 失效、範圍超出 intake（AC5 明說 120 行不是檢查），而且每釘一句，之後改寫它就得連檢查一起改（`validate.py:2076-2091` 就是這樣的前例）。這個選項以 pending question 交給本人，還沒被否決。
+- **整套照搬來源。** 包括第五個 Standards lens、smell baseline、列出假說後等人回覆。它違反 S3（跨專案的平行上限 `model-selection.md`，以及 `rule-provenance.md:26`）與 AC3 的「不等回覆」；smell 是 heuristic，這也跟 `reviewer.md:18-19`「說不出什麼會壞就不是 finding」衝突。
+- **只補 Step 1 的一句完成條件，其他都不做。** 已核准的 AC2–AC4（intake:26-28）不允許。而且少了 minimise，假說的範圍不會縮小（`diagnosing-bugs/SKILL.md:82`），要優化的「每一步都可核對」只做到一步。
+- **按 `## Conventions` 標題去讀規範**（差距文件 :174）。本 repo 的 `CLAUDE.md` 沒有這個標題（標題只在 :1、:20、:78、:83、:163）；`setup/SKILL.md:116-117` 也是看內容不看標題。intake 的 AC6 已經排除這個做法。
+
+#### Out of scope
+
+- MP-03 到 MP-09、review benchmark 的付費量測（intake:7、:9）；版本升 patch 還是 minor（intake:42，交給 build）。
+- 新句子的實際措辭、references 檔的檔名、redact 那一行放哪裡：交給 Decisions 的 Tier 3 或 build。
+- debug 的步驟順序：cai 先插 log（Step 3）再提假說（Step 4），來源則是先提假說再插 log（`diagnosing-bugs/SKILL.md:88-110`）。做法 A 保留 cai 的順序；AC4 的標籤不管 log 在哪一步插都適用。
+- 現成的 Codex 漏網 `plugins/cai-codex/skills/track/references/stage-discover.md:127`（`CLAUDE.md`）：這次只記錄，不修。
+- `docs/` 被 git 忽略；這份文件在 ship 時要用 `git add -f`。

@@ -1603,7 +1603,7 @@ CLAUDE_SUBAGENT_TOOLS = ("Agent", "Task")
 CLAUDE_BACKGROUND_TOOLS = CLAUDE_SUBAGENT_TOOLS + ("Workflow",)
 ASYNC_LAUNCHED_STATUS = "async_launched"
 TASK_NOTIFICATION_TAG = "<task-notification>"
-# V8 (docs/design/2026-09-26-viewer-live-status-stance.md:29): the pending
+# V8 (docs/design/2026-09-26-viewer-live-status-detail.md:634): the pending
 # counts a turn_duration row may carry, and the <task-notification> statuses
 # that count as a background launch having finished. Both lists are closed
 # on purpose (decisions Ruled out) -- a key or status not named here is not

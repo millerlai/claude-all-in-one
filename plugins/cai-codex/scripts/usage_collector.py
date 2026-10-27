@@ -191,7 +191,7 @@ def read_window(path, since_ms, until_ms, problems):
     passes None for both, because a peak is over the whole session and not
     over a window. Renamed from `_read_window` -- public because a second
     module now calls it, which the usage-accounting design explicitly
-    allows (2026-08-30-track-usage-accounting-detail.md:419).
+    allows (2026-08-30-track-usage-accounting-detail.md:431).
 
     OSError and unparseable lines are swallowed, per ledger.records():
     reading tolerates a file Claude Code may still be appending to, and

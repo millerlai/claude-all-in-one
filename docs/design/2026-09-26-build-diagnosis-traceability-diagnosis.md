@@ -1,5 +1,11 @@
 # stage-build.md 在診斷路徑上沒說要記錄什麼追溯 — diagnosis
 
+## 維護說明（2026-10-27）
+
+保留已修正問題的根因與失敗測試追溯方式，不是尚待執行的修正。原 Fix 只憑單一 Failing test 標題認診斷的做法，已由 [文件形狀辨識診斷](2026-09-26-diagnosis-recognition-shape-diagnosis.md) 取代；現行 `plugins/cai/skills/track/references/stage-build.md` Step 6 使用完整診斷範本形狀。原逐次升版與 `gen-codex --release` 步驟亦已過時。
+
+以下保留原日期的歷史紀錄；舊狀態、行號、輸出與未驗證項目不表示本次重新驗證。
+
 名詞：診斷路徑（diagnosis path，design 階段寫的是診斷文件，簽核後直接進 build，或經過一份只引用診斷的細部設計再進 build）；可追溯性表（traceability table，build 在 Step 6 寫進 `implementation-notes.md` 和報告、把每個需求對到滿足它的 `file:line` 的表）；失敗測試（`## Failing test`，診斷文件裡「現在失敗、承諾成立就會通過」的那個測試）；使用情境編號（UC/R id，寫成 `UC1`、`R1`）；散文防護（prose guard，`scripts/validate.py` 裡只確認某段說明文字還在、不驗證行為的檢查）；簽核指紋（Gate 1 的 Approve 對 design 列文件記下的雜湊，之後改該檔會讓 `preflight.py build` 失敗）；探針（probe，`plugins/cai/scripts/design_probe.py`）；紅燈／綠燈（red/green，測試失敗／通過）。
 
 ## Status
@@ -123,7 +129,7 @@ flowchart TD
 ## Out of scope
 
 - 方案 B：非診斷路徑上沒有 UC/R 編號時，改對 intake 的 AC 做追溯。這沒有書面承諾，需要走 Stance，也要改 `stage-intake.md`。
-- 方案 C：讓範本或探針替診斷產生可追溯的編號。#165 的診斷已經判定這是 Stance 的新規則（`docs/design/2026-09-25-diagnosis-detail-traceability-diagnosis.md:119`）。
+- 方案 C：讓範本或探針替診斷產生可追溯的編號。#165 的診斷已經判定這是 Stance 的新規則（`docs/design/2026-09-26-diagnosis-recognition-shape-diagnosis.md:172`）。
 - Step 3.2 的 brief 在所有沒有細部設計的路徑上缺替代說法（見 Blast radius 第三點）。
 - 用探針檢查細部設計有沒有提到診斷的失敗測試。
 - issue 內文過時的 `:285` 行號。

@@ -697,7 +697,7 @@ def test_generated_scratch_files_use_checked_writable_ignored_locations(tmp_path
 
 
 def test_generated_build_text_forbids_apostrophes_in_commit_summary(tmp_path):
-    # N1 (docs/design/2026-09-23-codex-commit-message-prompts-stance.md): the
+    # N1 (docs/design/2026-09-18-codex-support-detail.md): the
     # per-unit summary must stay free of apostrophes -- an embedded `'` closes
     # the single-quoted `-m` string early, and unquoted text after it (e.g. a
     # `$(...)` the summary happens to mention) runs as a live shell command

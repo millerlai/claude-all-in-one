@@ -1,5 +1,17 @@
 # track status vocabulary — detail design
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+狀態詞彙仍有追溯價值；現行狀態處理以 [`plugins/cai/scripts/track_state.py:37`](../../plugins/cai/scripts/track_state.py#L37) 與工作流程範本為準。舊版階段名稱與路徑是歷史快照。
+
+本次保留原有獨立紀錄。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 ## Reference
 
 High Level Design doc: docs/design/2026-08-27-cai-sdlc-restructure-high-level.md

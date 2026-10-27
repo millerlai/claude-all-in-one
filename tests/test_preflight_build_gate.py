@@ -83,7 +83,7 @@ def test_decision_date_ignores_dates_in_cited_paths(tmp_path):
         '{"ts":"2026-09-27T00:00:00Z"}\n', encoding="utf-8")
     text = ("## Tier 1\n### D1 -- inherited\n"
             "- **Decided:** A, 2026-09-26; see "
-            "`docs/design/2026-09-26-viewer-live-status-diagnosis.md:56`.\n")
+            "`docs/design/2026-09-26-viewer-live-status-detail.md:602`.\n")
     checks = preflight.options_drafts(text, "old-decisions.md", str(tmp_path))
     assert all(ok for ok, _ in checks), checks
 

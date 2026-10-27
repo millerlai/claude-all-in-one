@@ -1,9 +1,21 @@
 # codex-support — detail design
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+原先兩套 plugin 各自升版及 gen-codex --release 的程序已由 [統一發版設計](2026-09-26-release-versioning-detail.md) 取代。現行產生器與手寫檔案邊界以 [`scripts/gen-codex.py:83`](../../scripts/gen-codex.py#L83) 為準。單元提交訊息的後續限制也併入本檔；當時對平台權限的未驗證推測仍是歷史限制，不能視為現行保證。
+
+已併入並移除的同主題文件：`2026-09-18-codex-support-decisions.md`、`2026-09-18-codex-support-stance.md`、`2026-09-23-codex-commit-message-prompts-stance.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 ## Reference
 
-Stance doc: docs/design/2026-09-18-codex-support-stance.md
-Decisions doc: docs/design/2026-09-18-codex-support-decisions.md
+Stance doc: docs/design/2026-09-18-codex-support-detail.md
+Decisions doc: docs/design/2026-09-18-codex-support-detail.md
 Status: approved 2026-09-18. On 2026-09-18 the stance's Sacrifices bullet 3 was reworded after D5; it gets re-signed at Gate 1.
 
 These inputs are fixed:
@@ -591,3 +603,295 @@ U1 comes first because the override format and the anchor rule are the parts mos
 | codex-cli installed and logged in on the verify machine | the user | the verify stage (AC3, AC4) |
 | `python` on PATH inside Codex's shell (verified on this machine, E7) | the user | the verify stage |
 | A person present at the TUI to answer both gates | the user | AC4 |
+
+
+## 整併補充：codex-support-decisions
+
+來源為原 `2026-09-18-codex-support-decisions.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Feasibility
+
+"Doc" means it is documented but was not observed in a Codex run.
+
+| Id | Capability | Verdict | Evidence |
+|---|---|---|---|
+| C1 | `.agents/plugins/marketplace.json` lists a plugin whose `source` is a string. It takes precedence over `.claude-plugin/`, and the object form of `source` is silently dropped. | verified | experiments.md:12; `raw/e2-diag-codex-strsource-list.txt`, `raw/e2-diag-codex-list.txt` |
+| C2 | Bare `$name` invokes a plugin skill. | verified | experiments.md:13; `raw/e3-exec-dollar-form.jsonl` |
+| C3 | `agents/openai.yaml` `policy.allow_implicit_invocation: false` suppresses implicit firing. Tested on one skill only. | verified | experiments.md:14; `raw/e4-exec-implicit.jsonl`, `raw/e4-exec-implicit-true.jsonl` |
+| C4 | A user-level `~/.codex/agents/*.toml` can be dispatched by name, and its `model` override is applied (`gpt-5.5`). | verified | experiments.md:15; `raw/e5-subagent-rollout.jsonl` |
+| C5 | A plugin-shipped `agents/*.toml` can be dispatched. | infeasible | experiments.md:15; `raw/e5-plugin-agent-parent-rollout.jsonl` |
+| C6 | A subagent's `sandbox_mode` / `tools:` is enforced. It inherits `workspace-write` with no network. | infeasible | experiments.md:15; https://learn.chatgpt.com/docs/agent-configuration/subagents "Codex respects inherited sandbox policies and approval requirements from the parent agent." |
+| C7 | `${CLAUDE_PLUGIN_ROOT}` (or `${PLUGIN_ROOT}`) is substituted in a skill body. | infeasible | experiments.md:13; `raw/e3-exec-dollar-form.jsonl:7` |
+| C8 | The model reads a skill's `SKILL.md` by its absolute cache path, which includes the version directory. | verified | `raw/e3-exec-dollar-form.jsonl:5`; `raw/e1-plugin-add.txt:2` |
+| C9 | A trusted hook fires, and exit 2 blocks. The payload shape is unknown. `plugin_hooks` shows `removed` in `codex features list`. | UNVERIFIED | experiments.md:16; https://learn.chatgpt.com/docs/hooks "Use `/hooks` in the CLI to inspect, review, and trust hook definitions."; the same page says a plugin's hook paths "are resolved relative to the plugin root" and documents `PLUGIN_ROOT`. The user deferred this to verify. |
+| C10 | `request_user_input` works in `codex exec`. | infeasible | experiments.md:18; `raw/e8-exec-enabled.jsonl` |
+| C11 | `request_user_input` renders as a menu in the TUI with `--enable default_mode_request_user_input`, and has a free-text slot. | UNVERIFIED | experiments.md:18. The user deferred this to verify. |
+| C12 | The main session's `git push` raises a Codex approval prompt when network is off. | UNVERIFIED | https://learn.chatgpt.com/docs/agent-approvals-security "By default, network access remains disabled"; no run observed it. **It will not be verified before ship (D5=A):** a local-path push needs no network. The stance's fallback can therefore fire only after release. |
+| C13 | A subagent can spawn its own subagent. | UNVERIFIED | Not found at https://learn.chatgpt.com/docs/agent-configuration/subagents (doc fetch 2026-09-18); E5 tested one level only |
+| C14 | `project_doc_max_bytes` also caps the global `~/.codex/AGENTS.md`, and what happens past the cap. | UNVERIFIED | https://learn.chatgpt.com/docs/config-file/config-reference "the maximum bytes read from `AGENTS.md` when building project instructions". The default and the global-file behaviour were not found. |
+| C15 | `CODEX_HOME` relocates all state, auth included. | verified | https://learn.chatgpt.com/docs/config-file/environment-variables "sets the root for Codex state, including config, auth, logs, sessions, skills, and standalone package metadata" |
+| C16 | The ledger still writes a record when there is no Claude session id; usage is left empty and the reason recorded. | verified | `plugins/cai/scripts/ledger.py:236-240` |
+| C17 | The plugin cache is keyed by version directory. | verified | `raw/e1-plugin-add.txt:2` |
+| C18 | Windows PowerShell 5.1 has no `&&`. | verified | https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pipeline_chain_operators "Beginning in PowerShell 7, PowerShell implements the `&&` and `||` operators"; the Codex shell is `WindowsPowerShell\v1.0` (`raw/e3-exec-dollar-form.jsonl:5`) |
+| C19 | Model slugs visible to this account: `gpt-5.6-luna` ("Fast and affordable"), `gpt-5.6-terra` ("Balanced"), `gpt-5.5` ("previous-generation"). Whether other accounts see the same list is unknown. | UNVERIFIED | `~/.codex/models_cache.json:178` (`gpt-5.6-luna`). The file was fetched 2026-09-18 and carries a per-account `identity` field. |
+| C20 | codex-cli updates itself between runs. | verified | blindspot.md:4 (0.149.1 to 0.155.0 on 2026-09-18) |
+
+#### Ruled out
+
+| Option | Invariant it violates | Evidence |
+|---|---|---|
+| Add Codex tier or model columns to `plugins/cai/models.json` | I1 | `plugins/cai/models.json` sits under `plugins/cai/` |
+| Leave `${CLAUDE_PLUGIN_ROOT}` in the output and hope Codex substitutes it | I6 | C7 |
+| Enable network for subagents so the shipper pushes itself | I9 | stance I9; C6 |
+| Gates that work only with a menu | I7 (a typed answer must also count) | C10, C11 |
+| Copy `approval-gates.md:21` ("`AskUserQuestion` adds that entry itself") unchanged | I4 | `plugins/cai/skills/track/references/approval-gates.md:21` |
+| Make the push prompt the only protection, without Gate 2 | I9 | C12 |
+| Tie cai-codex's version to cai's version (lockstep) | I1: a Codex-only fix would need an edit to `plugins/cai/.claude-plugin/plugin.json` | `plugins/cai/.claude-plugin/plugin.json:3` |
+
+#### Requirement gaps
+
+| # | The behavioural assumption | Veto condition, or verification path | Deletes |
+|---|---|---|---|
+| G1 | The user keeps Codex's sandbox and approval prompts on (stance, Sacrifices). | Veto: before Gate 2, the Codex ship stage says the push prompt may be absent. C12 itself stays untested through ship (D5=A), so this statement is the only warning a user gets. Verification path: a user's first real network push, after release. | Any ship text that presents the prompt as guaranteed |
+| G2 | The user trusts the guard with `/hooks` after setup (C9). | Veto: setup ends by listing the guard as "inactive until trusted", and the Codex README's mapping row says the same. | Any setup or README that calls the guard active once installed |
+| G3 | The user re-runs setup after every plugin update, so the installed agents match (C17). | Veto: a program detects the mismatch between the agents' version and the plugin's version before a stage dispatches. | Any D2 variant that only documents "re-run setup" |
+
+#### Tier 1
+
+##### D1 — How does generated text find the plugin's scripts, now that `${CLAUDE_PLUGIN_ROOT}` is not substituted?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — The generator rewrites each root to a path relative to the skill's own `SKILL.md`, and adds one sentence: resolve it from the path you read. | C7, C8 | Generator rules only; nothing is installed. | The model resolves the path against the repo's working directory. That happens silently, on one of 209 sites. |
+| B — Setup writes the installed plugin root into the AGENTS.md block, and skills refer to it by name. | C8, C17 | Setup writes one line. | A plugin update moves the root to a new version directory (C17) and setup is not re-run, so the path goes stale. |
+| C — Setup installs a small launcher at a fixed user path. The launcher picks the newest cached cai-codex version and runs the named script. | C17 | A hand-written script outside the generator. It must parse the cache layout. | Codex changes its cache layout. |
+
+- **Blast radius:** 97 generated files and every program gate (`plugins/cai/skills/track/SKILL.md:49,63`).
+- **Found out when:** AC4's end-to-end run in the TUI. A silent misresolution may only appear in real use, after release.
+- **Undo cost:** regenerate. B and C also leave files in users' home directories.
+- **Decided:** C, a launcher at a fixed path — chosen by the user via menu ("C 啟動器 (Recommended)"), 2026-09-18. The D2 version check and the D4 hook command both use this launcher's fixed path.
+
+##### D2 — Where are the Codex agents installed, and what are they called?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — Personal `~/.codex/agents/`, with names prefixed `cai_`. The generator rewrites the `stages.json` `agent` column and every dispatch sentence. | C4, C5 | One more rewrite rule. The names differ from Claude's. | A dispatch sentence the generator misses. `--check` can assert that zero unprefixed names remain. |
+| B — Personal `~/.codex/agents/`, keeping Claude's names. | C4, C5 | No rewrite. | The user already has a personal agent of the same name. Which one wins is UNVERIFIED; verify can install a same-named agent and see. |
+| C — Project-scoped `.codex/agents/` in each repo, keeping Claude's names. | C5; the doc at https://learn.chatgpt.com/docs/agent-configuration/subagents says: "`~/.codex/agents/` (personal) or `.codex/agents/` (project-scoped)" | Setup runs once per repo and writes into the user's repo, so the files show up in `git status`. | Dispatch from a project-scoped agent was never observed (E5 tested personal only). |
+
+- **Blast radius:** the user's `~/.codex/agents/` or every repo they use, plus every stage's dispatch.
+- **Found out when:** a name clash surfaces only on a user's machine, after release.
+- **Undo cost:** renaming or relocating published agents means users must re-install and re-learn the names.
+- **Decided:** A, personal `~/.codex/agents/` with a `cai_` prefix — chosen by the user via menu ("A 加 cai_ 前綴 (Recommended)"), 2026-09-18. The prefix applies to agents only; skill names stay as they are (D7).
+
+##### D3 — Which Codex model and reasoning effort does each tier (chore, build, think) run on?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — Pin a slug and an effort per tier: chore `gpt-5.6-luna`/low, build `gpt-5.6-terra`/medium, think `gpt-5.6-terra`/high. No listed model is described as stronger than terra (C19). | C4, C19, C20 | A mapping table under `scripts/` (Ours), and re-tiering as models change. | A slug is retired or hidden for this account (C19 is per-account; C20 means the client moves on). Dispatch then breaks for users. |
+| B — Set only `model_reasoning_effort` per tier and leave `model` out. | C4 | Nothing to maintain. | Leaving `model` out does not inherit it (UNVERIFIED). Or the user's default is expensive, so cheap tiers are no cheaper. |
+
+- **Blast radius:** every agent TOML, and the cost of every dispatch.
+- **Found out when:** A's failure shows only for users whose model list differs, after release. B's cost failure shows on a bill.
+- **Undo cost:** regenerate and re-run setup.
+- **Decided:** A, pinned slugs — chosen by the user via menu ("A 寫死模型 (Recommended)"), 2026-09-18. The mapping is chore `gpt-5.6-luna`/low, build `gpt-5.6-terra`/medium, think `gpt-5.6-terra`/high. The table lives under `scripts/`, because `models.json` is ruled out by I1.
+
+##### D4 — Where is the bash guard hook declared on Codex?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — In the plugin's manifest, using `PLUGIN_ROOT`. | C9 | Generated; nothing is written to the user's home. | `plugin_hooks` really is removed in this build (experiments.md:16), so the guard never runs. |
+| B — Setup writes an entry into the user-level `~/.codex/hooks.json`. | C9, plus D1's path | A hand-written write into the user's config. It needs an absolute script path (see D1). | The path goes stale after an update. |
+| C — Both. | C9 | Both costs, and the guard may fire twice. | Neither declaration can be trusted. |
+
+- **Blast radius:** who is allowed to force-push or `rm -rf`, which is high by default. It also touches the user's config.
+- **Link to D1:** B uses the same path mechanism D1 picks. A uses `PLUGIN_ROOT`, which applies only to hooks.
+- **Found out when:** verify's TUI run (deferred there by the user).
+- **Undo cost:** B and C leave config in users' homes.
+- **Decided:** B, setup writes the hook into `~/.codex/hooks.json`, and its command runs the guard through the D1 launcher — chosen by the user via menu ("B setup 寫入 (Recommended)"), 2026-09-18. It was asked after D1. The main session judged that D1=C did not change D4's options or tier.
+
+##### D5 — Which remote does AC4's end-to-end run push to?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — A local bare remote inside the session's writable root. | C6 | No credentials, and nothing leaves the machine. | It never tests C12: a push to a local path needs no network, so no prompt is expected. The stance's key assumption stays untested after verify. |
+| B — A local bare remote outside the workspace. | C6, C12 | No credentials. | Whether a write outside the workspace raises a prompt is an inference (blindspot.md:26, :57). Even if it does, it is a different prompt from the network one I9 relies on. |
+| C — A throwaway network remote, such as a private repo created for the run and deleted afterwards. | C12 | Needs the user's `gh` or git credentials in the run, a real remote-side effect, and clean-up afterwards. | The credential setup fails inside the sandbox. |
+
+- **Blast radius:** AC4, the primary acceptance criterion (intake.md:20), and whether the stance's C12 assumption is ever checked.
+- **Found out when:** verify. With A, C12 is never found out before release.
+- **Undo cost:** low for the test itself. Credentials are high by default.
+- **Decided:** A, a local bare remote inside the writable root — chosen by the user via menu ("A 工作區內本機"), 2026-09-18. **This was not the recommended option (C was).** The consequences are carried as follows:
+  - C12 will not be verified before ship.
+  - The stance's fallback ("if verify shows push goes through without a prompt, return to stance, option 2") cannot fire during verify. It can only fire after release, on a Codex user's first real network push.
+  - The Codex README's mapping table must list the push-approval row as "documented, not tested".
+  - Verify has to check that this row is present.
+
+#### Tier 2
+
+##### D6 — Which marketplace form?
+
+Use `.agents/plugins/marketplace.json` with a string `source`, and have `validate.py` check that the source is a string. The object form is dropped silently (C1, experiments.md:12). **Found out when:** the next `validate.py` run.
+
+##### D7 — What are the skills invoked as?
+
+Keep Claude's skill names, so skills are invoked as `$track`. AC3's rewrite names `$track` (blindspot.md:34), and the bare form works (C2, experiments.md:13). **Found out when:** AC3's install check.
+
+##### D8 — How are the 72 catalog skills kept from firing implicitly?
+
+The generator adds `agents/openai.yaml` with `allow_implicit_invocation: false` to each of the 72. None has one today (stance UC1), and C3 shows the flag works (experiments.md:14). **Found out when:** `--check` counts 72 files, and AC3 runs.
+
+##### D9 — How do `build` and `verify` dispatch reviewers and helpers?
+
+The main session dispatches them, and `verifier` only reconciles the results; the same goes for `build`. One-level dispatch is the only kind observed (C4, experiments.md:15). Nesting (`plugins/cai/agents/verifier.md:7`, `implementer.md:6`) is not documented anywhere fetched and is untested (see the Feasibility row on nested spawn). Being wrong here costs extra main-session context and one override to delete. **Found out when:** AC4, or when verify proves nesting works.
+
+##### D10 — How do gates ask on Codex?
+
+Ask with the menu tool when it is present; otherwise ask with numbered options answered in text. Either way, the main session writes `gate: human` (`approval-gates.md:53-55`, stance I7). `raw/e8-exec-enabled.jsonl` shows menus are impossible in exec mode. **Found out when:** AC4 in the TUI.
+
+##### D11 — What goes into `~/.codex/AGENTS.md`, and how is a size cap caught?
+
+All 8 rules go into one marked block, with their Claude-only sentences overridden (I4; intake.md:24, AC8). Together they are 15,392 bytes (`wc -c plugins/cai/rules/*.md`). Nothing is cut in advance, because the cap is unknown. Verify has the model quote the last rule's final sentence from the installed block, so silent truncation is caught before release. **Found out when:** verify's AC8 check.
+
+##### D12 — What happens to usage accounting in the Codex ledger?
+
+It is accepted as degraded: usage stays empty and the reason is recorded, while the record is still written (C16, `plugins/cai/scripts/ledger.py:236-240`). A Codex usage collector is out of scope (stance, Out of scope). **Found out when:** AC4's `ledger.jsonl`.
+
+##### D13 — What is cai-codex's version policy?
+
+cai-codex has its own version. `--check` fails if the generated output changes while the version stays the same, because the cache is keyed by version (C17, `raw/e1-plugin-add.txt:2`), so an unbumped change never reaches an install. Lockstep with cai is under Ruled out. **Found out when:** the next `validate.py` run.
+
+##### D14 — How are verify's Codex runs isolated?
+
+Use the real `~/.codex` with backup, restore and `changes.log`, the same method discover used (experiments.md:20-31). `CODEX_HOME` would relocate auth too (C15), which means copying credentials. **Found out when:** the restore diff after verify.
+
+#### Tier 3
+
+| Decision | Chose | Instead of | Found out when |
+|---|---|---|---|
+| D15 Override list format | A data file of (target, exact anchor sentence, replacement) entries, read by `gen-codex.py` | Overrides hard-coded in Python | The next `--check` run |
+| D16 Bash-only commands (C18) | Rewrite each into a form that parses in both PowerShell 5.1 and bash, plus a `--check` rule that fails on `&&` in generated skills | Separate text per shell | The next `--check` run |
+| D17 `sandbox_mode` in agent TOMLs (C6) | Keep the declared value, noted in the TOML as unenforced | Omit it | The next `--check` run |
+| D18 Hand-written Codex files: the setup skill and the D1 launcher. Setup writes the D2 agents, the D4 `hooks.json` entry, and the D11 block. | Listed by path in `gen-codex.py`; `--check` requires they exist and does not regenerate them | A separate hand-written directory | The next `--check` run |
+| D19 What setup prints about rule size (C14) | The total bytes, plus a note that the cap is unverified | Printing nothing | The next setup test |
+| D20 What the generated build and verify text says about nesting (C13) | One line: nested dispatch is untested on Codex, so this procedure does not use it (D9) | Saying nothing | The next `--check` run |
+
+
+## 整併補充：codex-support-stance
+
+來源為原 `2026-09-18-codex-support-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+Procedure parity at the lowest hand-written cost. On Codex, the track's six stages run the same procedure from one generated source. The one guarantee kept beyond prose is that ship's irreversible git/gh steps sit behind the platform's own approval prompt: they run in the main session after Gate 2, where network is off by default (https://learn.chatgpt.com/docs/agent-approvals-security: "By default, network access remains disabled"). That this raises a prompt on push is documented, not tested; see Sacrifices. The user chose this on 2026-09-18 ("主對話執行 (Recommended)").
+
+#### Sacrifices
+
+- **Dispatch by agent field, for ship.** Ship's irreversible steps (push, merge, tag, publish, ticket close) are not run by the `stages.json` `agent` (`shipper`). This departs from intake.md:11, which says work is dispatched by the `agent` field. The shipper only prepares.
+- **Enforced per-agent limits.** On Codex, `tools:` allowlists and `sandbox_mode` are degradations that are written down, not enforced (E5). Read-only agents are read-only by instruction only.
+- **Assumption, not tested before release: a push raises an approval prompt.** Verify pushes to a local remote inside the workspace (decisions D5=A), which needs no network, so this is not tested before ship, and the Codex README marks it "documented, not tested". If the first real network push after release goes through without a prompt, the only thing left blocking a force push is Gate 2 plus a guard hook that has not been tested. The stance then returns here, and rejected option 2 is the fallback.
+- **Assumption, not yet tested: the user keeps Codex's sandbox and approval prompts on.** A session with either turned off loses the platform prompt, and ship's steps are held back only by Gate 2 and instructions. Which modes and flags turn them off was not checked (UNVERIFIED).
+- **Main-session context.** The main session spends its own context running ship's final commands, instead of handing them to a subagent.
+
+#### Invariants
+
+**This system's** (from decisions already made: in-repo, full parity, B′):
+
+- I1 — `plugins/cai/` is not changed by this work: `git diff main -- plugins/cai/` is empty (intake.md:18, AC2). Any exception is recorded and approved separately.
+- I2 — One source. Every file under `plugins/cai-codex/` is either produced from `plugins/cai/` by `scripts/gen-codex.py`, or is on an explicit list of hand-written files that `--check` knows about. `--check` exits 0 on a clean tree and 1 on drift (intake.md:17, AC1), and is wired into `validate.py` like `gen-models.py --check` (`scripts/validate.py:1414`).
+- I3 — Every override is anchored to the exact source sentence it replaces. If that sentence changes in `plugins/cai/`, `--check` fails; it is never silently re-applied (intake.md:38).
+- I4 — No generated sentence claims a Codex behaviour that is neither verified nor marked "documented, not tested" or "degraded". A Claude-only claim may not be carried over word for word, e.g. "`AskUserQuestion` adds that entry itself" (`plugins/cai/skills/track/references/approval-gates.md:21`), or "the Task tool" (`plugins/cai/rules/model-selection.md:26`). Pure word-swapping was rejected for this reason (intake.md:37).
+- I5 — Every Claude Code behaviour in the mapping table gets either a Codex counterpart that was tested, or a degradation that is written down and accepted. Both cite a discover artefact (intake.md:11, AC6).
+- I6 — The generated output contains zero literal `${CLAUDE_PLUGIN_ROOT}`. Codex does not substitute it (E3, `raw/e3-exec-dollar-form.jsonl`), and without the substitution `preflight.py` and `ledger.py` cannot be found (`plugins/cai/skills/track/SKILL.md:49,63`).
+- I7 — There are still exactly two human gates, design and ship. Each is recorded in the ledger as `gate: human` whether the answer came from a menu or from typed text. `preflight.py build` refuses to start without that record (`approval-gates.md:53-55`).
+- I8 — Subagents never ask the person anything. They hand their questions up to the main session (`plugins/cai/skills/track/references/pending-questions.md:8-16,22-26`). This holds whether or not Codex menus work (blindspot.md, landmine 6).
+- I9 — On Codex, no subagent runs an irreversible git/gh operation. That means push, and ship's own irreversible list: merging, tagging, publishing and closing the linked ticket (`plugins/cai/skills/track/references/stage-ship.md:7-8`; the push is its own confirmed step, `:104-107,126`). The main session runs these, and only after Gate 2 records `gate: human`.
+
+**Cross-project** (referenced, not restated):
+
+- The Theirs/Ours split in the repo `CLAUDE.md` ("Who a file is for"). The generator and the override list are Ours. `plugins/cai-codex/` is Theirs, so it may not assume this repo's layout.
+- The user's rule files, `plugins/cai/rules/*.md` as imported by `CLAUDE.md`. That includes "never commit or push unless I explicitly ask" (`workflow.md`).
+- Platform limits observed on codex-cli 0.155.0:
+  - E2: a native marketplace file takes precedence, and only a string `source` is read.
+  - E5: a plugin cannot ship an agent that can be dispatched. A spawned subagent ignores its `sandbox_mode` and runs with `workspace-write` and no network. This matches https://learn.chatgpt.com/docs/agent-configuration/subagents: "Codex respects inherited sandbox policies and approval requirements from the parent agent."
+  - E8: `request_user_input` is never available in `codex exec`.
+- What the test environment can observe:
+  - Gate menus can only be seen in the interactive Codex TUI (E8).
+  - CI runs only `validate.py` and `pytest`, on Linux (`CLAUDE.md`, "Platform coverage").
+- The file hygiene rules in `CLAUDE.md` also apply to generated output: no UTF-8 BOM, and `.cmd` files pure ASCII.
+
+#### Rejected stances
+
+- **Option 1: faithful translation, gaps recorded.** The Codex version would hold only generated files plus the setup skill. If the hook does not fire, only written instructions would stand between the agent and a force push. It also leaves R5 (no network in a subagent) unsolved. The user chose option 3 over it (2026-09-18), and it breaks I9.
+- **Option 2: hand-written Codex-only enforcement.** Setup would install a `~/.codex/rules/` file derived from `bash_guard.py`, plus a sync check. That means more hand-written code, more ways for the two sides to drift, and writes to the user's home directory. It would also rest on an unverified claim: https://learn.chatgpt.com/docs/agent-configuration/rules does not say these rules apply to commands the agent runs. It goes against "lowest hand-written cost", and it is kept as the fallback if the prompt assumption fails.
+- **Pure word-swap generator (B).** It would move Claude-only platform claims into Codex text unchecked (intake.md:37). That breaks I4.
+- **Make `plugins/cai/` platform-neutral (A).** It means editing roughly 50–60 files, the provenance ledger and the eval graders, and it is hard to reverse (intake.md:39). It breaks I1, and the user approved B′ over it.
+- **Point Codex at today's Claude tree.** Codex accepts the legacy marketplace file and copies the tree as-is (E1). But agents, hooks and `${CLAUDE_PLUGIN_ROOT}` stay untranslated (E1, E3), so no program gate can run. That breaks I6.
+- **A hand-maintained Codex fork.** Nothing would catch drift from `plugins/cai/`. That breaks I2, and it goes against the user's in-repo, generator-based choice.
+
+#### Out of scope
+
+- The statusline, the usage report, `context_peak` and the evals. `skills/track/` refers to none of the four, and each reads Claude-only data or needs `claude plugin eval` (intake.md:11).
+- Left to Decisions, not to this stance:
+  - which OpenAI model each tier maps to
+  - the format of the override list
+  - agent naming and how names map to `stages.json`
+  - how the cai-codex version number is set and bumped
+  - how each shell-specific command gets rewritten
+  - how `usage` and `sync` are handled in the ledger
+  - Whether `build` and `verify` depend on nested dispatch. `implementer` and `verifier` spawn agents themselves (`plugins/cai/agents/implementer.md:6`, `verifier.md:7`), and a subagent spawning a subagent is not tested on Codex (blindspot.md, landmine 2). Decisions either marks it "documented, not tested" or designs around it.
+  - How the rules fit in `AGENTS.md`. The rules are 15,392 bytes, and whether a size cap applies to the global file is UNVERIFIED (blindspot.md, landmine 7). If a cap does apply, AC8 fails until the rules are cut or split.
+  - How to isolate a test run: `CODEX_HOME`, or backup, restore and `changes.log`. This is UNVERIFIED (intake.md:19, blindspot.md AC3).
+- `docs/` is git-ignored. This file needs `git add -f` at ship.
+
+
+## 整併補充：codex-commit-message-prompts-stance
+
+來源為原 `2026-09-23-codex-commit-message-prompts-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+在 Codex 上跑 `$track` 的 build 並選 commit per unit 時，提交一個 unit 不必在 workspace 外寫任何檔，所以訊息檔引起的 approval prompt 為 0 次；改動只有一句程序文字加一個測試。成功的判準：生成的 `plugins/cai-codex/skills/track/references/stage-build.md` Step 3 第 5 項寫出這個做法，且有測試斷言（AC1）。
+
+#### Sacrifices
+
+- **per-unit commit 只剩標題，沒有內文。** ship Step 4 起草最終訊息時讀的是 `git log <BASE>..HEAD --pretty=format:'%h %s%n%b'`（`plugins/cai/skills/track/references/stage-ship.md:98`），之後只剩標題、diff stat 與設計文件可用；main 上的歷史不變，因為 ship 會 `git reset --soft <BASE>` 壓成一個（`stage-ship.md:113`）。
+- **per-unit 標題不能含撇號。** bash 與 PowerShell 跳脫撇號的方式不同；ship 的 PR 標題已有同一限制（`scripts/codex-overrides.json:206`）。
+- **ship 的兩個暫存檔照舊會問。** `cai-commit-msg.txt`、`cai-pr-body.md` 仍寫在系統暫存資料夾（`scripts/codex-overrides.json:186,203`），每條 track 約 2 次 prompt。
+- **假設，未測：`git commit` 本身（寫 workspace 內的 `.git`）在 macOS Codex 上不另跳 prompt**（`intake.md:44`）。若不成立，本改動只解一半；只有 AC4 的手動回報驗得到。UNVERIFIED。
+- **假設，未測：model 會照 stage 程序的這一句，而不是 git skill 的一般建議。** git skill 說多行訊息寫檔、單行用單引號 `-m`（`plugins/cai-codex/skills/git/SKILL.md:13`）；這句把 per-unit 訊息限定為單行，兩者不衝突，但 model 是否照做只有 AC4 驗得到。UNVERIFIED。
+
+#### Invariants
+
+**This system's:**
+
+- N1 — 提交一個 unit 不寫訊息檔：只用一個單引號包住的單行 `git commit -m '<type(scope): summary>'`，標題不含撇號（使用者在 intake 的選擇），也不含反引號與 `$`（允許它們的寫法違反下方使用者全域規則，依 conflict test 刪除，不另權衡）。
+- N2 — ship 的 Codex override（`scripts/codex-overrides.json:176-210`）一字不動（intake 決定，範圍外）。
+- N3 — `plugins/cai/` 不變（Q1 於 2026-09-23 答 (b)）：`git diff main -- plugins/cai/` 為空，Claude Code 的 build/ship 行為逐字不變（AC2），不 bump `plugins/cai/.claude-plugin/plugin.json:3`（`1.28.2`）。這句以新 override 進 `scripts/codex-overrides.json`，anchor 為 `plugins/cai/skills/track/references/stage-build.md:155-156` 整句；該處目前無任何 override（現有三條在 `:3-5`、`:8-9`、`:127`，`scripts/codex-overrides.json:20-34,420-439`），也不被 `docs/rule-provenance.md` 引用（該檔只引 Step 1、Step 4、Step 6，`:25,77,84`）。
+- N4 — 生成的句子只講做法，不宣稱 Codex 的 sandbox 行為；理由寫在 override 的 `why` 欄（Ours）。這是 codex-support stance I4 的直接套用。
+- N5 — 解法是程序文字，不是叫使用者關 approval 或改 Codex 設定；codex-support stance 假設使用者保持 sandbox 與 approval 開著（`docs/design/2026-09-18-codex-support-detail.md:798`）。
+- N6 — cai-codex 輸出一變就 `python scripts/gen-codex.py --release 0.2.4`（現為 `0.2.3`，`scripts/codex-release.json:2`），否則 `validate.py` 報 DRIFT/UNRELEASED（`scripts/gen-codex.py:681,684`）。
+
+**Cross-project:**
+
+- 專案 `CLAUDE.md` 的「Who a file is for」（cai-codex 由產生器生成、不手改）與「Before pushing」（`validate.py`、`pytest` 全綠、無 BOM）。
+- codex-support stance 的 I2、I3、I4（`docs/design/2026-09-18-codex-support-detail.md:806-808`）：單一來源、override 錨定原句、不宣稱未驗證的 Codex 行為。
+- 使用者全域 `CLAUDE.md` 的 Environment：Bash 不用 heredoc，`-m` 不帶反引號或 `$`。
+
+#### Rejected stances
+
+- **B — build 與 ship 的訊息檔都改放專案內、被 git 忽略的固定位置。** 能把 ship 的 prompt 也消掉，但無 track 時放哪要另做決定，專案沒忽略該處時留下的檔會卡住 ship 的乾淨工作樹檢查；使用者在 intake 選 A 而非 B（`options-intake.md`）。
+- **C — 只在 cai-codex README 教使用者改設定。** 沒改設定的使用者照樣每個 unit 被問，與 issue 的預期相反；相關設定鍵也查無文件。
+- **(a) 把這句寫進 `plugins/cai/skills/track/references/stage-build.md` 本身，兩個平台都拿到。** 單一來源、不多一條 override，也可能讓在 Claude Code 上寫暫存檔的使用者少一次 prompt；代價是 Claude Code 的 per-unit 內文一併消失（`stage-ship.md:98` 讀不到）、要 bump plugin 版本，而 Claude Code 側沒有任何回報。使用者於 2026-09-23 在 Q1 選 (b)，否決此項。
+
+#### Out of scope
+
+- ship 的兩個暫存檔（intake 決定）；git skill 第 13 行與 bash guard 的 `REWRITE` 提示（`plugins/cai-codex/scripts/bash_guard.py:23-28`）照舊，`$git` 單獨提交多行訊息時仍可能寫檔。
+- 否決條件：若 AC4 顯示 `git commit` 本身在 Codex 上也跳 prompt，問題在 commit 指令而非訊息檔，這份取捨重開，不在措辭上補。
+- 留給 build（單一 unit，先寫會 fail 的測試）：在 `tests/test_gen_codex.py` 仿 `:498-524` 用 `--source` 真樹生成到 `tmp_path`，斷言生成的 `stage-build.md` 在 `5. **Commit**` 到 `**Never leave the tree` 之間含 `git commit -m '` 與 `no message file`、且不含 `-F`；再加 override、`python scripts/gen-codex.py`、`--release 0.2.4`。Verify with：`python -m pytest tests/test_gen_codex.py -q`，接著 `python scripts/validate.py`；收尾跑完整 `python -m pytest`。句子措辭與測試函式名稱屬 build。新句子不得含 `DENY_LIST` 字樣（`scripts/gen-codex.py:120-128`）。
+- `docs/` 被 git 忽略；本檔要進 repo 需在 ship 時 `git add -f`。
