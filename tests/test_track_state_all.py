@@ -129,4 +129,6 @@ def test_a_detached_worktree_says_so(repo):
     sha = git(repo, "rev-parse", "HEAD")
     git(repo, "worktree", "add", "-q", "--detach", str(repo.parent / "loose"), sha)
     out = run(repo).stdout
-    assert str(repo.parent / "loose") in out and "(detached HEAD)" in out
+    # `git worktree list` prints forward slashes on Windows too, and a worktree
+    # outside the main checkout is shown by that path as git gave it.
+    assert (repo.parent / "loose").as_posix() in out and "(detached HEAD)" in out

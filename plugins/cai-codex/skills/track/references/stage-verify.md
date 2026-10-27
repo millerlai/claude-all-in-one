@@ -158,8 +158,8 @@ Step 3 lists it with the plan's reason.
 Three agents, in parallel, one message: two `cai_reviewer` agents, one lens each
 for conformance and coverage, plus the `cai_security-reviewer` agent for security.
 Correctness comes from Step 0.6. Only on fallback — the platform review file
-says `fallback` or cannot be read (reason: platform review file unreadable),
-the brief's `Platform review:` line says `not run` or is missing, or, standing
+says `fallback`, still says `reading: pending` (a reading never set), or cannot
+be read (reason: platform review file unreadable), the brief's `Platform review:` line says `not run` or is missing, or, standing
 alone, Step 0.6 fell back — add a fourth, a `cai_reviewer` for correctness, and
 write why. Four and not more — `model-selection.md` caps parallel subagents at
 2–4.

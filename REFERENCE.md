@@ -164,7 +164,7 @@ stage or by one of the tools above.
 | `implementer` | `build` | The `build` stage, `/cai:build`, `/cai:goal`, `/cai:fix`. |
 | `shipper` | `build` | The `ship` stage. |
 | `reviewer` | `build` | The `verify` stage, `/cai:verify` — two at once, one lens each: conformance, coverage; a third for correctness only when the platform review cannot run. |
-| `security-reviewer` | `build` | The `verify` stage's security lens: shell execution, what reaches an argument vector, secrets in what is kept, guard bypass — those four and no fifth. |
+| `security-reviewer` | `build` | The `verify` stage's fourth lens: shell execution, what reaches an argument vector, secrets in what is kept, guard bypass — those four and no fifth. |
 | `refactoring-detector` | `build` | Parallel smell analysis across module groups during a refactoring scan. |
 | `verifier` | `build` | The `verify` stage. |
 | `architect` | `think` | Read-only second opinions that `plan-review` and `debug` call in; no stage dispatches it. |

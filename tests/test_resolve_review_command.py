@@ -103,6 +103,12 @@ def test_each_docs_suffix(suffix):
     assert rrc.size_class([(1, 0, "x/y" + suffix)]) == "docs"
 
 
+@pytest.mark.parametrize("name", ["README.MD", "NOTES.TXT", "Guide.Rst"])
+def test_docs_suffix_ignores_case(name):
+    assert rrc.size_class([(1, 0, name)]) == "docs"
+    assert claude([(1, 0, name)])["level"] == "low"
+
+
 def test_other_suffix_is_not_docs():
     assert rrc.size_class([(1, 0, "x/y.mdx")]) == "small"
     assert rrc.size_class([(1, 0, "Makefile")]) == "small"
@@ -196,6 +202,25 @@ def test_notes_are_carried():
     assert claude(notes=["one"])["notes"] == ["one"]
 
 
+# --- the base ref reaches codex's argv, which cmd.exe may read -----------------
+
+@pytest.mark.parametrize("ref", ["main&calc", "a|b", "a b", "-x", "a;b", "a$(b)", "a`b`",
+                                 'a"b', "a%PATH%", "a^b", "a<b", "a>b", "a(b)", ""])
+@pytest.mark.parametrize("platform", ["claude", "codex"])
+def test_unsafe_base_ref_is_invalid_and_builds_no_call(platform, ref):
+    r = rrc.decide(platform, ref, SMALL, claude_version="2.1.290", **CODEX)
+    assert r["status"] == "invalid" and r["call"] is None
+    assert "argv" not in r and "args" not in r
+    assert ref not in r["reason"] or ref == ""
+
+
+@pytest.mark.parametrize("ref", ["origin/main", "main", "v1.2.3", "feature/x_y-z", "HEAD~3",
+                                 "abc123", "release+1", "user@host"])
+def test_ordinary_base_refs_still_run(ref):
+    assert rrc.decide("codex", ref, SMALL, **CODEX)["status"] == "run"
+    assert rrc.decide("claude", ref, SMALL, claude_version="2.1.290")["status"] == "run"
+
+
 # --- exit 5 -------------------------------------------------------------------
 
 def test_empty_numstat_is_invalid():
@@ -287,6 +312,73 @@ def test_gather_without_layers_or_dirs(repo, tmp_path, monkeypatch):
     g = rrc.gather("claude", "main", str(repo), environ={"CLAUDE_CONFIG_DIR": str(tmp_path / "none")})
     assert g["settings_layers"] == [{}, {}, {}] and g["skill_dirs"] == [] and g["notes"] == []
     assert g["claude_version"] == "2.1.300"
+
+
+@pytest.mark.parametrize("environ", [{}, {"CLAUDE_CONFIG_DIR": ""}])
+def test_gather_config_dir_defaults_to_dot_claude_in_home(repo, tmp_path, monkeypatch, environ):
+    home = tmp_path / "home"
+    (home / ".claude" / "skills" / "code-review").mkdir(parents=True)
+    (home / ".claude" / "settings.json").write_text(
+        json.dumps({"skillOverrides": {"code-review": "off"}}))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    on_path(monkeypatch, fake_exe(tmp_path / "bin", "claude", "claude 2.1.300").parent)
+    g = rrc.gather("claude", "main", str(repo), environ=environ)
+    assert g["settings_layers"][0] == {"skillOverrides": {"code-review": "off"}}
+    assert [Path(p) for p in g["skill_dirs"]] == [home / ".claude" / "skills" / "code-review"]
+
+
+def test_gather_measures_from_the_merge_base_not_the_ref_itself(repo, tmp_path):
+    # `main` moves on after `feat` branched off it. Diffing against main's tip
+    # would list that file as deleted here, and the review would be sized by work
+    # that is not on this branch.
+    git(repo, "checkout", "-q", "--", "a.py")  # drop the fixture's uncommitted edit
+    git(repo, "checkout", "-q", "main")
+    (repo / "other.py").write_text("o = 1\n")
+    git(repo, "add", "other.py")
+    git(repo, "commit", "-q", "-m", "main moves on")
+    git(repo, "checkout", "-q", "feat")
+    g = rrc.gather("codex", "main", str(repo), environ={"CODEX_HOME": str(tmp_path / "ch")})
+    assert sorted(p for _, _, p in g["numstat"]) == ["a.py", "notes.md"]
+
+
+@pytest.mark.parametrize("content", [b"\xff\xfe\xff not utf-8", b"[1, 2]", b"{broken"])
+def test_gather_unreadable_or_non_object_settings_are_empty_with_a_note(
+        repo, tmp_path, monkeypatch, content):
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    (cfg / "settings.json").write_bytes(content)
+    on_path(monkeypatch, fake_exe(tmp_path / "bin", "claude", "claude 2.1.300").parent)
+    g = rrc.gather("claude", "main", str(repo), environ={"CLAUDE_CONFIG_DIR": str(cfg)})
+    assert g["settings_layers"][0] == {}
+    assert len(g["notes"]) == 1 and "settings.json" in g["notes"][0]
+    assert str(cfg) not in g["notes"][0]  # the file name only, never the path
+
+
+def test_gather_settings_path_that_is_a_directory_is_empty_with_a_note(repo, tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg"
+    (cfg / "settings.json").mkdir(parents=True)
+    on_path(monkeypatch, fake_exe(tmp_path / "bin", "claude", "claude 2.1.300").parent)
+    g = rrc.gather("claude", "main", str(repo), environ={"CLAUDE_CONFIG_DIR": str(cfg)})
+    assert g["settings_layers"][0] == {} and "could not be read" in g["notes"][0]
+
+
+def test_gather_ignores_a_codex_found_inside_the_reviewed_repo(repo, tmp_path, monkeypatch):
+    # A checkout can carry its own `node_modules/.bin/codex`, and a PATH entry
+    # that points into it would otherwise be run with the person's environment.
+    (repo / "node_modules").mkdir()
+    planted = fake_exe(repo / "node_modules" / ".bin", "codex", "planted")
+    on_path(monkeypatch, planted.parent)
+    g = rrc.gather("codex", "main", str(repo), environ={})
+    assert g["codex_path"] is None
+    assert any("inside the reviewed repository" in n for n in g["notes"])
+    assert rrc.decide(**g)["status"] == "fallback"
+
+
+def test_gather_keeps_a_codex_outside_the_reviewed_repo(repo, tmp_path, monkeypatch):
+    outside = fake_exe(tmp_path / "bin", "codex", "x")
+    on_path(monkeypatch, outside.parent)
+    g = rrc.gather("codex", "main", str(repo), environ={})
+    assert Path(g["codex_path"]) == outside and g["notes"] == []
 
 
 def test_gather_version_unreadable(repo, tmp_path, monkeypatch):

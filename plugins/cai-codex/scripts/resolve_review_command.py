@@ -33,6 +33,10 @@ _EXIT_BY_STATUS = {"run": EXIT_RUN, "fallback": EXIT_FALLBACK, "invalid": EXIT_I
 # A skill set to one of these cannot be invoked by the model.
 _UNCALLABLE = ("user-invocable-only", "off")
 _VERSION = re.compile(r"\d+\.\d+\.\d+")
+# The base ref goes into codex's argv, and on Windows a `codex.cmd` shim is run
+# by cmd.exe, which reads & | ^ % " ( ) < > as its own. A ref outside this set
+# (git allows far more) is refused rather than quoted; it never starts with `-`.
+_SAFE_REF = re.compile(r"[A-Za-z0-9._/@~+][A-Za-z0-9._/@~+-]*\Z")
 _GIT_TIMEOUT = 60
 _VERSION_TIMEOUT = 15
 
@@ -42,7 +46,12 @@ class GatherError(Exception):
 
 
 def _is_docs(path):
-    return path.endswith(DOC_SUFFIXES)
+    return path.lower().endswith(DOC_SUFFIXES)
+
+
+def _inside(directory, top):
+    root = os.path.join(os.path.normcase(os.path.realpath(top)), "")
+    return os.path.join(os.path.normcase(os.path.realpath(directory)), "").startswith(root)
 
 
 def _lines(numstat):
@@ -89,6 +98,10 @@ def decide(platform, base_ref, numstat, claude_version=None, settings_layers=(),
     if platform not in ("claude", "codex"):
         return _result(str(platform), base_ref, "invalid", "unknown platform %s" % platform,
                        notes=notes)
+    if not _SAFE_REF.match(base_ref):
+        # A fixed phrase: the ref is the text that is not safe to print or run.
+        return _result(platform, base_ref, "invalid",
+                       "base ref has characters outside A-Z a-z 0-9 . _ / @ ~ + -", notes=notes)
     if not numstat:
         return _result(platform, base_ref, "invalid", "empty diff against %s" % base_ref,
                        notes=notes)
@@ -199,9 +212,15 @@ def gather(platform, base_ref, project_dir, environ=None):
         kwargs["skill_dirs"] = [str(c) for c in candidates if c.exists()]
     elif platform == "codex":
         try:
-            kwargs["codex_path"] = tool_path.resolve("codex", cwd=top)
+            found = tool_path.resolve("codex", cwd=top)
         except FileNotFoundError:
-            kwargs["codex_path"] = None
+            found = None
+        if found and _inside(os.path.dirname(found), top):
+            # The reviewed checkout controls what is in it; tool_path only skips
+            # PATH entries that are above the working directory, not below it.
+            kwargs["notes"].append("a codex inside the reviewed repository was ignored")
+            found = None
+        kwargs["codex_path"] = found
         kwargs["codex_home"] = environ.get("CODEX_HOME") or str(home / ".codex")
     return kwargs
 

@@ -99,10 +99,8 @@ begins. The rest are each skill's own.
 
 **`verify`**
 
-- Correctness comes from the platform's own review, run before the lenses;
-  one message then dispatches three agents at once — two `reviewer` lenses and
-  `security-reviewer` — plus a `reviewer` for correctness only when the
-  platform review cannot run. Not one reviewer reading everything.
+- One message dispatches four agents at once — three `reviewer` lenses and
+  `security-reviewer` — not one reviewer reading everything.
 - Every finding carries `file:line`, a failure with concrete inputs, and the
   smallest fix; "consider extracting" and "this could be cleaner" are absent.
 - The report opens with `Ready`, `Revise` or `Rework`, ranks findings Blocker
@@ -680,8 +678,8 @@ cause**, not the fix: a wrong cause makes every fix under it wrong. Stance
 instead writes the trade, and then `decisions` puts at most five choices to
 you one at a time.
 
-**4. `build`, `verify`, `ship`.** The fix goes in test-first, the platform's
-review and three reviewers read the diff, and `ship` looks #241 up again so the number lands in the
+**4. `build`, `verify`, `ship`.** The fix goes in test-first, four reviewers
+read the diff, and `ship` looks #241 up again so the number lands in the
 commit message and the PR body exactly once.
 
 **5. The issue gets closed — if you say so, at `done`.** `ship` no longer

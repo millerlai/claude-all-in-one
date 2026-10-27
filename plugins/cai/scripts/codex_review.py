@@ -158,7 +158,8 @@ def main(argv=None):
         code = EXIT_RAN if result["status"] == "ran" else EXIT_FALLBACK
         if result["left_running"]:
             code = EXIT_LEFT_RUNNING
-    if args.out and result["status"] == "ran":
+    # Exit 6 is a fallback to the caller, which writes the fallback file itself.
+    if args.out and result["status"] == "ran" and not result["left_running"]:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(_platform_review_file(result), encoding="utf-8", newline="\n")

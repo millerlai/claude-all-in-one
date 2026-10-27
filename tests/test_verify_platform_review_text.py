@@ -68,6 +68,13 @@ def test_step1_has_three_lenses_and_a_fourth_only_on_fallback():
     assert "From Step 0.6's platform review." in step1
 
 
+def test_step1_treats_a_reading_never_set_as_a_fallback():
+    # codex_review.py writes `reading: pending`; when the main session forgets to
+    # replace it, correctness would be skipped with nothing in the report.
+    step1 = _section(_stage_verify(), "## Step 1")
+    assert "still says `reading: pending`" in step1.split("add a fourth")[0]
+
+
 def test_redispatch_reuses_the_platform_review_line():
     opening = _stage_verify().split("## The evidence rule")[0]
     assert "A re-dispatch never calls the platform review again" in opening

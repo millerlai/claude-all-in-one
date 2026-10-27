@@ -91,7 +91,12 @@ def test_no_cache_exits_4(tmp_path, monkeypatch):
 
 def _env_without_codex_home():
     import os
-    return dict(os.environ)
+    # The launcher appends its safe.directory pair after any GIT_CONFIG_*
+    # pairs it inherits, and the tests count pairs; a shell that already
+    # exports some (the host session here sets two) made `count` 3, not 1.
+    # Tests that want inherited pairs set them explicitly.
+    return {k: v for k, v in os.environ.items()
+            if k != "GIT_CONFIG_COUNT" and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
 
 
 # ---------------------------------------------------------------------------

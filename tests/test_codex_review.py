@@ -17,6 +17,7 @@ import pytest
 
 import codex_review as cr
 import local_run
+from test_local_run_tree import _pid_alive, _until
 
 FAKE_SCRIPT = '''\
 import json, os, sys, time
@@ -31,6 +32,9 @@ def hang():
     time.sleep(60)
 
 mode = os.environ["FAKE_MODE"]
+if os.environ.get("FAKE_PIDFILE"):  # before any output: the test waits on this file
+    with open(os.environ["FAKE_PIDFILE"], "w") as fh:
+        fh.write(str(os.getpid()))
 if mode == "crash":
     sys.stderr.write("error: unexpected argument\\n")
     sys.exit(1)
@@ -41,6 +45,9 @@ elif mode == "nobanner0":
 elif mode == "workspace":
     banner("workspace-write")
     hang()
+elif mode == "workspace0":  # a finished, non-empty review from the wrong sandbox
+    banner("workspace-write")
+    sys.stdout.write("a review\\n")
 elif mode == "hang":
     banner("read-only")
     hang()
@@ -138,6 +145,15 @@ def test_stderr_is_never_in_the_result(fake, top):
     assert "OpenAI Codex" not in json.dumps(r)
 
 
+@pytest.mark.parametrize("mode,leak", [("crash", "unexpected argument"),
+                                       ("workspace", "OpenAI Codex"),
+                                       ("empty", "OpenAI Codex")])
+def test_stderr_is_never_in_a_fallback_result_either(fake, top, mode, leak):
+    r = go(fake, top, mode)
+    assert r["status"] == "fallback"
+    assert leak not in json.dumps(r)
+
+
 def test_child_gets_inherited_env_plus_keys_and_guard(fake, top, monkeypatch):
     monkeypatch.setenv("EXTRA_FROM_PARENT", "kept")
     r = go(fake, top, "env", environ={**os.environ, "FAKE_MODE": "env"})
@@ -180,10 +196,47 @@ def test_exit_zero_without_banner(fake, top):
     assert r["status"] == "fallback" and r["reason"] == "no sandbox line from codex"
 
 
+def test_exit_zero_under_a_wider_sandbox_is_not_a_review(fake, top, monkeypatch):
+    # The child exits before the loop's second look, so the exit branch decides,
+    # not the "still running" one; a slow first poll makes that certain.
+    monkeypatch.setattr(cr, "POLL_SECONDS", 1.5)
+    r = go(fake, top, "workspace0")
+    assert r["status"] == "fallback" and r["reason"] == "sandbox was workspace-write"
+    assert r["review"] is None
+
+
 def test_timeout(fake, top):
     r = go(fake, top, "hang", timeout_s=4)
     assert r["status"] == "fallback" and r["reason"] == "timed out after 4 s"
     assert r["sandbox"] == "read-only" and r["seconds"] < 30
+
+
+@pytest.mark.parametrize("mode,kw", [("workspace", {}), ("hang", {"timeout_s": 3})])
+def test_a_stopped_review_leaves_no_process_behind(fake, top, tmp_path, mode, kw):
+    pidfile = tmp_path / "pid.txt"
+    environ = {**os.environ, "FAKE_MODE": mode, "FAKE_PIDFILE": str(pidfile)}
+    r = cr.run(call_for(fake), str(top), environ=environ, **kw)
+    assert r["status"] == "fallback" and r["left_running"] == []
+    pid = int(pidfile.read_text())
+    assert _until(lambda: not _pid_alive(pid)), "the fake codex is still alive"
+
+
+def test_an_exception_in_the_wait_loop_still_stops_the_child(fake, top, tmp_path, monkeypatch):
+    pidfile = tmp_path / "pid.txt"
+    real = cr._sandbox
+
+    def boom(text):
+        if not pidfile.exists():  # let the child start before failing
+            return real(text)
+        raise RuntimeError("wait loop failed")
+    monkeypatch.setattr(cr, "_sandbox", boom)
+    environ = {**os.environ, "FAKE_MODE": "hang", "FAKE_PIDFILE": str(pidfile)}
+    live_before = list(local_run._LIVE)
+    with pytest.raises(RuntimeError, match="wait loop failed"):
+        cr.run(call_for(fake), str(top), environ=environ)
+    assert _until(lambda: not _pid_alive(int(pidfile.read_text()))), "the fake codex is still alive"
+    assert capture_files(top) == []
+    assert local_run._LIVE == live_before
 
 
 def test_empty_stdout(fake, top):
@@ -308,6 +361,17 @@ def test_main_bad_project_dir_is_invalid(tmp_path, capsys):
     code = cr.main(["--base", "main", "--project-dir", str(tmp_path / "nope")])
     assert code == cr.EXIT_INVALID
     assert json.loads(capsys.readouterr().out)["status"] == "fallback"
+
+
+def test_main_survivor_writes_no_file(repo, codex_on_path, monkeypatch, tmp_path, capsys):
+    # Exit 6 is a fallback to the caller, which writes the fallback file itself.
+    real = local_run.stop_tree
+    monkeypatch.setattr(local_run, "stop_tree", lambda tree, **kw: real(tree, **kw) + [4242])
+    out = tmp_path / "pr.md"
+    code = cr.main(["--base", "main", "--out", str(out), "--project-dir", str(repo)])
+    capsys.readouterr()
+    assert code == cr.EXIT_LEFT_RUNNING
+    assert not out.exists()
 
 
 def test_main_survivor_exits_6_and_still_prints(repo, codex_on_path, monkeypatch, capsys):
