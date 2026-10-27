@@ -24,7 +24,9 @@ import tool_path
 
 MIN_CLAUDE_VERSION = (2, 1, 288)
 LINE_LIMIT = 400
-DOC_SUFFIXES = (".md", ".txt", ".rst")
+# No .txt: requirements.txt or CMakeLists.txt decide behaviour, and a low
+# review is the wrong depth for them (#486).
+DOC_SUFFIXES = (".md", ".rst")
 # The only place size -> (level, --max-findings) is written.
 LEVELS = {"docs": ("low", 5), "small": ("high", 10), "large": ("max", 15)}
 EXIT_RUN, EXIT_FALLBACK, EXIT_INVALID = 0, 3, 5
