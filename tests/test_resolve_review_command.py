@@ -399,6 +399,15 @@ def test_gather_bad_ref_raises(repo):
         rrc.gather("codex", "no-such-ref", str(repo), environ={})
 
 
+@pytest.mark.parametrize("ref", ["--fork-point", "main&x"])
+def test_gather_unsafe_ref_never_reaches_git(repo, monkeypatch, ref):
+    calls = []
+    monkeypatch.setattr(rrc, "_run", lambda argv, cwd: calls.append(argv) or b"")
+    with pytest.raises(rrc.GatherError, match="base ref has characters outside"):
+        rrc.gather("codex", ref, str(repo), environ={})
+    assert not any(ref in argv for argv in calls)
+
+
 def run_main(argv, capsys):
     code = rrc.main(argv)
     return code, json.loads(capsys.readouterr().out)

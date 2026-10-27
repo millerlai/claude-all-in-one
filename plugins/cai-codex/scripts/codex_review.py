@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -29,6 +30,7 @@ import resolve_review_command as rrc
 BANNER_SECONDS = 60
 TIMEOUT_SECONDS = 900
 POLL_SECONDS = 0.5
+BANNER_BYTES = 64 * 1024
 GUARD_ENV = "CAI_PLATFORM_REVIEW"
 SANDBOX_LINE = re.compile(r"^sandbox:\s*([a-z-]+)", re.M)
 EXIT_RAN, EXIT_FALLBACK, EXIT_INVALID, EXIT_LEFT_RUNNING = 0, 3, 5, 6
@@ -43,9 +45,10 @@ def _result(call, status, reason, sandbox=None, seconds=0, review=None, left=(),
             "review": review, "left_running": list(left), "notes": list(notes)}
 
 
-def _read(path):
+def _read(path, limit=None):
     try:
-        return Path(path).read_bytes().decode("utf-8", errors="replace")
+        with open(path, "rb") as fh:
+            return fh.read(limit).decode("utf-8", errors="replace")
     except OSError:
         return ""
 
@@ -73,8 +76,10 @@ def run(call, project_dir, timeout_s=TIMEOUT_SECONDS, banner_s=BANNER_SECONDS, e
     cai_paths.ensure_dir(project_dir)
     capture = os.path.join(project_dir, _CAPTURE)
     os.makedirs(capture, exist_ok=True)
-    out_path, err_path = os.path.join(capture, "stdout.txt"), os.path.join(capture, "stderr.txt")
-    env = {**environ, **call["env"], GUARD_ENV: "1"}
+    # Its own directory: a second run in the same checkout must not truncate or delete these.
+    run_dir = tempfile.mkdtemp(dir=capture)
+    out_path, err_path = os.path.join(run_dir, "stdout.txt"), os.path.join(run_dir, "stderr.txt")
+    env ={**environ, **call["env"], GUARD_ENV: "1"}
     started = time.monotonic()
     tree = None
     result = None
@@ -85,10 +90,12 @@ def run(call, project_dir, timeout_s=TIMEOUT_SECONDS, banner_s=BANNER_SECONDS, e
             result = _result(call, "fallback", "codex could not be started", notes=notes)
             return result
         reason = None
+        mode = None
         while True:
             elapsed = time.monotonic() - started
             code = tree.popen.poll()
-            mode = _sandbox(_read(err_path))
+            if mode is None:  # the banner is at the top; once read, stderr is not looked at again
+                mode = _sandbox(_read(err_path, BANNER_BYTES))
             if code is not None:
                 # Exit code first: a crash can come before any banner (29 ms, exit 1).
                 if code != 0:
@@ -122,14 +129,21 @@ def run(call, project_dir, timeout_s=TIMEOUT_SECONDS, banner_s=BANNER_SECONDS, e
         # result is already built, so say so in its notes rather than raise.
         if tree is not None and tree in local_run._LIVE:  # an exception got us here
             local_run.stop_tree(tree)
+        undeleted = False
         for path in (out_path, err_path):
             try:
                 os.remove(path)
             except FileNotFoundError:
                 pass
             except OSError:
+                undeleted = True
                 if result is not None:
                     result["notes"].append("could not delete %s" % os.path.basename(path))
+        try:
+            os.rmdir(run_dir)
+        except OSError:
+            if result is not None and not undeleted:
+                result["notes"].append("could not delete the capture directory")
 
 
 def _platform_review_file(result):
@@ -144,6 +158,13 @@ def main(argv=None):
     ap.add_argument("--project-dir", default=".",
                     help="directory inside the repository (default: current directory)")
     args = ap.parse_args(argv)
+    if args.out:
+        # Only this run's result may be there: a fallback never writes the file,
+        # so an earlier round's `status: ran` would otherwise be read as this one's.
+        try:
+            os.remove(args.out)
+        except FileNotFoundError:
+            pass
     try:
         top = rrc._git(os.path.abspath(args.project_dir), "rev-parse", "--show-toplevel") \
             .decode("utf-8", errors="replace").strip()

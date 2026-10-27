@@ -140,6 +140,50 @@ def test_capture_files_are_deleted(fake, top):
     assert capture_files(top) == []
 
 
+def test_each_run_captures_into_its_own_directory(fake, top, monkeypatch):
+    # Two runs in one checkout must not truncate or delete each other's capture.
+    seen = []
+    real = local_run.start_tree
+
+    def spy(argv, cwd, out_path, err_path, env):
+        seen.append((out_path, err_path))
+        return real(argv, cwd, out_path, err_path, env)
+    monkeypatch.setattr(local_run, "start_tree", spy)
+    go(fake, top)
+    go(fake, top)
+    assert len(seen) == 2
+    assert os.path.dirname(seen[0][0]) != os.path.dirname(seen[1][0])
+    assert os.path.dirname(seen[0][1]) == os.path.dirname(seen[0][0])
+    assert capture_files(top) == []  # the per-run directories are gone too
+
+
+def test_stderr_is_not_read_again_once_the_sandbox_is_known(fake, top, monkeypatch):
+    state = {"known": False, "later_reads": 0}
+    real_read, real_sandbox = cr._read, cr._sandbox
+
+    def sandbox(text):
+        mode = real_sandbox(text)
+        state["known"] = state["known"] or mode is not None
+        return mode
+
+    def read(path, *a, **kw):
+        if state["known"] and str(path).endswith("stderr.txt"):
+            state["later_reads"] += 1
+        return real_read(path, *a, **kw)
+    monkeypatch.setattr(cr, "_sandbox", sandbox)
+    monkeypatch.setattr(cr, "_read", read)
+    r = go(fake, top, "hang", timeout_s=3)
+    assert r["sandbox"] == "read-only" and r["reason"] == "timed out after 3 s"
+    assert state["later_reads"] == 0
+
+
+def test_only_the_start_of_stderr_is_scanned_for_the_banner(tmp_path):
+    p = tmp_path / "e.txt"
+    p.write_bytes(b"sandbox: read-only\n" + b"x" * 200 + b"\nsandbox: danger\n")
+    assert cr._sandbox(cr._read(p, limit=100)) == "read-only"
+    assert len(cr._read(p, limit=100)) == 100
+
+
 def test_stderr_is_never_in_the_result(fake, top):
     r = go(fake, top)
     assert "OpenAI Codex" not in json.dumps(r)
@@ -320,6 +364,30 @@ def test_main_ran_writes_the_platform_review_file(repo, codex_on_path, tmp_path,
     assert head == ("# platform review\ncall: codex exec review --base main "
                     "-c sandbox_mode=read-only\nstatus: ran\nreading: pending\nreason: -")
     assert body == printed["review"]
+
+
+@pytest.mark.parametrize("mode", ["crash", "survivor"])
+def test_main_removes_a_stale_out_when_it_falls_back(repo, codex_on_path, monkeypatch, tmp_path,
+                                                     capsys, mode):
+    # A previous round's `status: ran` file must not outlive a fallback.
+    if mode == "survivor":
+        real = local_run.stop_tree
+        monkeypatch.setattr(local_run, "stop_tree", lambda tree, **kw: real(tree, **kw) + [4242])
+    else:
+        monkeypatch.setenv("FAKE_MODE", "crash")
+    out = tmp_path / "pr.md"
+    out.write_text("# platform review\ncall: old\nstatus: ran\nreading: clean\n---\nold\n")
+    cr.main(["--base", "main", "--out", str(out), "--project-dir", str(repo)])
+    capsys.readouterr()
+    assert not out.exists()
+
+
+def test_main_invalid_input_also_removes_a_stale_out(tmp_path, capsys):
+    out = tmp_path / "pr.md"
+    out.write_text("old")
+    code = cr.main(["--base", "main", "--out", str(out), "--project-dir", str(tmp_path / "nope")])
+    capsys.readouterr()
+    assert code == cr.EXIT_INVALID and not out.exists()
 
 
 def test_main_without_out_writes_no_file(repo, codex_on_path, capsys):

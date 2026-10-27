@@ -37,6 +37,7 @@ _VERSION = re.compile(r"\d+\.\d+\.\d+")
 # by cmd.exe, which reads & | ^ % " ( ) < > as its own. A ref outside this set
 # (git allows far more) is refused rather than quoted; it never starts with `-`.
 _SAFE_REF = re.compile(r"[A-Za-z0-9._/@~+][A-Za-z0-9._/@~+-]*\Z")
+_BAD_REF = "base ref has characters outside A-Z a-z 0-9 . _ / @ ~ + -"
 _GIT_TIMEOUT = 60
 _VERSION_TIMEOUT = 15
 
@@ -100,8 +101,7 @@ def decide(platform, base_ref, numstat, claude_version=None, settings_layers=(),
                        notes=notes)
     if not _SAFE_REF.match(base_ref):
         # A fixed phrase: the ref is the text that is not safe to print or run.
-        return _result(platform, base_ref, "invalid",
-                       "base ref has characters outside A-Z a-z 0-9 . _ / @ ~ + -", notes=notes)
+        return _result(platform, base_ref, "invalid", _BAD_REF, notes=notes)
     if not numstat:
         return _result(platform, base_ref, "invalid", "empty diff against %s" % base_ref,
                        notes=notes)
@@ -190,6 +190,9 @@ def _load_layer(path, notes):
 def gather(platform, base_ref, project_dir, environ=None):
     """Keyword arguments for `decide` (plus `notes`). Raises GatherError."""
     environ = os.environ if environ is None else environ
+    # Before any git call: `git merge-base HEAD --fork-point` would read it as an option.
+    if not _SAFE_REF.match(base_ref):
+        raise GatherError(_BAD_REF)
     top_raw = _git(os.path.abspath(project_dir), "rev-parse", "--show-toplevel") \
         if os.path.isdir(project_dir) else None
     if top_raw is None:

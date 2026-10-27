@@ -75,6 +75,12 @@ def test_step1_treats_a_reading_never_set_as_a_fallback():
     assert "still says `reading: pending`" in step1.split("add a fourth")[0]
 
 
+def test_step1_treats_an_unclear_reading_as_a_fallback():
+    # Step 0.6 says `unclear` is a fallback; Step 1 must agree or correctness is skipped.
+    step1 = _section(_stage_verify(), "## Step 1")
+    assert "`reading: unclear`" in step1.split("add a fourth")[0]
+
+
 def test_redispatch_reuses_the_platform_review_line():
     opening = _stage_verify().split("## The evidence rule")[0]
     assert "A re-dispatch never calls the platform review again" in opening
