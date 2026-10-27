@@ -319,7 +319,7 @@ STAGE_VERIFY = os.path.join(
 )
 
 STEP3_ANCHORS = [
-    ("Four agents, in parallel", "caps parallel subagents at 2"),
+    ("Three agents, in parallel", "caps parallel subagents at 2"),
     ("Give each agent the base ref", "With both, compare against both"),
     ("The three severity words Step 2 ranks by", "lens it is reviewing against"),
 ]

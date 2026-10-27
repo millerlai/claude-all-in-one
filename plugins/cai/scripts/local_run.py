@@ -22,6 +22,7 @@ descendant. Each tree also gets its own job, assigned right after Popen
 returns, so one tree can be ended without touching another.
 """
 import argparse
+import contextlib
 import ctypes
 import datetime
 import hashlib
@@ -211,11 +212,16 @@ def install_safety_net():
         install_signal_handlers()
 
 
-def start_tree(argv, cwd, out_path):
-    """Start argv as the root of a new tree; stdout and stderr merged into out_path."""
-    with open(out_path, "wb") as out:
+def start_tree(argv, cwd, out_path, err_path=None, env=None):
+    """Start argv as the root of a new tree; stdout and stderr merged into out_path.
+
+    err_path sends stderr to its own file instead. env, when given, is the whole
+    environment the root gets (the caller passes the current one plus its keys);
+    None inherits."""
+    with open(out_path, "wb") as out, \
+            (open(err_path, "wb") if err_path else contextlib.nullcontext()) as err:
         kwargs = dict(cwd=cwd, stdin=subprocess.DEVNULL, stdout=out,
-                      stderr=subprocess.STDOUT)
+                      stderr=err or subprocess.STDOUT, env=env)
         if sys.platform == "win32":
             popen = subprocess.Popen(argv, **kwargs)
             # Children it spawns before this line stay only in J0; stop_tree's

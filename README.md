@@ -53,7 +53,7 @@ flowchart TB
     S1["design<br/>short path: intake.md only<br/>long path: one sectioned design document"] --> HG1
     HG1[/"human gate · menu<br/>sign off, no code exists yet"/] --> S2
     S2["build<br/>the work breakdown, unit by unit"] --> S3
-    S3["verify<br/>four lenses over the diff"] --> S4
+    S3["verify<br/>platform review and three lenses over the diff"] --> S4
     S4["ship<br/>one commit, plus a release note"] --> HG2
     HG2[/"human gate · menu<br/>before merge, tag, publish"/] --> DONE(["/cai:track done"])
 
@@ -91,7 +91,7 @@ The four stages, each also runnable on its own:
 | `/cai:track <feature>` | Create or resume a track. Also `status`, `skip <stage> --reason "<why>"`, and `done`. |
 | `/cai:design` | Turn a request into an acceptance-testable problem statement and, when something is hard to undo, a design document for review — diagnosis, stance, decisions, detail, or delta. |
 | `/cai:build` | Build a design's work breakdown unit by unit, test-first. |
-| `/cai:verify` | Four read-only review lenses over a diff, then fix Blockers and Majors test-first. |
+| `/cai:verify` | The platform's own review for correctness plus three read-only lenses over a diff, then fix Blockers and Majors test-first. |
 | `/cai:ship` | Squash to one conventional commit and write a release note; stops before merge, tag or publish until a person confirms. |
 
 Tools, reachable any time:

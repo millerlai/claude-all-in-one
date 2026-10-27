@@ -742,6 +742,27 @@ def test_generated_agent_and_stage_text_never_tells_a_subagent_to_dispatch(tmp_p
     assert "dispatch `explorer`" not in stage_design
 
 
+def test_generated_step_0_6_runs_codex_review_and_never_the_claude_skill(tmp_path):
+    # Issue 481: Codex has no Skill tool or `/code-review`, so the override
+    # replaces items 3 to 6 of Step 0.6. The drift check passes after a
+    # regenerate even if that override is deleted, so pin the generated text.
+    out = tmp_path / "out"
+    assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
+
+    text = " ".join((out / "skills/track/references/stage-verify.md").read_text(
+        encoding="utf-8").split())
+    start = text.index("## Step 0.6")
+    step = text[start:text.index("## Step 0.75", start)]
+
+    assert "`<cai> codex_review --base <base-ref> --out <file> --project-dir <top>`" in step
+    assert "Change the `reading: pending` line" in step
+    assert "Exit 6 is a fallback too" in step and "`left_running`" in step
+    assert "On a fallback you write it yourself" in step
+    assert "resolve_review_command" not in step
+    assert "call the Skill tool" not in step
+    assert "`code-review`" not in step
+
+
 def test_codex_test_runner_and_verifier_say_the_boundary_is_not_enforced(tmp_path):
     # #267 AC9: the Claude hook that holds these two agents' Bash does not run
     # under Codex, so the generated agents say so instead of claiming it, and

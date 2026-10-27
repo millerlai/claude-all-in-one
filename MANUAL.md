@@ -26,7 +26,7 @@ like they fit, the more specific one is right.
 | Clear a stuck local claim on an item `/cai:fix` skipped | `/cai:fix-unclaim <url> <platform> <session> <started>` | Deletes only the one exact local claim |
 | Index the repo so track stages re-read less | `/cai:codemap build` | Optional; writes only `.cai/codemap/`, which ignores itself |
 | Clean up code that already works | `/cai:refactor` | Behaviour unchanged, by the catalog |
-| Ask whether a branch is mergeable | `/cai:verify` | Four review lenses over the diff |
+| Ask whether a branch is mergeable | `/cai:verify` | Platform review plus three review lenses over the diff |
 | Find out what you're missing | `/cai:discover` | Surfaces unknowns before code |
 | Check your own grasp of a diff | `/cai:quiz` | Asks *you* questions |
 | Review a plan or spec | `/cai:plan-review` | Traces design back to requirements |
@@ -99,8 +99,11 @@ begins. The rest are each skill's own.
 
 **`verify`**
 
-- One message dispatches four agents at once — three `reviewer` lenses and
-  `security-reviewer` — not one reviewer reading everything.
+- Correctness comes from the platform's own review (`/code-review` on Claude
+  Code, `codex exec review` on Codex), and one message dispatches the other
+  lenses at once — two `reviewer` lenses (conformance, coverage) and
+  `security-reviewer` — not one reviewer reading everything. A third
+  `reviewer` takes correctness only when the platform review cannot run.
 - Every finding carries `file:line`, a failure with concrete inputs, and the
   smallest fix; "consider extracting" and "this could be cleaner" are absent.
 - The report opens with `Ready`, `Revise` or `Rework`, ranks findings Blocker
@@ -225,9 +228,9 @@ The four stages, in order:
 2. **`build`** — works the design's own work breakdown, one unit at a time,
    test-first. Nothing starts until the unit before it is green, and committed
    when you approved commits at the design gate.
-3. **`verify`** — four read-only reviewers over the diff: correctness,
-   conformance to what was asked, whether a test would fail if the change were
-   reverted, and security — shell execution, what reaches an argument vector,
+3. **`verify`** — the platform's own review for correctness, then three
+   read-only reviewers over the diff: conformance to what was asked, whether a
+   test would fail if the change were reverted, and security — shell execution, what reaches an argument vector,
    secrets in what is kept, guard bypass. Then fixes Blockers and Majors only,
    with a failing test first.
 4. **`ship`** — squashes the branch into one conventional commit and writes a
@@ -678,8 +681,8 @@ cause**, not the fix: a wrong cause makes every fix under it wrong. Stance
 instead writes the trade, and then `decisions` puts at most five choices to
 you one at a time.
 
-**4. `build`, `verify`, `ship`.** The fix goes in test-first, four reviewers
-read the diff, and `ship` looks #241 up again so the number lands in the
+**4. `build`, `verify`, `ship`.** The fix goes in test-first, the platform's
+review and three reviewers read the diff, and `ship` looks #241 up again so the number lands in the
 commit message and the PR body exactly once.
 
 **5. The issue gets closed — if you say so, at `done`.** `ship` no longer

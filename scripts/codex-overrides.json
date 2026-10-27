@@ -47,12 +47,73 @@
       ],
       "replacement": [
         "On this platform, the main session always reads Step 0 through Step 1 of",
-        "this file itself — including dispatching the four review agents below —",
-        "whether under a track or standing alone via `/cai:verify`. It then",
-        "dispatches this stage's own agent for Step 2 on with their four reports",
-        "attached; that agent never dispatches anyone itself."
+        "this file itself — including Step 0.6 and dispatching the three review",
+        "agents below (four on a fallback) — whether under a track or standing alone",
+        "via `/cai:verify`. It then dispatches this stage's own agent for Step 2 on",
+        "with those reports and the platform review file attached; that agent never",
+        "dispatches anyone itself."
       ],
       "why": "D9: the main session does the only dispatch this stage needs; the dispatched agent (verifier) only reconciles from Step 2 on, never spawning another agent. Replaces the whole opening paragraph rather than appending, since the old \"subagent the track dispatches to run this stage\" framing would otherwise contradict the new sentence."
+    },
+    {
+      "target": "skills/track/references/stage-verify.md",
+      "anchor": [
+        "3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_review_command.py --platform claude --base <base-ref> --project-dir <top>`.",
+        "   Go on only on exit 0 with JSON you can read. Any other exit code, or no",
+        "   readable JSON, is a fallback whose reason is the exit code and, when there",
+        "   is one, the JSON's `reason`.",
+        "4. On exit 0, call the Skill tool with `code-review` and the JSON's `args`,",
+        "   word for word, adding no flag. Act on what the tool returns: a failure is a",
+        "   fallback; a result is the review; \"launched ... running in the background\"",
+        "   means end your turn, saying which review you are waiting for. A user",
+        "   message that arrives meanwhile is answered as usual and `verifier` is not",
+        "   dispatched; the completion notification wakes you. A notification whose",
+        "   status is not `completed` is a fallback.",
+        "5. Read the review text and give it one reading: `findings` when it lists at",
+        "   least one finding, `none` when it says in words that it found nothing,",
+        "   `unclear` otherwise. `unclear` is a fallback. Do not parse it; read it.",
+        "6. Under a track, write `<dir>/evidence/verify/platform-review.md` with the",
+        "   Write tool and put `Platform review: <that path>` in the dispatch brief:",
+        "",
+        "   ```text",
+        "   # platform review",
+        "   call: /code-review high --max-findings 10 origin/main...HEAD",
+        "   status: ran",
+        "   reading: findings",
+        "   reason: -",
+        "   ---",
+        "   <the platform's text, word for word>",
+        "   ```",
+        "",
+        "   A fallback writes `status: fallback`, `reading: -`, `reason: <why>`, nothing",
+        "   after `---`, and `call:` the call the script decided, or `-` when it",
+        "   decided none. Standing alone, write no file and keep the text in this",
+        "   conversation."
+      ],
+      "replacement": [
+        "3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codex_review.py --base <base-ref> --out <file> --project-dir <top>`",
+        "   as one shell call; if your shell tool takes a time limit, give it 960",
+        "   seconds. `<file>` is `<dir>/evidence/verify/platform-review.md` under a",
+        "   track and `<top>/.cai/platform-review/platform-review.md` standing alone:",
+        "   here too Step 2 on goes to `verifier`, which needs a file to read.",
+        "4. Exit 0: read the JSON's `review` and give it one reading: `findings` when",
+        "   it lists at least one finding, `none` when it says in words that it found",
+        "   nothing, `unclear` otherwise. Change the `reading: pending` line in the",
+        "   file to that reading. `unclear` is a fallback. Exit 6 is a fallback too,",
+        "   and you name every pid in `left_running` to the person. Any other exit",
+        "   code (the launcher's own 1, 3 and 4 included, which print no JSON), or",
+        "   no readable JSON, is a fallback whose reason is the exit code and, when",
+        "   there is one, the JSON's `reason`. Do not parse the review; read it.",
+        "5. Under a track put `Platform review: <that path>` in the dispatch brief.",
+        "   The script writes the file only when the review ran, with `call:`,",
+        "   `status: ran`, `reading:` and `reason: -` above a `---` line and the",
+        "   review word for word below it. On a fallback you write it yourself with",
+        "   the shell: `status: fallback`, `reading: -`, `reason: <why>`, nothing",
+        "   after `---`, and `call:` the JSON's `call`, or `-` when there is none.",
+        "   Then you dispatch the `reviewer` for correctness yourself, in the same",
+        "   batch as the three lenses."
+      ],
+      "why": "AC5/D2: Codex has no Skill tool or `/code-review`; its platform review is `codex_review.py`, which runs `codex exec review` in a read-only sandbox and writes the platform review file itself. Items 3 to 6 of Step 0.6 are replaced as one block so the numbering and the file format stay consistent. The override applies before rewrite(), so ${CLAUDE_PLUGIN_ROOT} becomes `<cai>`. Standing alone still writes a file because Codex hands Step 2 on to `verifier` there too."
     },
     {
       "target": "skills/track/references/stage-verify.md",
@@ -443,45 +504,52 @@
     {
       "target": "agents/verifier.md",
       "anchor": [
-        "  The `verify` stage's diff — four review lenses dispatched in parallel, their",
-        "  findings reconciled, this repo's tests run, only Blocker/Major fixed",
-        "  test-first."
+        "  The `verify` stage's diff — platform review plus three lenses in parallel,",
+        "  findings reconciled, tests run, only Blocker/Major fixed test-first."
       ],
       "replacement": [
-        "  Runs the back half of the `verify` stage: reconciles four review reports",
-        "  the main session already dispatched and handed you, runs this repo's test",
-        "  command, and fixes only Blocker/Major, test-first. Never dispatches",
-        "  another agent yourself."
+        "  Runs the back half of the `verify` stage: reconciles the platform review",
+        "  file and the three lens reports (four on a fallback) the main session",
+        "  already dispatched and handed you, runs this repo's test command, and",
+        "  fixes only Blocker/Major, test-first. Never dispatches another agent",
+        "  yourself."
       ],
-      "why": "D9: the description no longer claims verifier does the dispatching -- the main session does, and hands verifier the four reports."
+      "why": "D9: the description no longer claims verifier does the dispatching -- the main session does, and hands verifier the platform review file and the lens reports."
     },
     {
       "target": "agents/verifier.md",
       "anchor": [
         "You run the whole `verify` stage, following `stage-verify.md`. **The lenses",
-        "are not yours to read** — dispatch the four agents it names, in parallel in",
-        "one message, one lens each: three `reviewer` agents plus `security-reviewer`.",
-        "Reading all four yourself collapses them back into the single pass that file",
-        "exists to split apart. Reconciling what comes back, running the tests, and",
-        "fixing is your half.",
+        "are not yours to read** — dispatch the agents its Step 1 lists, in parallel in",
+        "one message, one lens each. Reading them yourself collapses them back into the",
+        "single pass that file exists to split apart. The platform review file is a",
+        "report you integrate, not one you produce: the main session ran Step 0.6 and",
+        "the brief's `Platform review:` line points at it. Reconciling what comes back,",
+        "running the tests, and fixing is your half.",
         "",
         "`Agent` is granted unscoped because a type list inside the parentheses is",
         "ignored in a subagent definition, so `Agent(reviewer)` would restrict",
-        "nothing. `stage-verify.md` names the four; nothing else is yours to spawn."
+        "nothing. `stage-verify.md` names them; nothing else is yours to spawn."
       ],
       "replacement": [
         "You run the back half of the `verify` stage, following `stage-verify.md`",
-        "from Step 2 on. The main session already ran Step 0 through Step 1 and",
-        "dispatched the four agents that file names — three `reviewer` agents plus",
-        "`security-reviewer` — before handing you their reports; reading all four",
+        "from Step 2 on. The main session already ran Step 0 through Step 1 — the",
+        "platform review (Step 0.6) and the lens agents that file names — before",
+        "handing you the platform review file and their reports; reading the lenses",
         "yourself would collapse them back into the single pass that file exists to",
-        "split apart. Reconciling what comes back, running the tests, and fixing is",
-        "your half.",
+        "split apart. The platform review file is a report you integrate, not one you",
+        "produce. Reconciling what comes back, running the tests, and fixing is your",
+        "half.",
+        "",
+        "When the platform review file is unreadable and no `reviewer` report for",
+        "correctness came with it, dispatch nothing: say at the top of your report",
+        "that correctness is missing, and the main session dispatches a `reviewer`",
+        "and hands you the result.",
         "",
         "You never dispatch another agent yourself — the main session already did",
         "the only dispatching this stage needs."
       ],
-      "why": "D9: verifier reconciles only and never spawns; the main session does the one dispatch this stage needs, before handing verifier the reports."
+      "why": "D9: verifier reconciles only and never spawns; the main session does the one dispatch this stage needs, before handing verifier the reports. AC5: the platform review file replaces the correctness lens's report; a missing one is reported, not worked around by spawning."
     },
     {
       "target": "skills/track/references/test-command.md",

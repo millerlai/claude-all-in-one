@@ -1,4 +1,4 @@
-# stage-verify — four lenses over one diff, and no claim without evidence
+# stage-verify — four lenses over one diff — correctness from the platform's own review — and no claim without evidence
 
 This file is read two ways: by the subagent the track dispatches to run this
 stage, and by `/cai:verify` when someone runs the stage standing alone, with
@@ -21,7 +21,9 @@ findings to take, so start again at Step 0; when the answer is to record the
 start candidate, rerun Step 0.75, the runtime check, the synthesis and
 `check`, take the findings from the previous round's report, and run no lens
 again; otherwise take the findings from the round's report, apply the answer
-under Fixing, and do not run Steps 0.5 to 2 again.
+under Fixing, and do not run Steps 0.5 to 2 again. A re-dispatch never calls
+the platform review again: it reuses the brief's `Platform review:` line, and
+only the restart at Step 0 above, where nothing was called yet, runs Step 0.6.
 
 One reviewer reading a diff finds what that reviewer is tuned to find. The
 misses are not random: a reader hunting off-by-one errors is not, in the
@@ -73,6 +75,57 @@ stops. Never edit the ledger's citations or
 a restated file to turn the red green -- a drift needs a person to re-confirm
 the claim first, not a string edit that proves nothing.
 
+## Step 0.6 — Platform review for correctness
+
+Correctness is not hunted by a lens of ours: the platform's own review does it,
+and this step is where it runs. It is the main session's step, because a
+subagent is not given the Skill tool.
+
+1. Under a track you — the main session — run Steps 0, 0.5 and this one
+   before dispatching `verifier`, and `verifier` skips this step when its
+   brief carries a `Platform review:` line. Standing alone, run them in order.
+2. When Step 0 stopped or Step 0.5 exited 2, call nothing. Under a track still
+   dispatch `verifier`, with `Platform review: not run (Step 0 stopped)` or
+   `Platform review: not run (provenance exit 2)`; it stops where it always
+   did. A `verifier` that got past Step 0.5 holding a `not run` line, or no
+   `Platform review:` line at all (a track begun before this step existed),
+   treats correctness as fallen back, says why, and calls no platform review
+   itself.
+3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_review_command.py --platform claude --base <base-ref> --project-dir <top>`.
+   Go on only on exit 0 with JSON you can read. Any other exit code, or no
+   readable JSON, is a fallback whose reason is the exit code and, when there
+   is one, the JSON's `reason`.
+4. On exit 0, call the Skill tool with `code-review` and the JSON's `args`,
+   word for word, adding no flag. Act on what the tool returns: a failure is a
+   fallback; a result is the review; "launched ... running in the background"
+   means end your turn, saying which review you are waiting for. A user
+   message that arrives meanwhile is answered as usual and `verifier` is not
+   dispatched; the completion notification wakes you. A notification whose
+   status is not `completed` is a fallback.
+5. Read the review text and give it one reading: `findings` when it lists at
+   least one finding, `none` when it says in words that it found nothing,
+   `unclear` otherwise. `unclear` is a fallback. Do not parse it; read it.
+6. Under a track, write `<dir>/evidence/verify/platform-review.md` with the
+   Write tool and put `Platform review: <that path>` in the dispatch brief:
+
+   ```text
+   # platform review
+   call: /code-review high --max-findings 10 origin/main...HEAD
+   status: ran
+   reading: findings
+   reason: -
+   ---
+   <the platform's text, word for word>
+   ```
+
+   A fallback writes `status: fallback`, `reading: -`, `reason: <why>`, nothing
+   after `---`, and `call:` the call the script decided, or `-` when it
+   decided none. Standing alone, write no file and keep the text in this
+   conversation.
+
+A fallback is not a skipped correctness: Step 1 adds a `reviewer` for it, and
+the report says why.
+
 ## Step 0.75 — Verify plan
 
 Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir <dir>`
@@ -107,13 +160,22 @@ Step 3 lists it with the plan's reason.
 
 ## Step 1 — Dispatch the lenses
 
-Four agents, in parallel, one message: three `reviewer` agents, one lens
-each, plus the `security-reviewer` agent for the fourth. Four and not more —
-`model-selection.md` caps parallel subagents at 2–4.
+Three agents, in parallel, one message: two `reviewer` agents, one lens each
+for conformance and coverage, plus the `security-reviewer` agent for security.
+Correctness comes from Step 0.6. Only on fallback — the platform review file
+says `fallback`, still says `reading: pending` (a reading never set) or `reading: unclear`, or cannot
+be read (reason: platform review file unreadable), the brief's `Platform review:` line says `not run` or is missing, or, standing
+alone, Step 0.6 fell back — add a fourth, a `reviewer` for correctness, and
+write why. Four and not more — `model-selection.md` caps parallel subagents at
+2–4.
+
+Under a track, read the platform review file before dispatching: the text
+after its `---` is the correctness report, and its findings go to Step 2 with
+the other lenses'.
 
 | Lens | What it hunts |
 |---|---|
-| **correctness** | Off-by-one and boundary errors, state leaking between instances or requests, a `match`/`switch` that silently falls through, a flag set and never cleared, an error swallowed, ordering assumed but not guaranteed |
+| **correctness** | From Step 0.6's platform review. Only on fallback, a `reviewer` hunting: off-by-one and boundary errors, state leaking between instances or requests, a `match`/`switch` that silently falls through, a flag set and never cleared, an error swallowed, ordering assumed but not guaranteed |
 | **conformance** | What the change does that nothing asked for, and what it was asked for and skipped. Compare against the plan, spec, issue, or the request in this conversation, and against the convention files at `<top>` — `<top>/CLAUDE.md` and `<top>/.claude/CLAUDE.md`, by file rather than by heading |
 | **coverage** | For each behaviour change: is there a test that would **fail if this change were reverted**? Name the tests that are missing, not the coverage percentage |
 | **security** | The four hunt items in `finding-severity.md`, and no fifth: an external call routed through a shell, who controls what reaches the argument vector, raw error/output/argument text reaching a print or a kept record, and a command shape the repo's own refusal list does not cover |
@@ -165,6 +227,13 @@ worth another subagent run.
   finding, and Step 3's `Not covered` names which command would have
   covered it.
 - Drop anything with no failure scenario, whichever lens produced it.
+- A finding from the platform review gets the same treatment as any lens's:
+  it needs a `file:line`, a failure scenario with concrete inputs and the
+  smallest fix, and what the platform did not give you, you read the code to
+  fill in — one whose scenario you cannot fill in is dropped. A
+  `Blocker`/`Major` from it names its requirement like any other. Its
+  severity comes from `finding-severity.md`'s definitions alone, never from
+  the platform's own marks (Claude's category tags, Codex's `[P<n>]`).
 - Every surviving `Blocker`/`Major` must name what requirement it's based
   on — the original request's own words, a plan/issue paragraph, or an
   existing standing obligation (naming which file, which heading). A
@@ -200,6 +269,9 @@ worth another subagent run.
    lenses could not check, and why — including "no written requirement" or
    "no written conventions" when either was missing from conformance's
    inputs.
+5. **Correctness source.** The platform review's call, as the platform review
+   file's `call:` line says it (standing alone, the script JSON's `call`), or
+   `reviewer` and the reason for the fallback.
 
 ## Fixing
 
@@ -292,6 +364,8 @@ of the ledger's `--note`; you write no track file at all, with one exception:
 (the runner and `check` write the evidence files they print themselves).
 
 - the verdict
+- where correctness came from: the platform review's call, or `reviewer` and
+  the reason for the fallback
 - the path of the last round's `manifest.json`, the `manifest:` line `check`
   printed, or `none` and why when `check` exited 4 or 5; the main session
   passes it as the verify ledger row's `--artifact`

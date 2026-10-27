@@ -1,6 +1,6 @@
 ---
 name: verify
-description: A diff, branch, or PR to review before it merges — four read-only lenses (correctness, conformance, coverage, security), then Blockers and Majors fixed test-first. Use when the user says "review my changes", "審一下這個 diff" — and on your own changes before handing them over.
+description: A diff, branch, or PR to review before it merges — platform review plus three read-only lenses (conformance, coverage, security), then Blockers and Majors fixed test-first. Use when the user says "review my changes", "審一下這個 diff" — and on your own changes before handing them over.
 argument-hint: "[base ref, or what to review against]"
 ---
 

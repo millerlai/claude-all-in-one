@@ -140,6 +140,41 @@ def test_exit_codes_are_the_documented_values():
             local_run.EXIT_INVALID, local_run.EXIT_TREE_LEFT) == (0, 3, 4, 5, 6)
 
 
+_ECHO = ("import os, sys\n"
+         "print('to-out')\n"
+         "print('to-err', file=sys.stderr)\n"
+         "print('home=' + os.environ.get('CAI_TREE_ENV', 'unset'))\n")
+
+
+def _run_tree(tmp_path, **kwargs):
+    tree = local_run.start_tree([sys.executable, "-c", _ECHO], str(tmp_path),
+                                str(tmp_path / "out.txt"), **kwargs)
+    try:
+        tree.popen.wait(WAIT)
+    finally:
+        local_run.stop_tree(tree)
+
+
+def test_start_tree_default_merges_stderr_and_inherits_env(tmp_path):
+    _run_tree(tmp_path)
+    out = (tmp_path / "out.txt").read_text()
+    assert "to-out" in out and "to-err" in out and "home=unset" in out
+
+
+def test_start_tree_err_path_splits_stderr(tmp_path):
+    _run_tree(tmp_path, err_path=str(tmp_path / "err.txt"))
+    out = (tmp_path / "out.txt").read_text()
+    err = (tmp_path / "err.txt").read_text()
+    assert "to-out" in out and "to-err" not in out
+    assert "to-err" in err and "to-out" not in err
+
+
+def test_start_tree_env_is_passed_whole(tmp_path):
+    env = dict(os.environ, CAI_TREE_ENV="given")
+    _run_tree(tmp_path, env=env)
+    assert "home=given" in (tmp_path / "out.txt").read_text()
+
+
 def test_p1_normal_stop(tmp_path):
     pid_dir = str(tmp_path)
     p = _start_driver(pid_dir, tmp_path, "stop")

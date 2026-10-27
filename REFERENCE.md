@@ -89,7 +89,7 @@ earlier draft pointed `ship` at a read-only agent that could never have pushed.
 | `/cai:track <feature>` | Create or resume a track — on `main`, in its own worktree unless you add `--here`. Refuses `current` and `done` as names. Also `status` (`status --all`: one row per worktree, for tracks running side by side), `skip <stage> --reason "<why>"`, and `done`. |
 | `/cai:design` | Turn a request into an acceptance-testable problem statement (explore context, ask only what evidence cannot decide, propose 2-3 approaches), then — when something is hard to undo — write a design document for review. Two entrances, picked by one test — can you write a test that fails now and would pass if an existing promise held? Yes: **diagnosis** (root cause and fix, one page). No, because nothing ever promised it: **stance** (what this optimises for and what it gives up, one page). Then **decisions** (the choices that follow, routed so only what needs a person reaches one) and **detail** (what gets built from) — on the long path these are sections of one `docs/design/<date>-<topic>-design.md`, not files of their own — or **delta** (recovers the decisions already made in a built branch). User-invoked only. |
 | `/cai:build` | Build a detail design's work breakdown unit by unit, test-first, verifying and committing each one before the next starts — or cut your own checkpointed units with no design doc. With a detail design that has a glossary, it adds that design's project terms to `.cai/cai-context.md` itself — which design, debug and refactor read when it exists — replacing a definition of the same name in place, and lists every term written, every definition replaced and every term the shipped glossary check rejected in its report; a definition that check rejects is never written. User-invoked only. |
-| `/cai:verify` | Dispatch four read-only reviewers (correctness, conformance, coverage, security) over a branch diff in parallel, reconcile their findings, then fix Blockers and Majors with a failing test before and a passing one after. |
+| `/cai:verify` | Run the platform's own review for correctness (`/code-review` on Claude Code, `codex exec review` on Codex; a `reviewer` takes over when it cannot run), dispatch three read-only reviewers (conformance, coverage, security) over a branch diff in parallel, reconcile all their findings, then fix Blockers and Majors with a failing test before and a passing one after. |
 | `/cai:ship` | Squash a branch into one conventional commit, write a release note, and stop before merging, tagging, or publishing until a person confirms. User-invoked only. |
 
 ## The other tools
@@ -163,7 +163,7 @@ stage or by one of the tools above.
 | `test-runner` | `chore` | Runs the repo's own automated checks. |
 | `implementer` | `build` | The `build` stage, `/cai:build`, `/cai:goal`, `/cai:fix`. |
 | `shipper` | `build` | The `ship` stage. |
-| `reviewer` | `build` | The `verify` stage, `/cai:verify` — three at once, one lens each: correctness, conformance, coverage. |
+| `reviewer` | `build` | The `verify` stage, `/cai:verify` — two at once, one lens each: conformance, coverage; a third for correctness only when the platform review cannot run. |
 | `security-reviewer` | `build` | The `verify` stage's fourth lens: shell execution, what reaches an argument vector, secrets in what is kept, guard bypass — those four and no fifth. |
 | `refactoring-detector` | `build` | Parallel smell analysis across module groups during a refactoring scan. |
 | `verifier` | `build` | The `verify` stage. |
@@ -319,12 +319,12 @@ a real "on failure, go back to build" loop, or if the stage order were found
 being skipped in use — the three conditions recorded when this was first
 declined.
 
-**No review or eval job on pull requests.** The four review lenses run in
+**No review or eval job on pull requests.** The review lenses and the platform review run in
 the `verify` stage, on the machine driving the track, on a subscription; the
 eval suite runs from an optional local command. Neither is wired to CI. A
 PR-triggered job would bill every PR against an API key and needs a runner
 credential nobody has set up, and the eval suite (three cases, eleven
-graders) is too thin to carry a red/green gate. Measured: one four-lens
+graders) is too thin to carry a red/green gate. Measured, before correctness moved to the platform review: one four-lens
 review is about US$3.25 of equivalent API spend, one eval run about US$0.24.
 It would change when the eval suite can gate — enough cases that a red means
 something — or when a contributor's PR needs a review nobody local will run.
