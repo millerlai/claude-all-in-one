@@ -396,7 +396,7 @@ def test_codex_tail_subagents_excludes_resolved_calls():
 
 
 # ============================================ diagnosis's failing tests ====
-# docs/design/2026-09-26-viewer-live-status-diagnosis.md's "Failing test":
+# docs/design/2026-09-26-viewer-live-status-detail.md's "Failing test":
 # written first and confirmed to fail on main d514f6b before any fix. Codex
 # aliveness must come from thread-writer-locks' filenames, not from guessing
 # which of the most-recently-updated threads fill a process-counted quota.

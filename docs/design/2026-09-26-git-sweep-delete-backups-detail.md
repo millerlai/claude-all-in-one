@@ -1,11 +1,23 @@
 # git-sweep-delete-backups — detail design
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+備份參照的辨識與刪除決策保留；現行工具見 [`plugins/cai/skills/git-sweep/SKILL.md:2`](../../plugins/cai/skills/git-sweep/SKILL.md#L2)。原「本文件不是簽核對象」描述當時流程；現行簽核依程序與設計指紋判斷，不能據此免除。
+
+已併入並移除的同主題文件：`2026-09-26-git-sweep-delete-backups-decisions.md`、`2026-09-26-git-sweep-delete-backups-stance.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 這份是建造規格，寫給沒參與對話、照著就能動工的人。它不是簽核對象：本人簽的是 stance 和 decisions，這份是那兩份授權的施工圖。名詞第一次出現的定義見 `## Glossary`；表外幾個詞：PR（pull request，合併請求）、gh（GitHub 的命令列工具）、head（PR 的來源分支名，gh 欄位 `headRefName`）、WHY（sweep 表格的理由欄）、SHA（commit 識別碼）、squash（把一串 commit 壓成一個）、worktree（另一個工作目錄）、Codex 版（`scripts/gen-codex.py` 從 `plugins/cai/` 產生的 `plugins/cai-codex/`）。
 
 ## Reference
 
-Stance doc: docs/design/2026-09-26-git-sweep-delete-backups-stance.md
-Decisions doc: docs/design/2026-09-26-git-sweep-delete-backups-decisions.md
+Stance doc: docs/design/2026-09-26-git-sweep-delete-backups-detail.md
+Decisions doc: docs/design/2026-09-26-git-sweep-delete-backups-detail.md
 Status: approved 2026-09-26（stance）；decisions 的 Tier 1 唯一一條 D1 已有 `Decided:`（B，本人 2026-09-26）
 
 ### Traceability
@@ -375,3 +387,152 @@ sequenceDiagram
 | What | Owned by | Needed before |
 |---|---|---|
 | 無：不需要本 repo 以外的任何東西；版號與 `--release` 在 ship 處理 | — | — |
+
+
+## 整併補充：git-sweep-delete-backups-decisions
+
+來源為原 `2026-09-26-git-sweep-delete-backups-decisions.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Feasibility
+
+| Id | Capability | Verdict | Evidence |
+|---|---|---|---|
+| C1 | sweep 已經用一次 `gh pr list --state merged --json number,headRefName` 拿到全部已合併 PR 的號碼與 head | verified | `plugins/cai/scripts/branch_sweep.py:130-153` |
+| C2 | sweep 已經用一次 `git for-each-ref refs/heads` 拿到全部本地分支，`backup/...` 也在其中 | verified | `branch_sweep.py:156-173`；2026-09-26 對本 repo 跑的 `git for-each-ref` 列出 `backup/fix-diagnosis-recognition-shape-20260926-presquash` |
+| C3 | `gh pr list --json` 接受 `mergedAt` 欄位 | verified | https://cli.github.com/manual/gh_pr_list 的 JSON FIELDS 清單含「headRefName」「mergedAt」「number」 |
+| C4 | `for-each-ref` 的日期欄位可以指定格式，`%(committerdate:iso-strict)` 印出帶時區的時間 | verified | https://git-scm.com/docs/git-for-each-ref ：「As a special case for the date-type fields, you may specify a format for the date by adding `:` followed by date format name」；2026-09-26 的 `git for-each-ref` 以 `%(committerdate:iso-strict)` 印出 `2026-09-26T19:15:13-04:00` |
+| C5 | Python 能把兩種時間讀成可比較的值：`Z` 換成 `+00:00` 後用 `fromisoformat` | verified | `plugins/cai/scripts/viewer.py:1228` 已這樣用；實測 `fromisoformat('2026-09-26T19:15:13-04:00')` 與 `fromisoformat('2026-09-26T23:59:00+00:00')` 都讀得出來 |
+| C6 | 本 repo 唯一的真實備份，最後一個 commit 早於 PR #178 的合併：備份 2026-09-26T19:15:13-04:00（23:15:13Z），`mergedAt` 2026-09-27T00:05:07Z，相差 50 分鐘；B 之下它仍是 `deletable`，options-intake.md:22 成立 | verified | main session 2026-09-26 實跑：`gh pr view 178 --json mergedAt,headRefName` 回 `{"headRefName":"fix/diagnosis-recognition-shape","mergedAt":"2026-09-27T00:05:07Z"}`；`git log -1 --format="%H %cI" ab50145` 回 `2026-09-26T20:05:07-04:00`（與 mergedAt 同一刻）；`git for-each-ref --format="%(refname:short) %(committerdate:iso-strict)" refs/heads/backup` 回 `backup/fix-diagnosis-recognition-shape-20260926-presquash 2026-09-26T19:15:13-04:00`。來源見 `.claude/track/git-sweep-delete-backups/options-intake.md:15` |
+| C7 | ship 的備份沒有 upstream，所以 `ahead` 是 0、`gone` 是否，自然走到新規則 | verified | `stage-ship.md:112` 沒給起點，從目前分支建；https://git-scm.com/docs/git-branch ：「The default option, `true`, behaves as though `--track=direct` were given whenever the start-point is a remote-tracking branch.」；C2 那次輸出中備份的 upstream 欄為空；`branch_sweep.py:170-172` |
+| C8 | 每個備份最多比對 200 個 head，不需要額外呼叫 | verified | `PR_LIMIT = 200`，`branch_sweep.py:52` |
+| C9 | 測試的假 gh 原樣輸出測試給的 JSON，多放一個欄位不必改假 gh | verified | `tests/fake_gh.py:28`；`tests/test_branch_sweep.py:66-74` |
+| C10 | 備份在 PR 還開著時仍有用途：ship 的 Rollback 就是把分支指回它 | verified | `stage-ship.md:159`：`git reset --soft backup/<branch>-<timestamp>` |
+
+#### Ruled out
+
+| Option | Invariant it violates | Evidence |
+|---|---|---|
+| 用 `git merge-tree` 或比對 tree 來縮小誤判（R3） | S3：不做內容證明 | stance:28 |
+| 每個備份另跑一次 `gh pr view` 或 `git log` 查時間（R3） | S4：不新增子程序呼叫；C1、C2 已經有兩次既有呼叫可以多要欄位 | stance:29；C1、C2 |
+| 只認後綴是 `\d{8}-\d{6}` 的名字（R2、R4） | S5：presquash 形狀認不出來 | stance:30 |
+| 只在本地分支裡找來源（R2） | S6：來源常已被刪，issue 的情境就是這樣 | stance:31；C2 |
+
+#### Requirement gaps
+
+| # | The behavioural assumption | Veto condition, or verification path | Deletes |
+|---|---|---|---|
+
+#### Tier 1
+
+##### D1 — 要不要用「備份最後一個 commit 早於 PR 合併」來縮小同名重用的誤判？
+
+
+兩張圖只差 B 多一道菱形：同名分支上一輪合併之後才寫下的 commit，一定晚於那次合併，所以這一輪的備份停在 `keep`。
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — 照 stance 接受，不縮小 | C1、C2 | 不多任何程式 | 同名分支上一輪已合併、這一輪 ship 完 PR 還開著時跑 sweep：這一輪的備份被列 `deletable`；照 `--delete` 刪掉，這個 PR 就失去 ship 的 Rollback（C10），只剩印出的 SHA（`branch_sweep.py:319-322`） |
+| B — 加時間檢查（recommended） | C3、C4、C5、C6 | `gh pr list` 的 `--json` 多要 `mergedAt`，`for-each-ref` 格式多要 `%(committerdate:iso-strict)`，仍是同兩次呼叫（S4）；約 10–15 行、1–2 個測試；`gh_merged_prs()` 回傳多帶時間，`local_branches()` 每列多一欄 | 上一輪沒合併、這一輪合併的舊備份，以及早於合併的手動 `backup/*`，最後一個 commit 都早於合併，照樣列 `deletable`（和 A 一樣）；本機時鐘比 GitHub 慢超過「最後一個 commit 到合併」的間隔（本 repo 實例是 50 分鐘，C6）時，這一輪的備份會漏網 |
+
+第三種做法是拿備份名後綴裡的日期和 `mergedAt` 比。它明顯較差：只到「日」，`date +%Y%m%d` 用的是本機時區、`mergedAt` 是 UTC，後綴不是日期時就沒得比，所以不列。
+
+- **Blast radius:** 低。兩個選項都只動 `branch_sweep.py` 和它的測試。
+- **Found out when:** 高。A 的誤判要等有人在 PR 還開著時想做 Rollback、才發現備份已被刪，是發佈之後的事，也可能永遠沒人發現。B 萬一誤留，要等有人回報「該刪的備份沒被列出」。
+- **Undo cost:** 低。A 改 B 是純加法；B 改回 A 是刪掉約 15 行。
+- **Decided:** B — 加時間檢查。本人 2026-09-26 以選單回答，問題「D1：要不要加時間檢查（備份最後一個 commit 不晚於 PR 合併時間才列可刪）？」，選的標籤是「B — 加時間檢查 (Recommended)」，選項原文在 `.claude/track/git-sweep-delete-backups/options-D1.md`。C6 隨後由 main session 驗證，真實備份在 B 之下仍是 `deletable`。答完重跑成本測試：D2、D3 不受影響，仍是 Tier 2；Tier 3 標「D1 選 B 時」的五列全部生效。
+
+#### Tier 2
+
+##### D2 — 多個已合併 PR 的 head 都對得上同一個備份時，取哪一個？
+
+Chose：head 原樣（含 `/`）和 `/` 換成 `-` 的寫法都比，取對得上的最長者；一樣長時取原樣；都對不上就是 `keep`（S2，stance:27）。一樣長時原樣優先，因為 ship 寫備份名時直接用 `${BRANCH}`（`plugins/cai/skills/track/references/stage-ship.md:112`）。最長優先，因為 ship 的後綴固定是 `-YYYYMMDD-HHMMSS`：`fix/a` 和 `fix/a-b` 都對得上 `backup/fix/a-b-20260926-120000` 時，取 `fix/a` 就等於說後綴是 `b-20260926-120000`，而 ship 不會產生這種後綴。D1 選 B 時，時間檢查只用選中的這個 PR。**Found out when:** 發佈後，有人在表格上看到 WHY 指向錯的來源時。
+
+##### D3 — 沒有後綴的 `backup/<來源>` 算不算備份？
+
+Chose 不算：來源名後面必須還有 `-` 和至少一個字元。核准的選項原文是「把備份名去掉 `backup/` 前綴和結尾」（`.claude/track/git-sweep-delete-backups/options-intake.md:39`），兩種已知形狀都有後綴（stance:30）。不算的結果是 `keep`，也就是今天的行為，屬於誤留；算的結果是可能刪掉某人為了別的原因留著的分支。**Found out when:** 發佈後，有人發現 `backup/<來源>` 一直沒被列出時。
+
+#### Tier 3
+
+| Decision | Chose | Instead of | Found out when |
+|---|---|---|---|
+| 規則放在 `classify()` 的哪裡 | `pr` 之後、`gone` 之前（stance:62 的圖；`branch_sweep.py:224-227`）；`held`、`ahead` 仍在最前面（S1） | 放在 ancestry 之前 | 下一次測試 |
+| 怎麼推回來源 | 對每個已合併 PR 的 head 試兩種寫法，看 `backup/` 之後的名字是不是以「寫法 + `-`」開頭（C1、C8） | 先用正規式切掉後綴再查表：後綴格式不固定（S5），不知道來源在哪裡結束 | 下一次測試 |
+| 前綴 | 只認小寫字面 `backup/`（`stage-ship.md:112`） | 也認 `backups/`、`bak/` | 下一次測試 |
+| 沒有 upstream 要不要另外處理 | 不用：`ahead` 是 0、`gone` 是否，本來就會走到新規則（C7） | 另寫一條「沒有 upstream」的判斷 | 下一次測試 |
+| 自己也有已合併 PR 的 `backup/*` | 照既有 `pr` 規則，WHY 是 `pr: #N merged`（`branch_sweep.py:224-225`）；S9 不受影響 | 讓備份規則優先 | 下一次測試 |
+| gh 查不到時的 `note:` 字串 | 不改（`branch_sweep.py:263-264`），只在 `plugins/cai/skills/git-sweep/SKILL.md:40-44` 補一句「備份也只會是 keep」 | 改 `note:` 字串 | 下一次測試 |
+| 說明文字 | docstring `branch_sweep.py:18-22` 改成「ancestry、pr，以及來源有已合併 PR 的備份」；`SKILL.md:27-28` 的 `deletable` 補上備份這一種 | 只改 `SKILL.md` | 下一次 `validate.py` |
+| 測試 | 在 `tests/test_branch_sweep.py` 加案例：標準形、presquash 形、來源不在本地、沒有 PR 時 `keep`、`held`、`--delete` 的復原行、gh 失敗時 `keep`、D2 的最長優先；`use_fake_gh` 的 JSON 直接多放欄位（C9） | 另開新測試檔 | 下一次測試 |
+| 版號與 Codex 版 | ship 時依 commit 類型升 `plugins/cai/.claude-plugin/plugin.json` 的版號，再跑 `python scripts/gen-codex.py`，必要時加 `--release`（本 repo `CLAUDE.md`） | 在 build 階段先升 | ship 時 `validate.py` 報 DRIFT 或 UNRELEASED |
+| （D1＝B）時間怎麼讀 | `%(committerdate:iso-strict)` 與 `mergedAt`，`Z` 換成 `+00:00` 後用 `fromisoformat` 讀（C4、C5，同 `viewer.py:1228`） | `%(committerdate:unix)`：文件只說格式名取自 `--date`，這一輪沒實測 | 下一次測試 |
+| （D1＝B）讀不到時間 | 任一邊缺少或讀不出來，就不列 `deletable`（S2 的安全方向） | 跳過時間檢查，照樣列 `deletable` | 下一次測試 |
+| （D1＝B）時鐘誤差 | 不加緩衝，直接比「不晚於」（C6 的實例相差 50 分鐘） | 加 N 分鐘緩衝 | 發佈後，有人回報該刪的備份被 `keep` |
+| （D1＝B）用哪個 PR 的時間 | D2 選中的那個 PR；同名多個 PR 時，`gh_merged_prs()` 本來就只留號碼最大的一個（`branch_sweep.py:149-152`） | 任何一個對得上的 PR 通過就算 | 下一次測試 |
+| （D1＝B）時間檢查沒過時的 WHY | `keep`，WHY 寫 `backup of <來源>: pr #N merged before its last commit`；逐字字串由 Detail 定 | 往下走成 `keep / no merge signal`，看不出為什麼沒被刪 | 下一次測試 |
+
+
+## 整併補充：git-sweep-delete-backups-stance
+
+來源為原 `2026-09-26-git-sweep-delete-backups-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+來源分支一經已合併的 PR 確認，它留下的備份分支就在同一次 sweep 被列為 `deletable`，不必再手動清。判定只用 sweep 本來就會跑的那一次 `gh pr list` 和那一次 `git for-each-ref` 的結果，不新增任何 git 或 gh 呼叫。怎麼算成功：驗收條件每一條（options-intake.md:19-24）各有一個 `tests/test_branch_sweep.py` 案例指得到。
+
+#### Sacrifices
+
+- **備份本身的內容從不檢查。** 「名字對得上一個已合併 PR」代替了「內容已在 base 上」。被刪掉的是 squash 前的逐筆 commit 歷史；內容本身在 squash 時保留（`stage-ship.md:126`「content must be identical to before the squash」），但沒有人再驗一次。
+- **重複使用的分支名會誤判。** 同名分支上一輪沒合併留下的備份，或手動建、名字碰巧對上已合併 PR 的 `backup/*`，會被列為 `deletable`（使用者在 intake 接受，options-intake.md:44）。另一種同類情形 intake 沒點名：同名分支上一輪已合併、這一輪還沒合併時建的備份，也會被上一輪的 PR 判為可刪，因為 PR 對照表每個名字只留最新一個已合併 PR（`branch_sweep.py:149-152`）。唯一的補救是 `--delete` 印出的 SHA（`branch_sweep.py:319-322`）。
+- **沒有 PR 的合併不算。** 來源只以祖先關係合併、或它的 PR 比最近 200 個已合併 PR 還舊（`PR_LIMIT`，`branch_sweep.py:49-52`），備份仍是 `keep`。
+- **沒有 gh 就全部保留。** gh 查不到時，所有備份和今天一樣是 `keep`，只有既有的 `note:` 行說明原因（`branch_sweep.py:262-264`）。
+
+#### Invariants
+
+**This system's:**
+
+- S1 — 安全順序不變：`held`、`ahead` 在任何合併訊號之前判定（`branch_sweep.py:213-221`），備份規則也排在它們之後。被 worktree 拿去用的備份維持 `held`（options-intake.md:21）。
+- S2 — 備份只有在推回的來源名有已合併 PR 時才可能 `deletable`；推不出來源、或來源沒有已合併 PR，一律 `keep`（options-intake.md:21）。
+- S3 — 不做內容證明：不跑 `git merge-tree`、不比對 tree 或 diff。使用者否決了選項 B；B 在本 repo 唯一的真實備份上因 13 個檔案的版號衝突判錯（options-intake.md:16）。
+- S4 — 不新增子程序呼叫：規則只用 `gh_merged_prs()`（`branch_sweep.py:126-153`）和 `local_branches()`（`:156-173`）那兩次既有呼叫的結果（options-intake.md:42「不多任何 git 呼叫」）。在同一次呼叫裡多要一個欄位不算新增呼叫。
+- S5 — 兩種命名都認得：ship 的標準形 `backup/<來源>-<YYYYMMDD-HHMMSS>`（`stage-ship.md:112`），以及 `/` 被寫成 `-`、後綴不是時間的 `backup/fix-diagnosis-recognition-shape-20260926-presquash`（options-intake.md:15, :22）。
+- S6 — 來源分支不必存在於本地：來源名拿去對已合併 PR 的 headRefName，不對本地分支清單（options-intake.md:20）。
+- S7 — WHY 一字不差寫成 `backup of <來源>: pr #N merged`，`<來源>` 用 PR 的 headRefName 原樣（含 `/`）（options-intake.md:19）。
+- S8 — 刪除路徑不變：備份和其他分支一樣走 `delete()`，印出 `git branch <名稱> <SHA>` 復原行（`branch_sweep.py:245-257`、`:319-322`；options-intake.md:23）。
+- S9 — 名字不以 `backup/` 開頭的分支，判定結果與今天完全相同；`tests/test_branch_sweep.py` 既有案例不改一字照樣通過。
+
+**Cross-project:**
+
+- 本 repo `CLAUDE.md` 的「Who a file is for」：`branch_sweep.py` 與 `skills/git-sweep/SKILL.md` 是 Theirs，不能假設使用者的 repo 只有 ship 建的備份、或分支名有 `fix/` 這類前綴；`plugins/cai-codex/` 只能重新產生，不能手改。
+- `skills/git-sweep/SKILL.md:8-12`：表格由腳本決定，模型只轉述、不自行判斷，所以規則必須寫在腳本裡，不能只寫在 SKILL 的說明文字。
+- 使用者的 rules，以本 repo `CLAUDE.md` 匯入的版本為準（`coding.md` 最少程式碼、照檔案原有風格）。
+
+#### Rejected stances
+
+- **選項 B：名字對上之後再做內容證明。** 誤刪風險較低，但在每個 `fix(cai)` PR 都要升版號的流程裡，幾乎每個備份都會撞版號而被誤留；本 repo 唯一的真實備份實測即判錯（options-intake.md:16）。使用者 2026-09-26 沒選。
+- **對所有分支做內容比對，當第四種合併訊號。** 超出 #188 範圍、成本最高，且撞上同樣的版號衝突（options-intake.md:54）。
+- **只認嚴格命名 `backup/<來源>-<8 位數字>-<6 位數字>`。** 誤判最少，但認不出本 repo 唯一的真實備份，違反驗收條件 options-intake.md:22。
+- **維持現狀，備份交給使用者自己刪。** 什麼都不會誤刪，但 issue #188 回報的問題原封不動：備份永遠落在 `keep / no merge signal`（`branch_sweep.py:228`）。
+
+#### Out of scope
+
+- 內容證明、`git merge-tree`、tree 比對：使用者已否決（S3）。
+- 修改 ship 的備份命名（`stage-ship.md:112`）或讓 ship 在合併後自己刪備份：這次只動 sweep。
+- 名字不以 `backup/` 開頭的分支的任何判定改動（S9）。
+- 比對規則的確切寫法、函式名稱、測試怎麼造分支：交給 Decisions 的 Tier 3 或 Detail。
+- `docs/` 被 git 忽略；這份文件在 ship 時要用 `git add -f`。
+
+
+## 原始詞彙與來源補充：git-sweep-delete-backups-decisions
+
+以下來源日期與縮寫沿用原紀錄，補足合併段落的閱讀依據；不代表重新查證外部文件。
+
+名詞（第一次出現的英文詞，先給中文意思）：sweep 是 `plugins/cai/scripts/branch_sweep.py`，替每個本地分支判一個狀態，`deletable` 可刪、`keep` 保留、`held` 被工作目錄（worktree）占用、`ahead` 有沒推上遠端的 commit、`gone` 遠端分支已刪。備份（backup）是 ship 在壓縮（squash）前建的 `backup/...` 分支；來源（source）是它備份的那條分支。PR（pull request）是合併請求；head（headRefName）是 PR 的來源分支名；`mergedAt` 是 PR 的合併時間。gh 是 GitHub 的命令列工具。WHY 是 sweep 表格的理由欄。committer date 是 commit 被寫下的時間，由寫的那台機器的時鐘決定。`iso-strict` 是 `2026-09-26T19:15:13-04:00` 這種帶時區的時間寫法。Rollback 是 ship 的復原步驟，把分支指回備份（`plugins/cai/skills/track/references/stage-ship.md:159`）。Tier 1 要本人回答，Tier 2 列出來給人掃過，Tier 3 只記錄。實測指這一輪用 Python 讀本機檔案，不跑 git、gh。
+
+
+## 原始詞彙與來源補充：git-sweep-delete-backups-stance
+
+以下來源日期與縮寫沿用原紀錄，補足合併段落的閱讀依據；不代表重新查證外部文件。
+
+依據：`.claude/track/git-sweep-delete-backups/options-intake.md`（issue #188，驗收條件在 :18-24）。使用者在 intake 選單選了選項 A，這份文件不重新選方向，只把 A 的取捨寫成能刪選項的形式，交上去等核准。
+
+名詞：sweep 指 `/cai:git-sweep` 背後的 `plugins/cai/scripts/branch_sweep.py`，它替每個本地分支（branch）判一個狀態：`deletable` 可刪、`keep` 保留、`held` 正被某個工作目錄（worktree）拿去用、`ahead` 有 commit 還沒推上遠端、`gone` 遠端分支已被刪。base 是工作預期要合進去的分支，通常是 main。upstream 是本地分支對應的那條遠端分支。祖先關係（ancestry）指分支的 commit 已經全在 base 的歷史裡。備份分支（backup branch）是 ship 階段在壓縮（squash，把一串 commit 壓成一個）之前建的 `backup/...` 分支。來源分支（source branch）是備份當初備份的那條。PR（pull request）是合併請求；gh 是 GitHub 的命令列工具，sweep 用一次 `gh pr list` 取得「已合併 PR 的號碼與來源分支名（headRefName）」。WHY 是 sweep 表格裡說明判定理由的那一欄。SHA 是 commit 的識別碼。內容證明指把備份試合併到 base、比對結果，確認內容都已在 base 上。Codex 版是 `scripts/gen-codex.py` 從 `plugins/cai/` 產生的 `plugins/cai-codex/`。

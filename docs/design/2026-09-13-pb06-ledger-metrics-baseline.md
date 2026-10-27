@@ -1,5 +1,11 @@
 # PB-06 baseline: ledger 四個指標（issue #85）
 
+## 維護說明（2026-10-27）
+
+保留 2026-09-13 的指標基線，供後續比較，不能由今日程式重新推回當時數字。原 `.claude/track` 路徑是採樣來源，不改寫成不存在的新採樣；現行指標程式為 `plugins/cai/scripts/usage_report.py`。本次未重新量測歷史工作流程。
+
+以下保留原日期的歷史紀錄；舊狀態、行號、輸出與未驗證項目不表示本次重新驗證。
+
 跑法：對每個 `.claude/track/done/*` 與尚未歸檔的 `issue78-rule-guards` 各跑一次
 `usage_report.py metrics --track-dir <dir>`，再跑一次
 `usage_report.py metrics --days 30`。以下逐字貼輸出，未加工。

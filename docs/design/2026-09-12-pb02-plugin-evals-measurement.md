@@ -1,5 +1,11 @@
 # pb02-plugin-evals — 量測紀錄
 
+## 維護說明（2026-10-27）
+
+保留原始評估量測與限制；數字、模型、價格及建議頻率均只適用量測當時。本次未重跑模型評估。現行 `CONTRIBUTING.md` 的「Optional: a local eval run」仍將這項評估列為可選，不能把原成本外推或啟用建議當成已啟用的自動檢查。
+
+以下保留原日期的歷史紀錄；舊狀態、行號、輸出與未驗證項目不表示本次重新驗證。
+
 軌道：`pb02-plugin-evals`．階段：build（unit 3／unit 4）。這份檔案獨立於已被
 ledger 的 sha256 釘住的設計文件（`docs/design/2026-09-12-pb02-plugin-evals-detail.md`），
 理由與 `docs/design/2026-09-12-pb02-plugin-evals-probes.md:4` 相同：核准後的

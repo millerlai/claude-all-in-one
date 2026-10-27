@@ -1,5 +1,11 @@
 # gap03-review-benchmark — measurement
 
+## 維護說明（2026-10-27）
+
+保留審查基準量測、樣本偏差與限制。原模型成本與命中率不是今日保證，未納入版本控制的原始工作流程也不保證能從新複製的儲存庫取得；本次未重跑付費評估。現行工具為 `scripts/review_benchmark_score.py`。
+
+以下保留原日期的歷史紀錄；舊狀態、行號、輸出與未驗證項目不表示本次重新驗證。
+
 本輪唯一寫數字與但書的地方（`## Implementation spec`〈measurement 檔〉，
 `docs/design/2026-09-14-gap03-review-benchmark-detail.md:611-625`）。以下四句
 必寫句逐字照抄，供 V13 grep（AC11）：

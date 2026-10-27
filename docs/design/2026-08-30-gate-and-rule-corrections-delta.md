@@ -1,5 +1,11 @@
 # Gate and rule corrections — delta design
 
+## 維護說明（2026-10-27）
+
+這份跨主題差異紀錄保留防護器、設計檢查與規則擺放的理由，不能併入其中一項而失去其餘脈絡。原「只檢查 detail」與 45 行上限已不是現況；現行設計種類見 `plugins/cai/scripts/preflight.py` 的 `SUFFIX_KIND`，上限見 `scripts/validate.py`。
+
+以下保留原日期的歷史紀錄；舊狀態、行號、輸出與未驗證項目不表示本次重新驗證。
+
 ## Scope
 
 Base `origin/main` at `ad235bc`, range `ad235bc..HEAD` — one commit, 13

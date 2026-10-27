@@ -1,5 +1,11 @@
 # preflight 把失敗的 git status 當成乾淨工作樹 — diagnosis
 
+## 維護說明（2026-10-27）
+
+保留 Git 失敗不可當成乾淨工作樹的根因。問題已有實作與測試；現行 `plugins/cai/scripts/preflight.py` 的 `_status_problem` 共用判斷失敗原因，後續解碼及錯誤輸出處理也已擴充。原保留解碼失敗時例外的描述與逐次升版步驟不能當成現行規格。
+
+以下保留原日期的歷史紀錄；舊狀態、行號、輸出與未驗證項目不表示本次重新驗證。
+
 名詞：preflight（`plugins/cai/scripts/preflight.py`，每個 track 階段開始前跑的檢查腳本，每項印 PASS/FAIL，有 FAIL 就擋下該階段）；`git status --porcelain`（以機器可讀格式列出未提交變更的 git 指令，沒有變更時輸出為空）；`git()`（preflight 自己包的執行 git 的函式）；`CompletedProcess`（Python 執行子程序後回傳的結果物件，帶結束碼 returncode、標準輸出 stdout、標準錯誤 stderr）；`clean_tree`（ship 階段「工作樹沒有未提交變更」的檢查項）；`has_changes`（verify 階段「有東西可審」的檢查項）；stub（測試裡用假函式頂替真的 `git()`，指定它回傳什麼）；base diff（目前分支相對於基準分支 main/origin 的已提交差異）。
 
 ## Status

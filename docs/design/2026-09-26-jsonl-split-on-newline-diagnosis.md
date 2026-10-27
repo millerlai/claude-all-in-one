@@ -1,5 +1,11 @@
 # jsonl-split-on-newline — diagnosis
 
+## 維護說明（2026-10-27）
+
+保留逐行資料（JSONL）的 Unicode 切行根因、縮減順序與回歸測試依據。問題已有實作與測試，不是新的待修事項；現行程式為 `plugins/cai/scripts/ledger.py` 的 `_fit` 與各讀取端，相關測試仍引用本檔。原逐次升版程序不再適用。
+
+以下保留原日期的歷史紀錄；舊狀態、行號、輸出與未驗證項目不表示本次重新驗證。
+
 ## Status
 
 approved 2026-09-26
@@ -20,7 +26,7 @@ approved 2026-09-26
 | 測試 | 放在 | 斷言 | 對照的承諾 |
 |---|---|---|---|
 | T1＋AC1＋AC7 | `tests/test_ledger.py` | 三次 append 讀回 3 筆、`attempts == 3`、note 逐字相同；三個字元各一次；第 1 行帶 U+2028、第 2 行垃圾時 malformed 在第 2 行 | `tests/test_ledger.py:47-55`；`ledger.py:4-6`「one JSON object per line」；`ledger.py:419-422` 只有 unparseable line 才變 malformed |
-| T2 | `tests/test_ledger_usage.py` | 仿 `:95-121`，第一筆 note 帶 U+2028，第二次的 `since` 等於第一筆的 `window_end` | D4 相鄰窗接續（`docs/design/2026-08-30-track-usage-accounting-detail.md:116`） |
+| T2 | `tests/test_ledger_usage.py` | 仿 `:95-121`，第一筆 note 帶 U+2028，第二次的 `since` 等於第一筆的 `window_end` | D4 相鄰窗接續（`docs/design/2026-08-30-track-usage-accounting-detail.md:128`） |
 | T3 | `tests/test_usage_collector.py` | `read_window()` 回傳那一行、`problems == []`；經 `usage_records()` 那一筆用量計入 | `usage_collector.py:193-195` 只有 unparseable lines 進 problems |
 | T4 | `tests/test_preflight_build_gate.py` | note 帶 U+2028 的 Approve，`design_signed_off` 通過 | `preflight.py:222-234` 的 docstring |
 | AC6 | `tests/test_report.py` | `usage_report._read_central_records()` 讀回、malformed 為 0 | `usage_report.py:402-408` 的 docstring |

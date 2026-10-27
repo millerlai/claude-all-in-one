@@ -81,7 +81,7 @@ def test_check_alive_while_running_then_gone_after_terminate():
                     "(module-level `if os.name == \"nt\":` gates its very "
                     "definition, so it does not exist to call on Windows)")
 def test_check_alive_linux_mismatch_depends_on_exact():
-    """D10 (docs/design/2026-09-25-agent-viewer-web-portal-detail.md:492):
+    """D10 (docs/design/2026-09-25-agent-viewer-web-portal-detail.md:504):
     unlike Windows (C1, procStart is exactly comparable so any mismatch is
     conclusive "gone"), Claude's procStart format on Linux is UNVERIFIED
     (C5) -- a mismatch against `exact=True` (our own state file) is a real

@@ -1,13 +1,25 @@
 # viewer-live-status — detail design
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+併入同主題診斷的根因與測試證據。以鎖檔辨識各 Codex 對話、區分背景子代理與本輪工作的取捨仍有價值；現行實作見 [`plugins/cai/scripts/viewer.py:569`](../../plugins/cai/scripts/viewer.py#L569)。鎖檔格式與當時量到的消失延遲是平台內部行為，未在本次重新量測。
+
+已併入並移除的同主題文件：`2026-09-26-viewer-live-status-decisions.md`、`2026-09-26-viewer-live-status-diagnosis.md`、`2026-09-26-viewer-live-status-stance.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 ## Reference
 
-Stance doc: docs/design/2026-09-26-viewer-live-status-stance.md
-Diagnosis doc: docs/design/2026-09-26-viewer-live-status-diagnosis.md
-Decisions doc: docs/design/2026-09-26-viewer-live-status-decisions.md
+Stance doc: docs/design/2026-09-26-viewer-live-status-detail.md
+Diagnosis doc: docs/design/2026-09-26-viewer-live-status-detail.md
+Decisions doc: docs/design/2026-09-26-viewer-live-status-detail.md
 Status: approved 2026-09-26（stance 與 diagnosis；decisions 的 Tier 1 只有 design-footer 一條，已由使用者 2026-09-26 回答）
 
-被修正、不改動的舊設計：docs/design/2026-09-25-agent-viewer-web-portal-stance.md、docs/design/2026-09-25-agent-viewer-web-portal-decisions.md、docs/design/2026-09-25-agent-viewer-web-portal-detail.md。本文件取代其中這幾段：decisions 的 D6（`2026-09-25-agent-viewer-web-portal-decisions.md:196-198`）與 Tier 3「`idle`、`shell`、過時的 `busy`」一列（`:225`）；detail 的 `### liveness`（`2026-09-25-agent-viewer-web-portal-detail.md:485-497`）、claude_source 的第 3 條規則（`:518`）、codex_source 的 Interface 與存活（`:533`、`:535`）、Budgets 的 50 筆（`:89`）、Failure modes 兩列（`:711-712`）、Verification 兩列（`:747`、`:749`）、Work breakdown 的 unit 3（`:769`）。舊檔照 diagnosis 的決定不改（`docs/design/2026-09-26-viewer-live-status-diagnosis.md:48`）。
+被修正、不改動的舊設計：docs/design/2026-09-25-agent-viewer-web-portal-detail.md、docs/design/2026-09-25-agent-viewer-web-portal-detail.md、docs/design/2026-09-25-agent-viewer-web-portal-detail.md。本文件取代其中這幾段：decisions 的 D6（`2026-09-25-agent-viewer-web-portal-detail.md:797-797`）與 Tier 3「`idle`、`shell`、過時的 `busy`」一列（`:225`）；detail 的 `### liveness`（`2026-09-25-agent-viewer-web-portal-detail.md:3-509`）、claude_source 的第 3 條規則（`:518`）、codex_source 的 Interface 與存活（`:533`、`:535`）、Budgets 的 50 筆（`:89`）、Failure modes 兩列（`:711-712`）、Verification 兩列（`:747`、`:749`）、Work breakdown 的 unit 3（`:769`）。舊檔照 diagnosis 的決定不改（`docs/design/2026-09-26-viewer-live-status-detail.md:564`）。
 
 程式行號都是 main d514f6b 的檔案；`plugins/cai/scripts/viewer.py` 自 #162（8ce3dd8）起沒有再變。
 
@@ -59,7 +71,7 @@ Agent Viewer 的兩個錯：（1）Codex 列以行程數推名單，會列出沒
 | 頁面輪詢間隔 | 1000 ms | `plugins/cai/scripts/viewer.py:1057`，不改 |
 | 過時 busy 規則的門檻 | 60000 ms | `plugins/cai/scripts/viewer.py:1543`，不改（stance Out of scope 第二條） |
 | 認得的待完成計數鍵 | 2 | decisions C5 |
-| 算結束的 `<status>` | 4 | V8（`docs/design/2026-09-26-viewer-live-status-stance.md:29`） |
+| 算結束的 `<status>` | 4 | V8（`docs/design/2026-09-26-viewer-live-status-detail.md:634`） |
 | 對話串 id 長度 | 36 characters | decisions C9 |
 | 每次組快照列鎖檔目錄 | 1 `os.listdir` | 本設計；不開任何鎖檔（V1、V9） |
 | TUI `/quit` 後 Codex 列消失 | 34–62 s（量過一次） | `.claude/track/viewer-live-status-fixes/probe/lock-watch.jsonl:2-3`、`intake.md:46`（00:45:22–00:45:50 之間離開，00:46:24 消失） |
@@ -268,7 +280,7 @@ sequenceDiagram
 - **Concurrency:** 只列目錄，不開檔（V1、V9）；Codex 在列目錄與後面的查詢之間新增或刪除鎖檔，最多晚一個輪詢週期反映。
 - **Observability:** 回 `None` 時由 `build_snapshot` 轉成 `codexLockDirMissing`。
 - **Where it lives:** `plugins/cai/scripts/viewer.py` 的 codex_source 段，放在 `_codex_row` 之前；新增常數 `CODEX_LOCK_DIR = "thread-writer-locks"`、`CODEX_LOCK_SUFFIX = ".lock"`、`CODEX_THREAD_ID_LENGTH = 36`，放在 `CODEX_FALLBACK_MAX_FILES` 之後（取代被移除的 `CODEX_RECENT_THREADS_LIMIT` 與 `CODEX_VSCODE_SOURCE`）。
-- **What it reuses:** `os.listdir` 本身；舊 stance V5（`docs/design/2026-09-25-agent-viewer-web-portal-stance.md:30`）指定只用 stdlib。
+- **What it reuses:** `os.listdir` 本身；舊 stance V5（`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:995`）指定只用 stdlib。
 
 ### codex_rows
 
@@ -324,7 +336,7 @@ sequenceDiagram
 
 ### 移除
 
-照 diagnosis 的 Blast radius（`docs/design/2026-09-26-viewer-live-status-diagnosis.md:44`），在 d514f6b 重新核對過行號：`CODEX_APP_SERVER_MARKER`、`_is_app_server`（`plugins/cai/scripts/viewer.py:73-82`）；`_PROCESSENTRY32W`（`:90-102`）、`_TH32CS_SNAPPROCESS`（`:107`）；`_win_kernel32` 裡 `CreateToolhelp32Snapshot`、`Process32FirstW`、`Process32NextW`、`QueryFullProcessImageNameW` 的型別設定（`:118-124`）；`_process_image_path_windows`（`:127-142`）；`_count_processes_windows`（`:193-215`）、`_count_processes_linux`（`:259-284`）、`count_processes`（`:299-305`）；`CODEX_RECENT_THREADS_LIMIT`（`:1662`）；`CODEX_VSCODE_SOURCE` 與其註解（`:1666-1671`）、`_codex_session_slots`（`:1674-1678`）；主路徑的 `source` 欄與名額（`:1966-1974`、`:1990-2005`）；退回路徑的 `source` 與分組（`:2050`、`:2052-2062`）；`codex_rows` 的兩個數字參數與 `process_count == 0` 判斷（`:2072-2081`）；`build_snapshot` 的兩次計數（`:2257-2259`）。liveness 段開頭的註解（`:65-71`）改成只講 `check_alive`，`_FILETIME`、`process_start`、`check_alive` 與兩個平台實作留下（Claude 列與狀態檔還在用，`:1625`、`:2319`）。測試那一側只因這次變成沒人用的 helper（例如 `_session_meta` 的 `source` 參數）一併移除。
+照 diagnosis 的 Blast radius（`docs/design/2026-09-26-viewer-live-status-detail.md:564`），在 d514f6b 重新核對過行號：`CODEX_APP_SERVER_MARKER`、`_is_app_server`（`plugins/cai/scripts/viewer.py:73-82`）；`_PROCESSENTRY32W`（`:90-102`）、`_TH32CS_SNAPPROCESS`（`:107`）；`_win_kernel32` 裡 `CreateToolhelp32Snapshot`、`Process32FirstW`、`Process32NextW`、`QueryFullProcessImageNameW` 的型別設定（`:118-124`）；`_process_image_path_windows`（`:127-142`）；`_count_processes_windows`（`:193-215`）、`_count_processes_linux`（`:259-284`）、`count_processes`（`:299-305`）；`CODEX_RECENT_THREADS_LIMIT`（`:1662`）；`CODEX_VSCODE_SOURCE` 與其註解（`:1666-1671`）、`_codex_session_slots`（`:1674-1678`）；主路徑的 `source` 欄與名額（`:1966-1974`、`:1990-2005`）；退回路徑的 `source` 與分組（`:2050`、`:2052-2062`）；`codex_rows` 的兩個數字參數與 `process_count == 0` 判斷（`:2072-2081`）；`build_snapshot` 的兩次計數（`:2257-2259`）。liveness 段開頭的註解（`:65-71`）改成只講 `check_alive`，`_FILETIME`、`process_start`、`check_alive` 與兩個平台實作留下（Claude 列與狀態檔還在用，`:1625`、`:2319`）。測試那一側只因這次變成沒人用的 helper（例如 `_session_meta` 的 `source` 參數）一併移除。
 
 ## Naming
 
@@ -392,7 +404,7 @@ diagnosis 的三個失敗測試最先，其次 AC1–AC6，最後是被取代或
 
 | Criterion | Level | What it needs | Green before |
 |---|---|---|---|
-| R2／diagnosis 1：`tests/test_viewer_codex.py::test_build_snapshot_lists_the_locked_thread_whatever_its_source`——較舊的 `cli` 對話串（別的專案、沒鎖檔）與較新的 `vscode` 對話串（有鎖檔），只列較新那一列 | unit | `tmp_path` 當 codex_home；`_write_rollout`、`_make_state_db(..., sources=...)`、`_make_history_db`；`thread-writer-locks/` 放 `.coordination.lock` 與指定的 `<id>.lock`；空的 Claude config root；`monkeypatch.setattr(viewer, "count_processes", lambda name, skip_app_server=False: 1 if skip_app_server else 3, raising=False)`；呼叫 `viewer.build_snapshot`（diagnosis 的共同設定，`docs/design/2026-09-26-viewer-live-status-diagnosis.md:21`） | unit 1 合併；先寫、先確認在 d514f6b 上失敗 |
+| R2／diagnosis 1：`tests/test_viewer_codex.py::test_build_snapshot_lists_the_locked_thread_whatever_its_source`——較舊的 `cli` 對話串（別的專案、沒鎖檔）與較新的 `vscode` 對話串（有鎖檔），只列較新那一列 | unit | `tmp_path` 當 codex_home；`_write_rollout`、`_make_state_db(..., sources=...)`、`_make_history_db`；`thread-writer-locks/` 放 `.coordination.lock` 與指定的 `<id>.lock`；空的 Claude config root；`monkeypatch.setattr(viewer, "count_processes", lambda name, skip_app_server=False: 1 if skip_app_server else 3, raising=False)`；呼叫 `viewer.build_snapshot`（diagnosis 的共同設定，`docs/design/2026-09-26-viewer-live-status-detail.md:578`） | unit 1 合併；先寫、先確認在 d514f6b 上失敗 |
 | R2／diagnosis 2：`test_build_snapshot_lists_no_codex_row_before_the_first_message`——一個 `cli` 對話串沒鎖檔，另有一個 id 不在 `threads` 的暫時鎖檔，0 列 | unit | 同上 | unit 1 合併；先失敗 |
 | R2／diagnosis 3：`test_build_snapshot_lists_only_the_resumed_older_thread`——兩個 `cli` 對話串、只有較舊的有鎖檔，只列較舊那一列 | unit | 同上 | unit 1 合併；先失敗 |
 | AC1：`test_codex_rows_returns_empty_without_locked_threads`（取代 `:314-325`）——`locked_ids` 為 `None` 或空集合時 `([], [])`；一個 `inProgress` 對話串沒鎖檔也不成列 | unit | `codex_rows` 直接呼叫 | unit 1 合併 |
@@ -416,7 +428,7 @@ diagnosis 的三個失敗測試最先，其次 AC1–AC6，最後是被取代或
 | AC6：`test_idle_with_only_a_pending_count_is_background_without_names`——檔尾只有計數 1 的一輪結束（接續或派出在檔尾外）→ 背景、`current` `None`，`viewer._claude_subagents(tail) == []` | unit | `_turn_duration` | unit 2 合併 |
 | 取代：`tests/test_viewer_codex.py` 其餘 `codex_rows(..., N)` 呼叫（`:328-366`、`:461-578`、`:583-636`、`:669-682`）改傳鎖檔集合，斷言不變；移除 `:408-458` 五個名額與 `vscode` 測試；`_two_threads` 若沒人用就移除 | unit | 既有 fixture | unit 1 合併 |
 | 取代：`tests/test_viewer_http.py::test_build_snapshot_assembles_rows_and_problems`、`test_build_snapshot_track_is_none_when_cwd_missing` 改替換 `codex_locked_thread_ids` 與三參數的 `codex_rows`，斷言傳進去的是那個集合、`codexLockDirMissing` 為 false | unit | `monkeypatch` | unit 1 合併 |
-| V2 不減（舊 stance `docs/design/2026-09-25-agent-viewer-web-portal-stance.md:27`）：`tests/test_viewer_liveness.py::test_no_os_kill_is_ever_called` 拿掉 `count_processes` 兩行（`:35-38`），保留所有 `check_alive`、`process_start` 呼叫，加一次 `codex_locked_thread_ids`；移除 `:104-171` 四個計數測試；`test_check_alive_*` 三個不動 | unit | `monkeypatch`、`tmp_path` | unit 1 合併 |
+| V2 不減（舊 stance `docs/design/2026-09-25-agent-viewer-web-portal-detail.md:992`）：`tests/test_viewer_liveness.py::test_no_os_kill_is_ever_called` 拿掉 `count_processes` 兩行（`:35-38`），保留所有 `check_alive`、`process_start` 呼叫，加一次 `codex_locked_thread_ids`；移除 `:104-171` 四個計數測試；`test_check_alive_*` 三個不動 | unit | `monkeypatch`、`tmp_path` | unit 1 合併 |
 | AC7：`python scripts/validate.py` 與 `python -m pytest` 全綠；`python scripts/gen-codex.py --check` exit 0 | integration | 本機 Windows；CI 的 Linux | unit 4 合併、ship 前 |
 | AC8／UC3：開一個 Codex TUI、送一則訊息，看到那一列（存活：推斷、正確的專案與 track）；`/quit` 後約一分鐘內消失；另外按視窗 X 強制關閉一次，記下那一列多久消失（`probe/findings.md:7` 只量過一次、與另一個 TUI 結束重疊） | end-to-end（手動） | 使用者操作 Codex 0.157.1；新版 viewer（先 stop 再 start） | verify |
 | AC8／UC4：主 session 派一個背景子代理後結束這一輪，那一行是「執行中（背景）· 推斷」、不閃不響、列出名稱；子代理結束、主 session 回報後才變「完成，等指示」 | end-to-end（手動） | 同上 | verify |
@@ -439,3 +451,205 @@ diagnosis 的三個失敗測試最先，其次 AC1–AC6，最後是被取代或
 |---|---|---|
 | 使用者在本機開關一次 Codex TUI（含一次按視窗 X）、讓主 session 跑一個背景子代理 | 使用者 | unit 5 |
 | ship 時當下的 main 版本號（本 track 期間 main 已前進） | main 分支 | unit 4 的版本號，ship 前再對一次 |
+
+
+## 整併補充：viewer-live-status-decisions
+
+來源為原 `2026-09-26-viewer-live-status-decisions.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Feasibility
+
+| Id | Capability | Verdict | Evidence |
+|---|---|---|---|
+| C1 | 認出一次背景派出：`toolUseResult.status == "async_launched"`，id 在 `agentId`（Agent）或 `taskId`（Workflow） | verified | `~/.claude/projects/D--project-claude-all-in-one/a8af33f2-a42d-4e02-b0d5-10d322d5ac2b.jsonl:100-101`；#162 的讀法 `plugins/cai/scripts/viewer.py:1437-1442`。掃描：801 次 `async_launched`，Agent 783 次都另帶 `isAsync: true`，Workflow 18 次都沒有 `isAsync` |
+| C2 | AC5 字面的 `run_in_background: true` 認不出派出 | verified | Agent 呼叫常常沒有這個參數（`~/.claude/projects/D--project-day-trading-monarch-3/402ed4d7-e8c2-4eee-afec-1b47cdf054ec.jsonl:1043`）；有的時候值是字串 `"true"`（`a8af33f2-a42d-4e02-b0d5-10d322d5ac2b.jsonl:100`）；布林值 `true` 只出現在 Bash 呼叫（同檔 `:146`） |
+| C3 | 結束通知帶 `<task-id>` 與 `<status>`；每一則指向派出的通知，`<status>` 都是 `completed`、`failed`、`killed`、`stopped` 之一 | verified | `a8af33f2-a42d-4e02-b0d5-10d322d5ac2b.jsonl:108`；`stopped`：`~/.claude/projects/D--project-claude-all-in-one-2-claude-all-in-one/81ee4381-89f2-4ef0-ad00-61b615799747.jsonl:1155`；`killed`：`~/.claude/projects/D--project-day-trading-monarch-4/2a72e8e3-38c2-4ffe-89f0-5fad3ad85779.jsonl:1486`。掃描：801 次派出之後第一則同 id 通知為 completed 787、failed 6、killed 2、stopped 1，另 5 次還沒有通知；32 則沒有 `<status>` 的通知沒有一則指向派出。#162 收到任何通知就算結束（`plugins/cai/scripts/viewer.py:1422-1427`） |
+| C4 | SendMessage 接續：結果只有 `resumedAgentId`，沒有派出紀錄；之後同一 id 再來一則通知 | verified | `402ed4d7-e8c2-4eee-afec-1b47cdf054ec.jsonl:1131-1132`、`:1160`；接續後一輪結束的計數是 1（`~/.claude/projects/D--project-claude-all-in-one/2162ccb5-c60c-447a-9112-ce3620300e7b.jsonl:231`、`:241-242`） |
+| C5 | 待完成計數只見過兩個鍵，而且只在大於 0 時出現 | verified | `2162ccb5-c60c-447a-9112-ce3620300e7b.jsonl:241`；#162 的萬用比對 `plugins/cai/scripts/viewer.py:1474-1480`。掃描：2397 筆一輪結束，`pendingBackgroundAgentCount` 出現 1010 筆、`pendingWorkflowCount` 20 筆，每一筆的值都大於 0，沒有第三種鍵 |
+| C6 | 一輪結束之後會接著寫什麼 | verified | 掃描，1030 筆計數大於 0 的一輪結束：後面還有下一筆一輪結束的 1025 筆，每一筆中間都先有一個 `user` 列（新的一輪）；111 筆後面第一個緊接的是簿記列，其中 65 筆之後等到的第一個對話事件是結束通知，也就是背景子代理那時還在跑（例：`~/.claude/projects/D--project-day-trading-monarch/5672bbdb-faca-4cd4-946f-d8c68405dae4.jsonl:832-837`，一輪結束、四列簿記、才是通知）。`system/away_summary` 只跟在計數為 0 的一輪結束後面（292 筆，約 184 秒後），計數大於 0 的後面 0 筆。主 transcript 裡沒有 `isSidechain: true` 的 `user`／`assistant` 列（92774 列全是主線） |
+| C7 | 登記檔：`idle` 是一輪做完在等使用者；背景子代理在跑時一直是 `busy` | verified | `.claude/track/done/agent-viewer-web-portal/discover-evidence.md:11`；`.claude/track/viewer-live-status-fixes/probe/registry-bg.jsonl:3` |
+| C8 | 檔尾 262144 位元組裝不下派出紀錄的比例 | verified | 檔尾大小 `plugins/cai/scripts/viewer.py:1236`、`:1632`。掃描：796 次有通知的派出，從派出那一列到通知寫下時檔尾的距離中位數 45001、p90 159428 位元組；40 次（5.0%）超過 262144，也就是子代理還在跑時派出紀錄已被擠出檔尾 |
+| C9 | 列 `thread-writer-locks` 的檔名就得到開著的對話串 id；id 是 36 字元；目錄裡另有點開頭的 `.coordination.lock` 與還沒送訊息時的暫時 id | verified | `docs/design/2026-09-26-viewer-live-status-detail.md:564`、`:38`、`:53`；`.claude/track/viewer-live-status-fixes/probe/findings.md:7-9`（Codex 0.157.1、Windows 實機） |
+| C10 | `os.listdir` 只回名稱、不含 `.` 與 `..`；目錄不在、不是目錄、沒權限都拋 `OSError` 的子類 | verified | https://docs.python.org/3/library/os.html#os.listdir 「Return a list containing the names of the entries in the directory given by path.」；https://docs.python.org/3/library/os.html 「All functions in this module raise OSError (or subclasses thereof) in the case of invalid or inaccessible file names and paths」；https://docs.python.org/3/library/exceptions.html 「The following exceptions are subclasses of OSError」（FileNotFoundError、NotADirectoryError、PermissionError） |
+| C11 | 頁面今天不顯示快照的 `problems`；頁尾是寫死的文字；`problems` 裡是路徑與錯誤原文 | verified | 頁尾 `plugins/cai/scripts/viewer.py:640-647`；`poll()` 只取 `rows` 與 `generatedAt`（`:998-1016`）；`problems` 的內容 `:1571`、`:1575`、`:2028`、`:2040`、`:2094` |
+| C12 | codex_home 的決定方式；沒裝 Codex 的人今天看不到任何 Codex 字樣 | verified | `plugins/cai/scripts/viewer.py:2209-2211`；行程數 0 時 `codex_rows` 直接回空（`:2080-2081`），頁尾沒有 Codex 的字（`:640-647`） |
+| C13 | 頁面怎麼處理狀態：六個狀態值有測試釘住；排序、「需要你」、閃燈都看 `META`；標籤可由次要欄位換（「等你簽核」）；頂端「執行中」計數看 `state`；只有 `HUMAN_STATES` 會響 | verified | `tests/test_viewer_page.py:103-110`；`plugins/cai/scripts/viewer.py:655-662`、`:729-732`、`:815-818`、`:894`、`:954`、`:976-996` |
+| C14 | launcher 看到已在跑、`/identity` 回 `format` 1 的 server 就沿用它，不換成新版程式 | verified | `plugins/cai/scripts/viewer.py:2436-2451`、`:1149` |
+| C15 | Codex 兩條讀取路徑今天的形狀：主路徑取最近 50 筆再照名額挑；退回路徑掃 24 小時內最多 200 個 rollout，id 取檔名最後 36 字元 | verified | `plugins/cai/scripts/viewer.py:1966-1974`、`:1990-2005`；`:1664-1665`、`:2020-2034`、`:2046-2049` |
+
+#### Ruled out
+
+| Option | Invariant it violates | Evidence |
+|---|---|---|
+| 照 #162 以 `pending*Count` 萬用比對任何計數（`plugins/cai/scripts/viewer.py:1478-1480`） | V8「有沒有背景子代理（含 Workflow）在跑……背景 shell 不算」（`docs/design/2026-09-26-viewer-live-status-detail.md:634`）：將來多一個背景 shell 或其他種類的計數，萬用比對會照單全收 | C5 |
+| 照 main 在 `idle` 時直接判做完、不檢查（`plugins/cai/scripts/viewer.py:1524-1527`） | V8：`idle` 也要做這道檢查（`stance.md:29`） | C7 |
+| 照 #162 收到任何 `<task-notification>` 就算那次派出結束，不看 `<status>`（`plugins/cai/scripts/viewer.py:1424-1426`） | V8：結束通知是 completed、failed、killed、stopped 之一（`stance.md:29`）；其他 status 不算結束 | C3 |
+| 以登記檔 `status` 判斷有沒有背景工作 | V8：登記檔只決定要不要檢查（`stance.md:29`）；背景在跑時它一直是 `busy` | C7 |
+| 背景時照 #162 顯示「執行中 · 確定」 | V8：「執行中（背景）」、確定度「推斷」（`stance.md:29`） | C13 |
+| 數 `codex.exe`、看 rollout 修改時間、或開啟鎖檔來決定 Codex 列 | V9：只看鎖檔目錄裡的檔名（`stance.md:30`） | C9 |
+| 鎖檔目錄不在時退回數行程 | V9（`stance.md:30`）；使用者否決（`.claude/track/viewer-live-status-fixes/options-intake-nolock.md:23-29`） | C9 |
+
+#### Requirement gaps
+
+本輪沒有。會影響使用者怎麼用的取捨——背景 shell 算不算、沒有鎖檔目錄怎麼辦、約一分鐘的延遲、字樣與確定度、沒裝 Codex 的頁尾——都已由使用者以選單決定（`intake.md:17-23`、`:46`；`options-design-bglabel.md`、`options-design-footer.md`），下面各條的失敗條件都是技術事實。
+
+#### Tier 1
+
+##### design-footer — 根本沒裝 Codex（連 codex_home 都沒有）的人，頁尾也要顯示「找不到 thread-writer-locks」那一行嗎？
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — 只在 codex_home 存在、鎖檔目錄列不出來時顯示 (recommended) | C12 | 一個目錄判斷、一個測試 | 有人把 `CODEX_HOME` 指到不存在的地方，卻期待被提醒 |
+| B — 列不出鎖檔目錄就顯示，不管有沒有裝 Codex | C12 | 零 | 每個只用 Claude Code 的人頁尾都多一行 Codex 的字 |
+
+- **Blast radius:** 快照組裝與頁面頁尾，同一支 `viewer.py` 的兩處。
+- **Found out when:** 只用 Claude Code 的人打開頁面時——發版後。
+- **Undo cost:** 改一個條件；使用者看到的頁尾會變。
+- **Decided:** A — 使用者 2026-09-26 以選單選「只在有裝 Codex 時說明 (Recommended)」（`.claude/track/viewer-live-status-fixes/options-design-footer.md`；diagnosis 的 `## Fix` 已記，`docs/design/2026-09-26-viewer-live-status-detail.md:602`）。
+
+#### Tier 2
+
+##### D2 — V8 的「檔尾那筆一輪結束」指哪一筆？
+
+選：檔尾裡最後一筆一輪結束紀錄，只要它後面沒有 `user`／`assistant` 列、也沒有結束通知（C3 的四種 status）；簿記列不算數。`busy` 的閘門「檔尾最後是一輪結束」照同一讀法：最後一個對話事件是一輪結束。不選「`tail[-1]` 本身」：111／1030 筆計數大於 0 的一輪結束後面先來簿記列，其中 65 筆子代理還在跑（C6），那段時間 `busy` 會退回 #162 的「執行中 · 確定」（使用者否決的樣子，`.claude/track/viewer-live-status-fixes/options-design-bglabel.md:23-29`），`idle` 會漏掉計數而判成做完；不選「檔尾裡任何一筆一輪結束」：結束通知一到，主 session 就開新的一輪（1025／1025，C6），舊計數已過時，`busy` 時會把正在做事的主 session 標成背景。比起字面讀法，這個讀法只會讓更多列判成背景（`busy` 的「執行中 · 確定」、`idle` 的「完成」），而且只在那筆一輪結束之後還沒有任何對話事件時；過時 busy 規則照舊只看 `tail[-1]`（`stance.md` Out of scope 第二條，`plugins/cai/scripts/viewer.py:1540-1543`）。若你把 V8 讀成字面上的最後一列，這一條等於改 V8，Gate 1 請說，會回 stance。**Found out when:** 簿記列只在實機出現——發版後，或 AC8 實機剛好碰到。
+
+##### D3 — AC5 寫的 `run_in_background: true` 認不出派出，改用什麼？
+
+選：`toolUseResult.status == "async_launched"`，id 取 `agentId` 或 `taskId`，照 #162 現有讀法（`plugins/cai/scripts/viewer.py:1437-1442`，C1）。AC5 字面的參數多半不存在或是字串，照字面一次也對不到（C2）；`isAsync` 也不行，Workflow 的派出沒有它（C1）。行為與 AC5 相同、只換辨認的欄位，Gate 1 要讓使用者看到這一條。**Found out when:** fixture 測試，下一次測試；Claude Code 改欄位要到發版後，那時退回 fa1a0e0 的行為（`stance.md:22`）。
+
+##### D4 — AC6「派出紀錄落在檔尾之外照舊判做完」改成什麼？
+
+選：照 V8 的兩個訊號並用，派出紀錄在檔尾之外、但一輪結束的計數大於 0 時，仍顯示「執行中（背景）」，只是列不出名稱（`stance.md:21`）；計數也說 0 時才判做完。配對只看這一列本來就讀的 262144 位元組，不另讀整份 transcript（`plugins/cai/scripts/viewer.py:1236`、`:1632`）。這是 AC6 字面行為的改變，約 5.0% 的背景子代理會碰到名稱消失（C8），寫進 detail 的已知限制；Gate 1 要讓使用者看到。**Found out when:** 發版後，那 5.0% 被使用者看到。
+
+##### D5 — 「找不到 thread-writer-locks」那一行怎麼從快照帶到頁面？
+
+選：快照頂層多一個布林欄位，頁尾多一行寫死的字、平時隱藏，由 `poll()` 依欄位切換；不改成「頁尾顯示 `problems`」。`problems` 裡是路徑與錯誤原文、今天沒顯示（C11），顯示它是沒人要的新功能；舊 detail 曾寫「頁尾顯示有 N 個來源讀不了」卻沒做（`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:538`），仍不在本 track，寫在這裡讓它不被默默丟掉。**Found out when:** 頁面靜態測試，下一次測試；那一行真正出現要在沒有鎖檔目錄的機器上，發版後。
+
+##### D6 — 鎖檔目錄存在卻列不出來（權限等）怎麼辦？
+
+選：任何 `OSError` 都當成列不出來，不出 Codex 列；codex_home 存在就顯示頁尾那一行（C10、C12）。不另寫 `problems`：頁面不顯示它（C11），寫了也沒人看到；不拋出去：`Poller.run()` 會把整份快照換成上一份（`plugins/cai/scripts/viewer.py:2337-2343`），連 Claude 列都停住。字樣說「找不到」而實際是讀不了，但「無法判斷哪個 session 開著」仍是真的。**Found out when:** 發版後，某台機器的權限設定特殊時。
+
+##### D7 — 退回路徑（sqlite 讀不了時）要找多遠的 rollout？
+
+選：照舊只看 24 小時內修改過的 rollout、最多 200 個，但先以檔名最後 36 字元對鎖檔集合篩、再取 200 個（`plugins/cai/scripts/viewer.py:1664-1665`、`:2020-2034`、`:2046-2049`，C15）；不改成每個鎖檔 id 各做一次遞迴搜尋、不限時間。後者每 2 秒一次全樹掃描，只為 sqlite 壞掉又接續超過一天沒動的舊對話串、而且還沒送第一則訊息的那一段。**Found out when:** 發版後，sqlite 壞掉時才走得到。
+
+##### D8 — 更新 plugin 後舊的 viewer server 還在跑，要不要逼它換新？
+
+選：`/identity` 的 `format` 維持 1，改在 PR 說明寫「更新後先 `/cai:viewer stop` 再 `/cai:viewer`」。`format` 是 launcher 與 server 之間的協定版本，這次 `/identity`、`/shutdown`、狀態檔都沒變（C14）；拿它逼重啟，Claude 與 Codex 兩個 plugin 沒同時更新時，舊的那邊 launcher 只會印一行「a different viewer version is running」、不起新的（`plugins/cai/scripts/viewer.py:2440-2444`）。**Found out when:** 發版後，使用者更新了卻沒 stop，看到的還是舊行為。
+
+#### Tier 3
+
+| Decision | Chose | Instead of | Found out when |
+|---|---|---|---|
+| 「執行中（背景）」在快照怎麼表示 | `state` 仍是 `working`、`certainty` 是 `inferred`，列多一個布林欄位 `background`；頁面 `stateLabel` 看它換字樣。沿用「等你簽核」靠次要欄位換標籤（`plugins/cai/scripts/viewer.py:729-732`），排序、頂端「執行中」計數、不閃不響都自動成立（C13） | 第七個狀態值：要改釘住六個狀態的測試、`META`、頂端計數、`mode` 各一處 | 頁面與分類的 fixture 測試 |
+| `background` 放哪些列 | `classify_claude` 的回傳一律帶（預設 `False`，照它「一律帶 question／permission／current」的慣例，`plugins/cai/scripts/viewer.py:1484-1490`）；Codex 列不帶，頁面把沒有當成 `false` | 每種列都補這個鍵 | fixture 測試 |
+| `entryId` | `working:<statusUpdatedAt>`，與一般 `working` 同形；轉成 `done:<…>` 時照原規則響（C13） | `background:<…>` | fixture 測試 |
+| 列上的計時 | 照 `working` 顯示「本輪 mm:ss」，起點是 `statusUpdatedAt`（`plugins/cai/scripts/viewer.py:818`、`:917`） | 新字樣「背景 mm:ss」：沒人選過的新文字 | verify 實看 |
+| 「目前」那一格 | 照 #162：最新一個還在跑的背景派出（`plugins/cai/scripts/viewer.py:1549-1560`）；配對找不到就空著 | 另寫一行說明 | fixture 測試 |
+| 配對找不到名稱時（接續、派出在檔尾外） | `subagents` 空清單、`current` 為 `None`，字樣照樣是「執行中（背景）」（`stance.md:21` 已接受，C4、C8） | 用計數猜名稱或顯示「N 個背景 agent」 | fixture 測試 |
+| 待完成計數認哪些鍵 | 只認 `pendingBackgroundAgentCount`、`pendingWorkflowCount`（C5；萬用比對見 Ruled out） | 萬用比對 | fixture 測試 |
+| `<status>` 的解析 | 照 #162 用 `str.partition` 取 `<task-id>`、`<status>`，status 在四種之內才算結束（C3） | 正規式 | fixture 測試 |
+| 登記檔是 `shell` | 照舊判做完並加註，不做這道檢查（`stance.md` Out of scope 第一條） | 也檢查 | 既有測試 `tests/test_viewer_claude.py:206-210` |
+| 哪些檔名算對話串 | 結尾 `.lock`、不以點開頭、去掉 `.lock` 後剛好 36 字元（C9） | 任何 `*.lock` | fixture 測試 |
+| 鎖檔清單在哪裡讀 | `build_snapshot` 讀一次，交給 `codex_rows`，取代今天傳的兩個行程數（`plugins/cai/scripts/viewer.py:2257-2260`）；同一個值決定頁尾欄位 | `codex_rows` 自己讀，再多回傳一個旗標 | fixture 測試 |
+| 主路徑的查詢 | `threads` 加 `id IN (<鎖檔 id>)`，其餘條件照舊，拿掉 `LIMIT 50` 與 `source` 欄（C15） | 照舊取最近 50 筆再篩：接續排在 50 筆之外的舊對話串會漏列 | fixture 測試 |
+| 鎖檔清單是空的 | `codex_rows` 直接回空，不開 sqlite | 照樣查一次 | fixture 測試 |
+| 頁尾欄位與元素的名字 | 快照鍵 `codexLockDirMissing`（照 `generatedAt` 的駝峰，`plugins/cai/scripts/viewer.py:2277`）；頁尾元素 id `codexLockNote`（照 `offlineNote`、`staleNote`，`:610`）；`EMPTY_SNAPSHOT` 不改，頁面把沒有這個鍵當成 `false` | 字串清單欄位 | 頁面靜態測試 |
+| 那一行在頁尾的位置與樣式 | 頁尾第一行，沿用頁尾本身的灰字（`plugins/cai/scripts/viewer.py:584`） | 像「資料停在…」一樣的警示色（`:467`） | verify 實看 |
+| 沒有呼叫者的程式 | 照 diagnosis 的 Blast radius 移除（`docs/design/2026-09-26-viewer-live-status-detail.md:564`，`plugins/cai/rules/coding.md:20`），連同只測它們的測試 | 留著不呼叫 | pytest |
+| 版本 | ship 時對當時的 main 取號：cai 高於 main 的 `plugins/cai/.claude-plugin/plugin.json`（d514f6b 是 1.34.2），Codex 樹 `--release` 高於 `plugins/cai-codex/.codex-plugin/plugin.json`（0.2.20）；本 track 期間 main 已前進兩次 | 現在就寫死號碼 | `python scripts/validate.py` |
+
+
+## 整併補充：viewer-live-status-diagnosis
+
+來源為原 `2026-09-26-viewer-live-status-diagnosis.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Symptom
+
+- 回報時（fa1a0e0）：在 `D:\project\day-trading-monarch` 開 Codex，頁面出現 `demo-auto-package-upgrade`（track `add-sub`）與兩個 `claude-all-in-one` 的 Codex 列；關掉 Codex 後仍有兩列（`post-merge-findings.md:7`）。沒有 TUI、只有兩個常駐 `codex.exe` 時每次重現（`probe/monitor-log.jsonl:2`、`:4`）。錯的 track 由舊對話串的 cwd 算出（`viewer.py:2274-2275`）。
+- main 41cb6e1 上，「沒開 TUI 卻有列」這一條在本機不再重現：本輪唯讀檢查（2026-09-26，只呼叫 `viewer.py` 自己的唯讀函式）印出 `count_processes` 全部 2 個、`skip_app_server=True` 為 0，兩個執行檔都在 `~\.codex\packages\app-server-daemon\releases\0.157.1-x86_64-pc-windows-msvc\bin\codex.exe`，所以沒有推斷名額（`viewer.py:1996-1997`）。
+- 仍會錯的（讀程式推得，沒有執行）：Codex 0.157.1 的 TUI 對話串來源欄是 `vscode`——本機三個 0.157.1 的 `codex-tui`／`user` 對話串（`ab565c7a30a7`、`7774f7995540`、`cffa03e1fc5e`，正是 `probe/findings.md:7`、`:9` 與 `probe/lock-watch.jsonl:2` 實測時開的 TUI）在資料庫（唯讀）與紀錄檔首行都是 `vscode`，0.155.0–0.156.1 的 14 個都是 `cli`；本機沒有裝 Codex 的 VS Code 擴充套件（`~/.vscode/extensions` 沒有名稱含 openai、codex、chatgpt 的目錄）。#162 把 `vscode` 當成擴充套件的對話串，永不推斷它開著（`viewer.py:1666-1671`、`:1999`、`:2062`），於是 TUI 這一輪做完後自己的列消失，名額給最近的 `cli` 對話串——本機是 0.156.1 的 `68eefa288dba`（claude-all-in-one），也就是回報的「開在 A 專案、列出 B 專案」。`tests/test_viewer_codex.py:419-426` 目前以綠燈守著這個結果。
+
+#### Failing test
+
+建置時第一件事寫進 `tests/test_viewer_codex.py` 的三個測試。本文件只描述，不寫程式；「現在」都是讀程式推得，沒有執行過。
+
+共同設定：`tmp_path` 當 codex_home，用 `_write_rollout`、`_make_state_db(..., sources=...)`、`_make_history_db`（`tests/test_viewer_codex.py:72-123`）造對話串，turn 都是 `completed`；`thread-writer-locks/` 放 `.coordination.lock` 與測試指定的空白 `<id>.lock`；Claude 的 config root 是空目錄；`monkeypatch.setattr(viewer, "count_processes", lambda name, skip_app_server=False: 1 if skip_app_server else 3, raising=False)`，即一個 TUI 加兩個常駐服務（同 `tests/test_viewer_http.py:41-42`）。`raising=False` 是因為修正會移除 `count_processes`，之後這個替身不再被讀、測試照樣成立。呼叫 `viewer.build_snapshot`，只看 `platform == "codex"` 的列。
+
+1. `test_build_snapshot_lists_the_locked_thread_whatever_its_source`：較舊的 `cli` 對話串（別的專案、沒鎖檔）與較新的 `vscode` 對話串（有鎖檔）。斷言：只有較新那一列。現在：只有較舊那一列——名額 1（`viewer.py:1996`），`vscode` 被跳過（`:1999`），補上較舊的（`:2001`）。TUI 行程若其實沒被數成 1，現在是 0 列，一樣失敗。
+2. `test_build_snapshot_lists_no_codex_row_before_the_first_message`：一個 `cli` 對話串（沒鎖檔），鎖檔目錄另有一個 id 不在 `threads` 的 `<id>.lock`（還沒送訊息的 TUI，`probe/findings.md:8`）。斷言：0 列。現在：1 列，那個 `cli` 對話串補進名額。
+3. `test_build_snapshot_lists_only_the_resumed_older_thread`：兩個 `cli` 對話串，只有較舊那個有鎖檔（用 TUI 接續舊對話串，`probe/findings.md:9`）。斷言：只有較舊那一列。現在：較新那一列（`:1998` 由新到舊補）。
+
+測的承諾：舊 stance 的 UC3「一個主 session 一列……已結束的幾秒內消失」（`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:970`）——測試 1 是開著的沒列、結束的列著，2 與 3 是結束的列著。既有測試直接把數字傳給 `codex_rows`（例如 `tests/test_viewer_codex.py:415`、`:424`），看不到哪個對話串真的開著，所以一直是綠的。
+
+#### Root cause
+
+Codex 列的存活仍是「數行程，再照屬性與最近更新挑對話串」（D6 與 #162 的修正，`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:797-797`、`-detail.md:535`）：一個數字只回答開著幾個，不回答開著哪幾個。#162 把數字修對了，挑的那一步仍在猜。
+
+- 數字：`count_processes`（`viewer.py:299-305`；Windows `:193-215`，Linux `:259-284`）。#162 以執行檔路徑或命令列含 `app-server` 扣掉常駐服務（`:76-82`、`:207-208`、`:271-280`）；本機實測有效（上面 2 → 0）。
+- 挑哪幾個：主路徑先放所有 `inProgress`、再依 `updated_at_ms` 由新到舊補滿名額並跳過 `vscode`（`viewer.py:1990-2005`）；退回路徑同一套（`:2059-2062`）。跳過 `vscode` 依據的是「`vscode` 是擴充套件、沒有自己的行程」（`:1666-1671`），在 0.157.1 不成立（Symptom 第三條）。
+
+**修掉那一行之後還會成立什麼？** 拿掉 `vscode` 那條，測試 2 與 3 照樣失敗：由新到舊補名額挑到的不是開著的那個。就算數字完全正確也一樣。另一條路：`inProgress` 的對話串不限數量全列、標「存活：確定」，只要任何 `codex.exe` 在跑（`:1990-1993`、`:2080-2081`），而常駐服務一直在，崩潰後卡在 `inProgress` 的對話串就一直掛著（沒實際看過）。原因在 D6 的「以數量推名單」，#162 沒有動它。
+
+每個對話串自己的訊號是鎖檔（2026-09-26 實機，Codex 0.157.1，Windows）：每個開著的 TUI 各有一個、檔名就是對話串 id（`probe/monitor-log.jsonl:36-50` 的鎖檔名與同時段 `threads` 的 id 相同）；上面三個來源欄是 `vscode` 的 TUI 對話串都有鎖檔（`monitor-log.jsonl:36`、`:42`、`:70`），所以來源欄不影響這條規則；接續舊對話串沿用同一個檔名（`probe/findings.md:9`）；還沒送訊息的 TUI 另有一個暫時 id 的鎖檔，資料庫裡從沒有這個 id（`findings.md:8`）；TUI `/quit` 後鎖檔仍在、仍被握著，約 30 秒到 1 分鐘後才被刪（`probe/lock-watch.jsonl:2-3`，離開時間在 00:45:22–00:45:50 之間，`intake.md:46`）。握著它的是比 TUI 活得久的行程；說是常駐服務是排除法，不是量到的。鎖檔目錄沒有查 Codex 官方文件：UNVERIFIED；它若在某一版消失，下面的修法讓 Codex 列全部不見並在頁尾說明（使用者 2026-09-26 的選擇，`options-intake-nolock.md:15-21`）。
+
+#### Fix
+
+- Codex 的存活只看 `<codex_home>/thread-writer-locks/` 的檔名清單：`<36 字元 id>.lock` 的 id 集合就是「開著的對話串」；點開頭的檔（`.coordination.lock`）不算；只列目錄，不開啟任何鎖檔（AC3）。codex_home 照舊由 `CODEX_HOME` 或 `~/.codex` 決定（`viewer.py:2209-2211`）。
+- 主路徑：`threads` 查「id 在鎖檔集合裡」且照舊 `archived = 0`、`codex-tui`、`user`，不再取最近 50 筆、不看來源欄；每個查到的對話串一列，`aliveCertainty` 一律 `inferred`（使用者 2026-09-26，`intake.md:48`）；`inProgress` 與分類規則不變（AC2）。暫時 id 的鎖檔查不到列，自然不成列。
+- 退回路徑：同一個 id 集合，對到 rollout 檔名結尾的 id，照舊用 `session_meta` 的 `originator`、`thread_source` 過濾；全部標推斷（照舊）。
+- 鎖檔目錄不存在：不出 Codex 列，頁尾顯示一行「Codex：找不到 thread-writer-locks，無法判斷哪個 session 開著」（`options-intake-nolock.md:6`）。頁面至今不顯示快照的 `problems`（頁尾是固定文字，`viewer.py:640-647`；`problems` 只出現在伺服器端，`:1139` 以後），所以這一行要有顯示的地方，怎麼顯示留給 detail。只在 codex_home 存在、裡面沒有 `thread-writer-locks` 時顯示；沒裝 Codex 時頁尾不提 Codex（使用者 2026-09-26 選「只在有裝 Codex 時說明 (Recommended)」，`.claude/track/viewer-live-status-fixes/options-design-footer.md`）。
+- Blast radius 列為移除的程式與只測它們的測試一併移除。
+
+#### Invariants preserved
+
+- 舊 stance 的 V1（只列目錄、不開鎖檔、sqlite 唯讀）、V2（不送 signal；修正後連 Codex 的行程列舉都不做）、V4（Codex 列一律標「存活：推斷」）、V5（只用 stdlib 的 `os.listdir`）照舊成立（`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:991-995`）；由 fixture 測試與既有的寫入邊界測試守（`-detail.md:751`）。
+- 放寬的只有一條，是使用者的決定：UC3 對 Codex 列從「幾秒內消失」改為「TUI 關掉後約一分鐘內消失」（`options-intake-lockdelay.md:15-21`；`intake.md:48`），寫在 `docs/design/2026-09-26-viewer-live-status-detail.md` 的 UC3。
+- 怎麼知道沒弄壞：上面三個測試加退回路徑與目錄不存在各一個 fixture 測試；`python scripts/validate.py` 與 `python -m pytest` 全綠；verify 實機開關一次 Codex TUI（AC7、AC8）。
+
+
+## 整併補充：viewer-live-status-stance
+
+來源為原 `2026-09-26-viewer-live-status-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+頁面說「完成，等指示」或列出一個 Codex session 時，背後都有那個 session 自己留下的直接證據：Claude 列在背景子代理都結束之前不說做完，而且分得出「這一輪還在跑」與「只剩背景在跑」；Codex 列只列 Codex 自己掛著鎖檔的對話串。判準：AC1–AC6 每種情況一個 fixture 測試，加 AC8 的實機一次。
+
+#### Sacrifices
+
+- Codex 列在 TUI 關掉後約一分鐘才消失，而不是舊 stance UC3 的幾秒，也不是 main 現在的約 2 秒（使用者 2026-09-26 選，`options-intake-lockdelay.md:15-21`、`options-design-main162.md:18-21`）；強制關閉視窗的那一次量到殘留數分鐘（`probe/findings.md:7`），還沒確認。
+- Codex 列的存活一律是推斷，連本輪進行中（`inProgress`）的也是；main 把它們全列並標確定（`viewer.py:1990-1993`、`:2005`）。
+- 沒有鎖檔目錄的環境——Linux、macOS、較舊的 Codex，都沒查過——看不到任何 Codex 列，只有頁尾一行（`options-intake-nolock.md:15-21`）；還沒送第一則訊息的 Codex TUI 照舊看不到（`intake.md:42`）。
+- 背景 shell 在跑時照舊顯示「完成，等指示」並加註（`options-intake-bg.md:19-25`）。
+- 背景子代理若一直沒有結束通知，那一行就一直是「執行中（背景）」，蓋掉真的做完。以 SendMessage 接續的子代理、或派出紀錄落在 256 KiB 檔尾之外（AC6）時，那一行仍靠待完成計數顯示「執行中（背景）」，但列不出子代理名稱：配對只認派出紀錄（`viewer.py:1416-1417`），接續不留派出紀錄（下面 V8 的證據）。
+- 多讀兩種平台內部紀錄（`queue-operation` 與 `turn_duration` 的待完成計數），格式都沒有文件（舊 stance 的第一條犧牲，`stance.md:15`）；格式一改，這一行退回 fa1a0e0 的行為。
+
+#### Invariants
+
+**This system's:**
+
+- 舊 stance 的 V1–V7 全部照舊（`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:991-997`）。
+- V8 — 有沒有背景子代理（含 Workflow）在跑，只看對話紀錄：檔尾那筆一輪結束的待完成計數大於 0，或有派出、沒有它的結束通知（completed、failed、killed、stopped 之一）；背景 shell 不算。登記檔的 `status` 只決定要不要做這道檢查（`idle`，或 `busy` 而檔尾最後是一輪結束），不拿來判斷有沒有背景工作。主 session 這一輪已結束、只剩背景工作時，那一行是「執行中（背景）」、確定度「推斷」、不閃不響，列出配對得到的子代理名稱（使用者 2026-09-26，`options-intake-bg.md:19-22`、`options-design-bglabel.md:15-21`；AC5）。兩個訊號並用是使用者選的「判斷方式沿用 #162」（`options-design-bglabel.md:16`，#162 在 `viewer.py:1474-1480`、`:1540-1543`）；本機 1796 份 transcript 裡，1025 筆計數大於 0 的一輪結束有 188 筆配對找不到在跑的子代理，看過的兩個例子都是 SendMessage 接續（其一：`~/.claude/projects/D--project-claude-all-in-one/2162ccb5-c60c-447a-9112-ce3620300e7b.jsonl:231`、`:241-242`）；反過來「配對有、計數為 0」一筆都沒有（本輪唯讀掃描）。
+- V9 — Codex 的存活只看鎖檔目錄裡的檔名：不數行程、不開啟鎖檔、不看 rollout 修改時間（使用者 2026-09-26，`options-intake-nolock.md:15-18`、`options-design-main162.md:30-31`；AC1、AC3）。
+
+**Cross-project:**
+
+- 舊 stance 的 Cross-project 四條照舊（`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:1001-1004`）。
+
+#### Rejected stances
+
+- **連背景 shell 也算數。** 看得到背景還在跑的每一件事，但開發伺服器這類永不結束的指令會讓那一行永遠「執行中」；輸在「只憑會結束的證據說還在跑」（使用者否決，`options-intake-bg.md:27-33`）。
+- **沒有鎖檔目錄就退回數行程。** Linux 與 macOS 也看得到 Codex 列，但錯的列會回來，正是要修的問題（使用者否決，`options-intake-nolock.md:23-29`）。
+- **鎖檔加「有 TUI 行程在跑」，以及同一家族的 #162「數 `codex.exe`、扣掉路徑含 `app-server` 的」。** 關掉後立刻消失，但要靠常駐服務的安裝路徑辨認它，Codex 更新就可能壞（使用者否決，`options-intake-lockdelay.md:23-29`）；#162 另外仍以數量推名單（diagnosis 的 Root cause）。使用者選接到 main、把它換成只看鎖檔，不照 #162 收掉這條 track（`options-design-main162.md:38-44`）。
+- **照 #162 顯示「執行中 · 確定」。** 不必改問題 2 的程式，但這一輪還在跑（要先中斷）和只在等背景（可以直接打字）看起來一樣（使用者否決，`options-design-bglabel.md:23-29`）。
+- **讓登記檔告訴我們有沒有背景工作。** 不必讀檔尾，但它分不出來：背景子代理在跑的十幾分鐘裡登記檔一直是 `busy`（`.claude/track/viewer-live-status-fixes/probe/registry-bg.jsonl:3`），和一輪還在進行時同一個值。
+
+#### Out of scope
+
+- 背景 shell 的配對（`options-intake-bg.md`）；登記檔是 `shell` 時照舊判做完並加註，不做這道檢查（AC5 只列 `idle` 與 `busy`）。
+- 過時 busy 規則的 60 秒門檻與「登記檔可能過時」照 #162（`viewer.py:1540-1547`，`docs/design/2026-09-25-agent-viewer-web-portal-detail.md:950`）不改；verify 若看到 `busy`、檔尾沒有背景工作卻被判做完的列，再回來處理。
+- 還沒送第一則訊息的 Codex TUI、Codex 等權限的 30 秒推斷、舊 track 其餘 Minor（`intake.md:42`）。
+- 留給 decisions，證據已找到：派出的標記是 `toolUseResult` 的 `{"isAsync":true,"status":"async_launched","agentId":…}`，Agent 呼叫都沒有 `run_in_background`（`~/.claude/projects/D--project-claude-all-in-one/a8af33f2-a42d-4e02-b0d5-10d322d5ac2b.jsonl:100-101`，該檔每個 `"run_in_background":true` 都在 Bash 呼叫上，如 `:146`）；結束通知同時帶 `<task-id>` 與 `<tool-use-id>`（同檔 `:108`）；SendMessage 接續後同一個子代理 id 再來一次通知（`~/.claude/projects/D--project-day-trading-monarch-3/402ed4d7-e8c2-4eee-afec-1b47cdf054ec.jsonl:1043-1044`、`:1067`、`:1131-1132`、`:1160`）。其餘：#162 以 `pending*Count` 萬用比對任何計數（`viewer.py:1478-1480`），V8 只認子代理與 Workflow 兩種，將來多一種（例如背景 shell 的）要不要算；頁尾那一行怎麼顯示（頁面至今不顯示 `problems`，`viewer.py:640-647`）；「執行中（背景）」在快照裡的欄位與命名。
+- `docs/` 被 git 忽略；本檔要進 PR 需在 ship 時 `git add -f`。

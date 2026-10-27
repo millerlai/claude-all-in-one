@@ -453,7 +453,7 @@ def _skills():
     # `options` is an addition rather than a leftover: the always-on rule it backs
     # (rules/option-explainer.md) has to fit in 45 lines, and the skeleton,
     # dimension library and worked example do not
-    # (docs/design/2026-08-29-option-explainer-with-eli5-high-level.md, Decision 2).
+    # (docs/design/2026-08-29-option-explainer-with-eli5-detail.md, Decision 2).
     # It carries `disable-model-invocation: true`, so it costs the always-on budget
     # below nothing.
     #

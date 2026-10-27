@@ -1,12 +1,24 @@
 # codex-model-fallback — detail design
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+模型偵測與儲存選擇仍在使用，見 [`plugins/cai-codex/scripts/install_codex.py:526`](../../plugins/cai-codex/scripts/install_codex.py#L526)。原模型名稱與預設值是當時快照。另併入 Claude Code 說明文件的歷史立場；其中「不提供角色切換」已不適用，現有角色設定見 [`plugins/cai/skills/models/SKILL.md:12`](../../plugins/cai/skills/models/SKILL.md#L12)；兩個平台的歷史假設不可互相套用。
+
+已併入並移除的同主題文件：`2026-09-22-codex-model-fallback-decisions.md`、`2026-09-22-codex-model-fallback-stance.md`、`2026-09-22-model-fallback-readme-stance.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 ## Reference
 
-Stance doc: docs/design/2026-09-22-codex-model-fallback-stance.md
-Decisions doc: docs/design/2026-09-22-codex-model-fallback-decisions.md
+Stance doc: docs/design/2026-09-22-codex-model-fallback-detail.md
+Decisions doc: docs/design/2026-09-22-codex-model-fallback-detail.md
 Status: approved 2026-09-22
 
-- Gate checked in the files on 2026-09-22: the stance's `## Status` reads `approved 2026-09-22` (`docs/design/2026-09-22-codex-model-fallback-stance.md:7`) and its `## Use cases / Issues` numbers UC1-UC5 and R1-R2 (`:49-55`). Every decisions `## Tier 1` entry has a `Decided:` line: D1 (`docs/design/2026-09-22-codex-model-fallback-decisions.md:96`), D2 (`:132`), D3 (`:164`). G1 and G2 each carry a `**Chosen:**` note (`:61`, `:62`).
+- Gate checked in the files on 2026-09-22: the stance's `## Status` reads `approved 2026-09-22` (`docs/design/2026-09-22-codex-model-fallback-detail.md:883`) and its `## Use cases / Issues` numbers UC1-UC5 and R1-R2 (`:49-55`). Every decisions `## Tier 1` entry has a `Decided:` line: D1 (`docs/design/2026-09-22-codex-model-fallback-detail.md:813`), D2 (`:132`), D3 (`:164`). G1 and G2 each carry a `**Chosen:**` note (`:61`, `:62`).
 - Intake: `.claude/track/codex-model-fallback/intake.md`. AC1-AC9 are at `:66-93`.
 - Decisions this document builds on, and does not re-open: D1=A, the installer reads `$CODEX_HOME/models_cache.json` and nothing else. D2=A, a run with no arguments installs everything and a second run happens only when an answer changes something. D3=A, answers travel in a JSON file. G1 keeps keep as the default and adds a mark. G2 puts the saved choice under `$CODEX_HOME`. D4-D15 stand as written.
 - **Marked "chosen by the person 2026-09-22 (P1-P4)"** means a question this round handed up; the person answered each one as proposed (`.claude/track/codex-model-fallback/options-detail-P1.md` … `-P4.md`).
@@ -25,7 +37,7 @@ Status: approved 2026-09-22
 
 ## Requirement
 
-On Codex, each cai role (chore, build, think) is pinned to one model slug in every shipped `agents/cai_*.toml` (`plugins/cai-codex/agents/cai_explorer.toml:4-5`). An account that cannot use a pinned slug cannot dispatch any agent on that role (R1). `$setup` must show each role's model and effort, ask keep or switch, and offer only slugs the account's model list shows. It saves the per-role choice where a plugin update cannot erase it and applies it on every later `$setup`. Every rule that decides what gets written sits in `install_codex.py`, with a `tests/test_codex_install.py` case (stance M6, `docs/design/2026-09-22-codex-model-fallback-stance.md:31`).
+On Codex, each cai role (chore, build, think) is pinned to one model slug in every shipped `agents/cai_*.toml` (`plugins/cai-codex/agents/cai_explorer.toml:4-5`). An account that cannot use a pinned slug cannot dispatch any agent on that role (R1). `$setup` must show each role's model and effort, ask keep or switch, and offer only slugs the account's model list shows. It saves the per-role choice where a plugin update cannot erase it and applies it on every later `$setup`. Every rule that decides what gets written sits in `install_codex.py`, with a `tests/test_codex_install.py` case (stance M6, `docs/design/2026-09-22-codex-model-fallback-detail.md:909`).
 
 This is done when AC1-AC9 (`intake.md:66-93`) each have a passing test at the level `## Verification` names, and a live Codex `$setup` run shows the mapping and asks. No CI can check that live run (`.github/workflows/validate.yml:8`, `:16-18`).
 
@@ -64,7 +76,7 @@ This is done when AC1-AC9 (`intake.md:66-93`) each have a passing test at the le
 |---|---|---|
 | Roles | 3 | `plugins/cai-codex/models.json:24-36` |
 | Installed agent TOMLs, total (chore / build / think) | 10 (3 / 5 / 2) | `plugins/cai-codex/models.json:40-58`; directory listing of `plugins/cai-codex/agents/`, 2026-09-22 |
-| Catalog models, and how many are offered today | 7 models, 5 offered | decisions C1, `docs/design/2026-09-22-codex-model-fallback-decisions.md:22` |
+| Catalog models, and how many are offered today | 7 models, 5 offered | decisions C1, `docs/design/2026-09-22-codex-model-fallback-detail.md:757` |
 | Cache file size, read whole with `json.loads` | 232290 bytes | `os.path.getsize` on `C:/Users/millerlai/.codex/models_cache.json`, 2026-09-22 |
 | Installer runs per `$setup` that exit 0 | at most 2 (retries across interpreters, `SKILL.md:43-46`, not counted) | D2, `decisions.md:126` |
 | Subprocesses or network calls made by the installer | 0 | D1, `decisions.md:89` |
@@ -730,3 +742,244 @@ The per-unit verify command is scoped: `python -m pytest tests/test_codex_instal
 |---|---|---|
 | Answers to P1-P4 (names, `--apply` without a path, the `unverified` status, the version). Answered 2026-09-22, each as proposed (`.claude/track/codex-model-fallback/options-detail-P1.md` … `-P4.md`). | the person | unit 3 (P1 names in output), unit 4 (P2), unit 6 (P1, P3), unit 7 (P4) |
 | A live Codex check that the file-edit tool can write under `$CODEX_HOME` during `$setup` (C17, UNVERIFIED) and that the cache follows `CODEX_HOME` (C3, UNVERIFIED). If the first fails, D3=A's channel does not work and the question goes back to decisions. | the person, in a Codex session | ship (not a build unit) |
+
+
+## 整併補充：codex-model-fallback-decisions
+
+來源為原 `2026-09-22-codex-model-fallback-decisions.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Feasibility
+
+"Observed" means read on 2026-09-22 with `python -c "json.load(...)"` on the file named, codex-cli 0.155.1, `CODEX_HOME` unset. `<sp>` is this session's scratchpad.
+
+| Id | Capability | Verdict | Evidence |
+|---|---|---|---|
+| C1 | The cache's shape. Top-level keys are `fetched_at`, `etag`, `client_version`, `identity` and `models`. Each model has `slug`, a `visibility` of `list` or `hide`, and `supported_reasoning_levels[].effort`. Listed: `gpt-5.6-sol`, `gpt-6-astra`, `gpt-5.6-terra`, `gpt-5.6-luna` and `gpt-5.5`. Hidden: `gpt-reserve` and `codex-auto-review`. | verified | observed at key paths `models[].slug`, `models[].visibility` and `models[].supported_reasoning_levels[].effort`. Line numbers are from the 2026-09-22 fetch and move on every refresh: `C:/Users/millerlai/.codex/models_cache.json:2` (`fetched_at`); `:8`, `:106`, `:325`, `:420` and `:511` (listed slugs); `:234` and `:261` (`gpt-reserve`, `hide`); `:591` and `:618` (`codex-auto-review`, `hide`). The stance's F2 line numbers are from the 2026-09-19 fetch. |
+| C2 | `models_cache.json` is a documented interface. | UNVERIFIED | not found at https://learn.chatgpt.com/docs/config-file/environment-variables, config-basic or config-reference (stance F1, 2026-09-22); also not found at config-advanced or https://learn.chatgpt.com/docs/models (this run) |
+| C3 | The cache lives under `$CODEX_HOME` when that variable is set. | UNVERIFIED | inferred only from https://learn.chatgpt.com/docs/config-file/environment-variables "Sets the root for Codex state, including config, auth, logs, sessions, skills, and standalone package metadata." |
+| C4 | Codex refreshes the cache on its own often enough that it is current when `$setup` runs. | UNVERIFIED | The 2026-09-19 fetch was still in place on 2026-09-22 and was replaced only by the debug run, and `models_cache.json:2` now carries that run's time (observed by the main session). No refresh policy was found in the docs. |
+| C5 | `codex debug models` is documented, and it prints `{"models": [...]}` with the cache's own per-model keys. | verified | https://learn.chatgpt.com/docs/developer-commands?surface=cli "Print the raw model catalog Codex sees, including an option to inspect only the bundled catalog."; observed `<sp>/codex-debug-models.json:1` (single-line JSON): its top-level keys are `models` only, and its slugs are the cache's slugs |
+| C6 | Without `--bundled`, the command refreshes from the network and rewrites the user's cache. | verified | https://learn.chatgpt.com/docs/developer-commands?surface=cli "Use `--bundled` when you want to inspect only the catalog bundled with the current binary, without refreshing from the remote models endpoint."; the rewrite of `fetched_at` was observed (Reference) |
+| C7 | The bundled catalog differs from the account's refreshed one. | verified | observed `<sp>/codex-debug-models-bundled.json:1` `models[].slug`: it adds `gpt-5.4`, `gpt-daybreak-blue-latest` and `gpt-daybreak-red-latest`, and lacks `gpt-reserve` |
+| C8 | `install_codex.py`, run from `$setup` inside Codex, can start `codex` as a subprocess and reach the network. Also unknown: what the command prints when it is offline. | UNVERIFIED | never run. `SKILL.md:18-20` runs the installer outside the sandbox, but whether that grants network was not observed. How a `codex` npm shim resolves from Python on Windows was not checked. |
+| C9 | The refreshed list is filtered per account or policy, so it omits models the account cannot use. | UNVERIFIED | only one account was seen, and the stance records this as an assumption (`docs/design/2026-09-22-codex-model-fallback-detail.md:897`). It affects every D1 option equally. |
+| C10 | A user's `model_catalog_json` setting replaces the catalog Codex loads. Unknown: whether the cache file reflects that setting. | UNVERIFIED | https://learn.chatgpt.com/docs/config-file/config-reference "Optional path to a JSON model catalog loaded on startup." (fetched 2026-09-22); how it relates to `models_cache.json` is not documented |
+| C11 | The launcher is written under the real home and never under `$CODEX_HOME`. Agents are written under `$CODEX_HOME`. | verified | `plugins/cai-codex/scripts/install_codex.py:83`, `:98`, `:290-291`, `:305` |
+| C12 | A role's installed agents can be found without `scripts/codex-models.json`, by mapping each `agents/<x>.md` role in `<cai-root>/models.json` to `cai_<x>.toml`. | verified | `plugins/cai-codex/models.json:39-60`; `scripts/gen-codex.py:422` (`name = "cai_{short}"`) |
+| C13 | In every shipped TOML, `model` and `model_reasoning_effort` are lines 4 and 5, each a basic string. Line 1 carries the stamp that the launcher reads. | verified | `scripts/gen-codex.py:421-425`; `plugins/cai-codex/agents/cai_explorer.toml:1-5`; `plugins/cai-codex/scripts/launcher.py:29`, `:95-100` |
+| C14 | The generator's TOML string escapes only `\` and `"`. | verified | `scripts/gen-codex.py:406-407` |
+| C15 | A double-quoted PowerShell or `sh` string expands `$(...)`, so a value placed in one can run as code. | verified | `plugins/cai-codex/scripts/install_codex.py:129-151`; `tests/test_codex_install.py:399`, `:416` exercise it through real shells |
+| C16 | `SKILL.md` has the model compose the installer's command line, and on Windows that line is a PowerShell string. | verified | `plugins/cai-codex/skills/setup/SKILL.md:31-41`; the Codex shell is PowerShell 5.1 (parent C18, `docs/design/2026-09-18-codex-support-detail.md:635`) |
+| C17 | The model's file-edit tool can write a file under `$CODEX_HOME` during `$setup`. | UNVERIFIED | `SKILL.md:57-69` already requires such an edit (the language line); no recorded run shows it succeeding |
+| C18 | Tests fake `HOME`, `USERPROFILE` and `CODEX_HOME` and run the installer CLI as a subprocess with no arguments. | verified | `tests/test_codex_install.py:44-57`, `:225`, `:251`, `:285`, `:300` |
+| C19 | CI is Linux with only `pytest` installed. There is no `codex` binary. | verified | `.github/workflows/validate.yml:8`, `:16`, `:18` |
+| C20 | Precedent: the installer refuses to overwrite a file it cannot parse, and exits 1 naming the file. | verified | `install_codex.py:52-53`, `:216-223`, `:316-318` |
+| C21 | Every slug seen in either catalog fits `[a-z0-9.-]`. | verified | observed `models[].slug` in the cache (`models_cache.json:8`, `:591` in the 2026-09-22 fetch) and in `<sp>/codex-debug-models-bundled.json:1` |
+| C22 | Effort names are `low`, `medium`, `high`, `xhigh`, `max` and `ultra`, listed low to high. Luna and `gpt-reserve` stop at `max`, and `gpt-5.5` stops at `xhigh`. | verified | observed `models[].supported_reasoning_levels[].effort` in the cache (`models_cache.json:12`, `:424` and `:515` in the 2026-09-22 fetch) and in both snapshots |
+| C23 | The launcher refuses every stage with exit 3 when an installed agent's stamp is not the plugin's version. | verified | `launcher.py:16-19`, `:82-103` |
+| C24 | PowerShell's `>` writes a BOM by default here. | verified | `CLAUDE.md:145-146` |
+
+#### Ruled out
+
+| Option | Invariant it violates | Evidence |
+|---|---|---|
+| `SKILL.md` parses the catalog and builds each role's list of offered slugs | M6: the offered set is a rule about what may be written | stance `:31` |
+| `SKILL.md` writes the saved-choice file itself | M6 and the rejected stance "Prose owns the choice" | stance `:31`, `:42` |
+| The installer asks keep/switch on its own stdin | M5 | stance `:30`, `:43` |
+| Any rewrite that re-emits the whole TOML, or touches line 1 | M3; also C13, whose stamp line the launcher reads | stance `:28`; C13 |
+| Saving the choice under `<cai-root>`, or in `hooks.json` or `AGENTS.md` | M7 | stance `:32`; C11 |
+
+#### Requirement gaps
+
+| # | The behavioural assumption | Veto condition, or verification path | Deletes |
+|---|---|---|---|
+| G1 | When a successful detection lacks a role's shipped default, the user reads the mapping, notices, and answers "switch". Keep is still the default answer (AC1), so a user who presses Enter keeps a slug the account may not have. That is R1, unfixed. | Veto: "when a successful detection does not list the slug in effect for a role, setup marks that role on its own line of the mapping and repeats it in the report". A stronger form the person may choose instead: "for such a role, keep is not the default answer". That form reopens AC1. **Chosen:** the first veto; keep stays the default — the person answered "A. 保留預設，醒目標出 (Recommended)" on 2026-09-22 (`.claude/track/codex-model-fallback/options-G1.md`). | A mapping that prints the slug in effect with no availability mark |
+| G2 | Each user runs a single `$CODEX_HOME`, so it does not matter whether the saved choice is shared across homes. The opposite assumption, that a user expects one choice to follow them across homes, is just as unevidenced. C11 already puts agents (and C3 presumably the cache) under `$CODEX_HOME` and the launcher under the real home. | Veto: "a saved choice applies only to the `$CODEX_HOME` whose agents it rewrites and whose detection validated it". With `CODEX_HOME` unset, both locations are `~/.codex/...`, so only multi-home users see a difference. Verification path otherwise: the person says whether a shared choice is wanted. **Chosen:** the veto; the saved choice lives under `$CODEX_HOME`, replacing intake c's "beside the launcher" — the person answered "A. 每個 CODEX_HOME 各一份 (Recommended)" on 2026-09-22 (`.claude/track/codex-model-fallback/options-G2.md`). | Intake c's default, "beside the launcher" (shared by every home), unless the person picks a shared scope |
+
+#### Tier 1
+
+##### D1 — Which source does the installer read to detect the account's models?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — The installer reads `$CODEX_HOME/models_cache.json` and nothing else. (recommended) | C1, C2, C3, C4, C9, C10, C18, C19 | One file read. Tests put a fake cache in a temporary `CODEX_HOME`, and CI can run them. The source is an undocumented file. | Codex moves or reshapes the file, which falls into AC6's failure path and is reported. Or the cache is days old (C4), so the offered list trails the account. Or `model_catalog_json` is not reflected in it (C10). |
+| B — The installer runs `codex debug models` as a subprocess and falls back to A when that fails. | C5, C6, C7, C8, C9, C19 | Two code paths. CI tests need a fake `codex` on `PATH` (C19). Every `$setup` rewrites the user's cache and needs network (C6). | The subprocess cannot run or cannot reach the network inside Codex (C8), which quietly lands on A every time. Or, offline, the command prints the bundled list, which offers slugs the account never had (C7; that offline output is UNVERIFIED). |
+| C — `SKILL.md` runs `codex debug models`, redirects the output to a file, and passes the path. The installer parses it. | C5, C6, C8, C16, C24 | One command in prose. It is not a rule about what gets written, so M6 still holds. The installer must decode the UTF-16 or BOM output PowerShell writes (C24). A path for the file is needed. | The model skips or mistypes the command, so there is no file and AC6 applies. Or it has the same network and subprocess unknowns as B (C8), with the failure now in untested prose. |
+
+- **Blast radius:** the installer, `SKILL.md` step 2 under B and C, the AC9 README row, and the tests.
+- **Found out when:** after release, on an account whose catalog differs (C9) or after a Codex update that moves the cache. The failure path stays loud (AC6), never a wrong write (M1).
+- **Undo cost:** change the installer and the README row, then `--release`. No user data has to migrate.
+- **Decided:** A — the person answered "A. 只讀快取檔 (Recommended)" on 2026-09-22 (`.claude/track/codex-model-fallback/options-D1.md`).
+
+##### D2 — Does the first installer run write anything before the user has answered?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — Install, then amend. A run with no arguments does today's full install: it applies the saved choice (or the shipped defaults) and prints the mapping and the detection result. A second `--apply` run happens only when the user switched or a role was re-asked (AC4, AC6). (recommended) | C18, C23 | Keep needs one run. The existing CLI tests (C18) stay valid with no saved file. A role AC4 re-asks carries its stale saved slug, which the user did choose (M1 holds), until the apply run. | The user abandons after run 1. The install is still consistent, and only the re-asked role keeps its stale slug, as it had before setup. |
+| B — Detect, then apply. `--detect` reads and writes nothing. `--apply` always follows, keep included, and does the full install. | C18, C23 | Two runs on every setup. The CLI contract with no arguments changes, so the four CLI tests (C18) are rewritten. | Run 2 never happens, because the user abandons or the model skips it. After a plugin update the agents keep the old stamp, and every stage exits 3 (C23) until setup is finished. That is loud, but it blocks all work. |
+
+- **Blast radius:** `SKILL.md` step 2, the installer's CLI, and the existing CLI tests. That is more than one component.
+- **Found out when:** the next test run for the mechanics. What an abandoned setup leaves behind shows up only after release.
+- **Undo cost:** both files ship together, so change them and run `--release`. No user data is involved.
+- **Decided:** A — the person answered "A. 先裝好，要換再改 (Recommended)" on 2026-09-22 (`.claude/track/codex-model-fallback/options-D2.md`).
+
+##### D3 — How do `SKILL.md`'s answers reach the installer?
+
+
+| Option | Rests on | What it costs | Fails when |
+|---|---|---|---|
+| A — An answers file. The model writes a small JSON file with its file-edit tool, at the path run 1 printed. `--apply <path>` validates it, saves the choice, and deletes the file. (recommended) | C15, C16, C17 | One JSON format to specify and test. It is a write outside the workspace, the same kind step 3 already needs (C17). | The edit tool cannot write there (C17), so apply never starts; that is loud. A malformed file exits 1 and names the problem (C20 precedent). |
+| B — Command-line flags, for example `--apply --role chore=<slug>`, with typed names included. | C15, C16 | No file. But a typed name (AC6, AC7) sits in a shell line that the model composes (C16) before M4 can check it. | A typed name contains `$(...)` or a quote and the model double-quotes it (C15). The code runs on the user's machine before any check, which falls under "who is allowed to do what". |
+| C — Flags carry detected slugs, which run 1 has already validated. A file carries typed names only. | C15, C16, C17, C21 | Two channels and two test sets. | Typed names fail the same ways as A. Detected slugs are safe only while the charset check (D7) runs before the slug is printed. |
+
+- **Blast radius:** `SKILL.md`, the installer, and what can run on the user's machine (high by default).
+- **Found out when:** a security review, or never until someone exploits it. That is after release.
+- **Undo cost:** change both files and run `--release`. No user data is involved.
+- **Decided:** A — the person answered "A. 一律用答案檔 (Recommended)" on 2026-09-22 (`.claude/track/codex-model-fallback/options-D3.md`). Narrowed during Detail: `--apply` takes no path and reads the fixed answers file — the person answered "A. 不帶路徑 (Recommended)" on 2026-09-22 (`.claude/track/codex-model-fallback/options-detail-P2.md`).
+
+#### Tier 2
+
+##### D4 — What does the installer's detect step decide, and what is left to `SKILL.md`?
+
+The installer decides everything that decides a write, and `SKILL.md` only shows it and asks. It computes each role's offered slugs, the slug in effect and the default marks, the AC4 re-ask set and its default answer, and the AC6 failure reason. This follows stance M6 (`docs/design/2026-09-22-codex-model-fallback-detail.md:909`) and uses C12 to name each role's agents. **Found out when:** the next test run.
+
+##### D5 — Are `visibility: hide` models offered?
+
+No. A saved slug that has become hidden is re-asked like a missing one (AC4). The grounds are intake item b's default (`.claude/track/codex-model-fallback/intake.md:109`) and AC2's "only slugs from a successful detection" (`intake.md:69-70`); C1 shows that `visibility` is set per model. **Found out when:** a user reports a model they wanted but could not pick, after release.
+
+##### D6 — Does picking cai's default for a role save it?
+
+No. Picking the default removes that role's saved entry, so the role follows future cai defaults. A saved slug that differs from a re-tiered default is shown next to that default. The grounds are AC2's "a role left at its default stays byte-identical" (`intake.md:71-72`), intake d (`intake.md:113-114`) and M2 (stance `:27`). **Found out when:** the first cai re-tier after release.
+
+##### D7 — Which character set may a slug have before it is written?
+
+`^[a-z0-9][a-z0-9.-]{0,63}$`, applied to every slug before a write, detected ones included, because the catalog is only a file on disk. Every observed slug fits (C21), and the generator's escaping would not stop a newline or a quote pair from injecting a key (C14, `scripts/gen-codex.py:406-407`). **Found out when:** the next test run, with injection cases for a quote, a newline and `$(`.
+
+##### D8 — How is AC5's effort fallback ordered, and what happens when no lower level exists?
+
+Levels rank in a fixed order, `low` < `medium` < `high` < `xhigh` < `max` < `ultra` (C22). The installer uses the highest supported level at or below the role's own. When none is lower, it uses the lowest supported level. When the list is missing or the name was typed, the role's own level stays (`intake.md:80-83`). **Found out when:** the next test run for the rule. Whether this is the right rule shows up only on a bill, after release.
+
+##### D9 — Does M3 get its own test?
+
+Yes, because stance M6 lists M1-M4 as needing `tests/test_codex_install.py` cases (stance `:31`). A rewritten TOML may differ from the shipped one only on lines 4-5, and line 1 must be unchanged so that the launcher's stamp check still passes (C13, C23, `plugins/cai-codex/scripts/launcher.py:97-100`). **Found out when:** the next test run.
+
+##### D10 — What format does the saved choice use, and what happens when it is unreadable?
+
+JSON with a format-version key and a role→slug map, read with the `json` module the installer already imports (`install_codex.py:40`). When the file is unparsable the installer exits 1, names the file and never overwrites it, the same way it treats `hooks.json` (C20). The version key is there because a saved file accumulates on users' machines. **Found out when:** the next test run. A later format change would need a migration.
+
+#### Tier 3
+
+| Decision | Chose | Instead of | Found out when |
+|---|---|---|---|
+| D11 How the two lines are rewritten | Replace exactly the lines anchored `^model = ` and `^model_reasoning_effort = `, and fail if either is not found exactly once (C13) | Parsing and re-emitting the TOML, which the stdlib cannot write and M3 rules out | The next test run |
+| D12 How a role's agents are found | `<cai-root>/models.json` `assignments` mapped with the `cai_` prefix (C12) | Grouping the shipped TOMLs by their model and effort lines, which would break once two roles share both | The next test run |
+| D13 A saved role that no longer exists in `models.json` | Ignored, with one line naming it (intake d) | Exit 1 | The next test run |
+| D14 AC6's "lists no slugs" | Counted after hidden models are filtered out (D5), so a catalog of only hidden models is a failure | Counted before filtering | The next test run |
+| D15 Is effort stored in the saved choice? | No. Effort follows the role (AC5) | Storing a per-role effort, which no AC asks for | The next test run |
+
+
+## 整併補充：codex-model-fallback-stance
+
+來源為原 `2026-09-22-codex-model-fallback-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+Every model a cai agent runs on is one the user chose or the shipped default, and that is enforced by a tested program: `install_codex.py` detects, validates, saves and rewrites; `$setup`'s prose only asks and passes the answers on. Success is checkable: every rule in AC1-AC7 about what gets written or saved is a `tests/test_codex_install.py` case that CI runs on Linux (`CLAUDE.md`, "Platform coverage"). That setup actually shows the mapping and asks (AC1, AC2) stays in prose, checked only by a live Codex run.
+
+#### Sacrifices
+
+- **The parent stance's "lowest hand-written cost"** (`2026-09-18-codex-support-detail.md:791`): the hand-written installer grows from copying TOMLs byte for byte (`install_codex.py:93-106`) to a detect / apply contract with its own input format.
+- **A zero-touch setup.** Every `$setup` stops for a keep/switch answer, even when nothing changed (intake AC1).
+- **cai's cost tiering as a guarantee.** A user may put `chore` on the most expensive model; cai shows its default and does not refuse.
+- **Byte-identity of installed agents.** A switched role's installed `cai_*.toml` differs from the shipped one, where today every installed file is a copy (`install_codex.py:105`).
+- **Assumption, not tested: the detection source is right.** `models_cache.json` is not a documented interface (F1 below). A restricted account's cache was never seen, so whether it omits a model the account cannot use is UNVERIFIED; if it lists one anyway, the user is offered it and finds out at dispatch.
+- **Assumption, not asked: effort follows the role** (AC5 was a default). On a model whose `supported_reasoning_levels` lacks the role's level, the lower level is used without asking. Every listed model in this cache supports low, medium and high (`C:/Users/millerlai/.codex/models_cache.json:452-464` for luna), so today this path is reached only by a future model.
+
+#### Invariants
+
+**This system's:**
+
+- M1 — No installed `cai_*.toml` names a slug nobody chose: its `model =` is the shipped one, or one the user picked from a detection or typed in a `$setup` run (AC2, AC6).
+- M2 — A role with no saved choice leaves its installed TOMLs byte-identical to the shipped ones (AC1, AC2).
+- M3 — Only the `model =` and `model_reasoning_effort =` lines may differ from the shipped file. Line 1's `# cai-codex-version:` stamp is never touched, because the launcher's pre-dispatch check reads exactly that line (`plugins/cai-codex/scripts/launcher.py:29`, `:97-100`).
+- M4 — A typed slug reaches a TOML only after passing a fixed character set, and is rejected otherwise (AC7).
+- M5 — The installer never prompts. Every question is asked by `skills/setup/SKILL.md`; the installer takes the answers as input and is deterministic given them and the detection source (intake, open item e).
+- M6 — Every rule that decides what gets written (M1-M4, AC4's re-ask set, AC5's effort fallback) lives in `install_codex.py` and has a `tests/test_codex_install.py` case. None lives only in `SKILL.md` prose.
+- M7 — The saved choice lives outside `<cai-root>` and outside every file the installer rewrites wholesale, so a plugin update cannot erase it (AC3).
+
+**Cross-project:**
+
+- The parent stance's I1 (`plugins/cai/` unchanged), I2 (hand-written files listed, `scripts/gen-codex.py:77-83`), I4 (no Codex claim beyond its verified status) and I8 (subagents never ask) — `2026-09-18-codex-support-detail.md:805-812`.
+- `CLAUDE.md`, "Who a file is for": `install_codex.py` is Theirs, so it may not read `scripts/codex-models.json` (Ours, not shipped); cai's defaults are the shipped TOMLs' own `model =` lines (`plugins/cai-codex/agents/cai_explorer.toml:4`).
+- The user's rule files as imported by `CLAUDE.md`; CI observes only Linux `validate.py` and `pytest`; no BOM in any written file; an output change ships with `gen-codex.py --release` (`CLAUDE.md`, "Who a file is for"; AC8).
+
+#### Rejected stances
+
+- **Prose owns the choice (lowest hand-written cost).** `SKILL.md` reads the cache, builds the menus and writes the saved file; the installer only applies it. This keeps the parent stance's optimisation, but M1, M4 and AC4 would live in model-read prose that no test runs, so a silent miss surfaces only on a user's machine. It loses on "enforced by a tested program" — offered as option B and not chosen (`options-design-2.md`).
+- **The installer asks on its own stdin.** It would keep every rule in one program, but whether Codex's command tool feeds stdin to a running script is UNVERIFIED, and it would bypass `request_user_input`, the one menu path observed working (`plugins/cai-codex/README.md:77`). It breaks M5.
+- **Leave installed TOMLs untouched and override the model somewhere else.** No other per-agent model lever is verified; the TOML's `model` is the only one observed to apply (`README.md:78`).
+- **Pick for the user when the default is missing.** Superseded by the person's redirect (intake, "Decisions taken by the person": switching is only the user's own choice).
+
+#### Out of scope
+
+- Claude Code's `/cai:setup` (follow-up issue, intake "Follow-up issue").
+- Left to Decisions, not this stance: the answers format between `SKILL.md` and the installer; the saved file's path and format; `visibility: hide` handling (intake b); re-tiered defaults (intake d); the typed-name character set.
+- For Decisions to weigh, found while reading intake item c: `~/.codex/cai/` is fixed under the real home and never follows `CODEX_HOME` (`install_codex.py:12-13`, `:83`, `:290`), while agents are written under `CODEX_HOME` (`:98`, `:291`, `:305`). A choice saved beside the launcher is therefore shared by every `CODEX_HOME` on the machine — including one per account — while the agents it rewrites are not.
+- Checking, between setups, that an installed slug is still offered: a slug that disappears is noticed only at the next `$setup`. Accepted by the person ("A. 寫進說明 (Recommended)", `.claude/track/codex-model-fallback/options-design-3.md`): the README and setup's report say to re-run `$setup` when an agent fails to dispatch on a model error. It rests on Codex failing loudly on an unavailable model (UNVERIFIED); veto: evidence that it fails silently or falls back to another model moves the check into the launcher's pre-dispatch step, as G3 did for version drift (`2026-09-18-codex-support-detail.md:657`).
+- `docs/` is git-ignored; this file needs `git add -f` at ship.
+
+
+## 整併補充：model-fallback-readme-stance
+
+來源為原 `2026-09-22-model-fallback-readme-stance.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### Optimises for
+
+A cai user whose account cannot run a tier's model learns from the root `README.md` what Claude Code already does about it and how to close the one gap left, without cai shipping any new code. Success: the Model tiers section (`README.md:389-418`) carries that paragraph, every claim in it traceable to a doc sentence, and `plugins/cai/` is byte-identical to `main`.
+
+#### Sacrifices
+
+- **No per-role model switching in cai.** A user who wants `think` on something other than `opus` still has no cai command for it.
+- **The remedy is the user's own step.** Nothing sets `fallbackModel` for them; a user who never reads the README keeps E1's failure (`discover/raw/exp1/log.json:29`, `model_not_found, HTTP 404`).
+- **A global remedy for a cai problem.** `fallbackModel` applies to every Claude Code session, not only cai's agents (MC:450, "To persist a chain across sessions, set `fallbackModel` in settings").
+- **Assumption, not tested: an account lacking a model is rejected like a retired ID.** E1-E3 used a retired ID. Fallback "never" triggers on "Authentication, billing, rate-limit ... errors, and a denial by your organization's policy check" (MC:440); if entitlement rejections land there, the README's remedy does not cover the case #117 was filed for. UNVERIFIED.
+- **Assumption, not tested: organisation restriction and non-Anthropic providers.** Whether subagent frontmatter is substituted under an Enterprise restriction is not stated (SA:370 names only `availableModels`); Bedrock, Vertex and Foundry were not run. UNVERIFIED.
+
+#### Invariants
+
+**This system's:**
+
+- N1 — Nothing under `plugins/` changes: setup keeps `model: haiku` (`plugins/cai/skills/setup/SKILL.md:4`), `plugins/cai/models.json` keeps its tiers (`:26,30,34`) and setup's assignment (`:43`), version stays `1.28.0` (`plugins/cai/.claude-plugin/plugin.json:3`), no `gen-codex.py --release`. `plugins/cai-codex/README.md` is out of reach too (findings, landmine 6).
+- N2 — The README states only what a doc sentence guarantees, each with its link. Allowed: a subagent alias blocked by `availableModels` moves to the newest permitted version or to the main model (SA:372-373); a blocked skill model is ignored for the session model (MC:248); Haiku cannot be disabled by an organisation (MC:359) — scoped to the Anthropic API and LLM gateway, the only places organisation restrictions reach (MC:362).
+- N3 — The remedy is described by what the docs say it covers: "overloaded, unavailable, or ... another non-retryable server error" (MC:440). The README never says fallback rescues an account without access (findings, landmine 4).
+- N4 — The README names the minimum Claude Code version, v2.1.247 ("Before v2.1.247, a failure the chain covers ended the subagent instead", MC:467), which also satisfies v2.1.222 (SA:372).
+- N5 — `fallbackModel`'s scope is stated with it: every session, only on a failed request, for the current turn only (MC:442), and invisible in `/status` (MC:460).
+- N6 — Only the root `README.md` is edited. It is Ours: `.claude-plugin/marketplace.json:11` ships `./plugins/cai` alone.
+
+**Cross-project:**
+
+- `CLAUDE.md`, "Who a file is for" and "Before pushing" (`validate.py` and `pytest` green, no BOM), and the rule files it imports.
+- The Codex sibling's stance, `docs/design/2026-09-22-codex-model-fallback-detail.md`, is not reopened by this one.
+
+#### Rejected stances
+
+- **A / 丙 — cai rewrites the installed copy per role.** Feasible (E1: full IDs apply, edits are not reverted), but a pinned full ID that retires becomes E1's 404, a failure alias-only never had; it also rests on the undocumented `~/.claude/cache/model-catalog/` (findings D11). Loses on "no new cai code" and adds a failure — offered as 丙, not chosen.
+- **乙 — README plus `/cai:setup` offering to write `fallbackModel`.** Reaches users who skip the README, but ships a script, a version bump and a global-settings write from a cai command. Breaks N1 — offered, not chosen.
+- **B — remap aliases with `ANTHROPIC_DEFAULT_{HAIKU,SONNET,OPUS}_MODEL`.** Rejected by the person at intake Q1; MC:61 names these variables as the way "to pin to a specific version", which reintroduces pinning for every session.
+
+#### Out of scope
+
+- The Codex README and `$setup` (handled by #115's stance).
+- Closing #117: asked at ship's Gate 2 (AC5).
+- Veto on this stance: evidence that an account-entitlement rejection is an auth or policy-class error fallback skips (MC:440) means R2's remedy does not reach #117's case; that reopens the trade toward 乙 or 丙 rather than being patched in wording.
+- Left to build: the paragraph's wording, placement and `fallbackModel` example values (entries accept an alias, MC:458).
+- `docs/` is git-ignored; this file needs `git add -f` at ship.
+
+
+## 原始詞彙與來源補充：model-fallback-readme-stance
+
+以下來源日期與縮寫沿用原紀錄，補足合併段落的閱讀依據；不代表重新查證外部文件。
+
+Inputs: `.claude/track/setup-role-model-switch/intake.md` (issue #117) and `discover/findings.md`, whose AC1-AC5 supersede intake's AC1-AC8. The trade below was chosen by the person on 2026-09-22 — "甲 只寫文件 (Recommended)" (`options-discover-2.md`); rejected list holds what it was weighed against. Doc quotes are from snapshots fetched 2026-09-22 under `discover/raw/docs/`, each the markdown of `https://code.claude.com/docs/en/<name>.md`; `MC` = model-config, `SA` = sub-agents.

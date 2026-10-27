@@ -1,5 +1,17 @@
 # track-context-budget — detail design
 
+## 維護說明（2026-10-27）
+
+本檔是歷史設計紀錄，保留決策、驗收依據與實作偏差；不是待執行計畫。原簽核狀態、版本、行號及未驗證標記描述撰寫當時，整併不代表重新簽核或重做實測。
+
+名詞：設計立場（stance）說明取捨；決策紀錄（decisions）保存選擇理由；細部設計（detail）記錄建造規格；需求盤點（intake）保存驗收條件。下方英文標題與識別碼沿用原文，便於對照歷史。
+
+保留上下文預算取捨與量測方法；舊模型容量、檔案行數、流程與本機量測只適用記錄日期。現行峰值量測見 [`plugins/cai/scripts/context_peak.py:22`](../../plugins/cai/scripts/context_peak.py#L22)。
+
+已併入並移除的同主題文件：`2026-09-07-track-context-budget-intake.md`。
+
+補充段落保留原文與原決策編號，避免把不同時點同號的決策當成一項；重複的概覽圖、施工排程與階段交接文字不再複製。
+
 ## Reference
 
 High Level Design doc: docs/design/2026-08-27-cai-sdlc-restructure-high-level.md
@@ -14,7 +26,7 @@ Gate 檢查（`stage-design.md` Detail 步驟 0，該檔 `:126-129`）逐條在�
 UC1–UC7 與 R1–R4，共十一項。三項皆通過。
 
 參照那份已核准的高階設計、而不另寫一份只為過 gate 的高階設計，做法與
-`docs/design/2026-09-06-pr60-followups-detail.md:14-17` 同一個理由：本軌道修的是
+`docs/design/2026-09-06-pr60-followups-detail.md:26-29` 同一個理由：本軌道修的是
 那份設計已核准且已出貨的軌道機制上的缺口，不是新系統。
 
 **一處與模板的刻意偏離，明寫在此以免讀者以為是筆誤：**
@@ -39,7 +51,7 @@ plan-review 指出那會踩到一個實際的閘門：`preflight.py:189-209` 的
 也從那裡取。
 
 本文件的上游輸入是同軌道的 intake：
-`docs/design/2026-09-07-track-context-budget-intake.md`（241 行，AC1–AC8、
+`docs/design/2026-09-07-track-context-budget-detail.md`（241 行，AC1–AC8、
 §3 的變更表、§4 的明確排除、§5 的兩項使用者裁決）。
 
 **模式與理由**：Detail，且**不做 option-weighing**。`stage-design.md:228-230` 的
@@ -104,7 +116,7 @@ plan-review 指出那會踩到一個實際的閘門：`preflight.py:189-209` 的
 對話記憶、只靠 `.claude/track/<feature>/state.md` 接手的新 session。
 
 **怎麼知道好了**。驗收條件是 intake 交下的 AC1–AC8
-（`docs/design/2026-09-07-track-context-budget-intake.md:87-151`），逐條對應到單元與
+（`docs/design/2026-09-07-track-context-budget-detail.md:2175-2239`），逐條對應到單元與
 層級的表在 `## Verification`。本文件不改寫、不增刪任何一條。
 
 **本軌道不承諾視窗變小**（intake:82）。承諾的是：擁有權矛盾修掉、report 有一個
@@ -170,9 +182,9 @@ plan-review 指出那會踩到一個實際的閘門：`preflight.py:189-209` 的
 | 同上 30 列的最小值 | 64 | 同上（gap02-usage-ledger 的 discover 列） |
 | ledger `--note` 的位元組上限 | 3840 | plugins/cai/scripts/ledger.py:58 |
 | 一條軌道六份 report 都寫滿上限的合計字元 | 24000 | 4000 乘 6，本設計推算 |
-| 主 session 峰值（區間估計，AC6 收斂前） | 750000 | docs/design/2026-09-07-track-context-budget-intake.md:30 |
-| 會讓「排除 A」作廢的峰值門檻 | 850000 | docs/design/2026-09-07-track-context-budget-intake.md:198 |
-| 本次量測的分母（context window） | 1000000 | docs/design/2026-09-07-track-context-budget-intake.md:23 的欄位標題與 :30 |
+| 主 session 峰值（區間估計，AC6 收斂前） | 750000 | docs/design/2026-09-07-track-context-budget-detail.md:2118 |
+| 會讓「排除 A」作廢的峰值門檻 | 850000 | docs/design/2026-09-07-track-context-budget-detail.md:2286 |
+| 本次量測的分母（context window） | 1000000 | docs/design/2026-09-07-track-context-budget-detail.md:2111 的欄位標題與 :30 |
 | ticket-integration transcript 的 assistant usage 物件數 | 760 | 本階段實測 |
 | 其中同時帶 flat 與 nested cache_creation 的筆數 | 760 | 同上：flat only 0、nested only 0、兩者皆無 0（D9 的依據） |
 | 本專案最大的一份 transcript（bytes） | 23737656 | 本階段實測，使用者本機 projects 目錄下 53 份中最大者 |
@@ -555,7 +567,7 @@ AC6 明訂重用**讀取與去重兩者**（intake:137-139），而 `usage_colle
 抽出並公開，或在新 script 裡複製一份迴圈——後者就是 AC6 禁止的第二套 parser。
 
 **改名是被既有的已核准設計明文允許的**：
-`docs/design/2026-08-30-track-usage-accounting-detail.md:419` 寫著
+`docs/design/2026-08-30-track-usage-accounting-detail.md:431` 寫著
 「函式與參數名屬模組內部，可自由更名，不影響任何已出貨的資料格式」。同一份設計
 `:406-418` 列出的對外介面是 `collect()`、`aggregate()` 等八個名字，`_read_window`
 與 `_aggregate_with_problems` 都不在其中，且本階段複驗 repo 內**沒有任何外部
@@ -992,7 +1004,7 @@ sequenceDiagram
       passes None for both, because a peak is over the whole session and not
       over a window. Renamed from `_read_window` -- public because a second
       module now calls it, which the usage-accounting design explicitly
-      allows (2026-08-30-track-usage-accounting-detail.md:419).
+      allows (2026-08-30-track-usage-accounting-detail.md:431).
 
       The body changes in exactly one place: `:216` becomes
       `if until_ms is not None and ts_ms > until_ms:`, matching the guard
@@ -1414,7 +1426,7 @@ sequenceDiagram
   （`tests/test_track_skill_ticket_pointer.py:120` 是等式，
   `scripts/validate.py:1454` 是同一個數字的天花板）。一換一，不動用任何補償重排。
   新句約 400 字元，比今天的 242 長，但該檔全無行寬檢查（本階段實測，且
-  `docs/design/2026-09-06-pr60-followups-detail.md:120` 已為同一件事查證過）。
+  `docs/design/2026-09-06-pr60-followups-detail.md:132` 已為同一件事查證過）。
 - **Concurrency** — 無。
 - **Observability** — `scripts/validate.py:1460` 印出實際行數。
 - **Where it lives** — `plugins/cai/skills/track/SKILL.md`，存在（126 行、body 122）。
@@ -1741,7 +1753,7 @@ sequenceDiagram
 - **Data** — 無。
 - **Errors** — 唯一的風險是忘了還原。`git checkout` **不可用**：它還原的是「到
   HEAD」而不是「撤銷剛才那一筆」，在一棵還有其他未提交改動的樹上會一起抹掉
-  （這個 repo 已經學過一次，`docs/design/2026-09-06-pr60-followups-detail.md:932-935`）。
+  （這個 repo 已經學過一次，`docs/design/2026-09-06-pr60-followups-detail.md:944-947`）。
 - **Concurrency** — 一次一個突變，不併行。
 - **Observability** — 每次突變的真實輸出逐字記進
   `.claude/track/track-context-budget/implementation-notes.md`。
@@ -1749,7 +1761,7 @@ sequenceDiagram
   （`designer.md`），改完即還原。**四次突變都不改 `scripts/validate.py` 本身**——
   改被檢查的那一側才是在驗檢查，改檢查那一側只是在驗自己剛寫的 if。
 - **What it reuses** — 突變紀律逐條沿用
-  `docs/design/2026-09-06-pr60-followups-detail.md:932-935`；突變 (c) 重用
+  `docs/design/2026-09-06-pr60-followups-detail.md:944-947`；突變 (c) 重用
   `validate.py:1422-1424` 既有的 label 格式，不新增訊息。
 
 ## Naming
@@ -1760,10 +1772,10 @@ intake 的 AC3 直接指定，不是本階段發明的。
 
 | Name | What it is | Chosen by |
 |---|---|---|
-| `## Report` | 六份 reference 的最後一節，也是 stage 交回的那一段的標題 | intake 的 AC3 直接指定，docs/design/2026-09-07-track-context-budget-intake.md:107；且 SKILL.md:88 已經用「A report ending in `## Pending questions`」稱呼同一個東西 |
+| `## Report` | 六份 reference 的最後一節，也是 stage 交回的那一段的標題 | intake 的 AC3 直接指定，docs/design/2026-09-07-track-context-budget-detail.md:2195；且 SKILL.md:88 已經用「A report ending in `## Pending questions`」稱呼同一個東西 |
 | `plugins/cai/scripts/context_peak.py` | 峰值量測 script 的檔名 | 沿用同目錄「主題加它是什麼」的 snake_case 檔名慣例，plugins/cai/scripts/usage_collector.py:1；兩個字都拼全，不縮寫 |
 | `usage_records` | `usage_collector.py` 新增的產生器，產出去重後的每筆請求 | 沿用同檔以名詞複數指稱「一串什麼」的用詞，plugins/cai/scripts/usage_collector.py:40 的 `TOKEN_KEYS` |
-| `read_window` | `_read_window` 改為公開後的名字 | 就是把既有名字去掉底線前綴，plugins/cai/scripts/usage_collector.py:184；同檔 `aggregate()`（:273）與 `_aggregate_with_problems()`（:222）就是同一個 private/public 成對慣例，且改名經 docs/design/2026-08-30-track-usage-accounting-detail.md:419 明文允許 |
+| `read_window` | `_read_window` 改為公開後的名字 | 就是把既有名字去掉底線前綴，plugins/cai/scripts/usage_collector.py:184；同檔 `aggregate()`（:273）與 `_aggregate_with_problems()`（:222）就是同一個 private/public 成對慣例，且改名經 docs/design/2026-08-30-track-usage-accounting-detail.md:431 明文允許 |
 | `cache_creation_total` | 一次請求的 cache 寫入總量，兩種 schema 都答得出來 | 沿用同檔 `_resolve_ephemeral` 的「動詞加它產出什麼」形狀，plugins/cai/scripts/usage_collector.py:156 |
 | `occupancy` | `context_peak.py` 的函式，一次請求必須常駐的 token 量 | 本階段命名，量詞本身沿用 intake:136 已在用的三個欄位加總；一般英文詞，非本專案自創縮寫 |
 | `peak` / `measure` / `session_ids` / `format_line` | `context_peak.py` 的其餘四個函式 | 沿用同目錄動詞或名詞的樸素命名，plugins/cai/scripts/usage_collector.py:48-90 的 `config_root` / `session_transcript` / `subagent_transcripts` |
@@ -2018,7 +2030,7 @@ U3 八列、U4 四列，加上三列收工才驗的。
   先釘、再改散文、把自己的釘子弄紅、再回頭改釘子，於是 `scripts/validate.py` 在
   diff 裡出現兩次，而「兩檔同時改動」正是這個機制想留下的訊號，不該被自己製造的
   噪音稀釋（同一個理由見
-  `docs/design/2026-09-06-pr60-followups-detail.md:982-995`）。
+  `docs/design/2026-09-06-pr60-followups-detail.md:994-1007`）。
 - **U3 與 U4** — U4 突變的就是 U3 加的東西。
 - **U1 與 U3/U4** — 只是排程，不是內容相依；但 U2 排在 U3 之前而 U2 被 4000 的簽核
   擋著，所以實際上沒有可並行的空檔。
@@ -2078,3 +2090,221 @@ D6 已於 2026-09-07 裁決（D6-0 到 D6-6），所以 U3 不再有上游未決
 使用者裁決的嚴格讀法讓委派不能滿足任何一項工具需求，所以巢狀深度不進入判定。它仍
 影響 design 與 verify 兩個 stage 實際派得出幾層 subagent。本階段實測本 session 這一
 層可以派出 subagent 且多次成功，但那只證明第一層可以。官方文件未能取得逐字原句。
+
+
+## 整併補充：track-context-budget-intake
+
+來源為原 `2026-09-07-track-context-budget-intake.md`；以下僅保留上游背景或實作補充，現況以本檔維護說明為準。
+
+#### 1. 問題陳述
+
+`/cai:track` 的六個 stage 全在同一個 main session 內跑完。三條完成軌道的
+`ledger.jsonl` 各只有一個 `session_id`（`pr60-followups` 全 7 列
+`2162ccb5…`、`ticket-integration` 全 9 列 `962f8ff6…`、
+`track-status-vocabulary` 全 6 列 `a990d2d9…`）。主 session 的 context
+單調累積，沒有任何 stage 邊界會回收。
+
+**峰值第一次被量到。** 從 orchestrator transcript 逐則 `message.usage`
+分段 grep `cache_read_input_tokens`（該檔 `isSidechain:true` 零命中，
+subagent 另存 `subagents/` 子目錄，故全屬主 session）：
+
+| track | 主 session cache_read 峰值 | 對 1M 的佔比 |
+|---|---|---|
+| pr60-followups | 507,696 起跳，6xx 以上零命中 → < 600K | < 60% |
+| ticket-integration | 681,493 且仍在爬，7 位數零命中 → 681K–700K | 68–70% |
+
+`ticket-integration` 那條曲線單調上升、全程沒有一次驟降，證明整段執行沒有
+跑過 `/compact`，也沒有任何機制修剪過視窗。加計單次 `cache_creation`
+（>=100K 者去重後約 3 次請求）真實峰值約 **0.70–0.75M**，即 1M 的七成，
+餘裕約三成。
+
+**方法學保留（不可省）**：這是分段 grep 的區間估計，不是精算——intake 階段
+只有 `Read/Grep/Glob`，無法逐筆相加 `input + cache_read + cache_creation`；
+`track-status-vocabulary` 未測。ledger 結構上答不出峰值：
+`usage_collector.py:264-269` 逐 model 累加五個 token 欄位、不保留 max。
+
+問題的形狀因此不是「即將爆掉」，而是「最壞一條用掉七成、剩三成餘裕，
+而且沒有任何東西會回收」。
+
+##### 同根因、且與 context 預算無關也成立的結構缺陷三項
+
+1. **`note` cell 有兩個宣告的擁有者。** 六份 reference 的 Closing 一致要求
+   stage 自己寫（`stage-intake.md:59`、`stage-discover.md:146`、
+   `stage-design.md:249`、`stage-build.md:263`、`stage-verify.md:106`、
+   `stage-ship.md:152`），而 `SKILL.md:80-82` 把同一格指派給主 session。
+2. **六個 agent 有四個做不到那個動作。** `architect.md:7` =
+   `Read, Grep, Glob`（跑 intake 與 discover）、`verifier.md:7`、
+   `shipper.md:7` 皆無 `Write`；只有 `designer.md:8` 與 `implementer.md:6`
+   有。實害已記錄在 `.claude/track/done/pr60-followups/state.md:12`
+   （verify 寫序顛倒須由主 session 重寫）與 `:8`（intake 未派 explorer）。
+   本次 intake 原樣重演。
+3. **例外條款的描述比實際窄。** `SKILL.md:68` 只說 Step 5.5 寫 `status`，
+   但 `stage-build.md:236-237` 實際還寫 `note` = `unit <N> of <total>`、
+   `:226` 還 append `## Handoff`。（round 2 新發現，主 session 已獨立複驗。）
+
+##### 本該擋下這些的檢查有洞
+
+`validate.py:1271-1274` 的註解明說 `STAGE_TOOL_NEEDS` 存在的理由就是
+「stage 的 reference 要求了它的 agent 沒有的工具」，套用在 `:1409-1424`。
+但 `:1275-1304` 的表缺 `intake` 與 `discover` 兩個 key，`Write` 只對
+`design` 檢查。今天全綠的未受檢要求：intake 的 `Agent`
+（`stage-intake.md:14`）+ `Write`、discover 的 `Agent`
+（`stage-discover.md:44`）+ `Write`、verify 的 `Write`、ship 的 `Write`。
+
+##### 兩者的連結
+
+只要 `note` 由主 session 擁有，每一格 note 都必須穿過主 session 的視窗
+兩次（從 subagent report 讀進來一次、寫出去一次）。而 stage report 今天
+**沒有任何格式或大小契約**——`^## Report` 在 `references/` 與 `SKILL.md`
+全樹零命中（主 session 複驗）。對照之下 ledger 的 note 早有程式層上限：
+`ledger.py:58 MAX_NOTE = 3840`，`:54-56` 記著那是使用者 2026-08-29 的裁決。
+
+##### 對原始問題的結構性答案
+
+使用者問「每個 stage 能否自動只保留下一個 stage 需要的東西」。答案是
+**不能自動**。`stage-build.md:219-221` 已把理由寫死——`SessionStart`、
+`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`PreToolUse`、
+`PostToolUse` 沒有一個會在預算用盡前示警。沒有事件可掛，所以「保留」
+只能是**交接點上的程序**，不能是預算逼近時的反應。
+
+本軌道因此**不承諾視窗變小**，只承諾三件事：修掉所有權矛盾、給 report
+一個上限、讓「還剩多少餘裕」變成零 token 可重複的數字。
+
+---
+
+#### 2. 驗收條件
+
+每條後附「後續 stage 怎麼機械檢查」。
+
+**AC1 — `note` 擁有權單一化，六份一致。**
+六份 reference 的 Closing 不再出現「write into `state.md`'s `note` cell」，
+一律改為「在 `## Report` 交出這些欄位」；欄位內容即各自今天 Closing 要求的
+東西（`stage-intake.md:59-63`、`stage-discover.md:146-147`、
+`stage-design.md:249-251`、`stage-build.md:263-265`、
+`stage-verify.md:106-108`、`stage-ship.md:152-154`），一項不減。
+*檢法*：`state.md` 在 `references/` 的命中只剩 `stage-build.md:96`（散文
+提及）、`:226`、`:236`（Step 5.5）三處；六個 Closing 段內零命中。
+
+**AC2 — Step 5.5 的例外，兩份文件描述一致。**
+`SKILL.md:68` 的例外句加寬到涵蓋 `stage-build.md:236-239` 實際指示的三件
+事：`status` = `in-progress`、`note` = `unit <N> of <total>`、append
+`## Handoff`。`stage-build.md:217-243` 本身一個字不動。
+*檢法*：`SKILL.md:68` 必須同時出現 `status` 與 `note` 兩字，且
+`stage-build.md:236-238` 的 diff 為空。
+
+**AC3 — 六份 reference 各含一個 `## Report` 契約。**
+每份一個 `## Report` 段，明列欄位與**一個大小上限數字**，格式沿用
+`ledger.py:54-58` 已建立的形式（一個數字、一句為什麼、裁決日期）。證據去
+該 stage 本來就會產出的 artifact，不進 report。
+*檢法*：六個檔各數 `^## Report` 出現次數 == 1；段內配到一個 `\d{3,}` 的
+數字與一個 `\d{4}-\d{2}-\d{2}` 的日期。
+*註*：**數字本身由 design 提、使用者簽**——`SKILL.md:93-94` 的 design
+人工閘門正是簽它的地方。intake 不代定。
+
+**AC4 — `STAGE_TOOL_NEEDS` 對 `stages.json` 六個 stage id 全部有 entry。**
+且每個 entry 涵蓋該 stage reference 中所有祈使句要求的工具。依 Q2 的裁決，
+**沒有任何 stage 的 agent 因為 `state.md` 而需要 `Write`**；`Write` 只剩
+兩個獨立理由：design 寫設計文件（`validate.py:1277` 已有）、build 寫程式碼
+與 Step 5.5。`Agent` 的六處根據：`stage-intake.md:14`、
+`stage-discover.md:44`、`stage-design.md:50`、`stage-build.md:82,148`、
+`stage-verify.md:38`。
+*檢法*：`set(STAGE_TOOL_NEEDS) == set(STAGE_ORDER)`（`validate.py:1309`
+已有 `STAGE_ORDER`）可寫成一條 check；再跑 `python scripts/validate.py`
+exit 0。
+
+**AC5 — 突變式：證明 AC4 的檢查真的在守。**
+暫時把任一處已修好的矛盾改回去（例：把 `Write` 要求塞回某份 architect 跑的
+reference），`validate.py` 必須 FAIL 並在訊息中點名該 stage 與該工具；
+還原後 exit 0。
+*檢法*：改壞 → 跑 → 讀輸出 → 還原 → 再跑。**突變前先 commit**——
+`git checkout` 還原的是「到 HEAD」，不是「撤銷剛才那筆」。
+
+**AC6 — 一支峰值量測 script。**
+給一個 track dir 或 session id，印出該 orchestrator session 逐次請求的
+`input_tokens + cache_read_input_tokens + cache_creation` 峰值與出現位置。
+**重用** `usage_collector.py` 既有的 transcript 讀取與 requestId 去重
+（`usage_collector.py:9-13` 記著不去重會灌水 5 倍；`:249-256` 是讀
+`message.usage` 的地方），不得寫第二套 parser。
+*檢法*：對三條已完成軌道各跑一次都印得出數字；且 ticket-integration 的
+峰值落在本階段估的 0.68–0.75M 區間內。落在區間外代表估計或 script 有一個
+是錯的，要查明再收。
+
+**AC7 — `python scripts/validate.py` exit 0；`python -m pytest` 全綠；
+不新增執行期相依。**
+*檢法*：跑兩個指令讀真實輸出（`CLAUDE.md` 的 Before pushing 已規定）；
+新增檔案的 import 只用標準庫。
+
+**AC8 — `.claude/track/done/**` 一個位元組都不動。**
+那是本軌道唯一的量測母體。
+*檢法*：`git diff --stat -- .claude/track/done/` 為空。
+
+---
+
+#### 3. 已定的做法（E + C + 峰值量測）
+
+| 動什麼 | 具體檔案 |
+|---|---|
+| 六份 Closing 改成 `## Report` 交欄位 | `stage-intake.md:57-63`、`stage-discover.md:144-147`、`stage-design.md:247-251`、`stage-build.md:261-265`、`stage-verify.md:104-108`、`stage-ship.md:150-154` |
+| 六份各加 `## Report` 段（欄位 + 一個上限數字 + 理由 + 日期） | 同上六檔 |
+| 例外條款描述加寬 | `SKILL.md:68` 一句；`stage-build.md:217-243` **不動** |
+| 補齊工具檢查 | `scripts/validate.py:1275-1304` 的 `STAGE_TOOL_NEEDS`，加 `intake`/`discover` 兩個 key 與各 stage 缺的項；套用點 `:1409-1424` 不必改 |
+| 新增 `## Report` / 擁有權的形狀檢查 | `scripts/validate.py`（AC1、AC3、AC4 各一條 check） |
+| 新增峰值量測 script | `plugins/cai/scripts/` 下一支新檔，重用 `usage_collector.py` |
+| 可能改 agent 授權 | `plugins/cai/agents/architect.md:7`（僅在下述子決策選 (i) 時） |
+
+##### 留給 design 的兩個未定數
+
+1. **AC3 的上限數字**——由 design 提，走 `SKILL.md:93-94` 的人工閘門簽核。
+2. **AC4 的子決策**：加了 intake/discover 的 `Agent` 檢查後今天會紅
+   （`architect.md:7` 無 `Agent`）。兩條路——
+   (i) 授予 `architect` `Agent`：它仍是唯讀角色，`explorer` 也唯讀，
+   `architect.md:12` 的 "Read-only" 不因此失效，但會改變 architect 在
+   track 之外所有用途的授權面；
+   (ii) 把 dispatch 指示移出兩份 reference，改由主 session 在派 architect
+   前先派 explorer：會把探索成本原封不動搬回主 session 視窗，與本軌道目的
+   反向。
+   intake 傾向 (i)。design 決定並記錄理由。
+
+---
+
+#### 4. 明確排除，後續 stage 不得悄悄加回
+
+- **A（一個 stage 一個 session）**——實測餘裕仍有三成；且它會第一次真的
+  行使從未被行使過的跨 session resume 承諾（`SKILL.md:3`、
+  `stage-intake.md:61-63`），三條完成軌道沒有一條跑過。
+- **D（主 session 降為純排程器）**——它會刪掉
+  `pr60-followups/state.md:13` 記錄的唯一防線：主 session 拿 diff 重推、
+  抓出 ship 報告六處與 diff 不符的宣稱（行號錯、檔名錯、方向錯、手法錯、
+  引用了已被 squash 掉的 SHA），全是散文對 diff 的錯配，沒有 digest 抓得到。
+  `stage-ship.md:42-45` 明說那個成本是刻意付的。
+- **B（縮短 `state.md` 的 note）維持現狀，不列為變更項**——六列 note 約
+  15 KB 約 4K token，佔實測峰值不到 1%。拿 context 當理由去砍它，是替
+  使用者做一個他沒要求的需求決策。
+
+##### 會讓「排除 A」作廢的條件
+
+AC6 的 script 量到峰值 > 0.85M，或量到主 session 佔用的六成以上來自
+subagent report 回填。前者代表餘裕不夠，A 的硬保證變成唯一選項；後者代表
+AC3 要從「加一節」升級成「硬性截斷 + 拒收超長 report」。
+
+---
+
+#### 5. 使用者裁決（2026-09-07）
+
+- **Q1 範圍** = E + C + 峰值量測。A 與 D 出局，B 維持現狀不列為變更項。
+- **Q2 `note` 擁有者** = 主 session 全權，六份 reference 一律改成「在
+  `## Report` 交出這些欄位」。`stage-build.md` Step 5.5 的 `## Handoff` 與
+  `status` 寫入維持不變。
+
+依 round 2 新發現的第三處不一致，擁有權規則須寫成：**passed 後的終局
+note 歸主 session，in-flight 的 `unit N of M` 歸 build stage**，並把
+`SKILL.md:68` 的例外描述加寬到與 `stage-build.md:236-239` 相符；Step 5.5
+本身不動。
+
+---
+
+#### 7. 未驗證處
+
+- 「Agent tool 一定把 subagent 最終訊息回填進 parent context」是平台行為，
+  無法從本 repo 驗證，沿用前提。
+- 第 1 節的峰值仍是區間估計，AC6 的 script 跑出來才算數。
