@@ -230,7 +230,9 @@ def seed(top: str, source: str) -> Optional[Result]:
     this checkout's to do."""
     scanned_at_ns = time.time_ns()
     listed = inventory.list_tracked(top)
-    if store.tracked_inside(top):
+    # `source` too, before load: its index can be tracked on a branch `top`
+    # does not have checked out, and update would refuse to read it (#485).
+    if store.tracked_inside(top) or store.tracked_inside(source):
         raise store.IndexUnreadable(store.TRACKED_REASON)
     previous = store.load(source)
     if previous is None:

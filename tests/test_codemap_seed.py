@@ -5,6 +5,8 @@ index; `/cai:track` runs `seed` right after it enters one.
 """
 import os
 
+import pytest
+
 import codemap_cli
 import codemap_index as idx
 import codemap_store as store
@@ -77,6 +79,35 @@ def test_seed_writes_an_index_even_when_nothing_differs_from_the_main_one(tmp_pa
 def test_seed_returns_none_and_writes_nothing_when_the_main_checkout_has_no_index(tmp_path):
     main, wt = _main_and_worktree(tmp_path, build_main=False)
     assert idx.seed(wt, main) is None
+    assert not os.path.exists(store.index_dir(wt))
+
+
+def test_seed_does_not_read_a_main_index_that_is_tracked(tmp_path, monkeypatch):
+    # The worktree's branch need not hold the tracked files, so checking only
+    # its own tree would let records that came with the repository through,
+    # and update and status already refuse that index in the main checkout (#485).
+    main, wt = _main_and_worktree(tmp_path)
+    git(main, "add", "-f", ".cai/codemap/state.json")
+    reads = []
+    real = store._read
+    monkeypatch.setattr(store, "_read", lambda p: reads.append(p) or real(p))
+
+    with pytest.raises(store.IndexUnreadable) as err:
+        idx.seed(wt, main)
+
+    assert err.value.args[0] == store.TRACKED_REASON
+    assert reads == []
+    assert not os.path.exists(store.index_dir(wt))
+
+
+def test_cli_seed_from_a_tracked_main_index_says_unsupported_and_writes_nothing(tmp_path, capsys):
+    main, wt = _main_and_worktree(tmp_path)
+    git(main, "add", "-f", ".cai/codemap/state.json")
+
+    assert codemap_cli.main(["seed", "--project-dir", wt]) == 2
+
+    assert capsys.readouterr().out.splitlines() == [
+        "codemap: unsupported (%s)" % store.TRACKED_REASON]
     assert not os.path.exists(store.index_dir(wt))
 
 
