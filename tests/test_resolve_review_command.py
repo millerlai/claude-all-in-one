@@ -98,12 +98,12 @@ def test_very_large_docs_diff_is_still_low():
     assert claude([(5000, 0, "docs/big.md")])["level"] == "low"
 
 
-@pytest.mark.parametrize("suffix", [".md", ".txt", ".rst"])
+@pytest.mark.parametrize("suffix", [".md", ".rst"])
 def test_each_docs_suffix(suffix):
     assert rrc.size_class([(1, 0, "x/y" + suffix)]) == "docs"
 
 
-@pytest.mark.parametrize("name", ["README.MD", "NOTES.TXT", "Guide.Rst"])
+@pytest.mark.parametrize("name", ["README.MD", "Guide.Rst"])
 def test_docs_suffix_ignores_case(name):
     assert rrc.size_class([(1, 0, name)]) == "docs"
     assert claude([(1, 0, name)])["level"] == "low"
@@ -112,6 +112,20 @@ def test_docs_suffix_ignores_case(name):
 def test_other_suffix_is_not_docs():
     assert rrc.size_class([(1, 0, "x/y.mdx")]) == "small"
     assert rrc.size_class([(1, 0, "Makefile")]) == "small"
+
+
+# #486: a .txt file can be a dependency or build file, so it is never docs.
+@pytest.mark.parametrize("name", ["requirements.txt", "CMakeLists.txt",
+                                  "constraints-dev.txt", "NOTES.TXT"])
+def test_txt_is_not_docs(name):
+    assert rrc.size_class([(1, 1, name)]) == "small"
+    r = claude([(1, 1, name)])
+    assert (r["level"], r["max_findings"], r["docs_only"]) == ("high", 10, False)
+
+
+def test_txt_beside_docs_is_not_docs_only():
+    r = claude([(5, 0, "README.md"), (1, 1, "requirements.txt")])
+    assert r["docs_only"] is False and r["level"] == "high"
 
 
 def test_exactly_400_is_high_and_401_is_max():
