@@ -19,7 +19,7 @@ import sys
 import design_probe
 import ledger
 import preflight
-from test_preflight_build_gate import VALID_DRAFT
+from test_preflight_build_gate import VALID_DRAFT, write_legacy_context
 
 SCRIPTS = os.path.dirname(ledger.__file__)
 PROBE_PY = os.path.join(SCRIPTS, "design_probe.py")
@@ -485,6 +485,7 @@ def sign(track, document):
 
 
 def run_build(track, project_dir):
+    write_legacy_context(track, project_dir)
     return subprocess.run([sys.executable, PREFLIGHT_PY, "build", "--track-dir", str(track),
                            "--project-dir", str(project_dir)],
                           capture_output=True, text=True, encoding="utf-8")

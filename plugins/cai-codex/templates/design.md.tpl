@@ -1,3 +1,5 @@
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
 <!--
   cai single design document template, filled in by $design on the long
   path. One file per track: `docs/design/<YYYY-MM-DD>-<topic>-design.md`.
@@ -526,3 +528,13 @@ AC: <intake.md path> sha256 <hex>
 | What | Owned by | Needed before |
 |---|---|---|
 | … | … | unit … |
+
+## Security
+
+<!--
+  Replace this section with the shared fragment from
+  <cai-root>/templates/security.md.tpl; keep its fields there, not
+  duplicated in this template. Start the model before choosing the approach,
+  then update this one section through every mode. It is outside the modes and
+  their page budgets. Main owns provenance, risk answers and the original review.
+-->

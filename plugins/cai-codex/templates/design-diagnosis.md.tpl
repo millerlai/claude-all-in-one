@@ -1,3 +1,5 @@
+> `<cai>` is the cai-codex command line that `$setup` wrote into your instructions (the cai-codex block in AGENTS.md). `<cai-root>` is what `<cai> --root` prints.
+
 <!--
   cai diagnosis template, filled in by $design in diagnosis mode.
 
@@ -143,3 +145,12 @@ flowchart TD
 -->
 
 - …
+
+## Security
+
+<!--
+  Replace this section with <cai-root>/templates/security.md.tpl.
+  Screen security impact and model relevant failure/abuse paths before choosing
+  the fix. This shared section follows the diagnosis body and is outside its
+  page budget; main owns provenance, risk answers and the original review.
+-->

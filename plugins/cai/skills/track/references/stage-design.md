@@ -35,6 +35,22 @@ Step 2 once on the document's problem statement.
 
 ## Step 1 — Explore the context
 
+**Security starts here, before approaches.** Read
+`${CLAUDE_PLUGIN_ROOT}/skills/track/references/threat-modeling.md`. Main names
+the target and establishes its current Context before author dispatch. Record
+applicability (`yes`, `no`, `unknown`) and evidence during Steps 1–4, and model
+assets, actors, flows and attacks early enough to change the approach. Step 5
+folds controls into the existing AC/Verification levels, preserving IDs and the
+normal requirement-change approval process. Do not infer `no` from keywords or
+from missing information. Use the common `templates/security.md.tpl` fragment
+inside the artifact that will be approved; do not keep two authoritative models.
+
+The design author leaves Review pending and never writes success, provenance
+verification or risk acceptance. The **main session** owns Context, actual user
+risk answers and the separate read-only architect task after the complete design
+and ordinary review corrections. Follow the shared reference's exact input and
+original-response contract; this is not another designer-dispatched review.
+
 Before asking anything, look. Map the area the request touches yourself by
 reading it — related code, existing conventions, anything that already
 half-solves this — and dispatch `explorer` for what a scout can locate faster
@@ -841,6 +857,22 @@ If an input is missing, ask the caller for it before writing the delta.
    file.
 
 ## The gate every mode shares
+
+Run each ordinary probe with `--security-phase draft --security-entry track`
+(or `standalone`) and `--intake` for independent requirements. This validates the
+shared section outside the modes; unknown/open/pending states can remain during
+Stance and Decisions discussion. Short intake places Security before Verification
+levels; long design after all modes; diagnosis after its body. It does not add a
+mode or inflate a mode's page budget. Legacy structural probe calls without these
+options retain their old meaning and are not permission to build.
+
+At final handoff, main follows `threat-modeling.md`: resolves specific proposed
+risks, fixes the AC binding, snapshots all extra inputs, gets and reconciles the
+independent response, and runs `security_design.py check --phase ready` for the
+actual entry. No final approval proceeds on draft, unknown, failed/insufficient,
+stale review, unmatched original response or pending/rejected risk. Report the
+model and any missing facts; do not author a substitute passing response. Main
+performs this handoff on both track and standalone paths before final approval.
 
 `plan-review` plus `${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py` are the
 gate. The probe is free and answers only what has one answer — run it

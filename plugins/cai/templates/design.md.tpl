@@ -526,3 +526,13 @@ AC: <intake.md path> sha256 <hex>
 | What | Owned by | Needed before |
 |---|---|---|
 | … | … | unit … |
+
+## Security
+
+<!--
+  Replace this section with the shared fragment from
+  ${CLAUDE_PLUGIN_ROOT}/templates/security.md.tpl; keep its fields there, not
+  duplicated in this template. Start the model before choosing the approach,
+  then update this one section through every mode. It is outside the modes and
+  their page budgets. Main owns provenance, risk answers and the original review.
+-->

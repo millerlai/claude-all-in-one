@@ -179,6 +179,7 @@ def frontmatter_value(path, key):
 sys.path.insert(0, f"{PLUGIN}/scripts")
 import design_probe  # noqa: E402
 import ledger  # noqa: E402
+import security_design  # noqa: E402
 
 sys.path.insert(0, "scripts")
 import release  # noqa: E402
@@ -2013,7 +2014,13 @@ def _design_probe():
         if not os.path.isfile(tpl):
             continue
         got = list(design_probe.sections(read_text(tpl)))
+        if kind == "diagnosis" and got and got[-1] == "Security":
+            got = got[:-1]
         check(f"{kind} template headings match the probe", got == want)
+        if kind == "diagnosis":
+            shared = design_probe.sections(read_text(tpl))
+            check("diagnosis template carries the shared Security fragment",
+                  list(shared)[-1:] == ["Security"] and "security.md.tpl" in shared["Security"])
         if got != want:
             print("     template:", got)
             print("     probe   :", want)
@@ -2030,7 +2037,8 @@ def _design_probe():
     if os.path.isfile(tpl):
         top = design_probe.sections(read_text(tpl))
         check("design template sections match the probe",
-              list(top) == list(design_probe.DESIGN_SECTIONS))
+              list(top) == [*design_probe.DESIGN_SECTIONS, "Security"] and
+              "security.md.tpl" in top["Security"])
         for name, want in (("Diagnosis", design_probe.DIAGNOSIS_HEADINGS),
                            ("Stance", design_probe.STANCE_HEADINGS),
                            ("Decisions", design_probe.DECISIONS_HEADINGS),
@@ -2088,6 +2096,50 @@ def _preflight():
             fh.write(text)
 
     def run_preflight(stage, track_dir=PREFLIGHT_TRACK):
+        if stage == "build":
+            state_path = os.path.join(track_dir, "state.md")
+            if os.path.isfile(state_path):
+                state = read_text(state_path)
+                match = re.search(r"^\|\s*design\s*\|[^|]*\|\s*([^|]+?)\s*\|", state, re.M)
+                artifact = match.group(1) if match else ""
+                document = next((path for path in (
+                    os.path.join(PREFLIGHT_PROJECT, artifact), os.path.join(track_dir, artifact))
+                    if artifact and os.path.isfile(path)), None)
+                if document and security_design.parse_security(
+                        security_design._utf8_lf(open(document, "rb").read())) is None:
+                    relative = os.path.relpath(document, PREFLIGHT_PROJECT).replace(os.sep, "/")
+                    context_path = security_design.context_path(PREFLIGHT_PROJECT, document)
+                    context_dir = os.path.dirname(context_path)
+                    os.makedirs(context_dir, exist_ok=True)
+
+                    def proof(kind, contents, source_ref):
+                        path = os.path.join(context_dir, kind + ".fixture")
+                        with open(path, "wb") as fh:
+                            fh.write(contents)
+                        return {"kind": kind,
+                                "path": os.path.relpath(path, PREFLIGHT_PROJECT).replace(os.sep, "/"),
+                                "sha256": hashlib.sha256(contents).hexdigest(),
+                                "source_ref": source_ref,
+                                "explanation": "Explicit historical evidence in the validator fixture"}
+
+                    ledger_path = os.path.join(track_dir, ledger.LEDGER_NAME)
+                    try:
+                        with open(ledger_path, "rb") as fh:
+                            ledger_bytes = fh.read()
+                    except FileNotFoundError:
+                        ledger_bytes = b""
+                    context = {"schema": 1, "artifact": relative, "entry": "track",
+                               "policy": "legacy", "policy_version": 0,
+                               "provenance": [
+                                   proof("workflow-version", b"Pre-Security validator fixture",
+                                         "fixture:historical-workflow"),
+                                   proof("approval", ledger_bytes, "fixture:track-ledger"),
+                                   proof("artifact-snapshot", open(document, "rb").read(),
+                                         "fixture:approved-artifact")],
+                               "provenance_verified": True, "dependencies": None,
+                               "review": None, "approval": None}
+                    with open(context_path, "w", encoding="utf-8") as fh:
+                        json.dump(context, fh)
         return subprocess.run(
             [sys.executable, PREFLIGHT, stage, "--track-dir", track_dir,
              "--project-dir", PREFLIGHT_PROJECT],

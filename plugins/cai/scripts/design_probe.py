@@ -19,6 +19,7 @@ import argparse
 import os
 import re
 import sys
+import security_design
 
 PLACEHOLDER = re.compile(r"^(TBD|TODO|N/?A|\?+|-{1,3})\.?$", re.I)
 CAP_ID = re.compile(r"\bC\d+\b")
@@ -859,6 +860,37 @@ PROBES = {"stance": stance_probes, "decisions": decisions_probes,
           "intake": intake_probes, "design": design_probes}
 
 
+def _mode_text(text, kind):
+    """The shared model has its own gate and is outside a mode's page budget."""
+    if kind in ("design", "intake"):
+        return text
+    lines = text.splitlines(keepends=True)
+    headings = security_design._headings(lines)
+    roots = [index for index, level, name in headings if level == 2 and name == "Security"]
+    if len(roots) != 1:
+        return text
+    start = roots[0]
+    end = next((index for index, level, _ in headings if index > start and level <= 2), len(lines))
+    return "".join(lines[:start] + lines[end:])
+
+
+def _security_placement(text, kind):
+    headings = security_design._headings(text.splitlines())
+    roots = [(index, name) for index, level, name in headings if level == 2]
+    security = [index for index, name in roots if name == "Security"]
+    if len(security) != 1:
+        return [(False, "security_placement (one shared ## Security required)")]
+    start = security[0]
+    if kind == "intake":
+        levels = [index for index, name in roots if name == "Verification levels"]
+        valid = len(levels) == 1 and start < levels[0]
+    elif kind == "design":
+        valid = all(index < start for index, name in roots if name in DESIGN_SECTIONS)
+    else:
+        valid = all(index <= start for index, _ in roots)
+    return [(valid, "security_placement (shared section outside modes; intake before Verification levels)")]
+
+
 def main():
     # The documents are written in the user's own language and the probe quotes
     # them back. A console codepage that cannot encode a quoted character would
@@ -873,8 +905,13 @@ def main():
     ap.add_argument("--project-dir", default=".",
                     help="root the document's file:line citations are relative "
                          "to; pass it when designing against another repo")
+    ap.add_argument("--security-phase", choices=("draft", "ready"))
+    ap.add_argument("--security-entry", choices=("track", "standalone"))
+    ap.add_argument("--intake", help="bound requirements for a long design or diagnosis")
     ap.add_argument("document")
     args = ap.parse_args()
+    if bool(args.security_phase) != bool(args.security_entry) or (args.intake and not args.security_phase):
+        ap.error("--security-phase and --security-entry are required together; --intake belongs to them")
 
     if not os.path.isfile(args.document):
         print("FAIL document not found:", args.document)
@@ -889,7 +926,14 @@ def main():
 
     run = PROBES[args.kind]
     failed = 0
-    for ok, label in run(sections(text), text, roots):
+    mode_text = _mode_text(text, args.kind)
+    checks = list(run(sections(mode_text), mode_text, roots))
+    if args.security_phase:
+        checks += _security_placement(text, args.kind)
+        checks += security_design.check_document(
+            args.document, project_dir=args.project_dir, intake=args.intake,
+            phase=args.security_phase, entry=args.security_entry)
+    for ok, label in checks:
         print(("PASS " if ok else "FAIL ") + label)
         failed += not ok
     print("-- %s: %d probe(s) failed" % (args.kind, failed))

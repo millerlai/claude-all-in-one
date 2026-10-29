@@ -143,3 +143,12 @@ flowchart TD
 -->
 
 - …
+
+## Security
+
+<!--
+  Replace this section with ${CLAUDE_PLUGIN_ROOT}/templates/security.md.tpl.
+  Screen security impact and model relevant failure/abuse paths before choosing
+  the fix. This shared section follows the diagnosis body and is outside its
+  page budget; main owns provenance, risk answers and the original review.
+-->
