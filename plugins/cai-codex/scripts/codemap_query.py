@@ -95,11 +95,25 @@ def query(top: str, index: codemap_store.Index, text: str, limit: int) -> list:
         score = PATH_HAS * _count(path.lower(), words)
         if score:
             hits.append(Hit(score, path, 1, "path", path))
-    for path, body in tracked_texts(top):
-        matches = matching_lines(body, words)
-        if matches:
-            first_line, first = matches[0]
-            hits.append(Hit(min(len(matches), TEXT_LINE_CAP), path, first_line, "text",
-                            first.strip()[:80]))
+    if _text_cannot_rank(hits, limit):
+        # No text hit can reach the top `limit`, so the bodies stay unread. The
+        # listing still runs: a bad repository raises here exactly as it did
+        # when the scan ran.
+        inventory.list_tracked(top)
+    else:
+        for path, body in tracked_texts(top):
+            matches = matching_lines(body, words)
+            if matches:
+                first_line, first = matches[0]
+                hits.append(Hit(min(len(matches), TEXT_LINE_CAP), path, first_line, "text",
+                                first.strip()[:80]))
     hits.sort(key=lambda h: (-h.score, h.path, h.line, h.kind, h.name))
     return hits[:limit]
+
+
+def _text_cannot_rank(hits: list, limit: int) -> bool:
+    """True when `limit` index hits already outscore any text hit. Strictly
+    greater: a text hit that ties the last place could still win it on path."""
+    if limit <= 0 or len(hits) < limit:
+        return False
+    return sorted((h.score for h in hits), reverse=True)[limit - 1] > TEXT_LINE_CAP
