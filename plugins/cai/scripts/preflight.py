@@ -36,6 +36,7 @@ import design_probe  # noqa: E402
 import options_lint  # noqa: E402
 import tool_path  # noqa: E402
 import verify_plan  # noqa: E402
+import security_design  # noqa: E402
 
 DEFAULT_MAX_ATTEMPTS = 5
 MAX_ATTEMPTS_ENV = "CAI_TRACK_MAX_ATTEMPTS"
@@ -723,7 +724,21 @@ def build(track_dir, project_dir):
     # from that document.
     checks = _build(track_dir, project_dir)
     return (checks[:2] + intake_document(track_dir)
-            + intake_unchanged(track_dir, project_dir) + checks[2:])
+            + intake_unchanged(track_dir, project_dir)
+            + _security_resume(track_dir, project_dir) + checks[2:])
+
+
+def _security_resume(track_dir, project_dir):
+    row = state_row(track_dir, "design")
+    artifact = row[2] if row is not None and len(row) > 2 else ""
+    doc = resolve(artifact, project_dir, track_dir) if artifact and artifact != "—" else None
+    if doc is None:
+        return []  # Existing artifact checks name the missing document.
+    intake = os.path.join(track_dir, verify_plan.INTAKE_NAME)
+    if not os.path.isfile(intake) or os.path.realpath(intake) == os.path.realpath(doc):
+        intake = None
+    return [(ok, "security_design (%s)" % label) for ok, label in security_design.check_document(
+        doc, project_dir=project_dir, intake=intake, phase="resume", entry="track", track_dir=track_dir)]
 
 
 def _build(track_dir, project_dir):

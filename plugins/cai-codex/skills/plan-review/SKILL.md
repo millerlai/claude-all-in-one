@@ -344,6 +344,26 @@ and nothing you find by reading closes a hole it has already named.
 
 ## Folding it back
 
+### Security across the design modes
+
+Read `<cai-root>/skills/track/references/threat-modeling.md`. Check
+the shared Security section's Applicability evidence and reasoning, not keyword
+matches. Relevant threats must influence the approach and reach existing AC and
+Verification levels; unresolved facts and risk proposals must remain visible.
+The common section is outside Stance/Diagnosis page budgets and does not add a
+fifth mode. Current draft modes can have pending review/open information; they
+cannot be described as final security ready.
+
+At final approval, require main's current original-response reconciliation and
+ready result, with specific risk answers and retained Minor findings. Challenge
+whether scenarios name attacker preconditions, steps and concrete asset/business
+impact; nonempty cells alone prove none of those. This ordinary plan review
+checks that the dedicated independent task exists and is fresh; it does not
+replace it, write its success or accept risks for the person. Main owns that
+task and its evidence. Proven legacy approvals retain their original content;
+unknown provenance stops automatic exemption instead of silently invalidating
+or rewriting an old document.
+
 - Findings → fix the plan, then re-run Step 1 on the fixed version. A fix that
   adds an element adds a row to the traceability table too.
 - Reviewing your own plan → say what you found and what you changed, in the same

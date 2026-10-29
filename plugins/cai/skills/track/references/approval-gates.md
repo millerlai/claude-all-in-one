@@ -34,6 +34,19 @@ separately from the thing they look attached to.
 
 ## Gate 1 — the design sign-off, after `design` and before any code
 
+**Security is part of the same approval.** The main session follows
+`${CLAUDE_PLUGIN_ROOT}/skills/track/references/threat-modeling.md` before this
+menu: confirm applicability evidence, resolve each Risk decisions proposal using
+the person's specific original answer, freeze dependencies, reconcile the actual
+independent response and run `security_design.py check --phase ready` for the
+entry. `pending`, `reject`, unknown, failed/insufficient or stale results do not
+reach the menu. A general Approve cannot stand in for accepting an unasked risk.
+For evidenced no, the complete-model review is not applicable; ordinary review
+still checks the reason and evidence. Present accepted remaining risks and
+review limitations with the artifact, alongside the existing stance/decisions
+and cost message. Keep the existing status/intake/whole-file fingerprint order;
+any other changed reviewed input returns through review and approval.
+
 **What is being signed on the short path.** The signed document is `intake.md`
 itself: the problem statement, the acceptance criteria, the approach and its
 `## Signals`. The message above the menu lists every `## Signals` row as

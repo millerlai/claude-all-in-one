@@ -12,9 +12,11 @@ import hashlib
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import ledger
 import preflight
+import security_design as sd
 import usage_collector
 import pytest
 
@@ -180,6 +182,48 @@ def make_track(tmp_path, artifact):
     return str(track)
 
 
+def write_legacy_context(track, project):
+    row = preflight.state_row(str(track), "design")
+    if row is None or len(row) < 3 or not row[2] or row[2] == ledger.NO_ARTIFACT:
+        return
+    artifact = preflight.resolve(row[2], str(project), str(track))
+    if artifact is None:
+        return
+    document = Path(artifact)
+    contents = document.read_bytes()
+    try:
+        if sd.parse_security(sd._utf8_lf(contents)) is not None:
+            return
+    except sd.SecurityFormatError:
+        return
+
+    root = Path(project).resolve()
+    relative = document.resolve().relative_to(root).as_posix()
+    context_path = Path(sd.context_path(str(root), str(document)))
+    directory = context_path.parent
+    directory.mkdir(parents=True, exist_ok=True)
+
+    def evidence(kind, contents, source_ref):
+        path = directory / (kind + ".txt")
+        if not path.exists():
+            path.write_bytes(contents)
+        saved = path.read_bytes()
+        return {"kind": kind, "path": path.relative_to(root).as_posix(),
+                "sha256": hashlib.sha256(saved).hexdigest(), "source_ref": source_ref,
+                "explanation": "Explicit legacy fixture evidence for a pre-Security design"}
+
+    track_ledger = Path(track) / ledger.LEDGER_NAME
+    proofs = [evidence("workflow-version", b"Pre-Security workflow fixture",
+                       "fixture:historical-workflow"),
+              evidence("approval", track_ledger.read_bytes() if track_ledger.exists() else b"",
+                       "fixture:track-ledger"),
+              evidence("artifact-snapshot", contents, "fixture:approved-artifact")]
+    context = {"schema": 1, "artifact": relative, "entry": "track", "policy": "legacy",
+               "policy_version": 0, "provenance": proofs, "provenance_verified": True,
+               "dependencies": None, "review": None, "approval": None}
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+
+
 def write_doc(tmp_path, name, text):
     doc = tmp_path / name
     doc.write_text(with_ac_line(name, text), encoding="utf-8")
@@ -187,6 +231,7 @@ def write_doc(tmp_path, name, text):
 
 
 def run(track, project):
+    write_legacy_context(track, project)
     return subprocess.run(
         [sys.executable, PREFLIGHT_PY, "build", "--track-dir", track,
          "--project-dir", project],

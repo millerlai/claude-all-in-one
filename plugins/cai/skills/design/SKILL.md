@@ -25,3 +25,5 @@ There is no track underneath this command — the reference file's closing
 step, which writes a note into a track's state, does not apply here. If a
 track already exists for this work, use `/cai:track` instead so the record
 stays with it.
+
+For standalone designs, follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/threat-modeling.md`; main saves `Context` and runs `security_design.py check --phase ready --entry standalone` before approval.

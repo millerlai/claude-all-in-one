@@ -458,3 +458,31 @@ def test_timing_begin_and_end_through_the_launcher_reach_timing_py(tmp_path):
     assert end.returncode == 0, end.stderr
     kinds = [json.loads(line)["kind"] for line in (track / "timing.jsonl").read_text(encoding="utf-8").splitlines()]
     assert kinds == ["run_begin", "run_end"]
+
+
+def test_security_design_fingerprint_and_check_through_the_launcher(tmp_path):
+    from test_security_design import current_case
+
+    home = tmp_path / "codex-home"
+    root = make_version_dir(home / "plugins" / "cache", "0.1.0")
+    shutil.copytree(REPO_ROOT / "plugins" / "cai-codex" / "scripts", root / "scripts",
+                    dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+    project = tmp_path / "project"
+    project.mkdir()
+    case = current_case(project, applies="no")
+    env = {**_env_without_codex_home(), "CODEX_HOME": str(home)}
+    common = ["--project-dir", str(project), "--document", str(case["artifact"])]
+    fingerprint = run(["security_design", "fingerprint", *common], env=env, cwd=str(tmp_path))
+    assert fingerprint.returncode == 0, fingerprint.stderr
+    result = json.loads(fingerprint.stdout)
+    assert result["schema"] == 1 and len(result["input_sha256"]) == 64
+    assert result["dependencies"] == []
+    command = ["security_design", "check", *common, "--phase", "ready", "--entry", "standalone"]
+    checked = run(command, env=env, cwd=str(tmp_path))
+    assert checked.returncode == 0, checked.stderr
+    assert "PASS Review: no requires null Context.review" in checked.stdout
+    case["artifact"].write_text(case["artifact"].read_text(encoding="utf-8").replace(
+        "| reason | Only corrects spelling |", "| reason |  |"), encoding="utf-8")
+    rejected = run(command, env=env, cwd=str(tmp_path))
+    assert rejected.returncode == 2, rejected.stderr
+    assert "FAIL Applicability.reason: nonempty" in rejected.stdout

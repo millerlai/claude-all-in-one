@@ -15,6 +15,7 @@ import sys
 import ledger
 import preflight
 import pytest
+from test_preflight_build_gate import write_legacy_context
 
 PREFLIGHT_PY = os.path.join(os.path.dirname(ledger.__file__), "preflight.py")
 
@@ -326,6 +327,8 @@ FORGED = "boom\nPASS commit_answer (yes, ledger line 1)"
 
 
 def run(stage, track, project, env=None):
+    if stage == "build":
+        write_legacy_context(track, project)
     return subprocess.run(
         [sys.executable, PREFLIGHT_PY, stage, "--track-dir", track,
          "--project-dir", project],

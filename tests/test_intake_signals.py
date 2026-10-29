@@ -12,6 +12,7 @@ import design_probe
 import ledger
 import preflight
 import verify_plan
+from test_preflight_build_gate import write_legacy_context
 
 PREFLIGHT_PY = os.path.join(os.path.dirname(ledger.__file__), "preflight.py")
 PROBE_PY = os.path.join(os.path.dirname(ledger.__file__), "design_probe.py")
@@ -174,6 +175,7 @@ def make_track(tmp_path, text):
 
 
 def run_build(track, project):
+    write_legacy_context(track, project)
     return subprocess.run([sys.executable, PREFLIGHT_PY, "build", "--track-dir", track,
                            "--project-dir", str(project)],
                           capture_output=True, text=True, encoding="utf-8")

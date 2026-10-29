@@ -43,7 +43,7 @@ a `|---|---|---|---|` rule, one row naming each `stages.json` stage, rest empty.
 
 ## Running a stage
 
-For the stage about to run:
+For a security-bearing design, follow `${CLAUDE_PLUGIN_ROOT}/skills/track/references/threat-modeling.md`; main saves `Context` and runs `security_design.py check --phase ready --entry track` before Gate 1:
 
 1. **Preflight.** `python ${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py <stage>
    --track-dir .cai/track/<feature> --project-dir <project root>`. Exit 2 means

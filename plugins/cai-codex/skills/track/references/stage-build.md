@@ -40,6 +40,20 @@ design document, the fallback is noted.
 
 ## Step 0 — The gate
 
+**Standalone security resume is fixed before any build dispatch.** With no
+track underneath, run
+`<cai> security_design check --phase resume --entry standalone --project-dir "<top>" --document "<approved artifact>"`
+and add `--intake "<Context directory>/intake.md"` for independent requirements.
+Stop on FAIL and report its missing evidence or stale input. Do not invent a
+track ledger, a legacy version or a passing review. Under a track, its fixed
+`preflight.py build` runs the same resume check with entry track; omitting a
+design-probe flag cannot skip it. Follow
+`<cai-root>/skills/track/references/threat-modeling.md` for recovery.
+Resume uses the existing approved response, rereads every dependency snapshot
+and live constraint, and allows approved implementation-baseline source edits;
+it does not dispatch another security architect at build. Preserve unknown old
+approvals while recovering their real historical evidence or reopening design.
+
 1. If a detail design exists: `## Work breakdown` has data rows with
    `Depends on` filled in (a header-only table means there is no schedule —
    just implement directly); `## Verification` reaches those units, each
