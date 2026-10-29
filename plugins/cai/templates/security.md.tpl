@@ -16,6 +16,10 @@
 | applies | unknown |
 | reason | |
 | evidence | |
+| dependencies_sha256 | |
+
+<!-- For applies=no, copy fingerprint's dependencies_sha256 here before approval.
+     It binds the dependency list even when there is no independent review. -->
 
 ### Scope
 
@@ -49,6 +53,7 @@
   none is allowed only without an implementation control. Disposition is
   control-planned, risk-proposed or unresolved. Describe remaining risk explicitly.
   With no identified threats, explain why here and obtain independent review.
+  Separate prose from the table with a blank line; table rows need outer pipes.
 -->
 
 | ID | Flow | Category | Scenario | Control | AC | Disposition | Residual risk |

@@ -49,8 +49,9 @@ def document(*, applies="yes", review="pending"):
 def no_model():
     return ("# Wording correction\n\n## Security\n\n### Applicability\n\n"
             "| Field | Value |\n|---|---|\n| schema | 1 |\n| applies | no |\n"
-            "| reason | Only corrects spelling |\n| evidence | README diff only |\n\n"
-            "### Review\nnot-applicable\n")
+            "| reason | Only corrects spelling |\n| evidence | README diff only |\n"
+            "| dependencies_sha256 | %s |\n\n"
+            "### Review\nnot-applicable\n" % hashlib.sha256(b"[]").hexdigest())
 
 
 def problems(text, phase="draft", ac_rows=None):
@@ -204,14 +205,14 @@ def test_pending_risk_without_an_answer_is_allowed_only_during_draft():
 
 def test_empty_threat_table_needs_an_explicit_no_threat_reason():
     assert any("Threats" in issue for issue in problems(document().replace(THREAT, "")))
-    explained = document().replace(THREAT, "No threat scenario was identified in this bounded flow.\n")
+    explained = document().replace(THREAT, "\nNo threat scenario was identified in this bounded flow.\n")
     assert problems(explained) == []
 
 
 @pytest.mark.parametrize("phase", ["draft", "ready"])
 def test_no_threat_explanation_preserves_a_literal_pipe(phase):
     text = document(review="Independent review response").replace(
-        THREAT, "No threat was identified for the read-only A | B message flow.\n")
+        THREAT, "\nNo threat was identified for the read-only A | B message flow.\n")
     assert problems(text, phase) == []
 
 
@@ -321,6 +322,13 @@ def test_dependency_order_does_not_change_the_digest_but_a_new_source_does():
     assert digest(document(), dependencies=deps) != digest(document(), dependencies=deps[:1])
 
 
+def test_dependency_binding_hashes_the_complete_canonical_list():
+    dependencies = [dependency("D2"), dependency("D1")]
+    expected = json.dumps(list(reversed(dependencies)), sort_keys=True, ensure_ascii=False,
+                          separators=(",", ":")).encode("utf-8")
+    assert sd.dependency_digest(dependencies) == hashlib.sha256(expected).hexdigest()
+
+
 def test_invalid_utf8_is_reported_as_a_format_error():
     with pytest.raises(sd.SecurityFormatError, match="UTF-8"):
         sd.review_input_digest(b"\xff", None, [])
@@ -380,6 +388,8 @@ def current_case(tmp_path, *, entry="standalone", applies="yes", kind=None, arti
                                     "snapshot_path": snapshot.relative_to(root).as_posix()}]
     case = {"root": root, "artifact": artifact, "directory": directory, "entry": entry,
             "context": context, "track": root / ".cai" / "track" / "case"}
+    if applies == "no":
+        text = text.replace(hashlib.sha256(b"[]").hexdigest(), sd.dependency_digest(context["dependencies"]))
     artifact.write_text(text, encoding="utf-8")
     if applies != "no":
         set_response(case)
@@ -514,6 +524,57 @@ def test_dependency_list_cannot_be_tampered_to_reuse_a_review(tmp_path, change):
     assert failures(document_checks(case, "resume"))
 
 
+@pytest.mark.parametrize("entry", ["track", "standalone"])
+@pytest.mark.parametrize("change", ["remove", "refresh", "kind"])
+def test_no_dependency_changes_cannot_reuse_the_original_approval(tmp_path, entry, change):
+    case = current_case(tmp_path, entry=entry, applies="no", kind="live-constraint")
+    approve_case(case)
+    assert failures(document_checks(case, "resume")) == []
+    original = case["artifact"].read_bytes()
+    dependency = case["context"]["dependencies"][0]
+    source = tmp_path / dependency["path"]
+    if change == "remove":
+        case["context"]["dependencies"] = []
+    else:
+        source.write_bytes(b"Changed policy after approval\n")
+        if change == "kind":
+            dependency["kind"] = "implementation-baseline"
+        else:
+            sha = hashlib.sha256(source.read_bytes()).hexdigest()
+            snapshot = case["directory"] / "dependencies" / ("D1-%s.snapshot" % sha)
+            snapshot.write_bytes(source.read_bytes())
+            dependency.update(sha256=sha, source_ref="policy:v2",
+                              snapshot_path=snapshot.relative_to(tmp_path).as_posix())
+    write_context(case)
+    assert failures(document_checks(case, "resume"))
+    assert case["artifact"].read_bytes() == original
+
+
+def test_no_requires_its_dependency_binding_only_at_final_handoff(tmp_path):
+    case = current_case(tmp_path, applies="no")
+    text = case["artifact"].read_text(encoding="utf-8")
+    case["artifact"].write_text("".join(line for line in text.splitlines(keepends=True)
+                                        if not line.startswith("| dependencies_sha256 |")),
+                                encoding="utf-8")
+    assert failures(document_checks(case, "draft")) == []
+    assert failures(document_checks(case, "ready"))
+
+
+@pytest.mark.parametrize("entry", ["track", "standalone"])
+def test_no_rebinding_dependencies_requires_a_new_document_approval(tmp_path, entry):
+    case = current_case(tmp_path, entry=entry, applies="no", kind="live-constraint")
+    approve_case(case)
+    old_binding = sd.dependency_digest(case["context"]["dependencies"])
+    case["context"]["dependencies"] = []
+    text = case["artifact"].read_text(encoding="utf-8")
+    case["artifact"].write_text(text.replace(old_binding, sd.dependency_digest([])), encoding="utf-8")
+    write_context(case)
+    assert failures(document_checks(case, "ready")) == []
+    assert failures(document_checks(case, "resume"))
+    approve_case(case)
+    assert failures(document_checks(case, "resume")) == []
+
+
 def test_review_parser_keeps_minor_findings_and_requires_its_exact_contract():
     minor = "| R1 | Minor | T1 | A sender with a stolen key can forge a paid event and ship an unpaid order | Document key rotation |\n"
     parsed = sd.parse_review(response("a" * 64, finding=minor))
@@ -526,6 +587,23 @@ def test_review_parser_keeps_minor_findings_and_requires_its_exact_contract():
                    response("a" * 64, finding=minor + minor)):
         with pytest.raises(sd.SecurityFormatError):
             sd.parse_review(broken)
+
+
+@pytest.mark.parametrize("field,row", [
+    ("finding", "R1 | Major | T1 | Forged callbacks ship unpaid orders | Authenticate callbacks\n"),
+    ("assumption", "A1 | Provider authenticates callbacks | Not confirmed\n"),
+])
+@pytest.mark.parametrize("gap", ["", "\n"])
+def test_unbordered_review_rows_cannot_be_silently_dropped(tmp_path, field, row, gap):
+    case = current_case(tmp_path)
+    set_response(case, **{field: gap + row})
+    write_context(case)
+    assert failures(document_checks(case))
+
+
+def test_review_rejects_a_non_table_line_attached_to_its_findings_table():
+    with pytest.raises(sd.SecurityFormatError, match="Review.Findings"):
+        sd.parse_review(response("a" * 64, finding="R1 Major T1: authentication is missing\n"))
 
 
 @pytest.mark.parametrize("execution,verdict", [("failed", "ready"), ("insufficient", "insufficient"), ("complete", "revise")])
@@ -728,6 +806,7 @@ def test_fingerprint_cli_uses_only_persisted_dependencies_and_writes_nothing(tmp
     assert sd.main(["fingerprint", "--project-dir", str(tmp_path), "--document", str(case["artifact"])]) == 0
     output = json.loads(capsys.readouterr().out)
     assert output == {"schema": 1, "input_sha256": case["context"]["review"]["input_sha256"],
+                      "dependencies_sha256": sd.dependency_digest(case["context"]["dependencies"]),
                       "dependencies": case["context"]["dependencies"]}
     assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
     (tmp_path / "callback.py").write_bytes(b"changed source")

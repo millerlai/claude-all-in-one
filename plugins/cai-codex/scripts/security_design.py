@@ -98,8 +98,17 @@ def _end(headings, start, level, length):
 
 def _table(text, name, headers=None):
     headers = HEADERS[name] if headers is None else headers
-    lines = [line.strip() for _, line in _visible(text.splitlines())
-             if line.strip().startswith("|") or line.strip().endswith("|")]
+    lines, in_table = [], False
+    for _, line in _visible(text.splitlines()):
+        line = line.strip()
+        if not line:
+            in_table = False
+        elif in_table or line.startswith("|") or line.endswith("|"):
+            # A row without its outer delimiters must fail, not disappear.
+            lines.append(line)
+            in_table = True
+        elif name.startswith("Review."):
+            raise SecurityFormatError("%s: unexpected content outside its table" % name)
     if not lines or verify_plan._cells(lines[0]) != list(headers):
         raise SecurityFormatError("%s: expected table header %s" % (name, " / ".join(headers)))
     separator = verify_plan._cells(lines[1]) if len(lines) > 1 else None
@@ -166,7 +175,7 @@ def parse_security(text: str) -> SecurityModel | None:
     required = {"schema", "applies", "reason", "evidence"}
     applicability = {row["Field"]: row["Value"] for row in fields}
     for name in applicability:
-        if name not in required:
+        if name not in required | {"dependencies_sha256"}:
             raise SecurityFormatError("Applicability: unknown field %s" % name)
     for name in sorted(required - applicability.keys()):
         raise SecurityFormatError("Applicability: missing field %s" % name)
@@ -331,6 +340,15 @@ def _utf8_lf(data):
         raise SecurityFormatError("input: expected UTF-8") from None
 
 
+def _dependency_bytes(dependencies):
+    return json.dumps(sorted(dependencies, key=lambda row: row["id"]), sort_keys=True,
+                      ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def dependency_digest(dependencies: list[dict]) -> str:
+    return hashlib.sha256(_dependency_bytes(dependencies)).hexdigest()
+
+
 def review_input_digest(document: bytes, intake: bytes | None,
                         dependencies: list[dict]) -> str:
     text = _utf8_lf(document)
@@ -345,8 +363,7 @@ def review_input_digest(document: bytes, intake: bytes | None,
         lines[first:last] = [replacement]
     d = "".join(lines).encode("utf-8")
     i = _utf8_lf(intake).encode("utf-8") if intake is not None else b""
-    s = json.dumps(sorted(dependencies, key=lambda row: row["id"]), sort_keys=True,
-                   ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    s = _dependency_bytes(dependencies)
     return hashlib.sha256(b"cai-security-input-v1\0" + b"".join(
         len(part).to_bytes(8, "big") + part for part in (d, i, s))).hexdigest()
 
@@ -580,7 +597,9 @@ def review_checks(document: bytes, intake: bytes | None, context: dict,
     if model is None:
         return [(False, "Review: missing Security")]
     if model.applicability["applies"] == "no":
-        return [(context.get("review") is None, "Review: no requires null Context.review")]
+        return [(context.get("review") is None, "Review: no requires null Context.review"),
+                (model.applicability.get("dependencies_sha256") == dependency_digest(context["dependencies"]),
+                 "Applicability.dependencies_sha256: no must bind its approved dependencies")]
     review = context.get("review")
     keys = ("input_sha256", "response_path", "response_sha256", "source_ref", "verified_items")
     if not _shape(review, keys) or not _strings(review, keys[:-1]):
@@ -809,6 +828,7 @@ def main(argv: list[str] | None = None) -> int:
             _print_checks(checks)
             return 2
         print(json.dumps({"schema": 1, "input_sha256": review_input_digest(before, data, context["dependencies"]),
+                          "dependencies_sha256": dependency_digest(context["dependencies"]),
                           "dependencies": context["dependencies"]}, ensure_ascii=False))
         return 0
     except (OSError, SecurityFormatError):

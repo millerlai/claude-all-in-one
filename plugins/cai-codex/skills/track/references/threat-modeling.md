@@ -115,6 +115,7 @@ to the design document; the intake then points to it instead of keeping a copy.
 The author leaves Review `pending`; the main session embeds actual responses.
 For evidenced `no`, Scope/model tables may be omitted and Review is exactly
 `not-applicable`. No unresolved optional model items may hide under `no`.
+Table rows require their outer pipes; separate explanatory prose with a blank line.
 
 Run the ordinary probe with `--security-phase draft --security-entry track`
 or `standalone`, and `--intake` for independent requirements. Unknown/open/
@@ -162,8 +163,13 @@ working path to change. Never overwrite an old snapshot with new content.
 <cai> security_design fingerprint --project-dir "<top>" --document "<artifact>" [--intake "<independent intake>"]
 ```
 
-The JSON contains the exact digest and dependencies to send. The main session
-dispatches a different, read-only `cai_architect` task with these fields:
+The JSON contains `input_sha256`, `dependencies_sha256` and the exact dependency
+list. Main copies `dependencies_sha256` to Applicability for evidenced `no`, after the
+dependency list is final and before ready/approval. This binds every dependency
+field to the approved document without requiring a dedicated review. Any later
+change to that list or binding requires approval again; do not update only Context.
+For applicable designs, the embedded review's input digest binds the same list;
+main dispatches a different, read-only `cai_architect` task with these fields:
 
 | Field | Input |
 |---|---|
@@ -271,6 +277,14 @@ real evidence or let the person request a current redesign; never invent old
 versions/dates or silently downgrade current after deleting its model. A rename
 gets a new key and needs restored source evidence or a reopened design. These
 local records do not authenticate a malicious workspace administrator.
+
+When a track finishes or is cancelled, `track_archive.py` captures the Contexts
+named by its design state/history and its intake into `security-evidence/` in
+the archived track. It keeps their original project-relative paths and bytes,
+including original proofs stored elsewhere in the project and bound inputs
+moved into `done/`. The bundle is audit evidence, not a rewritten active Context.
+Missing/corrupt evidence makes archiving fail; keep the worktree and restore the
+originals before retrying. Other tracks' Contexts are not copied.
 
 ## Small examples
 
