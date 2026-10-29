@@ -1,5 +1,35 @@
 # Changelog
 
+## v2.1.0 — 2026-10-29
+
+This release adds threat modeling to design, hands `verify`'s correctness review to the platform's own `/code-review`, and gives a track's new worktree the main checkout's codemap index.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v2.0.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 2.0.0 to 2.1.0. Re-running `/cai:setup` is not needed: nothing it installs changed.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`. Re-running `$setup` is not needed.
+- **A track whose design you approved before this release is stopped each time `build` starts or resumes.** `build` now checks the design's threat-modeling record, and an older design has none, so the check reports `provenance-unknown`. Finish `build` before updating, or follow "Existing approvals and recovery" in `skills/track/references/threat-modeling.md` to register the old approval from its original evidence, or reopen the design. A track already in `verify` or `ship` is not checked again. `state.md` and the ledger keep the same fields, so nothing else about a saved track changes. (#490)
+
+### Design: threat modeling
+
+- A security-bearing design now records whether threat modeling applies, with its reasons and evidence, before an approach is chosen. When it applies, assets, data flows, attack scenarios and controls go into one `## Security` section of the document you approve, and each control to build points at an existing acceptance criterion, so forged or replayed requests and resource exhaustion become checkable requirements before any code is written. (#490)
+- Unknown never counts as "does not apply". An applicable design gets one independent review before approval, and a remaining risk is accepted only by your specific answer to it; a general Approve does not accept a risk nobody asked about. A change that does not apply can skip the full model by stating its evidence. (#490)
+- Before `build` continues, the approved design and its evidence are checked again, and a changed input stops the stage. The track's archive step keeps a copy of this evidence. (#490)
+
+### Verify: correctness from the platform's review
+
+- `/cai:verify` and the track's `verify` stage no longer run their own correctness lens. Claude Code's `/code-review` (Codex: `codex exec review`, read-only) supplies it, at a level sized from the diff: `low` for a docs-only diff, `high` up to 400 changed lines, `max` above that. It never uses `--fix`, `--comment` or `ultra`. cai still runs the conformance, coverage and security lenses, and ranks the platform's findings itself. (#483)
+- If the review cannot run, `verify` falls back to the earlier correctness lens and says why: Claude Code below 2.1.288, `code-review` turned off or replaced by your own skill or command, or `codex` not found on a trusted PATH entry. (#483)
+- A diff that changes only `.txt` files, such as `requirements.txt`, is no longer sized as documentation, so it gets the code-level review. (#487)
+
+### Track: codemap in a new worktree
+
+- A track that starts on `main` in its own worktree now begins with the main checkout's codemap index instead of none. If the main checkout has no index, you are asked once whether to build one; picking Skip means you are asked again on the next track in that project. (#482)
+- If the main checkout's `.cai/codemap/` is tracked by git, seeding the worktree is refused with `codemap: unsupported (.cai/codemap holds tracked files)` rather than copying from it. (#488)
+- A codemap query no longer reads file bodies when the index already fills the result limit, so those queries are faster on large repositories; the returned rows are the same. (#491)
+
 ## v2.0.0 — 2026-10-26
 
 This release merges the track's intake, discover and design stages into one `design` stage, removes the `intake` skill, asks fewer questions, and makes the ship stage's draft faster and shorter.
