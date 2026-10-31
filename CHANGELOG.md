@@ -1,5 +1,32 @@
 # Changelog
 
+## v2.2.0 — 2026-10-31
+
+This release runs the track's `design`, `verify` and `ship` stages in your own session instead of in subagents, and lets a test command pinned to one Python interpreter be narrowed to the tests a change touches.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v2.1.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 2.1.0 to 2.2.0. Re-running `/cai:setup` is optional: it refreshes the copy of `model-selection.md` in `~/.claude/rules/`, whose wording about which stages use subagents changed.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then re-run `$setup`. Setup removes the `cai_designer.toml`, `cai_verifier.toml` and `cai_shipper.toml` files it installed earlier under `~/.codex/agents/`; without it they stay there, unused.
+- **A track in progress** keeps working: `state.md` and the ledger keep the same fields. A stage you left stopped at a question carries on from its saved report, now run by your session instead of a re-dispatched subagent. A stage a subagent is still running when you update should be allowed to finish first. (#494)
+
+### Track: design, verify and ship run in your session
+
+- `/cai:track` no longer dispatches the `designer`, `verifier` and `shipper` agents; your session reads each stage's procedure and runs it, and asks you its questions directly instead of stopping, asking and starting a fresh agent that re-reads everything. `build` still goes to the `implementer` agent. (#494)
+- Independence is kept where it matters: `verify` still sends its conformance, coverage and security lenses to fresh `reviewer` and `security-reviewer` agents, and a design inside a track still gets its `plan-review` from a read-only `architect` rather than reviewing its own document. (#494)
+- These three stages now run on your session's model, not on the tier each agent was assigned (`design` used the think tier, `verify` and `ship` the build tier). The three agents are removed, so `cai:designer`, `cai:verifier` and `cai:shipper` no longer exist. (#494)
+- A stage you run yourself writes its report to `.cai/track/<feature>/report-<stage>.md`, which the track reads when it records the stage. (#494)
+
+### Guard
+
+- The limits that applied only to those agents are gone: the `designer` Bash and write checks, the `verifier` command allow-list, and the hook on `Agent` dispatches. The guard's other rules, and the limits on `test-runner`, are unchanged. (#494)
+
+### Test command
+
+- A declared test command written as a full interpreter path, such as `C:/Python313/python.exe -m pytest` (quoted or not), is now narrowed to the tests a change touches, like a plain `python -m pytest`. Before, it resolved as unnarrowable and every build unit and verify round ran the whole suite. A command with extra arguments, a non-python executable, or a bare `python.exe` is still not narrowed. (#493)
+
 ## v2.1.0 — 2026-10-29
 
 This release adds threat modeling to design, hands `verify`'s correctness review to the platform's own `/code-review`, and gives a track's new worktree the main checkout's codemap index.
