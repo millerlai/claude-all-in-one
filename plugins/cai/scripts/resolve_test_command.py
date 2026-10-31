@@ -23,7 +23,8 @@ EXIT_RESOLVED, EXIT_SEVERAL, EXIT_UNKNOWN, EXIT_INVALID = 0, 3, 4, 5
 READ_LIMIT = 1048576
 
 # (command, whole, narrow). A declared string equal to `command` or to
-# `command whole` borrows the row's narrow; anything else is unnarrowable.
+# `command whole` borrows the row's narrow, and so does PINNED_PYTEST;
+# anything else is unnarrowable.
 KNOWN = [
     ("python -m pytest", "", "paths"),
     ("python3 -m pytest", "", "paths"),
@@ -42,6 +43,12 @@ KNOWN = [
     ("./gradlew test", "", "none"),
     ("dotnet test", "", "none"),
 ]
+
+# A full path to one interpreter, then `-m pytest`: people pin the interpreter
+# that has their pytest plugins, and pytest takes paths whichever runs it.
+# The basename is split off by hand because os.path on POSIX keeps `\`.
+PINNED_PYTEST = re.compile(
+    r'^(?:"[^"]*[\\/]python[0-9.]*(?:\.exe)?"|[^\s"]*[\\/]python[0-9.]*(?:\.exe)?) -m pytest$', re.I)
 
 # (name on PATH, launcher), first found wins. Many Linux and macOS systems have
 # python3 and no python, and a Windows install may have only the py launcher (#274).
@@ -161,7 +168,8 @@ def _declared(root, path):
                 out.append(_command(command, whole, narrow, CONFIG_REL.replace(os.sep, "/")))
                 break
         else:
-            out.append(_command(text, "", "none", CONFIG_REL.replace(os.sep, "/")))
+            narrow = "paths" if PINNED_PYTEST.match(text) else "none"
+            out.append(_command(text, "", narrow, CONFIG_REL.replace(os.sep, "/")))
     return _result(root, "resolved", "declared", commands=out)
 
 
