@@ -21,7 +21,7 @@ import codemap_index  # noqa: E402
 
 # The plugin-scoped form only: SubagentStart carries the resolved agent_type,
 # and a bare `explorer` is some other plugin's or the project's own agent.
-READERS = frozenset({"cai:explorer", "cai:architect", "cai:designer"})
+READERS = frozenset({"cai:explorer", "cai:architect"})
 
 
 def context_line(payload):

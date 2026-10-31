@@ -334,17 +334,6 @@ def test_stage_ship_step1_ignores_untracked():
     assert "--untracked-files=no" in step1
 
 
-def test_shipper_md_ignores_untracked():
-    """shipper.md's own preflight bullet has to match #198's decision, or the
-    chore-tier subagent stops on a file the script no longer blocks on."""
-    path = os.path.join(os.path.dirname(ledger.__file__), "..", "agents",
-                        "shipper.md")
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
-    assert "untracked" in text
-    assert "Dirty tree" not in text
-
-
 def test_gate2_names_both_probes():
     path = os.path.join(os.path.dirname(ledger.__file__), "..", "skills",
                         "track", "references", "approval-gates.md")

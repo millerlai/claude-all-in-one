@@ -2,33 +2,22 @@
 
 # stage-verify — four lenses over one diff — correctness from the platform's own review — and no claim without evidence
 
-On this platform, the main session always reads Step 0 through Step 1 of
-this file itself — including Step 0.6 and dispatching the three review
-agents below (four on a fallback) — whether under a track or standing alone
-via `$verify`. It then dispatches this stage's own agent for Step 2 on
-with those reports and the platform review file attached; that agent never
-dispatches anyone itself.
+The main session runs this file, both inside a track and when someone runs
+`$verify` standing alone, with no track underneath it; the track hands it
+to no subagent. The procedure below is the same either way, and the lenses of
+Step 1 are the only agents it dispatches.
 
-**Asking is the one thing that is not.** Dispatched by the track you are a
-subagent, and the platform gives no subagent an interactive tool. Every place below that waits on the person — a
-requirement decision, a parked proposal, `provenance.py` exiting 2 — then
-means: stop there, and end the report with the `## Pending questions` section
-`references/pending-questions.md` specifies. The main session puts it to the
-person and re-dispatches this stage with the answer. Write `acted_on: ` and
-what the `commit_answer` line in your brief holds inside its parentheses, on a
-line of its own, in every report you hand back — in a report that ends with
-`## Pending questions`, above that section. A saved report carried in your
-brief has an `acted_on:` line of its own: that is a trace, and the line you
-trace is the one the dispatch quotes outside that report.
-Standing alone you are the main session — ask directly. Re-dispatched with an answer: when the
-round's report came from Step 0.5's stop, no lens has run and there are no
-findings to take, so start again at Step 0; when the answer is to record the
-start candidate, rerun Step 0.75, the runtime check, the synthesis and
-`check`, take the findings from the previous round's report, and run no lens
-again; otherwise take the findings from the round's report, apply the answer
-under Fixing, and do not run Steps 0.5 to 2 again. A re-dispatch never calls
-the platform review again: it reuses the brief's `Platform review:` line, and
-only the restart at Step 0 above, where nothing was called yet, runs Step 0.6.
+**Every place below that waits on the person** — a requirement decision, a
+parked proposal, `provenance.py` exiting 2 — asks directly, one decision at a
+time, laid out as `references/pending-questions.md`'s steps 0 and 1 say. Once
+the answer is in: after Step 0.5's stop, start again at Step 0; after
+recording a start candidate, rerun Step 0.75, the runtime check, the synthesis
+and `check`, keeping the findings already reconciled and running no lens
+again; otherwise apply the answer under Fixing. One run calls the platform
+review once; only the restart at Step 0, where nothing was called yet, runs
+Step 0.6 again. Under a track, write `acted_on: ` and what the
+`commit_answer` line `preflight.py verify` printed holds inside its
+parentheses, on a line of its own, in the report.
 
 One reviewer reading a diff finds what that reviewer is tuned to find. The
 misses are not random: a reader hunting off-by-one errors is not, in the
@@ -44,10 +33,11 @@ passed five minutes ago in this conversation — the tree has moved since
 then. Every verdict below — the reconciled findings, the fix, the final
 report — traces back to a command that was actually run in this pass.
 
-**With the test command skipped**, only the tests are left out. A brief
-carrying a `Test command: skipped` line (`test-command.md`'s `## Before
-build`) runs no resolver and no test command, and every other step below
-still runs. The synthesis's `test_commands` is `[]`, so `check` reports each
+**With the test command skipped**, only the tests are left out. A track
+whose `implementation-notes.md` carries a `Test command: skipped` line
+(`test-command.md`'s `## Before build`), or a standalone run where the person
+just skipped it, runs no resolver and no test command, and every other step
+below still runs. The synthesis's `test_commands` is `[]`, so `check` reports each
 `test`-level AC as `not-covered`, `tests-not-run`. Fixing still fixes
 Blockers and Majors, but no run can show a test failing or passing: say so
 beside each fix, and the report's left-open items list each one.
@@ -73,8 +63,8 @@ An empty diff, or one that is entirely generated files, stops here. Say so.
 
 Run `<cai> provenance` once, unconditionally
 -- not gated on the diff being empty, unlike Step 0's early-stop. Exit 2 is a
-Blocker: report it and stop right there, handing up one question under
-`## Pending questions` -- the claim that drifted, and two ways forward: the
+Blocker: report it and stop right there, asking one question -- the claim
+that drifted, and two ways forward: the
 person re-confirms it, updates the ledger themselves and re-runs verify, or
 stops. Never edit the ledger's citations or
 a restated file to turn the red green -- a drift needs a person to re-confirm
@@ -83,24 +73,17 @@ the claim first, not a string edit that proves nothing.
 ## Step 0.6 — Platform review for correctness
 
 Correctness is not hunted by a lens of ours: the platform's own review does it,
-and this step is where it runs. It is the main session's step, because a
-subagent is not given the Skill tool.
+and this step is where it runs — in the main session, which holds the Skill
+tool no subagent is given.
 
-1. Under a track you — the main session — run Steps 0, 0.5 and this one
-   before dispatching `cai_verifier`, and `cai_verifier` skips this step when its
-   brief carries a `Platform review:` line. Standing alone, run them in order.
-2. When Step 0 stopped or Step 0.5 exited 2, call nothing. Under a track still
-   dispatch `cai_verifier`, with `Platform review: not run (Step 0 stopped)` or
-   `Platform review: not run (provenance exit 2)`; it stops where it always
-   did. A `cai_verifier` that got past Step 0.5 holding a `not run` line, or no
-   `Platform review:` line at all (a track begun before this step existed),
-   treats correctness as fallen back, says why, and calls no platform review
-   itself.
+1. Run Steps 0, 0.5 and this one in order.
+2. When Step 0 stopped or Step 0.5 exited 2, call nothing: the stage stops
+   where those steps say.
 3. Run `<cai> codex_review --base <base-ref> --out <file> --project-dir <top>`
    as one shell call; if your shell tool takes a time limit, give it 960
    seconds. `<file>` is `<dir>/evidence/verify/platform-review.md` under a
-   track and `<top>/.cai/platform-review/platform-review.md` standing alone:
-   here too Step 2 on goes to `cai_verifier`, which needs a file to read.
+   track and `<top>/.cai/platform-review/platform-review.md` standing alone,
+   since the script writes the review to a file either way.
 4. Exit 0: read the JSON's `review` and give it one reading: `findings` when
    it lists at least one finding, `none` when it says in words that it found
    nothing, `unclear` otherwise. Change the `reading: pending` line in the
@@ -109,7 +92,7 @@ subagent is not given the Skill tool.
    code (the launcher's own 1, 3 and 4 included, which print no JSON), or
    no readable JSON, is a fallback whose reason is the exit code and, when
    there is one, the JSON's `reason`. Do not parse the review; read it.
-5. Under a track put `Platform review: <that path>` in the dispatch brief.
+5. Step 1 reads that file, under a track and standing alone alike.
    The script writes the file only when the review ran, with `call:`,
    `status: ran`, `reading:` and `reason: -` above a `---` line and the
    review word for word below it. On a fallback you write it yourself with
@@ -137,21 +120,17 @@ Step 3 lists it with the plan's reason.
   plan's `runtime: skipped (<reason>)` line says which, and Step 3 names that
   reason as the one that kept the runtime check from running.
 - The plan prints `start candidates:` (there is a `local-run` AC, no start
-  declaration, and the resolver found something in the project's files): hand
-  up two questions under `## Pending questions`, never choosing a candidate
-  yourself. The first: record one of the candidates, or keep it Not covered.
-  The second, which blocks the recording: the ready URL. Its options are only
-  ports or URLs you read in a project file, each with its `file:line`, plus
-  one more, `{port}` — the start command with the port argument that tool
-  accepts, appended — and free text is always there. When the first answer is
-  to keep it Not covered, the second question is not asked. The main session
-  writes the answer into `.cai/cai.json` with `record_start_command.py` and
-  re-dispatches this stage; the opening paragraph says what runs then. The main
-  session never reads this file, so the first question's recording option
-  carries the command it is to run, written out whole:
+  declaration, and the resolver found something in the project's files): ask
+  two questions, one at a time, never choosing a candidate yourself. The
+  first: record one of the candidates, or keep it Not covered. The second,
+  which blocks the recording: the ready URL. Its options are only ports or
+  URLs you read in a project file, each with its `file:line`, plus one more,
+  `{port}` — the start command with the port argument that tool accepts,
+  appended — and free text is always there. When the first answer is to keep
+  it Not covered, the second question is not asked. To record, run
   `<cai> record_start_command --ready <the
-  second answer> -- <the candidate's start words>`.
-  Standing alone, ask the same two directly, one at a time.
+  second answer> -- <the candidate's start words>`, which writes it into
+  `.cai/cai.json`; the opening paragraph says what runs then.
 
 ## Step 1 — Dispatch the lenses
 
@@ -159,7 +138,7 @@ Three agents, in parallel, one message: two `cai_reviewer` agents, one lens each
 for conformance and coverage, plus the `cai_security-reviewer` agent for security.
 Correctness comes from Step 0.6. Only on fallback — the platform review file
 says `fallback`, still says `reading: pending` (a reading never set) or `reading: unclear`, or cannot
-be read (reason: platform review file unreadable), the brief's `Platform review:` line says `not run` or is missing, or, standing
+be read (reason: platform review file unreadable), or, standing
 alone, Step 0.6 fell back — add a fourth, a `cai_reviewer` for correctness, and
 write why. Four and not more — `model-selection.md` caps parallel subagents at
 2–4.
@@ -194,12 +173,11 @@ compare only against the requirement, as before. With a convention file but
 no requirement, conformance still runs and compares only against the
 convention files. With both, compare against both.
 
-When the dispatch brief names a requirement, that is the requirement. When it
-names none, under a track it is the documents the design row of the track's
+When the person names a requirement, that is the requirement. When they
+name none, under a track it is the documents the design row of the track's
 state table (`.cai/track/<feature>/`) names, plus the numbered acceptance
 criteria in the `intake.md` the design stage wrote,
-`.cai/track/<feature>/intake.md` (`.cai/track/current` holds the feature name). Read them yourself; the dispatch brief does not have
-to carry them. When none can be read, conformance has no requirement and Step
+`.cai/track/<feature>/intake.md` (`.cai/track/current` holds the feature name). Read them yourself. When none can be read, conformance has no requirement and Step
 3's `Not covered` says so.
 
 The three severity words Step 2 ranks by, and the security lens's four hunt
@@ -252,8 +230,8 @@ worth another subagent run.
    element, the requirement it implies as one sentence, and what follows
    from yes and from no. Not optional and not the findings list: code that
    does more than was asked is a decision someone made silently, and
-   deleting it yourself is a second one. Surface it, don't take it: under a
-   track each one goes into `## Pending questions`, one question per element.
+   deleting it yourself is a second one. Surface it, don't take it: ask each
+   one, one question per element.
 4. **Not covered.** Under a track whose intake has a `## Verification levels`
    table, list every AC of the intake, one line each, with exactly one of four
    outcomes — `verified-by-test`, `verified-at-runtime`,
@@ -277,17 +255,34 @@ with no test run you watched is a fix you cannot prove, whatever it looks
 like on the screen.
 
 Leave `Minor` documented and unfixed unless asked. Touch nothing in section 3
-until it is answered: hand each decision up under `## Pending questions`, fix
-the Blocker/Major findings the answer does not block, and let the main
-session re-dispatch this stage with the answer. Fix nothing Step 2 could not
-trace to a requirement — a parked proposal stays parked until the user
-answers, and must not be swept in together with ordinary `Minor` findings. A
-parked proposal goes up the same way as a requirement decision, and its
-question says which requirement it would need to stop being parked.
+until it is answered: ask each decision, fix the Blocker/Major findings the
+answer does not block, and apply the answer once it is in. Fix nothing Step 2
+could not trace to a requirement — a parked proposal stays parked until the
+user answers, and must not be swept in together with ordinary `Minor`
+findings. A parked proposal is asked the same way as a requirement decision,
+and its question says which requirement it would need to stop being parked.
 
 A change made from an answer is tested like any other fix, but it is not
 re-reviewed by the four lenses: the report's left-open items say that changes
 made from an answer were not reviewed by the four lenses.
+
+## Running the tests
+
+After Fixing, or after Step 2 when nothing was fixed, run the project's test
+commands and read their output. Find them as
+`<cai-root>/skills/track/references/test-command.md` says: run
+`<cai> resolve_test_command`, run every
+command it returns, and report each one; any failure fails all. Never pick a
+command yourself when it gives you none.
+
+Scope each command that can be narrowed to the directories, modules, or node
+ids the diff lands in, and bound it with the runner's own timeout option: an
+unbounded whole-suite run is the one that hangs. A command whose `narrow` is
+`none` runs whole and is reported as "not narrowed". In Bash, no heredoc
+(`<<`) for any purpose and no `sleep` loop waiting on something: give a long
+command a `timeout` it fits in, or run it in the background and wait for the
+notification, and stop every background command you started before the
+report.
 
 ## Runtime check
 
@@ -344,26 +339,26 @@ synthesis is invalid.
 ## When this is the wrong tool
 
 - **Checking your own understanding of the diff, rather than its quality** —
-  that is `$quiz`, which stops and asks you questions. This stage never
-  waits for an answer, because inside a track it has to run to completion;
-  what needs a person goes up under `## Pending questions` instead.
+  that is `$quiz`, which stops and asks you questions. This stage asks
+  only for the decisions it cannot make, never to test what you understood.
 - **Reviewing a plan rather than code** — that is `plan-review`.
 
 ## Report
 
-This is what you hand back to the main session -- not the report this
-file's own steps describe. Put these fields in a `## Report` section. The
-main session, not you, is the only writer of the track's state table and
-of the ledger's `--note`; you write no track file at all, with one exception:
-`evidence/verify/synthesis.json`, which the Runtime check section has you write
-(the runner and `check` write the evidence files they print themselves).
+Under a track, these fields go in a `## Report` section of the report file
+the track's `SKILL.md` step 2 names -- not the report this file's own steps
+describe. Its step 3 alone writes the track's state table and the ledger's
+`--note` from them; this stage writes no other track file, with one
+exception: `evidence/verify/synthesis.json`, which the Runtime check section
+has you write (the runner and `check` write the evidence files they print
+themselves).
 
 - the verdict
 - where correctness came from: the platform review's call, or `cai_reviewer` and
   the reason for the fallback
 - the path of the last round's `manifest.json`, the `manifest:` line `check`
-  printed, or `none` and why when `check` exited 4 or 5; the main session
-  passes it as the verify ledger row's `--artifact`
+  printed, or `none` and why when `check` exited 4 or 5; step 3 passes it as
+  the verify ledger row's `--artifact`
 - the `acted_on:` line for the `commit_answer` line this run acted on, or a
   line saying there was none
 - what was fixed
@@ -377,12 +372,10 @@ of the ledger's `--note`; you write no track file at all, with one exception:
   quoted (`references/open-items-report.md`)
 - what got parked as a proposal, and which requirement it would need to
   stop being parked
-- every path you changed or added, new test files included, one per line,
-  across every round of this stage (a re-dispatch takes the earlier rounds'
-  paths from the report it was given), and a line saying you did not commit:
-  you cannot. Under a track, the commit answer the person gave at Gate 1
-  decides who does. After a
-  commit "yes" the main session adds exactly those paths
+- every path this stage changed or added, new test files included, one per
+  line, and a line saying the stage itself committed nothing. Under a track,
+  the commit answer the person gave at Gate 1 decides what happens next.
+  After a commit "yes" exactly those paths are added
   (`references/approval-gates.md`, "Verify's changes, inside a track"); after
   "no" they stay in the working tree, `ship`'s Step 1 `clean_tree` check stops
   on the tracked ones, and the person commits
@@ -391,6 +384,4 @@ Evidence goes in the artifact this stage already produces, never pasted
 in here. 4000 characters is the ceiling for this section: the largest
 note any finished track has written is 1941 characters, measured across
 30 rows in five tracks, and a report carries those fields plus what never
-reaches that cell. The number is the user's call, 2026-09-08. A
-`## Pending questions` section (`references/pending-questions.md`) sits
-outside the ceiling -- a decision handed up has to carry its evidence.
+reaches that cell. The number is the user's call, 2026-09-08.

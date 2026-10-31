@@ -914,12 +914,6 @@ def main() -> int:
     except (json.JSONDecodeError, ValueError):
         return 0  # malformed input: fail open, don't break the session
 
-    # hooks.json sends Agent calls here too (#277). Only who may be dispatched
-    # is checked; a prompt is not a command, so no rule below reads it.
-    if payload.get("tool_name") in ("Agent", "Task"):
-        import runner_guard
-        return runner_guard.check_dispatch(payload)
-
     # Write tools carry a path, not a command, and the scoped guards below say
     # nothing about them.
     if payload.get("tool_name") in LEDGER_TOOLS:
@@ -929,17 +923,13 @@ def main() -> int:
     if not command:
         return 0
 
-    # The scoped agents get their own check first; the general rules below
+    # The scoped agent gets its own check first; the general rules below
     # still run on whatever it lets through. Imported here so the main session,
     # which has no agent_type, pays nothing for it.
     agent = payload.get("agent_type")
     if agent:
-        import designer_guard
         import runner_guard
-        if agent in designer_guard.DESIGNER_AGENTS:
-            if designer_guard.check(payload) == 2:
-                return 2
-        elif agent in runner_guard.AGENTS:
+        if agent in runner_guard.AGENTS:
             if runner_guard.check(payload) == 2:
                 return 2
 

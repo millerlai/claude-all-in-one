@@ -97,13 +97,13 @@ HAND_WRITTEN = {
 # rename shows up as a KeyError instead of silently changing what "dispatch
 # position" matches.
 AGENT_SHORT_NAMES = [
-    "architect", "designer", "explorer", "implementer",
+    "architect", "explorer", "implementer",
     "refactoring-detector", "reviewer", "security-reviewer",
-    "shipper", "test-runner", "verifier",
+    "test-runner",
 ]
 _AGENT_NAME_ALT = "|".join(AGENT_SHORT_NAMES)
-# A dispatch sentence names an agent in backticks (agents/verifier.md:15-16,
-# rules/model-selection.md:42-44, stage-build.md's tier table, ...); the
+# A dispatch sentence names an agent in backticks (rules/model-selection.md,
+# stage-build.md's tier table, ...); the
 # `stages.json` "agent" field is a separate JSON string, prefixed by
 # _prefix_stages_json instead.
 BARE_AGENT_NAME = re.compile(r"`(%s)`" % _AGENT_NAME_ALT)
@@ -429,7 +429,7 @@ def _sandbox_mode(tools: str) -> str:
 def _codex_tool_note(tools: str) -> str:
     """What a Codex agent uses in place of the Claude file tools it declares.
     #288: Codex has no Read/Grep/Glob/Write/Edit tool, so without this an
-    agent whose shell is limited below (cai_designer) could read nothing."""
+    agent whose shell is limited below could read nothing."""
     def listed(names):
         quoted = [f"`{n}`" for n in names]
         if len(quoted) == 1:

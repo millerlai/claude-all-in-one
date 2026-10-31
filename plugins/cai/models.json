@@ -51,16 +51,13 @@
     "skills/viewer/SKILL.md": "chore",
 
     "agents/implementer.md": "build",
-    "agents/shipper.md": "build",
     "agents/reviewer.md": "build",
     "agents/security-reviewer.md": "build",
     "agents/refactoring-detector.md": "build",
-    "agents/verifier.md": "build",
     "skills/refactor/SKILL.md": "build",
     "skills/quiz/SKILL.md": "build",
 
     "agents/architect.md": "think",
-    "agents/designer.md": "think",
     "skills/plan-review/SKILL.md": "think"
   }
 }

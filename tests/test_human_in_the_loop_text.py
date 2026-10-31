@@ -37,26 +37,27 @@ HAND_UP = "`## Pending questions`"
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_verify_opening_hands_questions_up(tree):
-    # R2: the opening paragraph must do for stage-verify what stage-build.md
-    # and stage-ship.md do -- a subagent cannot ask, so it hands up.
+def test_verify_opening_asks_directly(tree):
+    # The main session runs verify, so a question is asked, not handed up.
     text = _reference(tree, "stage-verify.md")
     opening = text[:text.index("## The evidence rule")]
-    assert HAND_UP in opening
+    assert "asks directly" in opening
     assert "references/pending-questions.md" in opening
+    assert HAND_UP not in opening
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_verify_requirement_decisions_are_handed_up(tree):
+def test_verify_requirement_decisions_are_asked(tree):
     text = _reference(tree, "stage-verify.md")
-    assert HAND_UP in _section(text, "## Step 3")
-    assert HAND_UP in _section(text, "## Fixing")
+    assert "ask each one, one question per element" in _section(text, "## Step 3")
+    assert "ask each decision" in _section(text, "## Fixing")
+    assert HAND_UP not in text
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_verify_provenance_exit_2_is_handed_up(tree):
+def test_verify_provenance_exit_2_is_asked(tree):
     section = _section(_reference(tree, "stage-verify.md"), "## Step 0.5")
-    assert HAND_UP in section
+    assert "asking one question" in section
     # The ledger is still never edited to turn the red green.
     assert "Never edit the ledger's citations" in section
 
@@ -74,7 +75,8 @@ def test_verify_no_longer_contradicts_itself(tree):
     # stage never stops for one.
     text = _reference(tree, "stage-verify.md")
     assert "never stops for an answer" not in text
-    assert "never waits for an answer" in text
+    assert "never waits for an answer" not in text
+    assert "asks only for the decisions it cannot make" in text
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -99,19 +101,15 @@ def test_verify_takes_its_requirements_from_the_track(tree):
 def test_verify_report_lists_changed_paths_and_says_it_did_not_commit(tree):
     report = _section(_reference(tree, "stage-verify.md"), "## Report")
     assert "changed or added" in report
-    assert "did not commit" in report
+    assert "committed nothing" in report
     assert "clean_tree" in report
 
 
-def test_verifier_agent_hands_questions_up():
-    text = _flat("plugins", "cai", "agents", "verifier.md")
-    assert "Pending questions" in text
-    assert "never commit" in text
-
-
-def test_codex_verifier_agent_hands_questions_up():
-    text = _flat("plugins", "cai-codex", "agents", "cai_verifier.toml")
-    assert "Pending questions" in text
+def test_verify_has_no_stage_agent_of_its_own():
+    # The main session runs verify; only its lenses are agents.
+    assert not os.path.exists(os.path.join(ROOT, "plugins", "cai", "agents", "verifier.md"))
+    assert not os.path.exists(
+        os.path.join(ROOT, "plugins", "cai-codex", "agents", "cai_verifier.toml"))
 
 
 # --- Unit 2: approval-gates (AC4, AC6; D6) -----------------------------------
@@ -334,17 +332,17 @@ def test_step_1_records_the_step_0_5_answers_for_a_re_dispatch(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_verify_re_dispatch_resumes_at_fixing(tree):
+def test_verify_answer_resumes_at_fixing(tree):
     text = _reference(tree, "stage-verify.md")
     opening = text[:text.index("## The evidence rule")]
-    assert "do not run Steps 0.5 to 2 again" in opening
+    assert "otherwise apply the answer under Fixing" in opening
 
 
 @pytest.mark.parametrize("tree", TREES)
 def test_a_named_requirement_beats_the_track_default(tree):
     # A ship fix round names its own requirement (the person's sentence).
     step1 = _section(_reference(tree, "stage-verify.md"), "## Step 1")
-    assert "When the dispatch brief names a requirement" in step1
+    assert "When the person names a requirement" in step1
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -370,14 +368,12 @@ def test_step_0_5_commit_bullet_says_yes_covers_verify(tree):
 # --- Verify-stage fixes (lenses over the branch, second pass) ---------------
 
 @pytest.mark.parametrize("tree", TREES)
-def test_verify_re_dispatch_after_step_0_5_starts_over(tree):
-    # Step 0.5 stops before any lens runs, so that round's report has no
-    # findings; a re-dispatch that skipped Steps 0.5 to 2 would review nothing.
+def test_verify_answer_after_step_0_5_starts_over(tree):
+    # Step 0.5 stops before any lens runs, so there are no findings yet; going
+    # on past Steps 0.5 to 2 would review nothing.
     text = _reference(tree, "stage-verify.md")
     opening = text[:text.index("## The evidence rule")]
-    assert "no lens has run" in opening
-    assert "start again at Step 0" in opening
-    assert "do not run Steps 0.5 to 2 again" in opening
+    assert "after Step 0.5's stop, start again at Step 0" in opening
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -404,12 +400,6 @@ def test_verify_report_lists_added_paths_across_every_round(tree):
     report = _section(_reference(tree, "stage-verify.md"), "## Report")
     assert "changed or added" in report
     assert "new test files included" in report
-    assert "across every round" in report
-
-
-def test_verifier_agent_lists_added_paths():
-    text = _flat("plugins", "cai", "agents", "verifier.md")
-    assert "changed or added" in text
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -522,9 +512,11 @@ def test_diagnosis_signoff_says_which_menu_the_main_session_asks(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_pending_questions_lists_the_four_option_gate_1(tree):
+def test_pending_questions_leaves_gate_1_to_the_main_session(tree):
+    # Design runs in the main session, so Gate 1 is never a handed-up round.
     text = _reference(tree, "pending-questions.md")
-    assert "Approve, Approve without commits or Reject at Gate 1" in text
+    assert "Approve, Approve without commits or Reject at Gate 1" not in text
+    assert "design, verify, ship" in text
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -576,10 +568,6 @@ def test_a_saved_report_in_the_brief_is_a_trace_not_the_answer(tree):
     assert "A saved report carried in your brief has an `acted_on:` line" in step
     assert ("the line you act on is the one the dispatch quotes outside "
             "that report") in step
-    verify = _reference(tree, "stage-verify.md")
-    opening = verify[:verify.index("## The evidence rule")]
-    assert ("the line you trace is the one the dispatch quotes outside "
-            "that report") in opening
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -607,8 +595,8 @@ def test_build_and_verify_reports_repeat_the_commit_answer_line(tree):
     assert REPORT_LINE in report
     assert "Gate 1" in report
     opening = verify[:verify.index("## The evidence rule")]
-    assert ("Write `acted_on: ` and what the `commit_answer` line in your brief holds "
-            "inside its parentheses") in opening
+    assert ("write `acted_on: ` and what the `commit_answer` line `preflight.py verify` "
+            "printed holds inside its parentheses") in opening
 
 
 @pytest.mark.parametrize("tree", TREES)

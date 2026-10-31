@@ -3,8 +3,8 @@
 # test-command — where every stage gets this project's test command
 
 One program decides which command runs this project's tests, and every stage
-that needs one — build, verify, goal, refactor, the `cai_test-runner` and
-`cai_verifier` agents — asks it instead of guessing. A caller that picks a command
+that needs one — build, verify, goal, refactor, the `cai_test-runner`
+agent — asks it instead of guessing. A caller that picks a command
 on its own when the program says it cannot is the defect this file exists to
 prevent.
 
@@ -55,10 +55,9 @@ in the text above it. Who asks depends on who you are:
 type the command (the menu's free-text entry) and record it the same way.
 
 Only the main session writes `.cai/cai.json`, and only through
-`record_test_command.py` — never by editing the file. Nothing enforces that
-for the verifier, which has Write and Edit: the guard treats the declaration
-as trusted input, as it does the `Makefile` or `conftest.py` a resolved
-command runs.
+`record_test_command.py` — never by editing the file. The guard treats the
+declaration as trusted input, as it does the `Makefile` or `conftest.py` a
+resolved command runs.
 
 ## Before build: settled once, never a block
 
@@ -100,9 +99,10 @@ A menu here (exit 3, 4 or 5) that closes on its own counts as Skip: nothing is
 written, and the line reads `Test command: skipped (the menu
 timed out)`. Say so in one line.
 
-A skip holds for the rest of the track. Every later dispatch of `build` or
-`verify` carries the same line, taken from `implementation-notes.md` once
-build has copied it there. Holding that line, neither stage runs the resolver
+A skip holds for the rest of the track. Every later dispatch of `build`
+carries the same line, taken from `implementation-notes.md` once build has
+copied it there, and `verify`, which the main session runs itself, reads it
+from there too. Holding that line, neither stage runs the resolver
 or any test command, and neither asks about one. Each still does every other
 step of its own, and reports `not run: test command skipped` wherever a test
 run's result would go. Standing alone there is no dispatch: the same holds
@@ -139,13 +139,12 @@ collected 0 tests, or whose tests were all skipped, gets its own report line,
 
 ## What the boundary does and does not limit
 
-On Claude Code a hook holds the Bash of `cai_test-runner` and `cai_verifier` to the
+On Claude Code a hook holds the Bash of `cai_test-runner` to the
 resolver and the commands it resolved, each optionally followed by arguments
 without shell symbols. It limits which command a call starts with, not what
 the project's own test scripts do (a Makefile recipe, a conftest). It does not
 limit where an argument points the command either: an argument without shell
-symbols passes, so a command can be pointed at another file or directory, and
-a `cai_verifier` that can write files can write one first. Some runners also take
+symbols passes, so a command can be pointed at another file or directory. Some runners also take
 an argument that names the program to run (`go test -exec`, `cargo test
 --config` with a runner), and that passes as well. That limit is accepted, not
 an oversight, and no further rule is added for it.

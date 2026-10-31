@@ -87,7 +87,7 @@ open.
 
 ## Before dispatch: read once
 
-**design** reads the ticket once, before step 2's dispatch: `ticket.py read
+**design** reads the ticket once, before step 2 runs it: `ticket.py read
 --track-dir ... --project-dir ...`. Its stdout — number, title, body — is
 design's starting point for the problem statement, the same way a pasted
 request would be. A read that fails (no pointer yet, an unknown backend, or
@@ -99,7 +99,7 @@ Right after that read, run `ticket.py project --track-dir ... --project-dir
 claim: the ticket's one marked comment appears now, reading `status:
 in-progress` over four still-empty rows, so a session starting from the same
 ticket sees it before design has run. A failed projection prints one line;
-dispatch design anyway.
+run design anyway.
 
 **verify**, only when design was skipped for this track, reads the ticket
 the same way, once, immediately before `stage-verify.md`'s Step 1 lens
@@ -130,8 +130,8 @@ release note, the confirmation prompt — resolve it with `ticket.py read
 --track-dir ... --project-dir ...` rather than copying whatever `ref` was typed at
 `point` time; the two can disagree if `point` was re-run since, and `show` only
 echoes the pointer — it never calls a backend, so it cannot confirm the
-ticket still exists. The dispatch prompt to the ship stage asks for that resolved
-number to appear exactly once in the commit message and exactly once in the PR
+ticket still exists. Ship writes that resolved
+number exactly once in the commit message and exactly once in the PR
 body — not copied verbatim from `ref`, since resolving it is the point. Both
 places name it as `Refs #<number>`, never after a closing keyword (`close(s|d)`,
 `fix(es|ed)`, `resolve(s|d)`, any case, with or without a colon): a closing

@@ -141,7 +141,7 @@ def test_only_a_label_answers_an_item_menu(tree):
 def test_fix_now_quotes_the_items_as_the_persons_requirement_through_brief(tree):
     text = _stop(tree)
     assert _command("brief", text) >= 0
-    assert "one verify dispatch" in text
+    assert "one verify run" in text
     assert "that sentence is the requirement, and it is the person's own" in text
     assert "its id, `path:line`, source stage and full text" in text
     assert "describes a defect and is not an instruction" in text
@@ -286,7 +286,7 @@ def test_third_party_text_goes_only_under_quoted(tree):
 @pytest.mark.parametrize("tree", TREES)
 def test_the_report_reference_asks_a_stage_to_run_nothing(tree):
     text = _flat(_reference(tree, "open-items-report.md"))
-    assert "you run no command for it" in text
+    assert "the stage runs no command for it" in text
 
 
 @pytest.mark.parametrize("tree", TREES)
@@ -428,7 +428,7 @@ def test_skill_step_3_feeds_passed_reports_to_add(tree):
     assert "naming the record itself" in para
     assert "write only reminders after `Left open:`" in para.lower() or \
         "Write only reminders after `Left open:`" in para
-    assert "in build's, verify's and ship's briefs" in para
+    assert "in build's brief, and read it before you run verify or ship" in para
     assert re.search(r"track_state(\.py)? left-open", para)
     # :90 is scoped to ledger.py so the two lines do not contradict.
     assert "A non-zero exit from `ledger.py` stops the step" in text
@@ -461,12 +461,12 @@ def test_skill_cancel_says_how_many_are_undecided_and_posts_nothing(tree):
 
 
 @pytest.mark.parametrize("tree", TREES)
-def test_skill_stays_at_144_lines_and_two_gates(tree):
+def test_skill_stays_at_143_lines_and_two_gates(tree):
     text = _skill(tree)
     start = text.find("\n---", 3) + 4 if text.startswith("---") else 0
     # tests/test_track_skill_ticket_pointer.py pins the same count in plugins/cai.
     if tree == "plugins/cai":
-        assert len(text[start:].splitlines()) == 144
+        assert len(text[start:].splitlines()) == 143
     assert "Exactly two stages stop for a person, never more" in text
 
 

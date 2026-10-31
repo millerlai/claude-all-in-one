@@ -42,7 +42,7 @@ def test_stages_json_has_four_stages_and_retires_intake_and_discover():
     assert data["retired"] == ["intake", "discover"]
     design = data["stages"][0]
     assert (design["agent"], design["reference"], design["auto_invoke"]) == \
-        ("designer", "references/stage-design.md", False)
+        (None, "references/stage-design.md", False)
 
 
 # --- UC3 with the real stages.json ------------------------------------------

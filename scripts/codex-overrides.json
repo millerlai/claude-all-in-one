@@ -21,41 +21,6 @@
       "why": "D3 and Tier 3: the registry records this platform's name alongside its session identity."
     },
     {
-      "target": "agents/designer.md",
-      "anchor": [
-        "The PreToolUse hook scopes `Bash` to this plugin's `design_probe.py`,",
-        "`options_lint.py`, and `mmdc`, each as one command with no shell composition,",
-        "and to exactly `date +%F` and `git rev-parse --show-toplevel`.",
-        "Ask the main session to run any other command. The"
-      ],
-      "replacement": [
-        "Codex does not enforce the source agent's PreToolUse hook. Treat the",
-        "shell boundary as an instruction. Besides reading and searching files,",
-        "run only this plugin's `design_probe.py`,",
-        "`options_lint.py`, or `mmdc`, each as a single command, and exactly",
-        "`date +%F` and `git rev-parse --show-toplevel`. Ask the main",
-        "session to run any other command. The"
-      ],
-      "why": "#181: Claude agent hooks do not carry over to Codex; do not claim an enforced role-specific boundary. #288: Codex has no Read/Grep/Glob tool, so reading goes through the shell -- a boundary that names only the probes left the designer unable to read anything."
-    },
-    {
-      "target": "skills/track/references/stage-verify.md",
-      "anchor": [
-        "This file is read two ways: by the subagent the track dispatches to run this",
-        "stage, and by `/cai:verify` when someone runs the stage standing alone, with",
-        "no track underneath it. The procedure below is the same either way."
-      ],
-      "replacement": [
-        "On this platform, the main session always reads Step 0 through Step 1 of",
-        "this file itself — including Step 0.6 and dispatching the three review",
-        "agents below (four on a fallback) — whether under a track or standing alone",
-        "via `/cai:verify`. It then dispatches this stage's own agent for Step 2 on",
-        "with those reports and the platform review file attached; that agent never",
-        "dispatches anyone itself."
-      ],
-      "why": "D9: the main session does the only dispatch this stage needs; the dispatched agent (verifier) only reconciles from Step 2 on, never spawning another agent. Replaces the whole opening paragraph rather than appending, since the old \"subagent the track dispatches to run this stage\" framing would otherwise contradict the new sentence."
-    },
-    {
       "target": "skills/track/references/stage-verify.md",
       "anchor": [
         "3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_review_command.py --platform claude --base <base-ref> --project-dir <top>`.",
@@ -66,14 +31,14 @@
         "   word for word, adding no flag. Act on what the tool returns: a failure is a",
         "   fallback; a result is the review; \"launched ... running in the background\"",
         "   means end your turn, saying which review you are waiting for. A user",
-        "   message that arrives meanwhile is answered as usual and `verifier` is not",
+        "   message that arrives meanwhile is answered as usual and no lens is",
         "   dispatched; the completion notification wakes you. A notification whose",
         "   status is not `completed` is a fallback.",
         "5. Read the review text and give it one reading: `findings` when it lists at",
         "   least one finding, `none` when it says in words that it found nothing,",
         "   `unclear` otherwise. `unclear` is a fallback. Do not parse it; read it.",
         "6. Under a track, write `<dir>/evidence/verify/platform-review.md` with the",
-        "   Write tool and put `Platform review: <that path>` in the dispatch brief:",
+        "   Write tool; Step 1 reads it from there:",
         "",
         "   ```text",
         "   # platform review",
@@ -94,8 +59,8 @@
         "3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codex_review.py --base <base-ref> --out <file> --project-dir <top>`",
         "   as one shell call; if your shell tool takes a time limit, give it 960",
         "   seconds. `<file>` is `<dir>/evidence/verify/platform-review.md` under a",
-        "   track and `<top>/.cai/platform-review/platform-review.md` standing alone:",
-        "   here too Step 2 on goes to `verifier`, which needs a file to read.",
+        "   track and `<top>/.cai/platform-review/platform-review.md` standing alone,",
+        "   since the script writes the review to a file either way.",
         "4. Exit 0: read the JSON's `review` and give it one reading: `findings` when",
         "   it lists at least one finding, `none` when it says in words that it found",
         "   nothing, `unclear` otherwise. Change the `reading: pending` line in the",
@@ -104,7 +69,7 @@
         "   code (the launcher's own 1, 3 and 4 included, which print no JSON), or",
         "   no readable JSON, is a fallback whose reason is the exit code and, when",
         "   there is one, the JSON's `reason`. Do not parse the review; read it.",
-        "5. Under a track put `Platform review: <that path>` in the dispatch brief.",
+        "5. Step 1 reads that file, under a track and standing alone alike.",
         "   The script writes the file only when the review ran, with `call:`,",
         "   `status: ran`, `reading:` and `reason: -` above a `---` line and the",
         "   review word for word below it. On a fallback you write it yourself with",
@@ -113,7 +78,7 @@
         "   Then you dispatch the `reviewer` for correctness yourself, in the same",
         "   batch as the three lenses."
       ],
-      "why": "AC5/D2: Codex has no Skill tool or `/code-review`; its platform review is `codex_review.py`, which runs `codex exec review` in a read-only sandbox and writes the platform review file itself. Items 3 to 6 of Step 0.6 are replaced as one block so the numbering and the file format stay consistent. The override applies before rewrite(), so ${CLAUDE_PLUGIN_ROOT} becomes `<cai>`. Standing alone still writes a file because Codex hands Step 2 on to `verifier` there too."
+      "why": "AC5/D2: Codex has no Skill tool or `/code-review`; its platform review is `codex_review.py`, which runs `codex exec review` in a read-only sandbox and writes the platform review file itself. Items 3 to 6 of Step 0.6 are replaced as one block so the numbering and the file format stay consistent. The override applies before rewrite(), so ${CLAUDE_PLUGIN_ROOT} becomes `<cai>`. Standing alone still writes a file because codex_review.py only writes to one."
     },
     {
       "target": "skills/track/references/stage-verify.md",
@@ -196,76 +161,38 @@
     {
       "target": "skills/track/SKILL.md",
       "anchor": [
-        "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
-        "   to the subagent named in that row's `agent` field — never choose by",
-        "   judgement, the field decides, because model tier rides on it. Tell the agent to",
-        "   read its `reference` file, resolved against `${CLAUDE_PLUGIN_ROOT}/skills/track/`,",
+        "   Any other `agent` names the subagent to hand the work to, because model tier rides on it. Tell the agent to",
+        "   read its `reference` file, resolved the same way,",
         "   and give it `<top>`, what `git rev-parse --show-toplevel` prints.",
-        "   Before handing the work over, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py begin",
+        "   Before the work starts, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py begin",
         "   --track-dir .cai/track/<feature> --stage <stage> --platform claude` and put the line",
-        "   it prints (`cai-timing-run: <run_id>`) in the dispatch prompt unchanged; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first."
+        "   it prints (`cai-timing-run: <run_id>`) in the dispatch prompt unchanged, or keep its `<run_id>` for step 3 when you run the stage; if it fails, go on without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first."
       ],
       "replacement": [
-        "2. **Dispatch.** Look up this stage's row in `stages.json` and hand its work",
-        "   to the subagent named in that row's `agent` field — never choose by",
-        "   judgement, the field decides, because model tier rides on it. Tell the agent to",
-        "   read its `reference` file, resolved against `${CLAUDE_PLUGIN_ROOT}/skills/track/`,",
-        "   and give it `<top>`, what `git rev-parse --show-toplevel` prints. For `build`",
-        "   and `verify`, that reference file has you dispatch its helpers directly",
+        "   Any other `agent` names the subagent to hand the work to, because model tier rides on it. Tell the agent to",
+        "   read its `reference` file, resolved the same way,",
+        "   and give it `<top>`, what `git rev-parse --show-toplevel` prints. For `build`,",
+        "   that reference file has you dispatch its helpers directly",
         "   yourself instead of handing over the whole procedure — follow what it says",
         "   there before dispatching the stage's own agent, if any.",
-        "   Before handing the work over, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py begin",
+        "   Before the work starts, run `python ${CLAUDE_PLUGIN_ROOT}/scripts/timing.py begin",
         "   --track-dir .cai/track/<feature> --stage <stage> --platform codex` and put the line",
-        "   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too; if it fails, dispatch without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first."
+        "   it prints (`cai-timing-run: <run_id>`) unchanged in every dispatch prompt of this stage, each helper's too, or keep its `<run_id>` for step 3 when you run the stage; if it fails, go on without it. Every re-dispatch of a stage, one carrying a person's answer too, runs `begin` again first."
       ],
-      "why": "D9: names the exception build/verify need so this step doesn't hand the whole procedure to a subagent that would then have to spawn its own helpers. #333: the timing begin sentence comes back with --platform codex (#296 dropped it while no Codex hook could tie a spawned subagent to its dispatch; codex-cli 0.161.0's spawn_agent PostToolUse does, tests/fixtures/timing/codex-hooks/). Every helper prompt carries the marker because D9 has the session dispatch build/verify helpers itself, so no one stage agent's chain covers them."
-    },
-    {
-      "target": "agents/designer.md",
-      "anchor": [
-        "- Dispatch `explorer` to locate evidence in this project; read what it",
-        "  points at yourself before writing it down. A scout's summary is not a",
-        "  citation."
-      ],
-      "replacement": [
-        "- Locate evidence in this project yourself with read-only shell commands",
-        "  rather than dispatching another agent for it — you never dispatch",
-        "  anyone. A scout's summary would not be a citation either way."
-      ],
-      "why": "Deviation (not named by D9, applied conservatively for the same reason): nested dispatch is untested here, so designer reads the evidence itself instead of dispatching explorer. #288: through the shell, since Codex has no Read/Grep/Glob tool."
+      "why": "D9: names the exception build needs so this step doesn't hand the whole procedure to a subagent that would then have to spawn its own helpers. #333: the timing begin sentence comes back with --platform codex (#296 dropped it while no Codex hook could tie a spawned subagent to its dispatch; codex-cli 0.161.0's spawn_agent PostToolUse does, tests/fixtures/timing/codex-hooks/). Every helper prompt carries the marker because D9 has the session dispatch build helpers itself, so no one stage agent's chain covers them."
     },
     {
       "target": "skills/track/references/stage-design.md",
       "anchor": [
-        "- **This project** — dispatch `explorer` (read-only) to locate and quote the",
-        "  relevant lines, then read those files yourself and decide what they mean.",
-        "  A scout's summary is a pointer, not evidence.",
-        "- **Official documentation** — for any tool, framework, or platform the",
-        "  design stands on, fetch the vendor's own docs (`explorer`'s tools are",
-        "  Read/Grep/Glob only, so this needs a chore-tier subagent with web access),",
-        "  then interpret it yourself. Record the URL and the sentence taken."
+        "  design stands on, fetch the vendor's own docs with your web tools, then",
+        "  interpret it yourself. Record the URL and the sentence taken."
       ],
       "replacement": [
-        "- **This project** — locate and quote the relevant lines yourself with",
-        "  read-only shell commands, then decide what they mean; a scout's summary",
-        "  would only be a pointer, not evidence.",
-        "- **Official documentation** — for any tool, framework, or platform the",
-        "  design stands on, hand the fetch up as a `## Pending questions` item",
-        "  (a request, not a decision) and wait for the main session to dispatch",
-        "  a web-capable helper and return what it found, then interpret it",
-        "  yourself. Record the URL and the sentence taken."
+        "  design stands on, fetch the vendor's own docs with your web tools, or",
+        "  dispatch a web-capable helper when this session has none, then",
+        "  interpret it yourself. Record the URL and the sentence taken."
       ],
-      "why": "Deviation (not named by D9, applied conservatively for the same reason): the designer never dispatches; project evidence uses its own shell (#288: Codex has no Read/Grep/Glob tool), and a web fetch it cannot do itself gets handed up like a pending question."
-    },
-    {
-      "target": "skills/track/references/stage-design.md",
-      "anchor": [
-        "   own Bash runs only `design_probe.py`, `options_lint.py`, `mmdc`, exactly `date +%F`, or exactly"
-      ],
-      "replacement": [
-        "   own shell, besides reading and searching files, runs only `design_probe.py`, `options_lint.py`, `mmdc`, exactly `date +%F`, or exactly"
-      ],
-      "why": "#288: on Codex the designer reads files through the shell (no Read/Grep/Glob tool), so a list naming only the probes reads as forbidding that too. Single-line anchor: the only line naming the designer's own shell list here."
+      "why": "The main session now runs this stage; whether a Codex session has a web tool depends on its configuration, so the fetch names a helper as the way round rather than assuming one."
     },
     {
       "target": "agents/explorer.md",
@@ -331,16 +258,16 @@
     {
       "target": "skills/track/references/approval-gates.md",
       "anchor": [
-        "| The squash, the push and `gh pr create` or `gh pr edit` | A shipper you dispatch twice: first to draft both texts and change nothing, again after \"Run them\" to run them. |",
+        "| The squash, the push and `gh pr create` or `gh pr edit` | The main session, running `ship`: first it drafts both texts and changes nothing, then after \"Run them\" it runs them. |",
         "| `ship_pr_findings.py` | The main session. |",
-        "| The fix for a finding | The verify stage, dispatched by name by the main session. |",
+        "| The fix for a finding | The verify stage, run by the main session. |",
         "| The commit of that fix | The main session: verify cannot commit. |",
         "| `gh pr merge` | The main session, after the merge list; the bash guard's permission prompt is the one confirmation. |"
       ],
       "replacement": [
-        "| The squash, the push and `gh pr create` or `gh pr edit` | The main session itself, after the person confirms: on this platform the ship stage only drafts them. |",
+        "| The squash, the push and `gh pr create` or `gh pr edit` | The main session, running `ship`: first it drafts both texts and changes nothing, then after \"Run them\" it runs them. |",
         "| `ship_pr_findings.py` | The main session. |",
-        "| The fix for a finding | The verify stage, dispatched by name by the main session. |",
+        "| The fix for a finding | The verify stage, run by the main session. |",
         "| The commit of that fix | The main session: verify cannot commit. |",
         "| `gh pr merge` | Nobody here: after the merge list the guard denies it, so hand the exact command back and the person runs it themselves. |"
       ],
@@ -490,72 +417,10 @@
       "why": "D10, tightened after C11 (PARTIAL): the live run showed the tool being available did not stop the model from asking in plain text, so the generated text now states an explicit if/else on the model's own tool list instead of a soft \"as a menu\" claim."
     },
     {
-      "target": "agents/designer.md",
-      "anchor": [
-        "  decision at a time, biggest blast radius first. You cannot ask: the",
-        "  platform removes `AskUserQuestion` from every subagent. Never resolve one"
-      ],
-      "replacement": [
-        "  decision at a time, biggest blast radius first. You cannot ask: no",
-        "  subagent can ask the person directly here either. Never resolve one"
-      ],
-      "why": "I8: subagents never ask on Codex either."
-    },
-    {
-      "target": "agents/verifier.md",
-      "anchor": [
-        "  The `verify` stage's diff — platform review plus three lenses in parallel,",
-        "  findings reconciled, tests run, only Blocker/Major fixed test-first."
-      ],
-      "replacement": [
-        "  Runs the back half of the `verify` stage: reconciles the platform review",
-        "  file and the three lens reports (four on a fallback) the main session",
-        "  already dispatched and handed you, runs this repo's test command, and",
-        "  fixes only Blocker/Major, test-first. Never dispatches another agent",
-        "  yourself."
-      ],
-      "why": "D9: the description no longer claims verifier does the dispatching -- the main session does, and hands verifier the platform review file and the lens reports."
-    },
-    {
-      "target": "agents/verifier.md",
-      "anchor": [
-        "You run the whole `verify` stage, following `stage-verify.md`. **The lenses",
-        "are not yours to read** — dispatch the agents its Step 1 lists, in parallel in",
-        "one message, one lens each. Reading them yourself collapses them back into the",
-        "single pass that file exists to split apart. The platform review file is a",
-        "report you integrate, not one you produce: the main session ran Step 0.6 and",
-        "the brief's `Platform review:` line points at it. Reconciling what comes back,",
-        "running the tests, and fixing is your half.",
-        "",
-        "`Agent` is granted unscoped because a type list inside the parentheses is",
-        "ignored in a subagent definition, so `Agent(reviewer)` would restrict",
-        "nothing. `stage-verify.md` names them; nothing else is yours to spawn."
-      ],
-      "replacement": [
-        "You run the back half of the `verify` stage, following `stage-verify.md`",
-        "from Step 2 on. The main session already ran Step 0 through Step 1 — the",
-        "platform review (Step 0.6) and the lens agents that file names — before",
-        "handing you the platform review file and their reports; reading the lenses",
-        "yourself would collapse them back into the single pass that file exists to",
-        "split apart. The platform review file is a report you integrate, not one you",
-        "produce. Reconciling what comes back, running the tests, and fixing is your",
-        "half.",
-        "",
-        "When the platform review file is unreadable and no `reviewer` report for",
-        "correctness came with it, dispatch nothing: say at the top of your report",
-        "that correctness is missing, and the main session dispatches a `reviewer`",
-        "and hands you the result.",
-        "",
-        "You never dispatch another agent yourself — the main session already did",
-        "the only dispatching this stage needs."
-      ],
-      "why": "D9: verifier reconciles only and never spawns; the main session does the one dispatch this stage needs, before handing verifier the reports. AC5: the platform review file replaces the correctness lens's report; a missing one is reported, not worked around by spawning."
-    },
-    {
       "target": "skills/track/references/test-command.md",
       "anchor": [
         "The hook also needs a working Python. With none working, the dispatcher blocks",
-        "these agents' Bash outright; if the interpreter it recorded fails partway",
+        "that agent's Bash outright; if the interpreter it recorded fails partway",
         "through a call, that call is blocked for every caller, and the next call looks",
         "for one again.",
         "",
@@ -601,33 +466,6 @@
       "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary. #288: reading files is carved out, since on Codex it goes through the shell."
     },
     {
-      "target": "agents/verifier.md",
-      "anchor": [
-        "A PreToolUse hook holds your Bash to the resolver, the commands it resolved,",
-        "`provenance.py`, `verify_plan.py`, `local_run.py`, and these git shapes: `git symbolic-ref --short",
-        "refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and",
-        "`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain",
-        "arguments. Anything else is blocked, which rules out three habits: do not",
-        "append a redirection such as `2>&1` (the Bash tool already returns stderr),",
-        "do not prefix `cd <dir> &&` (your working directory is already the project",
-        "root), and do not chain commands. Do not explore with `find` or `ls`; you",
-        "have Glob and Grep for that."
-      ],
-      "replacement": [
-        "Codex does not enforce the source agent's PreToolUse hook. Treat the",
-        "boundary as an instruction. Besides reading and searching files, run",
-        "only the resolver, the commands it",
-        "resolved, `provenance.py`, `verify_plan.py`, `local_run.py`, and these git shapes: `git symbolic-ref --short",
-        "refs/remotes/origin/HEAD` and `git rev-parse --show-toplevel` exactly, and",
-        "`git merge-base HEAD <rev>`, `git diff`, `git log`, `git show` with plain",
-        "arguments. Do not append a redirection such as `2>&1` (the shell tool",
-        "already returns stderr), do not prefix `cd <dir> &&` (your working",
-        "directory is already the project root), do not chain commands, and do not",
-        "explore with `find` or `ls`."
-      ],
-      "why": "#267 AC9 / C11: Claude agent hooks do not carry over to Codex; do not claim an enforced boundary. #288: reading files is carved out, since on Codex it goes through the shell."
-    },
-    {
       "target": "agents/implementer.md",
       "anchor": [
         "Handed a stage reference to run rather than a unit to write —",
@@ -643,58 +481,6 @@
         "never dispatch another agent yourself."
       ],
       "why": "D9: implementer only ever implements one briefed unit; the main session does every dispatch stage-build.md needs, never handing the whole procedure to a subagent; the fix skill dispatches it one item at a time."
-    },
-    {
-      "target": "agents/shipper.md",
-      "anchor": [
-        "description: >",
-        "  A finished branch to ship — squashed into one conventional commit, pushed,",
-        "  and opened as a PR by stage-ship.md's procedure — as the `ship` stage",
-        "  dispatches it."
-      ],
-      "replacement": [
-        "description: >",
-        "  Prepares a branch for release on Codex: drafts the squash message and the",
-        "  release note, following stage-ship.md's procedure. Dispatched by the",
-        "  `ship` stage. No subagent runs a git/gh operation that changes anything",
-        "  here — the main session squashes, pushes, merges, tags and publishes",
-        "  after the person confirms."
-      ],
-      "why": "I9: the shipper's own description says prepare only; after the squash moved into Gate 2's one menu (reduce-the-human-in-the-loop-ship S2) that means drafting only, since a squash is history-rewriting and waits for \"Run them\".; closing the ticket moved to done (track-issue-status-sync I1)"
-    },
-    {
-      "target": "agents/shipper.md",
-      "anchor": [
-        "- Push with `git push --force-with-lease` only — never plain `-f`/`--force`.",
-        "- Merging, tagging, or publishing needs the person's confirmation first,",
-        "  every time — this is one of the two human gates the track never skips.",
-        "  Hand that up the same way: the gate does not move, only who voices it."
-      ],
-      "replacement": [
-        "- Do not push, merge, tag, or publish yourself.",
-        "  No subagent runs an irreversible git/gh operation here: report the",
-        "  drafted squash message, the release note, and the exact commands, and stop.",
-        "  The person confirms first, every time — one of the two human gates the",
-        "  track never skips — then the main session runs the push, tag and",
-        "  publish itself, never this stage. Not the merge: the guard denies",
-        "  `gh pr merge` on this platform, so the main session hands that",
-        "  command back for the person to run themselves too."
-      ],
-      "why": "I9: the shipper never runs push/merge/tag/publish/close itself on Codex, and the main session that takes over after Gate 2 does not run the merge either -- #194's guard denies `gh pr merge` under Codex, handing it to the person instead.; closing the ticket moved to done (track-issue-status-sync I1)"
-    },
-    {
-      "target": "agents/shipper.md",
-      "anchor": [
-        "- A later dispatch that quotes both approved texts and says the person chose",
-        "  \"Run them\" runs Steps 5 and 6, the push and Step 7's commands with those",
-        "  texts unchanged. No history is rewritten before that."
-      ],
-      "replacement": [
-        "- You are never dispatched a second time here: after the person chooses",
-        "  \"Run them\", the main session runs the squash and the PR commands itself,",
-        "  with the approved texts unchanged. No history is rewritten before that."
-      ],
-      "why": "I9/S2: the squash moved behind Gate 2's one menu; on Codex there is no second shipper dispatch, the main session runs Steps 5 and 6 (the existing 'Do not push' override above already says no subagent does)."
     },
     {
       "target": "skills/debug/SKILL.md",
@@ -766,14 +552,14 @@
     {
       "target": "skills/track/references/stage-design.md",
       "anchor": [
-        "subagent, and the platform removes `AskUserQuestion` from every subagent",
-        "whatever `tools:` says. Each `AskUserQuestion` below then means: finish"
+        "to no subagent. The procedure below is the same either way. Each",
+        "`AskUserQuestion` below is asked directly, laid out as"
       ],
       "replacement": [
-        "subagent, and no subagent can ask the person directly here either.",
-        "Each mention of the question tool below then means: finish"
+        "to no subagent. The procedure below is the same either way. Each",
+        "mention of the question tool below is asked directly, laid out as"
       ],
-      "why": "I8: subagents never ask on Codex either."
+      "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
     },
     {
       "target": "skills/track/references/stage-design.md",
@@ -885,11 +671,11 @@
       "target": "skills/track/references/pending-questions.md",
       "anchor": [
         "puts the main session in the runner's seat, where `AskUserQuestion` is",
-        "present. Ask directly there; none of this applies."
+        "present, and so does every stage the track runs itself"
       ],
       "replacement": [
         "puts the main session in the runner's seat, where the question tool is",
-        "available directly. Ask directly there; none of this applies."
+        "available directly, and so does every stage the track runs itself"
       ],
       "why": "D10: names Codex's question tool rather than Claude's `AskUserQuestion`."
     },

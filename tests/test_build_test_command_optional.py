@@ -125,7 +125,8 @@ def test_a_timed_out_menu_counts_as_skip(tree):
 @pytest.mark.parametrize("tree", TREES)
 def test_a_skip_holds_for_build_and_verify(tree):
     section = _before_build(tree)
-    assert "Every later dispatch of `build` or `verify` carries the same line" in section
+    assert "Every later dispatch of `build` carries the same line" in section
+    assert "and `verify`, which the main session runs itself, reads it" in section
     assert "Each still does every other step of its own" in section
 
 
@@ -179,14 +180,11 @@ def test_verify_skip_leaves_out_only_the_tests(tree):
     assert "`tests-not-run`" in rule
 
 
-@pytest.mark.parametrize("path", [
-    ("plugins/cai", "agents", "verifier.md"),
-    ("plugins/cai-codex", "agents", "cai_verifier.toml"),
-])
-def test_verifier_runs_no_test_command_after_a_skip(path):
-    text = _flat(*path)
+@pytest.mark.parametrize("tree", TREES)
+def test_verify_runs_no_test_command_after_a_skip(tree):
+    text = _reference(tree, "stage-verify.md")
     assert SKIP_LINE in text
-    assert "run neither the resolver nor any test command, do every other step" in text
+    assert "runs no resolver and no test command, and every other step below still runs" in text
 
 
 @pytest.mark.parametrize("tree", TREES)

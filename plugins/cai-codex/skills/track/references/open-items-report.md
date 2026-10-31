@@ -5,9 +5,11 @@ stage's `## Report` points here. An open item is one finding of the kinds
 below that you leave unfixed. It is kept with its details so that, before
 `ship` drafts anything, the person can pick one outcome for it: Fix now, File
 a GitHub issue, Note on the PR, or Accept as is. A line in `## Report`'s
-left-open field does none of that. The main session, not you, reads the
-section and holds the record: you run no command for it and write no track
-file.
+left-open field does none of that. The track's `SKILL.md` step 3, not the
+stage, reads the section and holds the record: the stage runs no command for
+it and writes no track file. Verify runs in the main session, so for it "your
+brief" below means the open items `track_state.py left-open` printed and the
+ones the person picked to fix.
 
 ## The section
 

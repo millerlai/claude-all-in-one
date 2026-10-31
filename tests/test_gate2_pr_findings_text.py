@@ -58,7 +58,8 @@ def test_the_who_runs_what_table_names_every_command_and_its_runner():
     for command in ("git fetch origin", "preflight.py ship", "gh pr create",
                     "gh pr edit", "ship_pr_findings.py", "gh pr merge"):
         assert command in rows
-    assert "shipper" in rows and "verify" in rows
+    assert "running `ship`" in rows and "verify" in rows
+    assert "shipper" not in rows
     assert "bash guard" in rows
 
 
@@ -97,27 +98,27 @@ def test_stage_ship_drafts_first_and_asks_nothing_about_the_squash_on_its_own(pl
         text = fh.read()
     step4 = _flat(text[text.index("\n## Step 4"):text.index("\n## Step 5")])
     assert "on its own turn" not in step4
-    assert "This dispatch drafts and stops" in step4
+    assert "Draft first, and stop at the menu" in step4
     assert "never skip confirmation" in step4
     assert "ticket comment" not in _flat(text[:text.index("\n## The grounding rule")])
 
 
 def test_a_fix_round_has_one_front_menu_listing_both_new_texts():
     flat = _flat(_sub(SUBSECTIONS[3]))
-    assert "to draft the new squash message and the new PR body" in flat
+    assert "draft the new squash message and the new PR body" in flat
     assert "one Gate 2 push menu above and nothing before it" in flat
     assert "the backup branch, the squash, `git push --force-with-lease` and " \
            "`gh pr edit`" in flat
 
 
-def test_the_shipper_drafts_first_and_squashes_only_after_run_them():
-    flat = _flat(_shipper())
-    assert "Dispatched to draft" in flat
-    assert "change nothing" in flat
-    assert "A later dispatch that quotes both approved texts" in flat
-    codex = _flat(_shipper("plugins/cai-codex", "cai_shipper.toml"))
-    assert "You are never dispatched a second time here" in codex
-    assert "squashes it into one conventional commit" not in codex
+def test_ship_drafts_first_and_squashes_only_after_run_them():
+    # The main session runs ship itself; no shipper agent is dispatched twice.
+    with open(os.path.join(ROOT, "plugins/cai", STAGE_SHIP), encoding="utf-8") as fh:
+        flat = _flat(fh.read())
+    assert "Draft first, and stop at the menu" in flat
+    assert "changing nothing" in flat
+    assert "Steps 5 and 6 and Step 7's commands run only after \"Run them\"" in flat
+    assert not os.path.exists(os.path.join(ROOT, "plugins/cai", "agents", "shipper.md"))
 
 
 def test_after_the_pr_opens_records_then_runs_the_script_in_slices():
@@ -152,10 +153,10 @@ def test_a_minor_the_person_names_is_quoted_into_the_verify_brief():
     flat = _flat(_sub(SUBSECTIONS[2]))
     assert "A number that is a Minor, an `unchecked` line" not in flat
     assert "A Minor named by number is fixed like the rest" in flat
-    assert "quoted verbatim into the verify brief" in flat
+    assert "carried verbatim into the verify run" in flat
     assert "finding-severity.md" in flat
     round_ = _flat(_sub(SUBSECTIONS[3]))
-    assert "Quote each chosen one verbatim" in round_
+    assert "Keep each chosen one verbatim" in round_
     assert "a Minor the person named counts as chosen" in round_
 
 
@@ -406,7 +407,7 @@ def test_codex_version_of_the_table_has_the_main_session_push_and_hands_the_merg
     assert "shipper" not in sec
 
 
-# --- Step 7 and the shipper: updating a PR that is already open -----------
+# --- Step 7: updating a PR that is already open ---------------------------
 
 STAGE_SHIP = os.path.join("skills", "track", "references", "stage-ship.md")
 
@@ -419,12 +420,6 @@ def _step7(plugin_root="plugins/cai"):
     return text[start + 1:text.index("\n## ", start + 1)]
 
 
-def _shipper(plugin_root="plugins/cai", name="shipper.md"):
-    with open(os.path.join(ROOT, plugin_root, "agents", name),
-              encoding="utf-8") as fh:
-        return fh.read()
-
-
 def test_step_7_keeps_the_pr_create_block_and_adds_a_pr_edit_branch():
     step = _step7()
     assert ("gh pr create --title '<title>' --body-file - <<'EOF'\n"
@@ -433,7 +428,7 @@ def test_step_7_keeps_the_pr_create_block_and_adds_a_pr_edit_branch():
             "<release note>\nEOF") in step
     assert step.index("gh pr create") < step.index("gh pr edit")
     flat = _flat(step)
-    assert ("When the dispatch names a pull request that is already open") \
+    assert ("When a pull request is already open") \
         in flat
     assert "instead of opening another" in flat
 
@@ -442,14 +437,6 @@ def test_step_7_has_no_state_md_wording_and_keeps_the_ticket_reference():
     step = _step7()
     assert "state.md" not in step
     assert "`Refs #" in step
-
-
-def test_shipper_updates_an_open_pr_with_edit_and_leaves_the_merge_alone():
-    flat = _flat(_shipper())
-    assert "When the dispatch says a PR is already open" in flat
-    assert "`gh pr edit`" in flat and "never a second `gh pr create`" in flat
-    assert "the merge is not yours" in flat
-    assert "transition" not in flat
 
 
 def test_codex_step_7_edits_the_pr_from_a_body_file():

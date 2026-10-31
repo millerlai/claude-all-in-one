@@ -1,8 +1,8 @@
 # stage-ship — squash, release-note, and stop before anything irreversible
 
-This file is read two ways: by the subagent the track dispatches to run this
-stage, and by `/cai:ship` when someone runs the stage standing alone, with
-no track underneath it. The procedure below is the same either way.
+The main session runs this file, both inside a track and when someone runs
+`/cai:ship` standing alone, with no track underneath it; the track hands it
+to no subagent. The procedure below is the same either way.
 
 **Before the irreversible operations below — merging, tagging, publishing —
 confirm with the person first.** This is one of the two human gates the
@@ -12,18 +12,10 @@ offers it instead.
 
 **Gate 2's push is asked as a menu**, quoting the exact commands about to
 run — never a sentence the person types a word back into.
-`references/approval-gates.md` holds the options for the main session; a
-dispatched subagent drafts and has no use for them. The merge is one more
+`references/approval-gates.md` holds its options. The merge is one more
 confirmation, not a menu: the bash guard's permission prompt, which on Codex
-is a denial that hands the command to the person.
-
-**Voicing that gate is the one thing not the same either way.** Dispatched
-by the track you are a subagent, and the platform gives no subagent an
-interactive tool. That confirmation, and every "stop and ask" below, then
-means: stop there, and end the report with the `## Pending questions`
-section `references/pending-questions.md` specifies — the main session puts
-it to the person. The gate does not move; only who speaks it does.
-Standing alone you are the main session — ask directly.
+is a denial that hands the command to the person. That confirmation, and
+every "stop and ask" below, is asked directly.
 
 ## The grounding rule
 
@@ -56,11 +48,6 @@ subjects and the files the stat lists, and open a hunk only for a claim that
 names one. Past about 40 tool calls, stop checking: cut each claim still
 ungrounded and hand the draft back. A draft that takes a hundred calls
 has checked the repository, not the diff.
-
-**When this stage runs as a dispatched subagent, the main session applies
-this rule again to its output before using it** — re-derive each claim from
-the diff itself. A subagent's report is a draft, and the diff is the only
-thing that outranks it.
 
 ## Step 1 — Preflight checks
 
@@ -128,27 +115,22 @@ for something more specific — every modified existing test listed, say — do
 that, and name the criterion that asked.
 
 When
-the dispatch names a ticket number, reference it as `Refs #<number>` and
-never with a closing keyword — closing stays with `/cai:track done`. A
-dispatch with no ticket number leaves the message unaffected.
+the track has a ticket number (`references/ticket-mirror.md`'s ship
+section), reference it as `Refs #<number>` and never with a closing keyword —
+closing stays with `/cai:track done`. No ticket number leaves the message
+unaffected.
 
-Trailer lines — `Co-Authored-By:` and the like — are not yours to compose.
-Dispatched by the track, leave them out of the draft: the main session adds
-its own before showing the message, and the message the person approves is
-the one you commit. Never write one naming your own model — you are not the
-session the person worked with. Standing alone, end the message with the
-ones your own instructions give for commits.
+End the message with the trailer lines your own instructions give for commits
+(`Co-Authored-By:` and the like), if any, before it is checked and shown, so
+the message the person approves is the one committed.
 
-**This dispatch drafts and stops.** The first time the track dispatches this
-stage on a branch (and again for each fix round), do Steps 1–4 and 7's
-drafting only: change nothing, and hand the squash message and the PR
-description back in full in your report. The main session checks both as
-`references/approval-gates.md`'s Gate 2 section says and shows them with the
-commands in one menu, whose "Run them" is the consent to rewriting history
-and to publishing. Steps 5 and 6 and Step 7's commands run only when a later
-dispatch quotes both approved texts and says the person chose it. Standing
-alone the order is the same and you ask directly. This is history-rewriting;
-never skip confirmation.
+**Draft first, and stop at the menu.** On a branch's first ship (and again
+for each fix round), do Steps 1–4 and 7's drafting only, changing nothing,
+then check both texts and show them with the commands in one menu, as
+`references/approval-gates.md`'s Gate 2 section says; its "Run them" is the
+consent to rewriting history and to publishing. Steps 5 and 6 and Step 7's
+commands run only after "Run them", with both approved texts unchanged. This
+is history-rewriting; never skip confirmation.
 
 ## Step 5 — Backup, then squash
 
@@ -187,10 +169,9 @@ document this track produced, if one exists, rather than re-deriving it
 from the diff — but the *what* still comes from the diff under the
 grounding rule, since a design document describes a plan and this paragraph
 describes what shipped. Where the two disagree, the diff is right and the
-gap is worth a sentence. When the dispatch names a ticket number, reference
-it as `Refs #<number>` and never with a closing keyword — closing stays with
-`/cai:track done`. A dispatch with no ticket number leaves the body
-unaffected. Put it in the PR description — you have `gh`, and that is where it always
+gap is worth a sentence. When the track has a ticket number, reference it
+as `Refs #<number>` and never with a closing keyword — closing stays with
+`/cai:track done`. No ticket number leaves the body unaffected. Put it in the PR description — you have `gh`, and that is where it always
 lands. Pass the body on stdin behind a quoted delimiter, so Bash leaves any backtick in it alone:
 
 ```bash
@@ -199,7 +180,7 @@ gh pr create --title '<title>' --body-file - <<'EOF'
 EOF
 ```
 
-When the dispatch names a pull request that is already open — a fix round
+When a pull request is already open — a fix round
 (`references/approval-gates.md`) — update it instead of opening another:
 
 ```bash
@@ -208,10 +189,13 @@ gh pr edit <number> --title '<title>' --body-file - <<'EOF'
 EOF
 ```
 
-If this project also keeps a `CHANGELOG.md`, do not write it: hand
-the same paragraph up in your `## Report`, naming the file, and the main
-session writes the entry. Files this stage does not already own are not
-yours to write.
+If this project also keeps a `CHANGELOG.md`, write the same paragraph
+into it as the change's entry after "Run them", and name the file in the
+report.
+
+Give a command that waits, such as `gh pr checks --watch`, a Bash `timeout`
+it fits in: a call that times out is moved to the background rather than
+killed. Name any still running in the report, and stop it with TaskStop.
 
 ## Rollback
 
@@ -231,13 +215,11 @@ working tree, so only the branch pointer needs to move back. Never
 
 ## Report
 
-This is what you hand back to the main session -- not the report this
-file's own steps describe. Put these fields in a `## Report` section. The
-main session, not you, is the only writer of the track's state table and
-of the ledger's `--note`; you write no track file at all.
+Under a track, these fields go in a `## Report` section of the report file
+the track's `SKILL.md` step 2 names -- not the report this file's own steps
+describe. Its step 3 alone writes the track's state table and the ledger's
+`--note` from them; this stage writes no other track file.
 
-- on the draft dispatch: the squash message and the PR description in full,
-  and that nothing was changed
 - the final commit hash
 - whether the merge/tag/publish step ran or is still waiting on the person
 - where the release note landed
@@ -247,6 +229,4 @@ Evidence goes in the artifact this stage already produces, never pasted
 in here. 4000 characters is the ceiling for this section: the largest
 note any finished track has written is 1941 characters, measured across
 30 rows in five tracks, and a report carries those fields plus what never
-reaches that cell. The number is the user's call, 2026-09-08. A
-`## Pending questions` section (`references/pending-questions.md`) sits
-outside the ceiling -- a decision handed up has to carry its evidence.
+reaches that cell. The number is the user's call, 2026-09-08.

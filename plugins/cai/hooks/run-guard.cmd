@@ -31,9 +31,6 @@ REM with call so control comes back here and exit 2 can still be decided.
 set "GUARD=%~dp0..\scripts\bash_guard.py"
 set "WRITER=%~dp0record_launcher.py"
 set "PATTERNS=%~dp0reduced-check-patterns.txt"
-REM hooks.json passes agent for Agent calls: a prompt is not a command, so the
-REM reduced check only looks for the verifier there (#277).
-if "%~1"=="agent" set "PATTERNS=%~dp0reduced-check-agent-patterns.txt"
 REM hooks.json passes write for Write, Edit and NotebookEdit calls. A broken
 REM interpreter must not stop every file write of a session, so write mode lets
 REM a failed call through (exit 1, hook error), and its pattern file knows only
@@ -199,9 +196,6 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 GUARD="$DIR/../scripts/bash_guard.py"
 WRITER="$DIR/record_launcher.py"
 PATTERNS="$DIR/reduced-check-patterns.txt"
-# hooks.json passes agent for Agent calls: a prompt is not a command, so the
-# reduced check only looks for the verifier there (#277).
-[ "$1" = agent ] && PATTERNS="$DIR/reduced-check-agent-patterns.txt"
 # hooks.json passes write for Write, Edit and NotebookEdit calls: a broken
 # interpreter must not stop every file write, so a failed call is let through
 # with exit 1 and the pattern file knows only a subagent's write to ledger.jsonl

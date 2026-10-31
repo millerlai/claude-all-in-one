@@ -90,7 +90,7 @@ def _grants_python(tools):
     The trailing colon is load-bearing, not decoration. Without it,
     `\bBash\((?:py|python|python3)\b` also matches
     `Bash(python -m pytest:*)` -- the boundary is satisfied by the
-    space -- and verifier.md carries exactly that grant, so an agent that
+    space -- and verifier.md once carried exactly that grant, so an agent that
     can run pytest and nothing else would answer True for "can run
     design_probe.py". Every scoped grant this plugin ships is
     `<command>:*`, so requiring the colon costs nothing real.
@@ -694,8 +694,8 @@ def _codemap():
     TRACKED_ONLY = ("It holds tracked files only: a file not yet added with `git add` "
                     "is not in it, so Glob for new files.")
     refs = [f"skills/track/references/stage-{s}.md" for s in ("discover", "design")]
-    agents = [f"agents/{a}.md" for a in ("architect", "designer", "explorer")]
-    codex_agents = [f"agents/cai_{a}.toml" for a in ("architect", "designer", "explorer")]
+    agents = [f"agents/{a}.md" for a in ("architect", "explorer")]
+    codex_agents = [f"agents/cai_{a}.toml" for a in ("architect", "explorer")]
     pinned = ([f"{PLUGIN}/{p}" for p in refs + agents]
               + [f"plugins/cai-codex/{p}" for p in refs + codex_agents])
     for path in pinned:
@@ -1088,8 +1088,10 @@ def _agents_and_hooks():
     # Ten, not nine, as of pb04: `security-reviewer` is verify's fourth lens,
     # dispatched alongside the three `reviewer` agents, one per module the way
     # `refactoring-detector` already was above.
+    # Seven, not ten: designer, verifier and shipper went when the track's
+    # design, verify and ship stages moved into the main session.
     AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
-    check(f"agents/ holds exactly 10 files ({len(AGENTS)})", len(AGENTS) == 10)
+    check(f"agents/ holds exactly 7 files ({len(AGENTS)})", len(AGENTS) == 7)
 
     # Claude Code runs a hook command through /bin/sh as a path, so on macOS and
     # Linux a target without the exec bit fails with "Permission denied" (#355).
@@ -1230,10 +1232,8 @@ def _encoding():
     # every Linux pattern, and a `\>` before the last two characters makes findstr
     # silently skip the line (E6: every rm rule went missing, no error). The BOM
     # check above only scans TEXT's extensions, so these files get their own. The
-    # agent file is the one Agent calls read (#277), and the write file the one
-    # Write, Edit and NotebookEdit calls read.
-    for pattern_name in ("reduced-check-patterns.txt", "reduced-check-agent-patterns.txt",
-                         "reduced-check-write-patterns.txt"):
+    # write file is the one Write, Edit and NotebookEdit calls read.
+    for pattern_name in ("reduced-check-patterns.txt", "reduced-check-write-patterns.txt"):
         pattern_path = f"{PLUGIN}/hooks/{pattern_name}"
         check(f"{pattern_name} ships with the plugin", os.path.isfile(pattern_path))
         if not os.path.isfile(pattern_path):
@@ -1310,8 +1310,7 @@ def _guard():
         # The scoped agents, by the `agent_type` the platform puts in the hook
         # input. AC8: only the resolver and the command it resolved get through
         # for test-runner; the last two of this block are habits the old agents
-        # had (`2>&1`, `cd <dir> &&`) that the new rule blocks. D7: what the
-        # verifier may also run. AC15: designer, which never had a working hook.
+        # had (`2>&1`, `cd <dir> &&`) that the new rule blocks.
         ("Bash", "cargo test", 0, CARGO, "cai:test-runner"),
         ("Bash", "cargo test my_test", 0, CARGO, "cai:test-runner"),
         ("Bash", "cargo test", 2, WORK, "cai:test-runner"),
@@ -1322,25 +1321,7 @@ def _guard():
         ("Bash", "cargo test", 0, WORK),
         ("Bash", "cargo test 2>&1", 2, CARGO, "cai:test-runner"),
         ("Bash", "cd D:/x && git status", 2, CARGO, "cai:test-runner"),
-        ("Bash", "git diff --stat a...HEAD", 0, WORK, "cai:verifier"),
-        ("Bash", "git symbolic-ref --short refs/remotes/origin/HEAD", 0, WORK, "cai:verifier"),
-        ("Bash", "git symbolic-ref HEAD refs/heads/x", 2, WORK, "cai:verifier"),
-        # #277: --output makes the read-only verbs write a file.
-        ("Bash", "git log --output=out.txt -1", 2, WORK, "cai:verifier"),
-        ("Bash", "git diff --output out.txt", 2, WORK, "cai:verifier"),
-        ("Bash", "git log --oneline -1", 0, WORK, "cai:verifier"),
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", 0, WORK, "cai:verifier"),
-        # AC8 (c): verify_plan.py and local_run.py for the verifier only.
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan", 0, WORK, "cai:verifier"),
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify", 0, WORK, "cai:verifier"),
         ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify", 2, WORK, "cai:test-runner"),
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/record_start_command.py --ready http://127.0.0.1:1/ -- x", 2, WORK, "cai:verifier"),
-        ("Bash", "git push origin x", 2, WORK, "cai:verifier"),
-        ("Bash", "git status", 2, WORK, "cai:designer"),
-        ("Bash", "mmdc -i a.mmd -o a.svg", 0, WORK, "cai:designer"),
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md", 0, WORK, "cai:designer"),
-        ("Bash", "date +%F", 0, WORK, "cai:designer"),
-        ("Bash", "git rev-parse --show-toplevel", 0, WORK, "cai:designer"),
         ("Bash", "git push --force origin main", 2, WORK),
         ("Bash", "git push -f origin main", 2, WORK),
         # #194: a `+refspec` forces exactly like --force/-f, on any target.
@@ -1351,8 +1332,8 @@ def _guard():
         # someone else's push, not against rewriting main itself.
         ("Bash", "git push --force-with-lease origin main", 2, WORK),
         ("Bash", "git push --force-with-lease origin master", 2, WORK),
-        # A lease push to a feature branch stays allowed -- the shipper's own
-        # documented push (agents/shipper.md:21).
+        # A lease push to a feature branch stays allowed -- the ship stage's own
+        # documented push (stage-ship.md, Step 6).
         ("Bash", "git push --force-with-lease origin feat/x", 0, WORK),
         ("Bash", "git push --force-with-lease", 0, WORK),
         # No refspec, so the destination is the current branch -- main here, with
@@ -1654,7 +1635,7 @@ def _guard():
          None, "agent-ledger-test"),
         ("Write", {"file_path": "/p/docs/notes.md",
                    "content": "git push --force origin main, ledger.jsonl"}, 0, WORK,
-         "cai:designer", "agent-ledger-test"),
+         "cai:implementer", "agent-ledger-test"),
         # The guard's launcher record, which picks the program that runs the
         # guard, is a subagent's to leave alone too (#414): writes and commands.
         ("Write", {"file_path": "/home/u/.claude/cai/guard-launcher-sh.txt", "content": "x"}, 2,
@@ -1717,18 +1698,12 @@ def _guard():
         ("Bash", "python -m pytest tests/test_ledger.py", 0, WORK, None, "agent-ledger-test"),
         ("Bash", "git diff plugins/cai/scripts/ledger.py | grep append", 0, WORK,
          None, "agent-ledger-test"),
-        # B14: the designer guard allows this one, and the ledger rule still holds.
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail "
-                 ".cai/track/t/ledger.jsonl", 2, WORK, "cai:designer", "agent-ledger-test"),
-        ("Bash", "python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail "
-                 ".cai/track/t/ledger.jsonl", 0, WORK, "cai:designer"),
         # D2: a Monitor command meets the Bash rules.
         ("Monitor", "git push --force origin main", 2, WORK),
         ("Monitor", "echo `date`", 2, WORK),
         ("Monitor", "Remove-Item build -Recurse -Force", 0, WORK),
         ("Monitor", "tail -f build.log", 0, WORK),
         ("Monitor", "gh pr merge 1", 0, WORK),
-        ("Monitor", "tail -f build.log", 2, WORK, "cai:designer"),
         ("Monitor", {"ws": "wss://example.invalid/stream"}, 0, WORK),
     ]
 
@@ -1803,8 +1778,8 @@ def _guard():
           written.returncode == 2 and "bash_guard blocked this command" in written.stderr)
     check("dispatcher write [Write ledger.jsonl as the main session] -> 0",
           run(write_dispatch, ledger_write, "Write", WORK, env=dispatch_env) == 0)
-    check("dispatcher write [Write notes.md as cai:designer] -> 0",
-          run(write_dispatch, notes_write, "Write", WORK, "cai:designer",
+    check("dispatcher write [Write notes.md as cai:implementer] -> 0",
+          run(write_dispatch, notes_write, "Write", WORK, "cai:implementer",
               "agent-ledger-test", env=dispatch_env) == 0)
     # The platform sends UTF-8 unescaped; a note in Chinese must not hide the append.
     check("dispatcher [ledger.py append with a non-ASCII note as a subagent] -> 2",
@@ -1852,7 +1827,7 @@ def _guard():
                 ("Write ledger.jsonl as the main session", ledger_write, None, None, 0),
                 ("Write the launcher record as a subagent", launcher_write, None,
                  "agent-ledger-test", 2),
-                ("Write notes.md as cai:designer", notes_write, "cai:designer", None, 0)]:
+                ("Write notes.md as cai:implementer", notes_write, "cai:implementer", None, 0)]:
             bare_write = run_process(
                 bare_dispatch + ["write"], tool_input, "Write", WORK, agent, agent_id,
                 env=dict(dispatch_env, PATH=bare_dir,
@@ -2549,37 +2524,18 @@ def _release_manifests():
 
 @section("track-stages")
 def _track_stages():
-    # What each stage's agent must be granted, checked against its `tools:`
-    # frontmatter rather than its name -- picking an agent by tier alone is
-    # exactly what pointed design at architect (can't Write) and ship at
-    # explorer (can't run git) before designer/verifier/shipper existed.
+    # What each dispatched stage's agent must be granted, checked against its
+    # `tools:` frontmatter rather than its name -- picking an agent by tier
+    # alone is exactly what pointed design at architect (can't Write) and
+    # ship at explorer (can't run git) before stage agents existed.
+    #
+    # intake and discover are retired stages (stages.json's `retired`):
+    # intake's work moved into design, and discover is a standalone command
+    # whose own agent, architect, stays read-only -- D6-1/2/3 rewrote the
+    # three imperatives out rather than grant it `Agent` or `Write`, and
+    # RETIRED_IMPERATIVES below keeps stage-discover.md from quietly asking
+    # for them again.
     STAGE_TOOL_NEEDS = {
-        # intake and discover are retired stages (stages.json's `retired`):
-        # intake's work moved into design, and discover is a standalone
-        # command whose own agent, architect, stays read-only -- D6-1/2/3
-        # rewrote the three imperatives out rather than grant it `Agent` or
-        # `Write`, and RETIRED_IMPERATIVES below keeps stage-discover.md from
-        # quietly asking for them again.
-        #
-        # designer has no web tools: an outside lookup is done in this stage by
-        # a dispatched subagent with web access (#335), never deferred.
-        "design": [
-            ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
-            ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
-            # stage-design.md runs design_probe.py and mmdc; designer.md's own
-            # body says to render before handing off. Routing those through a
-            # dispatched runner instead would move a zero-token check onto a
-            # model turn -- the opposite of the reason the probe exists at all.
-            ("a python interpreter", _grants_python),
-            ("a mermaid renderer", _grants_mermaid),
-            # #360: stage-design.md sends a Blocker/Major back to fix and
-            # re-review, up to three rounds, and designer.md's body says an
-            # existing document is changed in place. With Write alone every
-            # fix wrote the whole document out again -- 1187 lines, three
-            # times, in the track that reported it. Write still opens the
-            # document; Edit is what a fix uses.
-            ("Edit", lambda tools: re.search(r"\bEdit\b", tools) is not None),
-        ],
         "build": [
             ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
             # stage-build.md runs design_probe.py before reading the design.
@@ -2588,46 +2544,20 @@ def _track_stages():
             # that passed.
             ("a python interpreter", _grants_python),
         ],
-        "verify": [
-            # No per-runner grants any more: which command runs is decided by the
-            # resolver and held by the PreToolUse hook (runner_guard.py), so the
-            # agent needs a shell and nothing narrower than that can express it.
-            ("a shell", lambda tools: re.search(r"\bBash\b(?!\()", tools) is not None),
-            ("Agent", lambda tools: re.search(r"\bAgent\b", tools) is not None),
-            # stage-verify.md tells this stage to write the failing test first
-            # and then fix. So do verifier.md's own description, its body, and
-            # its finding format. Four statements say it fixes; only the tools
-            # line said it could not, so this corrects the tools line. Write
-            # opens the new test file, Edit changes the code under it -- both,
-            # not one.
-            ("Write", lambda tools: re.search(r"\bWrite\b", tools) is not None),
-            ("Edit", lambda tools: re.search(r"\bEdit\b", tools) is not None),
-            # stage-verify.md's Step 0.5 runs provenance.py directly, same
-            # reasoning as "build"'s own comment about design_probe.py --
-            # routing a zero-token check through a dispatched agent would move
-            # it onto a model turn for no reason.
-            ("a python interpreter", _grants_python),
-        ],
-        "ship": [
-            ("a git command", lambda tools: re.search(r"\bgit\b", tools, re.IGNORECASE) is not None),
-            # stage-ship.md's release note now always goes to the PR
-            # description; `gh` is how it gets there. Granting `Write` instead
-            # would hand a general file writer to the agent that runs
-            # `git push --force-with-lease` and sits on one of the two human
-            # gates.
-            ("a gh command",
-             lambda tools: re.search(r"\bgh\b", tools) is not None),
-        ],
     }
+    # Run by the main session itself (`"agent": null`): a stage agent here
+    # re-read the reference and rebuilt what the main session already held,
+    # and could not ask the person, so every question cost a fresh dispatch.
+    MAIN_RUN_STAGES = ["design", "verify", "ship"]
 
     # The track skill's stage table. Shape checks only.
     STAGES_JSON = f"{PLUGIN}/skills/track/stages.json"
     STAGE_ORDER = ["design", "build", "verify", "ship"]
     RETIRED_STAGES = ["intake", "discover"]
-    missing_stages = sorted(set(STAGE_ORDER) - set(STAGE_TOOL_NEEDS))
-    check("STAGE_TOOL_NEEDS covers every stage id (%s)"
+    missing_stages = sorted(set(STAGE_ORDER) - set(STAGE_TOOL_NEEDS) - set(MAIN_RUN_STAGES))
+    check("STAGE_TOOL_NEEDS and MAIN_RUN_STAGES cover every stage id once (%s)"
           % (", ".join(missing_stages) or "all four"),
-          set(STAGE_TOOL_NEEDS) == set(STAGE_ORDER))
+          sorted(list(STAGE_TOOL_NEEDS) + MAIN_RUN_STAGES) == sorted(STAGE_ORDER))
     check(f"stages.json ships ({STAGES_JSON})", os.path.isfile(STAGES_JSON))
     if os.path.isfile(STAGES_JSON):
         stages_text = read_text(STAGES_JSON)
@@ -2770,20 +2700,15 @@ def _track_stages():
 
             # AC10: NOT RUN is the same rule whatever the runner, so the agent's
             # own words may not name one -- naming pytest is what once made the
-            # rule read as pytest-only. The whole file is held to it, and so is
-            # verifier.md's `tools:` line: a per-runner grant there is the same
-            # naming in another place.
+            # rule read as pytest-only. The whole file is held to it.
             runner_names = re.compile(r"pytest|go test|npm test|unittest|cargo",
                                       re.IGNORECASE)
             check(f"{test_runner_ref} names no particular test runner",
                   runner_names.search(read_text(test_runner_ref)) is None)
-            verifier_tools = agent_tools_line(f"{PLUGIN}/agents/verifier.md") or ""
-            check(f"{PLUGIN}/agents/verifier.md's tools: line names no particular test runner",
-                  runner_names.search(verifier_tools) is None)
 
         # AC11: every place that used to find the test command on its own now
         # asks the one resolver, and refactor's old `ls Makefile ...` guess is gone.
-        for rel in ("agents/test-runner.md", "agents/verifier.md",
+        for rel in ("agents/test-runner.md", "skills/track/references/stage-verify.md",
                     "skills/track/references/stage-build.md", "skills/goal/SKILL.md",
                     "skills/refactor/SKILL.md",
                     "skills/refactor/references/procedure-scan.md",
@@ -2802,12 +2727,11 @@ def _track_stages():
               os.path.isfile(test_command_ref)
               and "any failure fails all" in read_text(test_command_ref).lower())
 
-        # #276: the two scoped agents' tool grants and the three-habit sentences are
+        # #276: the scoped agent's tool grant and the three-habit sentences are
         # restated nowhere else, so nothing else would notice one drifting. An
         # exact tools set (not just "no runner named", AC10 above) catches a tool
         # added later; the phrases are folded because they wrap across source lines.
-        for name, wanted in (("test-runner", {"Bash", "Read"}),
-                             ("verifier", {"Read", "Grep", "Glob", "Agent", "Bash", "Write", "Edit"})):
+        for name, wanted in (("test-runner", {"Bash", "Read"}),):
             agent_ref = f"{PLUGIN}/agents/{name}.md"
             check(f"{agent_ref}'s tools: line is exactly {', '.join(sorted(wanted))}",
                   os.path.isfile(agent_ref)
@@ -2815,9 +2739,6 @@ def _track_stages():
         habit_phrases = (
             (f"{PLUGIN}/agents/test-runner.md",
              ("do not append a redirection", "do not `cd`", "do not chain commands",
-              "Do not explore with `find` or `ls`")),
-            (f"{PLUGIN}/agents/verifier.md",
-             ("do not append a redirection", "do not prefix `cd <dir> &&`", "do not chain commands",
               "Do not explore with `find` or `ls`")),
             (test_command_ref,
              ("appending a redirection such as `2>&1`", "`cd`-ing first",
@@ -2851,6 +2772,10 @@ def _track_stages():
         assigned = set(json.load(open(f"{PLUGIN}/models.json", encoding="utf-8"))["assignments"])
         for row in stages:
             agent_name = row["agent"]
+            check(f"stage {row['id']}'s agent is null exactly when the main session runs it",
+                  (agent_name is None) == (row["id"] in MAIN_RUN_STAGES))
+            if agent_name is None:
+                continue
             agent_path = f"{PLUGIN}/agents/{agent_name}.md"
             check(f"stage {row['id']}'s agent ({agent_name}) exists", os.path.isfile(agent_path))
 
@@ -2866,33 +2791,31 @@ def _track_stages():
                 check(f"stage {row['id']}'s agent ({agent_name}) is granted {label}",
                       tools_line is not None and predicate(tools_line))
 
-        # #360: the Edit grant above only makes an in-place fix possible; this
-        # sentence is what asks for one, and nothing else restates it. The
-        # second check is the other half of the same change: no hook narrows
-        # where Write or Edit may land, so these two sentences are the whole
-        # of the designer's write boundary and a tool grant must not cost
-        # them. Folded because they wrap across source lines.
-        designer_ref = f"{PLUGIN}/agents/designer.md"
-        designer_text = (" ".join(read_text(designer_ref).split())
-                         if os.path.isfile(designer_ref) else "")
-        check(f"{designer_ref} says an existing document is changed in place, "
-              "not written out again",
-              "change it in place" in designer_text
-              and "Never write the whole document out again" in designer_text)
-        check(f"{designer_ref} keeps its write boundary (the document and its "
-              "diagrams, never the code)",
-              "only on the document itself and its diagrams" in designer_text
-              and "never on the code the design describes" in designer_text
-              and "Do NOT write implementation code" in designer_text)
-
-        # #375: stage-design.md tells whoever runs the stage to run
-        # `plan-review`, and the dispatched designer has no tool that invokes a
-        # skill. The gate section says how it runs instead; STAGE_TOOL_NEEDS
-        # could not see this one because the need is a way of working, not a
-        # tool name. So: the gate must name the skill file, and every tool it
-        # names for the run (`Agent` to dispatch a reviewer, `Skill` to invoke)
-        # must be one designer.md grants. Folded because the section wraps.
+        # #360: a review can run three rounds, and with the whole document
+        # written out again each time every fix paid for every line; this
+        # sentence is what asks for an in-place edit, and nothing else restates
+        # it. The second check is the other half of the same change: no hook
+        # narrows where Write or Edit may land, so these sentences are the
+        # whole of the design stage's write boundary. Folded because they wrap
+        # across source lines.
         design_ref = f"{PLUGIN}/skills/track/references/stage-design.md"
+        design_folded = (" ".join(read_text(design_ref).split())
+                         if os.path.isfile(design_ref) else "")
+        check(f"{design_ref} says an existing document is changed in place, "
+              "not written out again",
+              "change it in place" in design_folded
+              and "Never write the whole document out again" in design_folded)
+        check(f"{design_ref} keeps its write boundary (the document and its "
+              "diagrams, never the code)",
+              "is the design document and its diagrams" in design_folded
+              and "never the code the design describes" in design_folded
+              and "Do NOT write implementation code" in design_folded)
+
+        # #375: inside a track the session that wrote the document must not
+        # review it, so the gate section says how `plan-review` runs instead.
+        # The gate must name the skill file and the tool it runs through
+        # (`Agent` to dispatch a reviewer, `Skill` to invoke). Folded because
+        # the section wraps.
         gate_text = ""
         if os.path.isfile(design_ref):
             design_text = read_text(design_ref)
@@ -2906,11 +2829,6 @@ def _track_stages():
         run_tools = sorted(set(re.findall(r"`(Agent|Skill)`", gate_text)))
         check(f"{design_ref}'s gate section names the tool plan-review runs through",
               bool(run_tools))
-        designer_tools = agent_tools_line(f"{PLUGIN}/agents/designer.md") or ""
-        for tool in run_tools:
-            check(f"{design_ref} runs plan-review through `{tool}`, which "
-                  f"{PLUGIN}/agents/designer.md grants",
-                  re.search(rf"\b{tool}\b", designer_tools) is not None)
 
         CONTEXT_PEAK = f"{PLUGIN}/scripts/context_peak.py"
         check(f"{CONTEXT_PEAK} ships", os.path.isfile(CONTEXT_PEAK))
@@ -2965,7 +2883,7 @@ def _track_references():
     REPORT_MAX = 4000
 
     # A gap D6 closed by granting the tool is pinned by STAGE_TOOL_NEEDS above:
-    # take Write back off verifier.md and the check goes red, naming the stage
+    # take Agent back off implementer.md and the check goes red, naming the stage
     # and the tool. A gap it closed by rewording the reference has nothing
     # holding it closed -- paste "Dispatch `explorer`" back into
     # stage-discover.md and every check still passes, with the reference once
@@ -2977,8 +2895,8 @@ def _track_references():
     # demand, not just the phrase, because the FAIL message must name both.
     #
     # Keyed by file on purpose: stage-design.md keeps its own
-    # "dispatch `explorer`" and must not be caught by this, because
-    # designer.md does have `Agent` and has never claimed to be read-only.
+    # "dispatch `explorer`" and must not be caught by this, because its
+    # runner, the main session, does have `Agent`.
     #
     # Blunt in one direction, and say so: this catches the sentence coming
     # back, not the instruction coming back. A synonym reintroducing the same
@@ -2989,10 +2907,9 @@ def _track_references():
     # The `scripts/codemap_` rows are the same shape: the stage runners read
     # the index with `Read`/`Grep` only, and the main session alone runs
     # codemap_cli.py (D9; the stage-design.md row is T3-8, the same practice one
-    # file further -- designer_guard.py already blocks it, this makes the text
-    # and the capability fail together). The #73 row that pinned the intake
+    # file further). The #73 row that pinned the intake
     # stage's lack of a lint command left with that stage: its approaches now
-    # run on designer, which may run options_lint.py.
+    # run in the main session, which may run options_lint.py.
     RETIRED_IMPERATIVES = {
         "stage-discover.md": [("Dispatch `explorer`", "discover", "Agent"),
                               ("Write it to the session", "discover", "Write"),
@@ -3046,8 +2963,8 @@ def _track_references():
         # It is read by the main session directly, for the same reason
         # pending-questions.md and ticket-mirror.md are -- and that reason is the
         # whole subject here, so losing it makes the file self-contradicting.
-        check("approval-gates.md says a subagent cannot voice its own gate",
-              "cannot voice its own gate" in gates_text)
+        check("approval-gates.md says a dispatched stage cannot voice a question itself",
+              "cannot voice a question itself" in gates_text)
         # The one instruction here that is about code behaviour rather than
         # wording, and the one whose cost is a track that cannot proceed:
         # `ledger.py append --artifact` sha256s the document as it stands, so
@@ -3094,7 +3011,7 @@ def _track_references():
                   has_ceiling and has_date)
 
         # AC4-c: a gap D6 closed by granting the tool is pinned by
-        # STAGE_TOOL_NEEDS above: take Write back off verifier.md and that check
+        # STAGE_TOOL_NEEDS above: take Agent back off implementer.md and that check
         # goes red, naming the stage and the tool. A gap it closed by rewording
         # the reference has nothing holding it closed -- paste "Dispatch
         # `explorer`" back into stage-intake.md and every other check still
@@ -3102,8 +3019,8 @@ def _track_references():
         # does not have. That is the defect this block exists to catch.
         #
         # Keyed by file on purpose: stage-design.md keeps its own
-        # "dispatch `explorer`" and must not be caught by this, because
-        # designer.md does have `Agent` and has never claimed to be read-only.
+        # "dispatch `explorer`" and must not be caught by this, because its
+        # runner, the main session, does have `Agent`.
         back = ["%s would again need %s: %r" % (stage, tool, phrase)
                 for phrase, stage, tool
                 in RETIRED_IMPERATIVES.get(os.path.basename(ref), [])
@@ -3222,21 +3139,19 @@ def _track_references():
          ["Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir <dir>` "
           "before the lenses are dispatched",
           "An AC the plan marks `Not covered` is not dispatched"]),
-        ("AC15", "stage-verify.md's Step 0.75 hands up two questions when the plan prints "
+        ("AC15", "stage-verify.md's Step 0.75 asks two questions when the plan prints "
                  "start candidates",
          folded_section(verify_ref, "## Step 0.75"),
-         ["hand up two questions under `## Pending questions`",
+         ["ask two questions, one at a time, never choosing a candidate yourself",
           "record one of the candidates, or keep it Not covered", "the ready URL"]),
-        ("AC15", "stage-verify.md's re-dispatch rule has the record-the-candidate branch",
+        ("AC15", "stage-verify.md's after-the-answer rule has the record-the-candidate branch",
          verify_opening,
-         ["when the answer is to record the start candidate, rerun Step 0.75, the runtime "
-          "check, the synthesis and `check`, take the findings from the previous round's "
-          "report, and run no lens again"]),
-        ("AC15", "stage-verify.md's Step 0.75 has the recording option carry the whole "
-                 "record_start_command.py command, since the main session never reads this file",
+         ["after recording a start candidate, rerun Step 0.75, the runtime check, the "
+          "synthesis and `check`, keeping the findings already reconciled and running no "
+          "lens again"]),
+        ("AC15", "stage-verify.md's Step 0.75 runs the whole record_start_command.py command",
          folded_section(verify_ref, "## Step 0.75"),
-         ["carries the command it is to run, written out whole",
-          "record_start_command.py --ready"]),
+         ["To record, run", "record_start_command.py --ready"]),
         ("AC15", "pending-questions.md has the main session run the command the chosen "
                  "option carries before it re-dispatches",
          folded_section(f"{REFS}/pending-questions.md", "# pending-questions"),
@@ -3293,7 +3208,7 @@ def _track_references():
           "`${CLAUDE_PLUGIN_ROOT}/templates/design.md.tpl`",
           "each mode editing the file in place and never rewriting what an earlier mode wrote",
           "`AC: <intake.md path> sha256 <hex>`",
-          "you report; the main session writes `intake.md`",
+          "the document is finished; `intake.md` is written from its",
           "only then does Gate 1 take its fingerprint",
           "design_probe.py --kind design"]),
         # U5 (R5, I7, I8, D10, D12): the track asks only where the evidence and
@@ -3307,7 +3222,7 @@ def _track_references():
           "Every Tier 1 entry carries one sentence saying why the evidence cannot "
           "separate the options",
           "the evidence can point at a recommended option — even when the others are not "
-          "fully ruled out — so the designer decides",
+          "fully ruled out — so this stage decides",
           "The long path asks once here, not twice",
           "the modes then run with no second cost stop"]),
         ("R5", "approval-gates.md's stop list no longer holds the intake approval, the "
@@ -3349,17 +3264,14 @@ def _track_references():
         ("Shells", "implementer.md forbids heredocs and sleep polls and stops its "
                    "background commands",
          folded_file(f"{AGENTS}/implementer.md"), no_stuck_shell),
-        ("Shells", "verifier.md forbids heredocs and sleep polls and stops its "
-                   "background commands",
-         folded_file(f"{AGENTS}/verifier.md"), no_stuck_shell),
         ("Shells", "test-runner.md bounds its Bash call and names one left running",
          folded_file(f"{AGENTS}/test-runner.md"),
          ["Give the Bash call a `timeout` longer than the runner's own",
           "name its command in the report so the main session can stop it"]),
-        ("Shells", "shipper.md bounds a waiting command and names one left running",
-         folded_file(f"{AGENTS}/shipper.md"),
+        ("Shells", "stage-ship.md bounds a waiting command and stops one left running",
+         folded_file(f"{PLUGIN}/skills/track/references/stage-ship.md"),
          ["such as `gh pr checks --watch`, a Bash `timeout` it fits in",
-          "Name any still running in the report so the main session can stop it"]),
+          "Name any still running in the report, and stop it with TaskStop"]),
         ("Shells", "track/SKILL.md stops a background command a stage report names",
          folded_file(f"{PLUGIN}/skills/track/SKILL.md"),
          ["A command the report names as still running in the background, stop with "

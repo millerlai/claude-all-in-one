@@ -324,8 +324,8 @@ def test_monitor_goes_through_the_bash_rules(tmp_path):
     asked = run_guard(dict(monitor("gh pr merge 1"), cwd=cwd), env=env)  # M5
     assert asked.returncode == 0
     assert b'"permissionDecision": "ask"' in asked.stdout
-    scoped = run_guard(dict(monitor("tail -f build.log", agent_type="cai:designer"), cwd=cwd))
-    assert scoped.returncode == 2  # M6: the designer's allow-list applies
+    scoped = run_guard(dict(monitor("tail -f build.log", agent_type="cai:test-runner"), cwd=cwd))
+    assert scoped.returncode == 2  # M6: the test-runner's allow-list applies
     assert run_guard(monitor("", tool_input={"ws": "wss://x"})).returncode == 0  # M7
 
 

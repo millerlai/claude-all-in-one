@@ -208,4 +208,4 @@ def test_states_claim_projection_before_design_dispatch():
     assert "Right after that read, run `ticket.py project" in text
     assert "unless the read said this track has no ticket pointer" in text
     assert "status: in-progress` over four still-empty rows" in text
-    assert "A failed projection prints one line; dispatch design anyway" in text
+    assert "A failed projection prints one line; run design anyway" in text

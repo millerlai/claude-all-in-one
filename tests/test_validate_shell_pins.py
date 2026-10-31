@@ -22,18 +22,14 @@ PINNED = [
      "no heredoc (`<<`) for any purpose",
      "heredocs are fine",
      "implementer.md"),
-    ("plugins/cai/agents/verifier.md",
-     "no heredoc (`<<`) for any purpose",
-     "heredocs are fine",
-     "verifier.md"),
     ("plugins/cai/agents/test-runner.md",
      "Give the Bash call a `timeout` longer than the runner's own",
      "Give the Bash call any `timeout`",
      "test-runner.md"),
-    ("plugins/cai/agents/shipper.md",
+    ("plugins/cai/skills/track/references/stage-ship.md",
      "such as `gh pr checks --watch`, a Bash `timeout`",
      "such as `gh pr checks --watch`, no Bash `timeout`",
-     "shipper.md"),
+     "stage-ship.md"),
     ("plugins/cai/skills/track/SKILL.md",
      "stop with TaskStop, or name it to the person when you cannot.",
      "leave it.",
@@ -72,7 +68,7 @@ def test_the_shell_pins_pass_on_the_checked_in_tree(monkeypatch, capsys, validat
     monkeypatch.chdir(REPO_ROOT)
     validate_module._track_references()
     lines = _shell_lines(capsys)
-    assert len(lines) == 5, lines
+    assert len(lines) == 4, lines
     assert all(l.startswith("PASS ") for l in lines), lines
 
 

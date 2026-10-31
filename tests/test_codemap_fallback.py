@@ -21,7 +21,7 @@ PLUGIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 PREFLIGHT = os.path.join(PLUGIN, "scripts", "preflight.py")
 FALLBACK = "Any other line, or none, means Read/Grep/Glob as you would without it."
 READ_SIDE = [
-    "agents/architect.md", "agents/designer.md", "agents/explorer.md",
+    "agents/architect.md", "agents/explorer.md",
     "skills/track/references/stage-discover.md",
     "skills/track/references/stage-design.md",
 ]

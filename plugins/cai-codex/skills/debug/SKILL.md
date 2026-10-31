@@ -113,9 +113,6 @@ Two seams, both already described above from this side:
   design question up is exactly diagnosis mode escalating to stance mode. It
   goes one way only, and the track records it.
 
-Steps 1–4 sometimes need a command or edit `cai_designer` cannot run itself;
-`stage-design.md`'s diagnosis mode routes that to the main session.
-
 ## When not to use this
 
 - The code already does what it should, and the request is to make it

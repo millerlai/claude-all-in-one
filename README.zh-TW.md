@@ -33,26 +33,24 @@ flowchart TB
     S4["ship<br/>一個 commit，加一份 release note"] --> HG2
     HG2[/"人工關卡 · 選單<br/>merge、tag、發佈之前"/] --> DONE(["/cai:track done"])
 
-    S1 -.-> DE
+    S1 -.-> MS
     S2 -.-> IM
-    S3 -.-> VE
-    S4 -.-> SH
+    S3 -.-> MS
+    S4 -.-> MS
 
-    DE(["designer · think<br/>+ Write"])
+    MS(["主工作階段<br/>自己執行該階段的 reference"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
-    VE(["verifier · build<br/>測試 + git 讀取 + Agent"])
-    SH(["shipper · build<br/>git + gh"])
 
     classDef stage fill:#e8eefc,stroke:#4a6fb5,color:#17335f
     classDef human fill:#fff3cd,stroke:#c79100,color:#6b4e00
-    classDef think fill:#efe6f7,stroke:#7d5ba6,color:#3d2757
+    classDef main fill:#efe6f7,stroke:#7d5ba6,color:#3d2757
     classDef build fill:#e6eef3,stroke:#4a7c94,color:#1f3f4d
     classDef ends fill:#ffffff,stroke:#9aa5b1,color:#33404d
 
     class S1,S2,S3,S4 stage
     class HG1,HG2 human
-    class DE think
-    class IM,VE,SH build
+    class MS main
+    class IM build
     class START,DONE ends
 ```
 
