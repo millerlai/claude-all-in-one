@@ -288,6 +288,28 @@ def test_declared_python3_and_py_launchers_borrow_paths(tmp_path):
     ]
 
 
+def test_declared_interpreter_path_running_pytest_borrows_paths(tmp_path):
+    # A person pins the one interpreter that has their test plugins installed;
+    # pytest still takes paths, so the pin must not cost the narrowing.
+    pinned = ["C:/Python313/python.exe -m pytest",
+              r"C:\Python313\python.exe -m pytest",
+              '"C:/Program Files/Python313/python.exe" -m pytest',
+              ".venv/bin/python3.12 -m pytest"]
+    body = json.dumps({"test": {"commands": pinned}})
+    assert pairs(rtc.resolve(declare(tmp_path, body))) == [
+        (c, "", "paths", ".cai/cai.json") for c in pinned]
+
+
+@pytest.mark.parametrize("declared", ["C:/tools/runner.exe -m pytest",
+                                      "C:/Python313/python.exe -m pytest -q",
+                                      'C:/Python313/python.exe" -m pytest',
+                                      "python.exe -m pytest",
+                                      "C:/Python313/python.exe -m unittest"])
+def test_other_interpreter_path_commands_stay_unnarrowed(tmp_path, declared):
+    body = json.dumps({"test": {"commands": [declared]}})
+    assert pairs(rtc.resolve(declare(tmp_path, body))) == [(declared, "", "none", ".cai/cai.json")]
+
+
 def test_unknown_declared_command_is_whole_and_unnarrowed(tmp_path):
     result = rtc.resolve(declare(tmp_path, json.dumps({"test": {"commands": ["  ./run-tests.sh  "]}})))
     assert pairs(result) == [("./run-tests.sh", "", "none", ".cai/cai.json")]
