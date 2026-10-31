@@ -576,7 +576,7 @@ run: put `run.start` (an argument array), `run.ready` (a loopback URL) and
 optionally `run.e2e` in `.cai/cai.json`, using `{port}` where the program
 takes its port. If you have not declared one and `package.json` has a `dev` or
 `start` script, `verify` asks whether to record it (and the ready URL); the
-main session writes your answer, never the verifier.
+main session writes your answer with `record_start_command.py`.
 
 The runner starts the program, waits up to 120 seconds for the ready URL,
 runs each check (120 seconds each, 540 in all), saves every output with its

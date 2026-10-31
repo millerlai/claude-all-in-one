@@ -74,60 +74,22 @@ def test_no_detail_design_has_explicit_brief_and_traceability():
     assert "AC1, AC2" in intake
 
 
-def test_designer_hook_blocks_out_of_scope_commands():
-    guard = Path("plugins/cai/scripts/designer_guard.py")
-    for command, expected in [
-        ("git status", 2), ("git stash -u", 2), ("python -c 'print(1)'", 2),
-        ("python scripts/validate.py", 2),
-        ("python plugins/cai/scripts/design_probe.py --kind detail doc.md", 0),
-        ("python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md", 0),
-        ('python "${CLAUDE_PLUGIN_ROOT}/scripts/options_lint.py" options.md', 0),
-        ("mmdc -i diagram.mmd -o diagram.svg", 0),
-        ("mmdc -i diagram.mmd > code.py", 2),
-        ("python plugins/cai/scripts/design_probe.py doc.md; git stash", 2),
-        ("python plugins/cai/scripts/design_probe.py $(git stash)", 2),
-        ("mmdc -i (Start-Process calc)", 2),
-    ]:
-        result = subprocess.run([sys.executable, str(guard)], input=json.dumps({
-            "tool_name": "Bash", "tool_input": {"command": command}}),
-            capture_output=True, text=True)
-        assert result.returncode == expected, (command, result.stderr)
-
-
-def test_designer_is_held_by_the_global_hook_through_agent_type(tmp_path):
+def test_test_runner_is_held_by_the_global_hook_through_agent_type(tmp_path):
     # The platform ignores `hooks:` in a plugin agent's frontmatter, so the
     # boundary lives in the one global hook and is chosen by `agent_type`.
     # A temporary config root: the dispatcher writes a launcher record there,
     # and the real one under ~/.claude/cai/ is not a test's to fill.
     env = dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "cfg"))
-    agent = Path("plugins/cai/agents/designer.md").read_text(encoding="utf-8")
+    agent = Path("plugins/cai/agents/test-runner.md").read_text(encoding="utf-8")
     assert "hooks:" not in agent.split("\n---", 1)[0]
     wrapper = Path("plugins/cai/hooks/run-guard.cmd").resolve()
     for command, agent_type, expected in [
-            ("git stash -u", "cai:designer", 2),
-            ("python ${CLAUDE_PLUGIN_ROOT}/scripts/design_probe.py --kind detail doc.md",
-             "cai:designer", 0),
+            ("git stash -u", "cai:test-runner", 2),
+            ("python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py",
+             "cai:test-runner", 0),
             ("git stash -u", None, 0)]:  # the main session has no agent_type
         argv = ["cmd", "/c", str(wrapper)] if os.name == "nt" else ["sh", str(wrapper)]
         payload = {"tool_name": "Bash", "tool_input": {"command": command}}
-        if agent_type:
-            payload["agent_type"] = agent_type
-        result = subprocess.run(argv, input=json.dumps(payload),
-                                capture_output=True, text=True, env=env)
-        assert result.returncode == expected, result.stderr
-
-
-def test_verifier_dispatch_is_held_by_the_real_dispatcher(tmp_path):
-    # #277: the Agent entry in hooks.json runs the same dispatcher with `agent`.
-    env = dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "cfg"))
-    wrapper = Path("plugins/cai/hooks/run-guard.cmd").resolve()
-    argv = (["cmd", "/c", str(wrapper)] if os.name == "nt" else ["sh", str(wrapper)]) + ["agent"]
-    for agent_type, subagent_type, expected in [
-            ("cai:verifier", "general-purpose", 2),
-            ("cai:verifier", "cai:reviewer", 0),
-            (None, "general-purpose", 0)]:
-        payload = {"tool_name": "Agent",
-                   "tool_input": {"subagent_type": subagent_type, "prompt": "git push --force"}}
         if agent_type:
             payload["agent_type"] = agent_type
         result = subprocess.run(argv, input=json.dumps(payload),
@@ -260,8 +222,8 @@ def _safe_interpreter():
 @pytest.mark.parametrize("compact", [True, False])
 def test_wrapper_without_python_runs_the_reduced_check(tmp_path, compact):
     argv, env = _wrapper_without_python(tmp_path)
-    for agent_type, expected in [("cai:test-runner", 2), ("cai:verifier", 2),
-                                 ("cai:designer", 2), ("cai:explorer", 0), (None, 0)]:
+    for agent_type, expected in [("cai:test-runner", 2), ("cai:verifier", 0),
+                                 ("cai:designer", 0), ("cai:explorer", 0), (None, 0)]:
         result = _call(argv, env, "git status", agent_type, compact)
         assert result.returncode == expected, (agent_type, result.stderr)
     result = _call(argv, env, "git status", None, compact)
@@ -274,36 +236,13 @@ def test_wrapper_without_python_runs_the_reduced_check(tmp_path, compact):
     assert not _record_file(env).exists()  # "not found" is never recorded
 
 
-def test_wrapper_without_python_in_agent_mode_holds_only_the_verifier(tmp_path):
-    # #277: hooks.json runs the dispatcher with `agent` for Agent calls. Without
-    # Python the verifier cannot be told which agent it asked for, so it is
-    # blocked; nobody else is, even when a prompt mentions a force push.
-    argv, env = _wrapper_without_python(tmp_path)
-    argv = argv + ["agent"]
-    for agent_type, subagent_type, prompt, expected in [
-            ("cai:verifier", "general-purpose", "review the diff", 2),
-            ("cai:implementer", "general-purpose", "review the diff", 0),
-            (None, "general-purpose", "never run git push --force origin main", 0),
-            (None, "general-purpose", "rm -rf build first", 0),
-            # The verify stage dispatching the verifier: "subagent_type" ends in
-            # "agent_type", and the pattern must not read it as the caller (#295 review).
-            (None, "cai:verifier", "run the verify stage", 0)]:
-        payload = {"tool_name": "Agent",
-                   "tool_input": {"subagent_type": subagent_type, "prompt": prompt}}
-        if agent_type:
-            payload["agent_type"] = agent_type
-        result = subprocess.run(argv, input=json.dumps(payload, separators=(",", ":")),
-                                capture_output=True, text=True, env=env)
-        assert result.returncode == expected, (agent_type, subagent_type, result.stderr)
-
-
 def test_broken_interpreters_first_on_path_leave_scoped_agents_blocked(tmp_path):
     # Issue #273 AC1: a stand-in that exits 9 (as the Store stub's 9009 does) on
     # every candidate name, no record yet, a scoped agent's payload: exit 2.
     argv, env = _wrapper_env(tmp_path, [(name, "exit9") for name in CANDIDATE_NAMES],
                              private_hooks=True)
-    for agent_type, expected in [("cai:test-runner", 2), ("cai:verifier", 2),
-                                 ("cai:designer", 2), ("cai:explorer", 0), (None, 0)]:
+    for agent_type, expected in [("cai:test-runner", 2), ("cai:verifier", 0),
+                                 ("cai:designer", 0), ("cai:explorer", 0), (None, 0)]:
         result = _call(argv, env, "git status", agent_type)
         assert result.returncode == expected, (agent_type, result.stderr)
     assert _call(argv, env, "git push --force origin main").returncode == 2
@@ -720,33 +659,16 @@ def test_pattern_file_agrees_with_the_guards_five_rules(compact, pattern_copy):
 
 
 @pytest.mark.parametrize("compact", [True, False])
-def test_pattern_file_holds_the_three_scoped_agents(compact, pattern_copy):
+def test_pattern_file_holds_the_one_scoped_agent(compact, pattern_copy):
+    # The retired stage agents are matched no more: nothing scopes them now.
     separators = (",", ":") if compact else None
-    for agent_type, expected in [("cai:test-runner", 0), ("cai:verifier", 0),
-                                 ("cai:designer", 0), ("cai:explorer", 1), (None, 1)]:
+    for agent_type, expected in [("cai:test-runner", 0), ("cai:verifier", 1),
+                                 ("cai:designer", 1), ("cai:explorer", 1), (None, 1)]:
         payload = {"tool_name": "Bash", "tool_input": {"command": "git status"}}
         if agent_type:
             payload["agent_type"] = agent_type
         assert _pattern_file_hits(json.dumps(payload, separators=separators),
                                   pattern_copy) == expected, agent_type
-
-
-def test_designer_guard_uses_its_installed_path_with_spaces(tmp_path):
-    scripts = tmp_path / "plugin with spaces" / "scripts"
-    scripts.mkdir(parents=True)
-    guard = scripts / "designer_guard.py"
-    guard.write_bytes(Path("plugins/cai/scripts/designer_guard.py").read_bytes())
-    for script in ("design_probe.py", "options_lint.py"):
-        command = 'python "%s" doc.md' % (scripts / script)
-        result = subprocess.run([sys.executable, str(guard)], input=json.dumps({
-            "cwd": str(tmp_path), "tool_input": {"command": command}}),
-            capture_output=True, text=True)
-        assert result.returncode == 0, result.stderr
-    other = tmp_path / "design_probe.py"
-    result = subprocess.run([sys.executable, str(guard)], input=json.dumps({
-        "cwd": str(tmp_path), "tool_input": {"command": 'python "%s" doc.md' % other}}),
-        capture_output=True, text=True)
-    assert result.returncode == 2
 
 
 def test_bad_line_summaries_preserve_note_and_usage_on_append(tmp_path, monkeypatch):

@@ -56,8 +56,8 @@ def test_skill_md_points_at_gate_2_for_ship_starting_unasked(plugin_root):
 def test_gate2_starts_ship_once_verify_passes_and_runs_nothing_irreversible(plugin_root):
     gate = _gate2(plugin_root)
     assert "Inside a track, nobody types `ship` (#316)." in gate
-    assert "start `ship` without waiting to be asked: preflight, the draft " \
-           "dispatch, then this menu" in gate
+    assert "start `ship` without waiting to be asked: preflight, the drafts, " \
+           "then this menu" in gate
     # After verify's own commit, or the draft describes a HEAD about to move.
     assert "\"Verify's changes, inside a track\" below has run" in gate
     assert "Nothing irreversible runs before the menu's \"Run them\"" in gate

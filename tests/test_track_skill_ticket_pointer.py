@@ -189,14 +189,18 @@ def test_skill_md_body_keeps_its_recorded_line_count():
     143 -> 144 on 2026-10-11 (context-engine-system, D2): one line has the
     main session follow codemap-brief.md before `intake`, `discover` or
     `design`'s dispatch. TRACK_SKILL_MAX stays 145, so the gap is one line
-    rather than two -- D2 decided to spend exactly that one line."""
-    assert _skill_body_lines() == 144
+    rather than two -- D2 decided to spend exactly that one line.
+
+    144 -> 143 on 2026-10-31 (reduce-token-usage): step 2 now says that a
+    stage whose `agent` is null is run by the main session, and the rewrite
+    came out one line shorter. TRACK_SKILL_MAX stays 145."""
+    assert _skill_body_lines() == 143
 
 
 def test_the_gate_1_note_is_spelled_out_where_the_ledger_is_written():
     """AC6 (#392): the main flow names the exact `--note` of Gate 1's Approve,
     so a main session does not have to find it in approval-gates.md first.
-    One line replaced one line, so the body stays 144 lines long."""
+    One line replaced one line, so the body stayed the same length."""
     with open(SKILL_MD, encoding="utf-8") as fh:
         lines = [line for line in fh.read().splitlines()
                  if "`--gate human` belongs" in line]
@@ -232,7 +236,7 @@ def test_human_gates_still_names_exactly_two_and_no_more():
 
 # --- the always-on budget never moved (AC3) --------------------------------
 
-def test_always_on_budget_is_3811_under_its_3836_ceiling():
+def test_always_on_budget_is_3366_under_its_3836_ceiling():
     # references/ticket-mirror.md has no frontmatter, so it is invisible to
     # this budget (scripts/validate.py:216-221 only globs agents/*.md and
     # skills/*/SKILL.md); the one added SKILL.md line is body text, not a
@@ -299,10 +303,13 @@ def test_always_on_budget_is_3811_under_its_3836_ceiling():
     # 3816 -> 3811 on 2026-10-26: `verifier`'s and `verify`'s descriptions say
     # "platform review plus three lenses" where they said "four lenses" (issue
     # 481); the ceiling stays at 3836.
+    # 3811 -> 3366 on 2026-10-31 (reduce-token-usage): the `designer`,
+    # `verifier` and `shipper` agents are gone, their stages run in the main
+    # session; the ceiling stays at 3836.
     result = _run_validate()
     m = re.search(r"always-on description budget: (\d+) chars", result.stdout)
     assert m is not None, result.stdout
-    assert int(m.group(1)) == 3811
+    assert int(m.group(1)) == 3366
 
 
 # --- the added line itself carries the load-bearing instruction ------------

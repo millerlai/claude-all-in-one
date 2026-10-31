@@ -44,8 +44,8 @@ def test_step_0_6_sits_between_0_5_and_0_75_and_is_the_main_sessions():
     text = _stage_verify()
     assert text.index("## Step 0.5") < text.index("## Step 0.6") < text.index("## Step 0.75")
     step = _section(text, "## Step 0.6")
-    assert "main session's step" in step
-    assert "`verifier` skips this step when its brief carries a `Platform review:` line" in step
+    assert "in the main session, which holds the Skill tool" in step
+    assert "Run Steps 0, 0.5 and this one in order" in step
     assert "resolve_review_command.py --platform claude" in step
     assert "`args`, word for word, adding no flag" in step
     # I1: a fallback never skips correctness.
@@ -54,10 +54,11 @@ def test_step_0_6_sits_between_0_5_and_0_75_and_is_the_main_sessions():
 
 def test_step_0_6_gives_every_non_call_path_a_reason():
     step = _section(_stage_verify(), "## Step 0.6")
-    assert "`Platform review: not run (Step 0 stopped)`" in step
-    assert "`Platform review: not run (provenance exit 2)`" in step
-    assert "no `Platform review:` line at all" in step
+    assert "When Step 0 stopped or Step 0.5 exited 2, call nothing" in step
     assert "`unclear` is a fallback" in step
+    # No brief carries a `Platform review:` line any more: the main session
+    # that ran Step 0.6 reads its own file in Step 1.
+    assert "`Platform review:`" not in step
 
 
 def test_step1_has_three_lenses_and_a_fourth_only_on_fallback():
@@ -81,11 +82,9 @@ def test_step1_treats_an_unclear_reading_as_a_fallback():
     assert "`reading: unclear`" in step1.split("add a fourth")[0]
 
 
-def test_redispatch_reuses_the_platform_review_line():
+def test_one_run_calls_the_platform_review_once():
     opening = _stage_verify().split("## The evidence rule")[0]
-    assert "A re-dispatch never calls the platform review again" in opening
-    skill = _flat(TREE, "skills", "track", "SKILL.md")
-    assert "a re-dispatch reuses the earlier brief's line" in skill
+    assert "One run calls the platform review once" in opening
 
 
 def test_report_names_where_correctness_came_from():
@@ -94,7 +93,6 @@ def test_report_names_where_correctness_came_from():
     assert "where correctness came from" in _section(text, "## Report")
 
 
-def test_verifier_integrates_the_platform_review_file_and_keeps_its_tools():
-    text = _flat(TREE, "agents", "verifier.md")
-    assert "`Platform review:` line points at it" in text
-    assert "tools: Read, Grep, Glob, Agent, Bash, Write, Edit" in text
+def test_step1_reads_the_platform_review_file_the_main_session_wrote():
+    step1 = _section(_stage_verify(), "## Step 1")
+    assert "Under a track, read the platform review file before dispatching" in step1

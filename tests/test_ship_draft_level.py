@@ -13,7 +13,6 @@ import os
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAGE_SHIP = os.path.join(
     REPO_ROOT, "plugins", "cai", "skills", "track", "references", "stage-ship.md")
-SHIPPER = os.path.join(REPO_ROOT, "plugins", "cai", "agents", "shipper.md")
 
 
 def _flat(path):
@@ -50,9 +49,3 @@ def test_the_release_note_follows_the_same_level():
     step7 = _step("## Step 7", "## Rollback")
     assert "follow Step 4's *Write at the level of behaviour*" in step7
 
-
-def test_shipper_carries_the_same_rule():
-    text = _flat(SHIPPER)
-    assert "at the level of behaviour" in text
-    assert "no test counts or test lists" in text
-    assert "name it" in text

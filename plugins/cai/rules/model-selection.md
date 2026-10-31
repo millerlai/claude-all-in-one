@@ -38,7 +38,7 @@
   attempt, discovered ambiguity), never because it "might" be hard.
 - Prefer the cai plugin agents when they match. Each one already carries its own
   tier, so name the agent and let its frontmatter decide the model — do not
-  restate the model in prose. The track skill's stages dispatch to
-  `designer` (design) → `implementer` (build) → `verifier` (verify) →
-  `shipper` (ship); `architect`, `explorer`, `test-runner`, and `reviewer` are
-  called in from other skills as needed.
+  restate the model in prose. The track skill runs design, verify and ship in
+  the main session and dispatches build to `implementer`; `architect`,
+  `explorer`, `test-runner`, and `reviewer` are called in from other skills as
+  needed.

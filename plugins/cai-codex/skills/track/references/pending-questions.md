@@ -10,14 +10,15 @@ interactive tools.
 That is not a convention this repo chose. No subagent can ask the person
 directly here either: stage dispatch does not hand a runner an
 interactive tool. So a stage reference telling its runner to ask —
-`stage-design.md`'s decision rule, `stage-build.md`'s Step 0.5,
-`stage-ship.md`'s confirmation — is naming a tool that runner does not have.
+`stage-build.md`'s Step 0.5 — is naming a tool that runner does not have.
 Left to itself it answers the question instead, and a decision nobody made
-lands in an approved design document or a force-push.
+lands in the code.
 
 Running a stage standing alone (`$design`, `$build`, `$ship`)
 puts the main session in the runner's seat, where the question tool is
-available directly. Ask directly there; none of this applies.
+available directly, and so does every stage the track runs itself (`stages.json`'s
+`agent` is `null`: design, verify, ship). Ask directly there: steps 0 and 1
+below apply, and saving the round, re-dispatching and counting rounds do not.
 
 ## What a stage hands up
 
@@ -97,7 +98,7 @@ instead.
    the linted text itself, in full, as the message that asks. A file path
    plus a one-line summary per option is the failure this step exists to
    prevent. This is the main session's step for the same reason the asking
-   is: four of the six stage agents can run neither a script nor a `Write`.
+   is.
 1. **Ask one decision per turn.** The question tool, biggest blast radius
    first, the rest queued. A turn carrying two questions carries none — the
    second gets answered against a guess about the first.
@@ -125,10 +126,8 @@ instead.
    the report and every question and answer are in `pending.md`, so a
    resumed session quotes them from there. Before that dispatch, when the
    option the person chose carries a command written for the main session to
-   run (`verify` hands one up to record a start command in `.cai/cai.json`
-   with `record_start_command.py`), run exactly that command, the person's
-   answers filled in: the stage cannot run it, and without it the same
-   question is handed up again.
+   run, run exactly that command, the person's answers filled in: the stage
+   cannot run it, and without it the same question is handed up again.
 3. **Three rounds at most.** A fourth counted round, as the next section
    defines one, means the stage cannot be specified by asking: record
    `failed`, `--note` naming what stayed open. Stops are not counted and have
@@ -136,20 +135,15 @@ instead.
 
 ## What counts as a round
 
-A round is a hand-up the stage's own procedure did not call for, or a
-rejection of what it handed over. Exactly two things count:
-
-- A hand-up for something the stage found it could not settle and that no
-  fixed step of its reference asks (`stage-design.md`'s "What you could not
-  pin down", a command the designer cannot run itself).
-- "Changes requested" at the stance approval or at Gate 1.
+A round is a hand-up the stage's own procedure did not call for: something
+the stage found it could not settle and that no fixed step of its reference
+asks.
 
 Every other hand-up is a **stop**: one the procedure prescribes, which spends
 no round however many a stage has. That is every item of
-`approval-gates.md`'s "The other stops, which are not gates", and Approve,
-Approve without commits or Reject at Gate 1, and Approve or Reject at the
-stance approval. One hand-up carrying several
-questions is one hand-up: it counts once if it counts at all.
+`approval-gates.md`'s "The other stops, which are not gates". One hand-up
+carrying several questions is one hand-up: it counts once if it counts at
+all.
 
 `--round` takes the number of rounds spent so far, this hand-up included. A
 counted hand-up passes the previous number plus one (1 to 3). A stop passes
@@ -197,9 +191,7 @@ questions are still open, so the file stays.
   cap and the stage would be refused for having done the right thing.
 - **Not a third human gate.** `SKILL.md`'s "Human gates" still names exactly
   two, and they decide whether the track advances. These answer something
-  the stage could not answer itself; the stage then runs on. `ship`'s
-  confirmation is the one that looks like a counter-example and is not: it
-  is already one of the two, and it arrives through this file only because
-  the subagent holding it cannot voice it. When what arrives *is* one of the
-  two, its options are not the stage's to invent — take them from
-  `references/approval-gates.md`, which also says where the answer lands.
+  the stage could not answer itself; the stage then runs on. When what
+  arrives *is* one of the two, its options are not the stage's to invent —
+  take them from `references/approval-gates.md`, which also says where the
+  answer lands.

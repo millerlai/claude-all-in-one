@@ -1,5 +1,5 @@
-"""Unit 6: runner_guard (test-runner, verifier), designer_guard's new entry and
-bash_guard's agent_type dispatch -- AC8, AC15 and detail design D7.
+"""Unit 6: runner_guard (test-runner) and bash_guard's agent_type dispatch --
+AC8 and detail design D7.
 
 Fixtures carry no `git init`, so the guard's root falls back to the working
 directory (resolve_test_command.find_root's documented fallback).
@@ -11,14 +11,13 @@ import sys
 
 import pytest
 
-import designer_guard
 import resolve_test_command
 import runner_guard
 
 SCRIPTS = os.path.dirname(os.path.abspath(runner_guard.__file__))
 BASH_GUARD = os.path.join(SCRIPTS, "bash_guard.py")
 RESOLVER = "python ${CLAUDE_PLUGIN_ROOT}/scripts/resolve_test_command.py"
-RUNNER, VERIFIER = "cai:test-runner", "cai:verifier"
+RUNNER = "cai:test-runner"
 
 
 def project(tmp_path, files):
@@ -61,18 +60,18 @@ def empty(tmp_path):
     ("git status", False),
 ])
 def test_runner_in_cargo_project(cargo, command, expected):
-    assert runner_guard.allowed(command, cargo, RUNNER) is expected
+    assert runner_guard.allowed(command, cargo) is expected
 
 
 def test_runner_blocks_an_unresolved_command(empty):
     # Nothing resolves here, so no command can be compared against.
-    assert runner_guard.allowed("cargo test", empty, RUNNER) is False
+    assert runner_guard.allowed("cargo test", empty) is False
 
 
 def test_several_candidates_resolve_nothing(tmp_path):
     cwd = project(tmp_path, {"Cargo.toml": "", "go.mod": "module x\n"})
     assert resolve_test_command.resolve(cwd)["status"] == "several"
-    assert runner_guard.allowed("cargo test", cwd, RUNNER) is False
+    assert runner_guard.allowed("cargo test", cwd) is False
 
 
 @pytest.mark.parametrize("command, expected", [
@@ -90,44 +89,29 @@ def test_several_candidates_resolve_nothing(tmp_path):
     ("python", False),
 ])
 def test_resolver_invocation(empty, command, expected):
-    assert runner_guard.allowed(command, empty, RUNNER) is expected
+    assert runner_guard.allowed(command, empty) is expected
 
 
 def test_resolver_by_its_real_path(empty):
     script = os.path.join(SCRIPTS, "resolve_test_command.py")
-    assert runner_guard.allowed("python " + script.replace("\\", "/"), empty, RUNNER) is True
+    assert runner_guard.allowed("python " + script.replace("\\", "/"), empty) is True
 
 
 def test_declared_commands_all_pass_and_take_arguments(tmp_path):
     cwd = project(tmp_path, {".cai/cai.json": json.dumps(
         {"test": {"commands": ["python -m pytest", "npm test"]}})})
     for command in ("python -m pytest", "python -m pytest tests/a.py -x", "npm test"):
-        assert runner_guard.allowed(command, cwd, RUNNER) is True, command
-    assert runner_guard.allowed("npm run build", cwd, RUNNER) is False
-    assert runner_guard.allowed("python -m pytest; rm x", cwd, RUNNER) is False
+        assert runner_guard.allowed(command, cwd) is True, command
+    assert runner_guard.allowed("npm run build", cwd) is False
+    assert runner_guard.allowed("python -m pytest; rm x", cwd) is False
 
 
 def test_runner_may_run_the_launcher_this_machine_has(tmp_path, monkeypatch):
     # #274: only python3 on PATH, so the resolved and allowed command is python3's.
     monkeypatch.setattr(resolve_test_command, "_on_path", lambda name: name == "python3")
     cwd = project(tmp_path, {"pytest.ini": "[pytest]\n"})
-    assert runner_guard.allowed("python3 -m pytest tests/a.py", cwd, RUNNER) is True
-    assert runner_guard.allowed("python -m pytest", cwd, RUNNER) is False
-
-
-@pytest.mark.parametrize("command, expected", [
-    # #277: --output turns the verifier's read-only verbs into file writers.
-    ("git log --output=out.txt -1", False),
-    ("git diff --output out.txt", False),
-    ("git show --output=out.txt HEAD", False),
-    ('git log "--output=out.txt" -1', False),
-    ("git diff --outp=out.txt", False),          # git refuses abbreviations today
-    ("git log --oneline -1", True),
-    ("git diff --stat HEAD~1", True),
-    ("git show HEAD", True),
-])
-def test_verifier_git_verbs_cannot_write_a_file(empty, command, expected):
-    assert runner_guard.allowed(command, empty, VERIFIER) is expected
+    assert runner_guard.allowed("python3 -m pytest tests/a.py", cwd) is True
+    assert runner_guard.allowed("python -m pytest", cwd) is False
 
 
 def dispatch(agent_type, subagent_type, prompt="review the diff"):
@@ -139,63 +123,44 @@ def dispatch(agent_type, subagent_type, prompt="review the diff"):
                           capture_output=True, text=True)
 
 
-@pytest.mark.parametrize("agent_type, subagent_type, expected", [
-    # #277: the verifier dispatches the four lenses and nothing else.
-    (VERIFIER, "cai:reviewer", 0),
-    (VERIFIER, "cai:security-reviewer", 0),
-    (VERIFIER, "reviewer", 0),                   # stage-verify.md's own spelling
-    (VERIFIER, "general-purpose", 2),
-    (VERIFIER, "cai:implementer", 2),
-    (VERIFIER, "", 2),
-    # Everyone else is unchanged.
-    (None, "general-purpose", 0),
-    ("cai:implementer", "general-purpose", 0),
-])
-def test_verifier_may_dispatch_only_the_lens_agents(agent_type, subagent_type, expected):
-    result = dispatch(agent_type, subagent_type)
-    assert result.returncode == expected, result.stderr
-    if expected == 2:
-        assert "cai:reviewer" in result.stderr
-
-
 def test_bash_rules_never_read_an_agent_prompt():
     # The Bash rules match command text; a prompt that mentions a force push is
     # not one, and the main session must not be blocked for writing it.
     assert dispatch(None, "general-purpose", "never run git push --force origin main").returncode == 0
 
 
-def test_hooks_json_sends_agent_calls_to_the_dispatcher_in_agent_mode():
+def test_hooks_json_has_no_agent_dispatch_guard():
+    # The only agent whose dispatches were checked (#277) was the verifier, and
+    # the verify stage now runs in the main session; a PreToolUse hook on Agent
+    # would start a Python process per dispatch and check nothing.
     with open(os.path.join(SCRIPTS, "..", "hooks", "hooks.json"), encoding="utf-8") as fh:
         entries = json.load(fh)["hooks"]["PreToolUse"]
-    agent = [e for e in entries if "Agent" in e["matcher"].split("|")]
-    assert len(agent) == 1
-    assert agent[0]["hooks"][0]["command"].endswith('run-guard.cmd" agent')
-    assert all("Agent" not in e["matcher"].split("|") for e in entries if e is not agent[0])
+    assert all("Agent" not in e["matcher"].split("|") for e in entries)
 
 
 def test_declared_string_with_shell_symbols_is_authorised_by_the_person(tmp_path):
     cwd = project(tmp_path, {".cai/cai.json": json.dumps(
         {"test": {"commands": ["make a && make b"]}})})
-    assert runner_guard.allowed("make a && make b", cwd, RUNNER) is True
-    assert runner_guard.allowed("make a && make b && rm x", cwd, RUNNER) is False
+    assert runner_guard.allowed("make a && make b", cwd) is True
+    assert runner_guard.allowed("make a && make b && rm x", cwd) is False
 
 
 def test_invalid_declaration_resolves_nothing(tmp_path):
     cwd = project(tmp_path, {"Cargo.toml": "", ".cai/cai.json": "not json"})
-    assert runner_guard.allowed("cargo test", cwd, RUNNER) is False
+    assert runner_guard.allowed("cargo test", cwd) is False
 
 
 def test_go_whole_argument_and_narrowing(tmp_path):
     cwd = project(tmp_path, {"go.mod": "module x\n"})
     for command in ("go test", "go test ./...", "go test ./pkg/foo"):
-        assert runner_guard.allowed(command, cwd, RUNNER) is True, command
+        assert runner_guard.allowed(command, cwd) is True, command
 
 
 def test_resolver_raising_blocks(cargo, monkeypatch):
     def boom(_):
         raise RuntimeError("bug")
     monkeypatch.setattr(resolve_test_command, "resolve", boom)
-    assert runner_guard.allowed("cargo test", cargo, RUNNER) is False
+    assert runner_guard.allowed("cargo test", cargo) is False
 
 
 @pytest.mark.skipif(os.name != "nt", reason="a backslash path is only a path on Windows")
@@ -203,64 +168,17 @@ def test_backslash_cwd_is_accepted(tmp_path):
     # The hook payload's cwd is a Windows backslash path (observed in unit 1).
     # On POSIX the same text is one relative filename that does not exist.
     cwd = project(tmp_path, {"Cargo.toml": ""}).replace("/", "\\")
-    assert runner_guard.allowed("cargo test", cwd, RUNNER) is True
-
-
-def test_runner_gets_no_git_shapes(empty):
-    for command in ("git diff", "git log", "git rev-parse --show-toplevel",
-                    "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py"):
-        assert runner_guard.allowed(command, empty, RUNNER) is False, command
-
-
-# --- D7: what only the verifier may also run -------------------------------
-
-@pytest.mark.parametrize("command, expected", [
-    ("git diff", True),
-    ("git diff --stat a...HEAD", True),
-    ("git log --oneline -5", True),
-    ("git log", True),
-    ("git show HEAD:README.md", True),
-    ("git merge-base HEAD main", True),
-    ("git symbolic-ref --short refs/remotes/origin/HEAD", True),
-    ("git rev-parse --show-toplevel", True),
-    ("git symbolic-ref HEAD refs/heads/x", False),   # two arguments would write a ref
-    ("git symbolic-ref --short refs/remotes/origin/HEAD extra", False),
-    ("git rev-parse --show-toplevel extra", False),
-    ("git rev-parse HEAD", False),
-    ("git merge-base HEAD", False),
-    ("git merge-base HEAD main; git stash", False),
-    ("git merge-base HEAD $(x)", False),
-    ("git difftool", False),
-    ("git logx", False),
-    ("git diff; git push", False),
-    ("git diff | cat", False),
-    ("git push origin x", False),
-    ("git status", False),
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py", True),
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py --check x", True),
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py x; rm y", False),
-    # AC8 (c): the two scripts the verifier gains, and nothing next to them.
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir t", True),
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify", True),
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan; rm y", False),
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --stage verify > out.txt", False),
-    ("python ${CLAUDE_PLUGIN_ROOT}/scripts/record_start_command.py --ready http://127.0.0.1:1/ -- x", False),
-])
-def test_verifier_extra_allowances(empty, command, expected):
-    assert runner_guard.allowed(command, empty, VERIFIER) is expected
+    assert runner_guard.allowed("cargo test", cwd) is True
 
 
 @pytest.mark.parametrize("command", [
+    "git diff", "git log", "git rev-parse --show-toplevel",
+    "python ${CLAUDE_PLUGIN_ROOT}/scripts/provenance.py",
     "python ${CLAUDE_PLUGIN_ROOT}/scripts/verify_plan.py plan --track-dir t",
     "python ${CLAUDE_PLUGIN_ROOT}/scripts/local_run.py --track-dir t --stage verify",
 ])
-def test_test_runner_cannot_run_the_verifier_scripts(empty, command):
-    assert runner_guard.allowed(command, empty, RUNNER) is False
-
-
-def test_verifier_still_gets_the_resolver_and_resolved_commands(cargo):
-    assert runner_guard.allowed(RESOLVER, cargo, VERIFIER) is True
-    assert runner_guard.allowed("cargo test", cargo, VERIFIER) is True
+def test_runner_gets_no_git_shapes_and_no_verify_scripts(empty, command):
+    assert runner_guard.allowed(command, empty) is False
 
 
 # --- check(): payload in, exit code and stderr out -------------------------
@@ -280,13 +198,6 @@ def test_check_blocks_with_a_reason_naming_the_agent(cargo, capsys):
     err = capsys.readouterr().err
     assert err.startswith("Blocked: " + RUNNER)
     assert "test-command.md" in err
-    assert "git diff" not in err                    # the verifier's sentence only
-
-
-def test_check_verifier_reason_lists_git_and_provenance(cargo, capsys):
-    assert runner_guard.check(payload("git push", VERIFIER, cargo)) == 2
-    err = capsys.readouterr().err
-    assert "git diff" in err and "provenance.py" in err
 
 
 @pytest.mark.parametrize("bad", [
@@ -299,99 +210,40 @@ def test_check_blocks_a_payload_without_a_command(bad):
     assert runner_guard.check(bad) == 2
 
 
-# --- designer_guard: the function entry and the two fixed commands ---------
-
-@pytest.mark.parametrize("command, expected", [
-    ("date +%F", True),
-    ("date  +%F", True),
-    ("git rev-parse --show-toplevel", True),
-    ("date +%s", False),
-    ("date +%F; git stash", False),
-    ("git rev-parse HEAD", False),
-    ("git rev-parse --show-toplevel --git-dir", False),
-    ("git status", False),
-    ("mmdc -i a.mmd -o a.svg", True),
-])
-def test_designer_allowed(tmp_path, command, expected):
-    assert designer_guard.allowed(command, str(tmp_path)) is expected
-
-
-def test_designer_check_exit_codes(tmp_path, capsys):
-    ok = {"cwd": str(tmp_path), "tool_input": {"command": "date +%F"}}
-    assert designer_guard.check(ok) == 0
-    assert capsys.readouterr().err == ""
-    assert designer_guard.check({"tool_input": {"command": "git status"}}) == 2
-    err = capsys.readouterr().err
-    assert "date +%F" in err and "git rev-parse --show-toplevel" in err
-    assert designer_guard.check({}) == 2
-
-
 UNSAFE_CHARS = [";", "&", "|", "<", ">", "`", "$", "(", ")", "{", "}", "\n", "\r"]
 
 
 @pytest.mark.parametrize("ch", UNSAFE_CHARS, ids=[hex(ord(c)) for c in UNSAFE_CHARS])
-def test_every_unsafe_character_is_refused(tmp_path, ch):
-    # The class is written out twice (runner_guard.UNSAFE, designer_guard.allowed);
-    # dropping a character from either copy must fail here.
+def test_every_unsafe_character_is_refused(ch):
+    # Dropping a character from runner_guard.UNSAFE must fail here.
     assert runner_guard.UNSAFE.search(ch)
-    assert designer_guard.allowed("mmdc a" + ch + "b", str(tmp_path)) is False
-
-
-@pytest.mark.parametrize("stdin", [b"{bad", b""], ids=["bad-json", "empty"])
-def test_designer_guard_main_blocks_unreadable_stdin(stdin):
-    proc = subprocess.run([sys.executable, os.path.join(SCRIPTS, "designer_guard.py")],
-                          input=stdin, capture_output=True)
-    assert proc.returncode == 2
 
 
 def test_declared_command_with_repeated_blanks(tmp_path):
     cwd = project(tmp_path, {".cai/cai.json": json.dumps(
         {"test": {"commands": ["cargo  test"]}})})
-    assert runner_guard.allowed("cargo test", cwd, RUNNER) is True
-    assert runner_guard.allowed("cargo  test", cwd, RUNNER) is True
-    assert runner_guard.allowed("cargo test; x", cwd, RUNNER) is False
+    assert runner_guard.allowed("cargo test", cwd) is True
+    assert runner_guard.allowed("cargo  test", cwd) is True
+    assert runner_guard.allowed("cargo test; x", cwd) is False
 
 
 def test_this_repos_declared_regenerate_and_test_command_is_the_only_extra(tmp_path):
-    # #371: the verifier must be able to run the regeneration + pytest chain
-    # this repo declares, and still nothing else (acceptance condition 3).
-    # The declaration lives in .cai/, outside git, so it is written here.
+    # #371: the regeneration + pytest chain this repo declares runs, and still
+    # nothing else (acceptance condition 3). The declaration lives in .cai/,
+    # outside git, so it is written here.
     declared = "python scripts/gen-codex.py && python -m pytest"
     (tmp_path / ".cai").mkdir()
     (tmp_path / ".cai" / "cai.json").write_text(
         json.dumps({"test": {"commands": [declared]}}), encoding="utf-8")
     repo = str(tmp_path)
-    assert runner_guard.allowed(declared, repo, VERIFIER) is True
-    assert runner_guard.allowed(declared + " tests/a.py -x", repo, VERIFIER) is True
+    assert runner_guard.allowed(declared, repo) is True
+    assert runner_guard.allowed(declared + " tests/a.py -x", repo) is True
     for blocked in ("python scripts/gen-codex.py",
                     "python scripts/validate.py",
                     "python scripts/gen-codex.py && python -m pytest; rm x",
                     "python scripts/gen-codex.py && rm -rf x && python -m pytest",
                     "python -c 'print(1)' && python -m pytest"):
-        assert runner_guard.allowed(blocked, repo, VERIFIER) is False, blocked
-
-
-def _folded(path):
-    with open(path, encoding="utf-8") as fh:
-        return " ".join(fh.read().split())
-
-
-def test_designer_docs_name_every_command_the_guard_allows():
-    # Two prose places restate the guard's allow-list; #270 added two commands
-    # to the code and neither sentence followed. Read the code's own value.
-    plugin = os.path.dirname(SCRIPTS)
-    wanted = list(designer_guard.FIXED_COMMANDS) + ["design_probe.py", "options_lint.py", "mmdc"]
-    # Scoped to one paragraph and one sentence: stage-design.md names `date +%F`
-    # elsewhere, so a whole-file check would pass without the sentence fixed.
-    with open(os.path.join(plugin, "agents", "designer.md"), encoding="utf-8") as fh:
-        paragraph = next(" ".join(p.split()) for p in fh.read().split("\n\n")
-                         if p.startswith("The PreToolUse hook scopes"))
-    stage = _folded(os.path.join(plugin, "skills", "track", "references", "stage-design.md"))
-    start = stage.index("own Bash runs only")
-    sentence = stage[start:stage.index(". ", start)]
-    for command in wanted:
-        assert command in paragraph, ("designer.md", command)
-        assert command in sentence, ("stage-design.md", command)
+        assert runner_guard.allowed(blocked, repo) is False, blocked
 
 
 # --- bash_guard dispatches on agent_type -----------------------------------
@@ -411,23 +263,22 @@ def run_guard(command, agent, cwd):
     ("git status", "cai:test-runner", 2),
     ("git status", None, 0),
     ("git status", "cai:explorer", 0),              # not a scoped agent
-    ("git status", "cai:designer", 2),
-    ("mmdc -i a.mmd -o a.svg", "cai:designer", 0),
-    ("date +%F", "cai:designer", 0),
-    ("git diff", "cai:verifier", 0),
-    ("git push origin x", "cai:verifier", 2),
+    # The retired stage agents are no longer scoped: only the general rules apply.
+    ("git status", "cai:designer", 0),
+    ("git push --force origin main", "cai:verifier", 2),
 ])
 def test_dispatch(cargo, command, agent, expected):
     assert run_guard(command, agent, cargo) == expected
 
 
-def test_scoped_agent_still_meets_the_global_rules(cargo):
-    # An allowed-by-scope command is only the first gate (D7): `git log` plus a
-    # plain argument passes the scope, so `--no-verify` is stopped only by the
-    # general rule that runs after it.
-    assert run_guard("git log --oneline", "cai:verifier", cargo) == 0
-    assert runner_guard.allowed("git log --no-verify", cargo, VERIFIER) is True
-    assert run_guard("git log --no-verify", "cai:verifier", cargo) == 2
+def test_scoped_agent_still_meets_the_global_rules(tmp_path):
+    # An allowed-by-scope command is only the first gate (D7): a declared
+    # `git log` plus a plain argument passes the scope, so `--no-verify` is
+    # stopped only by the general rule that runs after it.
+    cwd = project(tmp_path, {".cai/cai.json": json.dumps({"test": {"commands": ["git log"]}})})
+    assert run_guard("git log --oneline", RUNNER, cwd) == 0
+    assert runner_guard.allowed("git log --no-verify", cwd) is True
+    assert run_guard("git log --no-verify", RUNNER, cwd) == 2
 
 
 def test_runner_guard_reads_the_git_root_not_the_working_directory(tmp_path):
@@ -435,7 +286,7 @@ def test_runner_guard_reads_the_git_root_not_the_working_directory(tmp_path):
     project(tmp_path, {"Cargo.toml": ""})
     sub = tmp_path / "sub"
     sub.mkdir()
-    assert runner_guard.allowed("cargo test", str(sub), RUNNER) is True
+    assert runner_guard.allowed("cargo test", str(sub)) is True
 
 
 def test_designer_flag_path_is_gone():

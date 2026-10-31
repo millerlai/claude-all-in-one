@@ -222,8 +222,8 @@ def test_rewrite_script_call_only_file_still_gets_the_preamble():
 
 
 def test_rewrite_never_puts_a_markdown_preamble_in_front_of_python_source():
-    # bash_guard.py imports runner_guard.py and designer_guard.py; a blockquote
-    # on line 1 makes them a SyntaxError, so the import crashes before any
+    # bash_guard.py imports runner_guard.py; a blockquote
+    # on line 1 makes it a SyntaxError, so the import crashes before any
     # general rule runs.
     files = {"scripts/g.py": 'ROOT = "${CLAUDE_PLUGIN_ROOT}"\n'}
 
@@ -636,13 +636,12 @@ def test_generated_ship_text_says_prepare_only(tmp_path):
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
 
     stage_ship = (out / "skills/track/references/stage-ship.md").read_text(encoding="utf-8")
-    shipper = (out / "agents/cai_shipper.toml").read_text(encoding="utf-8")
 
     assert "prepares only" in stage_ship
     assert "no subagent runs an irreversible git/gh operation" in stage_ship.lower()
     assert "untested through release" in stage_ship  # G1's veto: never present the push prompt as guaranteed
-    assert "prepares" in shipper or "Prepares" in shipper
-    assert "Do not push" in shipper
+    # The main session runs ship itself; there is no shipper agent to dispatch.
+    assert not (out / "agents/cai_shipper.toml").exists()
 
 
 def test_generated_build_text_uses_single_line_commit_m(tmp_path):
@@ -716,30 +715,29 @@ def test_generated_build_text_forbids_apostrophes_in_commit_summary(tmp_path):
 
 def test_generated_agent_and_stage_text_never_tells_a_subagent_to_dispatch(tmp_path):
     # D9: on Codex the main session does every dispatch build/verify need;
-    # verifier only reconciles and implementer only implements one briefed
-    # unit -- neither may be told to dispatch/spawn another agent itself.
+    # implementer only implements one briefed unit and may not be told to
+    # dispatch/spawn another agent itself. Design, verify and ship run in the
+    # main session, so no stage agent of theirs is dispatched at all.
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
 
-    verifier = (out / "agents/cai_verifier.toml").read_text(encoding="utf-8")
     implementer = (out / "agents/cai_implementer.toml").read_text(encoding="utf-8")
-    stage_verify = (out / "skills/track/references/stage-verify.md").read_text(encoding="utf-8")
     stage_build = (out / "skills/track/references/stage-build.md").read_text(encoding="utf-8")
-    designer = (out / "agents/cai_designer.toml").read_text(encoding="utf-8")
-    stage_design = (out / "skills/track/references/stage-design.md").read_text(encoding="utf-8")
 
-    assert "never dispatch" in verifier or "never dispatches" in verifier
-    assert "dispatch the four agents" not in verifier
     assert "never dispatch" in implementer or "never dispatches" in implementer
     assert "dispatching the" not in implementer  # the old "dispatching the explorer, implementer..." framing
 
-    assert "main session always reads Step 0 through Step 1" in stage_verify
     assert "always read directly by the main session" in stage_build
-    assert "subagent the track dispatches to run this" not in stage_verify
     assert "subagent the track dispatches to run this" not in stage_build
 
-    assert "you never dispatch" in designer.lower()
-    assert "dispatch `explorer`" not in stage_design
+    for stage in ("verify", "design", "ship"):
+        text = " ".join((out / f"skills/track/references/stage-{stage}.md").read_text(
+            encoding="utf-8").split())
+        assert "The main session runs this file" in text, stage
+        assert "the track hands it to no subagent" in text, stage
+        assert "subagent the track dispatches to run this" not in text, stage
+    for gone in ("designer", "verifier", "shipper"):
+        assert not (out / f"agents/cai_{gone}.toml").exists(), gone
 
 
 def test_generated_step_0_6_runs_codex_review_and_never_the_claude_skill(tmp_path):
@@ -763,14 +761,14 @@ def test_generated_step_0_6_runs_codex_review_and_never_the_claude_skill(tmp_pat
     assert "`code-review`" not in step
 
 
-def test_codex_test_runner_and_verifier_say_the_boundary_is_not_enforced(tmp_path):
-    # #267 AC9: the Claude hook that holds these two agents' Bash does not run
-    # under Codex, so the generated agents say so instead of claiming it, and
-    # the old per-runner `tools:` list is gone from their opening line.
+def test_codex_test_runner_says_the_boundary_is_not_enforced(tmp_path):
+    # #267 AC9: the Claude hook that holds this agent's Bash does not run
+    # under Codex, so the generated agent says so instead of claiming it, and
+    # the old per-runner `tools:` list is gone from its opening line.
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
 
-    for name in ("cai_test-runner", "cai_verifier"):
+    for name in ("cai_test-runner",):
         # Whitespace folded: the sentences are wrapped across source lines.
         toml = " ".join((out / "agents" / (name + ".toml")).read_text(encoding="utf-8").split())
         assert "Codex does not enforce the source agent's PreToolUse hook" in toml, name
@@ -780,9 +778,8 @@ def test_codex_test_runner_and_verifier_say_the_boundary_is_not_enforced(tmp_pat
         assert "Tools declared allowed by the source (not enforced by Codex): " in toml, name
 
 
-def test_codex_designer_and_test_command_state_the_unenforced_boundary(tmp_path):
-    # #275: the designer override must name the two fixed commands the guard
-    # allows, and test-command.md may not say "blocked outright" on a platform
+def test_codex_test_command_states_the_unenforced_boundary(tmp_path):
+    # #275: test-command.md may not say "blocked outright" on a platform
     # where the agent-scoped hook does not run.
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
@@ -790,8 +787,6 @@ def test_codex_designer_and_test_command_state_the_unenforced_boundary(tmp_path)
     def folded(rel):
         return " ".join((out / rel).read_text(encoding="utf-8").split())
 
-    designer = folded("agents/cai_designer.toml")
-    assert "`date +%F`" in designer and "`git rev-parse --show-toplevel`" in designer
     test_command = folded("skills/track/references/test-command.md")
     assert "Codex does not enforce the source agent's PreToolUse hook" in test_command
     assert "outright" not in test_command
@@ -801,7 +796,7 @@ def test_codex_designer_and_test_command_state_the_unenforced_boundary(tmp_path)
 
 def test_codex_agents_are_told_how_to_read_and_write_without_claudes_file_tools(tmp_path):
     # #288: Codex has no Read/Grep/Glob/Write/Edit tool, so a declared tools
-    # line alone left cai_designer with no way to read a file. Every agent
+    # line alone left an agent with no way to read a file. Every agent
     # declaring one must be told what to use instead.
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
@@ -829,15 +824,12 @@ def test_codex_shell_boundaries_leave_room_to_read_files(tmp_path):
     def folded(rel):
         return " ".join((out / rel).read_text(encoding="utf-8").split())
 
-    for name in ("cai_designer", "cai_verifier", "cai_test-runner"):
+    for name in ("cai_test-runner",):
         assert "Besides reading and searching files" in folded(f"agents/{name}.toml"), name
 
-    designer = folded("agents/cai_designer.toml")
     stage_design = folded("skills/track/references/stage-design.md")
     explorer = folded("agents/cai_explorer.toml")
-    assert "`Read`/`Grep`/`Glob`" not in designer
     assert "`Read`/`Grep`/`Glob`" not in stage_design
-    assert "own shell, besides reading and searching files, runs only" in stage_design
     assert "has no shell tool" not in explorer
     assert "Use Grep for source searches" not in explorer
 
@@ -907,13 +899,13 @@ def test_generated_tree_cites_no_more_design_ids_than_its_source():
 # ---------------------------------------------------------------------------
 
 AGENT_SHORT_NAMES = [
-    "architect", "designer", "explorer", "implementer",
+    "architect", "explorer", "implementer",
     "refactoring-detector", "reviewer", "security-reviewer",
-    "shipper", "test-runner", "verifier",
+    "test-runner",
 ]
 
 
-def test_emit_writes_ten_agent_tomls_with_the_tier_table_and_a_version_stamp(tmp_path):
+def test_emit_writes_seven_agent_tomls_with_the_tier_table_and_a_version_stamp(tmp_path):
     out = tmp_path / "out"
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
 
@@ -962,8 +954,12 @@ def test_stages_json_agents_are_all_prefixed(tmp_path):
     assert run("--source", str(REAL_SOURCE), "--out", str(out)).returncode == 0
 
     stages = gen_codex.json.loads((out / "skills/track/stages.json").read_text(encoding="utf-8"))
-    for stage in stages["stages"]:
+    dispatched = [stage for stage in stages["stages"] if stage["agent"] is not None]
+    assert dispatched
+    for stage in dispatched:
         assert stage["agent"].startswith("cai_"), stage
+    # A stage the main session runs stays null, not "cai_null".
+    assert [s["id"] for s in stages["stages"] if s["agent"] is None] == ["design", "verify", "ship"]
 
 
 def test_openai_yaml_ships_with_the_implicit_invocation_policy_off_for_every_flagged_skill(tmp_path):

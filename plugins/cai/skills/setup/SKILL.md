@@ -194,8 +194,8 @@ the exit code alone cannot tell them apart.
    guard ran and fired.
 2. Exit **2**, and stderr holds `cai guard reduced check:`: degraded. No working
    Python 3 was found, so the dispatcher fell back to a text check. Tell the
-   user plainly: the three scoped agents (`test-runner`, `verifier`,
-   `designer`) can run no Bash at all, and every other caller is checked only
+   user plainly: the scoped agent (`test-runner`) can run no Bash at all,
+   and every other caller is checked only
    for force pushes, `reset --hard`, `git clean -f`, `--no-verify`, `rm -rf`
    and `gh pr merge` (blocked, not prompted: the person runs it). Not blocked
    in this state: a commit or push straight to `main`/`master`, `git checkout

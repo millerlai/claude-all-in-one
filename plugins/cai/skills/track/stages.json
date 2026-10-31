@@ -1,12 +1,12 @@
 {
   "stages": [
-    { "id": "design",   "agent": "designer",
+    { "id": "design",   "agent": null,
       "reference": "references/stage-design.md",   "auto_invoke": false },
     { "id": "build",    "agent": "implementer",
       "reference": "references/stage-build.md",    "auto_invoke": false },
-    { "id": "verify",   "agent": "verifier",
+    { "id": "verify",   "agent": null,
       "reference": "references/stage-verify.md",   "auto_invoke": true },
-    { "id": "ship",     "agent": "shipper",
+    { "id": "ship",     "agent": null,
       "reference": "references/stage-ship.md",     "auto_invoke": false }
   ],
   "retired": ["intake", "discover"]

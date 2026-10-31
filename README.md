@@ -57,26 +57,24 @@ flowchart TB
     S4["ship<br/>one commit, plus a release note"] --> HG2
     HG2[/"human gate · menu<br/>before merge, tag, publish"/] --> DONE(["/cai:track done"])
 
-    S1 -.-> DE
+    S1 -.-> MS
     S2 -.-> IM
-    S3 -.-> VE
-    S4 -.-> SH
+    S3 -.-> MS
+    S4 -.-> MS
 
-    DE(["designer · think<br/>+ Write"])
+    MS(["main session<br/>runs the stage reference itself"])
     IM(["implementer · build<br/>+ Edit, Bash, Agent"])
-    VE(["verifier · build<br/>tests + git reads + Agent"])
-    SH(["shipper · build<br/>git + gh"])
 
     classDef stage fill:#e8eefc,stroke:#4a6fb5,color:#17335f
     classDef human fill:#fff3cd,stroke:#c79100,color:#6b4e00
-    classDef think fill:#efe6f7,stroke:#7d5ba6,color:#3d2757
+    classDef main fill:#efe6f7,stroke:#7d5ba6,color:#3d2757
     classDef build fill:#e6eef3,stroke:#4a7c94,color:#1f3f4d
     classDef ends fill:#ffffff,stroke:#9aa5b1,color:#33404d
 
     class S1,S2,S3,S4 stage
     class HG1,HG2 human
-    class DE think
-    class IM,VE,SH build
+    class MS main
+    class IM build
     class START,DONE ends
 ```
 
@@ -102,7 +100,7 @@ Tools, reachable any time:
 | `/cai:debug` | Find the root cause of a bug before proposing any fix. |
 | `/cai:fix` | Fix a GitHub issue, the issues you pick from a list, a pull request's review threads, or one Jira ticket, and push the result with no stop in between: it pushes, opens pull requests and replies to review threads itself, and never merges. |
 | `/cai:fix-unclaim` | Clear one named local session claim left by `/cai:fix`, without waiting for it to expire. |
-| `/cai:codemap` | Build, refresh, check or query an optional index of the repository's files and symbols under `.cai/codemap/`; once it exists, the track hands the read-side agents its state line so they start from it instead of re-reading the same files, and outside the track a `SubagentStart` hook hands `cai:explorer`, `cai:architect` and `cai:designer` the same line while the index is fresh (Claude Code only; it never refreshes the index, so after an edit run `/cai:codemap update`). It ignores itself in git and can be deleted at any time. |
+| `/cai:codemap` | Build, refresh, check or query an optional index of the repository's files and symbols under `.cai/codemap/`; once it exists, the track hands the read-side agents its state line so they start from it instead of re-reading the same files, and outside the track a `SubagentStart` hook hands `cai:explorer` and `cai:architect` the same line while the index is fresh (Claude Code only; it never refreshes the index, so after an edit run `/cai:codemap update`). It ignores itself in git and can be deleted at any time. |
 | `/cai:refactor` | Restructure code without changing its behaviour; every one of Fowler's 72 named refactorings is also its own `/cai:<name>`. |
 | `/cai:git` | Run git and `gh` operations on the `chore` tier instead of the main session model. |
 | `/cai:chore` | Run a mechanical one-off — renames, formatting, lookups — on the `chore` tier. |

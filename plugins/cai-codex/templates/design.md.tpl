@@ -350,9 +350,8 @@ Chose …, because <evidence> rules out the rest. **Found out when:** …
   the Stance section and looks for each only inside this Detail section; a
   Diagnosis numbers none, so it asks for its failing test instead.
 
-  The `AC:` line is written by the main session, not by the designer: after
-  the designer reports, the main session writes the track's `intake.md`,
-  computes its sha256, and replaces the placeholder below with the real path
+  The `AC:` line is written last: once the track's `intake.md` is final,
+  compute its sha256 and replace the placeholder below with the real path
   and hex digest -- all before Gate 1 fingerprints this file.
   `preflight.py build`'s `intake_unchanged` compares it with `intake.md` as it
   stands then.

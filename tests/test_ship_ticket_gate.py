@@ -8,9 +8,9 @@ AC16 lives in test_ticket_transition.py; AC19 was Unit 4's. What is left
 here is text-level: `stage-ship.md`'s irreversible-operations list no longer
 names closing the ticket, still says "two human gates", `SKILL.md`'s own
 "## Human gates" section still listing those two and gaining no
-ticket-closing step, `agents/shipper.md` carrying no interactive tool and
-handing the confirmation up rather than taking it (and never closing the
-ticket itself), and `ticket-mirror.md`'s ship section naming the commit
+ticket-closing step, the main session asking the confirmation itself now
+that no shipper agent exists (and ship never closing the ticket), and
+`ticket-mirror.md`'s ship section naming the commit
 message and PR body while no longer running `ticket.py transition` at all.
 """
 import os
@@ -22,7 +22,6 @@ STAGE_SHIP = os.path.join(
 APPROVAL_GATES = os.path.join(
     REPO_ROOT, "plugins", "cai", "skills", "track", "references", "approval-gates.md")
 SKILL_MD = os.path.join(REPO_ROOT, "plugins", "cai", "skills", "track", "SKILL.md")
-SHIPPER_MD = os.path.join(REPO_ROOT, "plugins", "cai", "agents", "shipper.md")
 TICKET_MIRROR = os.path.join(
     REPO_ROOT, "plugins", "cai", "skills", "track", "references", "ticket-mirror.md")
 
@@ -104,30 +103,13 @@ def test_skill_md_gained_no_ticket_closing_step_of_its_own():
 # --- AC18: shipper.md is a zero-line diff, and never gains an interactive --
 # --- tool -- the confirmation must stay the main session's alone -----------
 
-def test_shipper_md_hands_the_confirmation_up_instead_of_taking_it():
-    # Was "byte-identical to HEAD", the same stale form as above. AC18's
-    # content is that the confirmation authority never moves into the
-    # subagent -- which a zero-line diff only ever guarded by accident. The
-    # tools-line test below holds the negative half (no interactive tool);
-    # this holds the positive one, added 2026-09-03 once it became clear the
-    # platform strips AskUserQuestion from subagents whatever `tools:` says,
-    # so "wait for confirmation" was an instruction shipper could not follow.
-    text = _flat(SHIPPER_MD)
-    assert "pending-questions.md" in text
-    assert "cannot ask" in text
-    assert "the gate does not move, only who voices it" in text
-
-
-def test_shipper_md_tools_line_has_no_interactive_tool():
-    text = _text(SHIPPER_MD)
-    m = re.search(r"^tools:\s*(.*)$", text, re.MULTILINE)
-    assert m is not None
-    tools_line = m.group(1)
-    # AskUserQuestion (or any bare "Ask"/interactive prompt tool) would let a
-    # subagent take the confirmation itself -- the design requires that
-    # authority stay with the main session alone.
-    assert "Ask" not in tools_line
-    assert "Interactive" not in tools_line
+def test_the_main_session_asks_the_ship_confirmation_itself():
+    # AC18's content is that the confirmation authority stays with the main
+    # session. Ship now runs there, so it asks directly, and no shipper agent
+    # exists that could take the confirmation on its own.
+    assert "is asked directly" in _flat(STAGE_SHIP)
+    assert "**Who asks.** You, the main session, every time." in _flat(APPROVAL_GATES)
+    assert not os.path.exists(os.path.join(REPO_ROOT, "plugins", "cai", "agents", "shipper.md"))
 
 
 # --- AC20: the ship section names both the commit message and the PR body -
@@ -164,8 +146,8 @@ def test_approval_gates_gate_2_does_not_name_closing_the_ticket():
     assert "closing the ticket" not in section.lower()
 
 
-def test_shipper_md_never_closes_the_ticket_itself():
-    assert "transition" not in _text(SHIPPER_MD)
+def test_stage_ship_never_closes_the_ticket_itself():
+    assert "ticket.py transition" not in _text(STAGE_SHIP)
 
 
 # --- #195: a closing keyword is never allowed in the commit message or PR --
@@ -185,8 +167,3 @@ def test_stage_ship_step4_and_step7_name_refs_form():
         assert "`Refs #" in section, heading
         assert "closing keyword" in section, heading
 
-
-def test_shipper_md_forbids_closing_keyword():
-    flat = _flat(SHIPPER_MD)
-    assert "`Refs #" in flat
-    assert "closing keyword" in flat

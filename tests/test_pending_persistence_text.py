@@ -137,12 +137,15 @@ def test_one_place_defines_a_round_and_the_other_texts_point_at_it(plugin_root):
     # cap counted different things. The definition lives in one section.
     pq = _flat(plugin_root, "references", "pending-questions.md")
     rule = _section(pq, "## What counts as a round", "## Resuming a saved round")
-    assert "\"Changes requested\"" in rule
+    # Gate 1 and the stance approval are the main session's own menus now
+    # that design runs there, so neither counts as a round.
+    assert "\"Changes requested\"" not in rule
     assert "The other stops, which are not gates" in rule
     assert "--stop" in rule and "N of 3 rounds spent" in rule
     gates = _flat(plugin_root, "references", "approval-gates.md")
     assert "What counts as a round" in gates
     assert "Counts as one of that stage's three rounds" not in gates
+    # Design runs in the main session and asks directly, so it spends no round.
     design = _flat(plugin_root, "references", "stage-design.md")
-    assert "What counts as a round" in design
+    assert "What counts as a round" not in design
     assert "At most three rounds" not in design

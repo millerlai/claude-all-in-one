@@ -13,7 +13,6 @@ import os
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAGE_SHIP = os.path.join(
     REPO_ROOT, "plugins", "cai", "skills", "track", "references", "stage-ship.md")
-SHIPPER = os.path.join(REPO_ROOT, "plugins", "cai", "agents", "shipper.md")
 
 
 def _flat(path):
@@ -49,12 +48,7 @@ def test_there_is_a_call_ceiling_after_which_research_stops():
     assert "about 40 tool calls" in rule
 
 
-def test_shipper_does_not_open_the_main_sessions_gate_document():
-    text = _flat(SHIPPER)
-    assert "Do not open `approval-gates.md`" in text
-    assert "Open `pending-questions.md` only when you have a question to hand up" in text
-
-
-def test_stage_ship_says_the_gate_options_are_the_main_sessions_to_read():
+def test_stage_ship_points_at_the_gate_options():
+    # The main session runs ship, so it reads Gate 2's options itself.
     text = _flat(STAGE_SHIP)
-    assert "`references/approval-gates.md` holds the options for the main session" in text
+    assert "`references/approval-gates.md` holds its options" in text

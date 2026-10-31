@@ -1,6 +1,4 @@
 agent_type.: *.cai:test-runner.
-agent_type.: *.cai:verifier.
-agent_type.: *.cai:designer.
 \<git [^;&|]*push[^;&|]* --force[^-]
 \<git [^;&|]*push[^;&|]* -f[^a-zA-Z0-9_]
 \<git [^;&|]*push[^;&|]* +[^ +]

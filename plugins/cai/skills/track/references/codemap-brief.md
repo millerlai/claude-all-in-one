@@ -1,12 +1,13 @@
-# codemap-brief — put the index's state line in a stage's brief, or nothing
+# codemap-brief — the index's state line for a stage, or nothing
 
-The main session follows this before it dispatches `design`. A standalone
-`/cai:discover` or `/cai:design` follows it too, and then the session itself
-runs the procedure: the line it yields is its own to act on. A standalone
+The main session follows this before it runs `design`, inside a track or as
+a standalone `/cai:design`; a standalone `/cai:discover` follows it too. The
+session itself runs the procedure, so the line it yields is its own to act
+on. A standalone
 `/cai:discover` skips step 2: a model may start it
-without anyone typing it, and only a person's command or a track's dispatch
-writes the index. It never stops a stage and never asks a question: the most it adds
-is one line to the brief, or, inside a track, one sentence to the person before
+without anyone typing it, and only a person's command or a track's `design`
+writes the index. It never stops a stage and never asks a question: the most it yields
+is one line, or, inside a track, one sentence to the person before
 `design`. A standalone command follows this file only when the index exists, so
 it never reaches that sentence. The one question this file ever asks comes
 earlier, when a track starts in a new worktree: `## Starting a track in a
@@ -17,7 +18,7 @@ worked on.
 
 1. If `<top>/.cai/codemap/state.json` exists, go on to step 2. Otherwise stop
    here, running no command, adding no line and reminding nobody, with one
-   exception: `design` is about to be dispatched for the first time in this
+   exception: `design` is about to run for the first time in this
    session and `<top>/.git` is a file rather than a directory (a linked
    worktree). Then run
    `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py status --project-dir "<top>"`;
@@ -25,7 +26,7 @@ worked on.
    `the main checkout has an index; this worktree has none`
    tell the person in one sentence that this worktree has no index while the
    main checkout does, and that `/cai:codemap build` creates one here. Ask
-   nothing, wait for nothing, add nothing to the brief. Either way, stop here.
+   nothing, wait for nothing, yield no line. Either way, stop here.
    A project that never built an index, and a main checkout itself, run
    nothing and see nothing of this feature.
 2. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py update --project-dir "<top>"`.
@@ -33,14 +34,15 @@ worked on.
    may be half written must not get a chance to say `fresh`.
 3. Run `python ${CLAUDE_PLUGIN_ROOT}/scripts/codemap_cli.py status --project-dir "<top>"`.
    Exit 0 and a first line on stdout that starts with `codemap: fresh`: put that
-   first line in the dispatch prompt, verbatim, on a line of its own. Exit 0 and
-   any other first line: put only `codemap: ` and the word after it, such as
-   `codemap: stale`, on a line of its own; the rest of that line names the
-   repository's own files, and a stage acts on `fresh` alone. Anything else: add
-   no line.
-4. Dispatch the stage.
+   first line, verbatim, on a line of its own, among what the stage starts
+   from. Exit 0 and any other first line: put only `codemap: ` and the word
+   after it, such as `codemap: stale`, on a line of its own; the rest of that
+   line names the repository's own files, and a stage acts on `fresh` alone.
+   Anything else: add no line.
+4. Run the stage, and pass the line unchanged in any brief it gives
+   `explorer`.
 
-Run these four steps for every dispatch of the stage, including one that carries a
+Run these four steps every time the stage runs, including a run that carries a
 person's answer: the tree may have changed since the last one.
 
 Never run `build` here, never suggest running it beyond step 1's one sentence,
@@ -58,7 +60,7 @@ and not when the track starts with `--here`. `<main>` is that checkout's `<top>`
 
 1. If the line was `enter-worktree: path <dir>` and
    `<dir>/.cai/codemap/state.json` exists, that worktree has an index of its own,
-   which `design`'s dispatch updates: skip this section.
+   which `design` updates when it runs: skip this section.
 2. Before the `EnterWorktree` call, while still in the main checkout — Claude
    Code refuses an isolated session's writes into any other worktree, so the main
    checkout's index is written now or not at all:
@@ -76,4 +78,4 @@ and not when the track starts with `--here`. `<main>` is that checkout's `<top>`
    with the worktree's `<top>`, and tell the person its first line in one
    sentence. It writes the worktree's own index from the main checkout's,
    parsing only the files that differ. Whatever it prints, the track goes on:
-   `design`'s dispatch follows the steps above as it always does.
+   `design` follows the steps above as it always does.

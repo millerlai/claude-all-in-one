@@ -1234,11 +1234,11 @@ def test_shipped_defaults_matches_the_real_tree():
     defaults = install_codex.shipped_defaults(CAI_CODEX_ROOT, agents)
 
     assert defaults["chore"] == ("gpt-6-luna", ("low", "low"))
-    # implementer, refactoring-detector, reviewer, security-reviewer, shipper,
-    # verifier: the three review agents keep the high their source sets.
+    # implementer, refactoring-detector, reviewer, security-reviewer: the two
+    # review agents keep the high their source sets.
     assert defaults["build"] == (
-        "gpt-6.1-sol", ("medium", "medium", "high", "high", "medium", "high"))
-    assert defaults["think"] == ("gpt-6-astra", ("high", "high"))
+        "gpt-6.1-sol", ("medium", "medium", "high", "high"))
+    assert defaults["think"] == ("gpt-6-astra", ("high",))
 
 
 # ---------------------------------------------------------------------------
