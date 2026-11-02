@@ -172,7 +172,7 @@ else:
         if len(fields) <= 19:
             return "gone"
         start = fields[19]
-        # D10 (docs/design/...-detail.md:492): unlike Windows (C1, exactly
+        # Historical D10 (docs/observability.md): unlike Windows (C1, exactly
         # comparable), Claude's procStart format on Linux is UNVERIFIED
         # (C5) -- so a mismatch here (including expected_start is None,
         # which can never equal a real stat field) is only conclusive when
@@ -1603,7 +1603,7 @@ CLAUDE_SUBAGENT_TOOLS = ("Agent", "Task")
 CLAUDE_BACKGROUND_TOOLS = CLAUDE_SUBAGENT_TOOLS + ("Workflow",)
 ASYNC_LAUNCHED_STATUS = "async_launched"
 TASK_NOTIFICATION_TAG = "<task-notification>"
-# V8 (docs/design/2026-09-26-viewer-live-status-detail.md:634): the pending
+# Historical V8 (current overview: docs/observability.md): the pending
 # counts a turn_duration row may carry, and the <task-notification> statuses
 # that count as a background launch having finished. Both lists are closed
 # on purpose (decisions Ruled out) -- a key or status not named here is not

@@ -1,7 +1,7 @@
 """context_peak.py: peak per-request context occupancy for one
 orchestrator session.
 
-The design is docs/design/2026-09-07-track-context-budget-detail.md; each
+The design is docs/observability.md; each
 test names the AC (or D-decision) it stands for, so a failure says what
 broke, not just where.
 """

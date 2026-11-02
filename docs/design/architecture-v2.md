@@ -7,10 +7,10 @@
 | 日期 | 2026-10-30 |
 | 版本 | V2，獨立重建；補齊雙平台強制邊界、可信核准與恢復契約 |
 | 狀態 | 設計文件已定義；尚未取得實作核准，不代表功能已交付或安全審查已核准 |
-| 需求來源 | [原始架構研究](2026-10-30-Context-Centric-Adaptive-Agentic-SDLC-Architecture-Research.md)，Draft v2 |
-| 補充來源 | [脈絡交接研究](Architecture-Design-Research.md)，Draft v1；[歷史帳本設計摘要](ledger-design-brief.md)，2026-08-28 |
-| 技能／工具研究 | [技能優先、代理可選的執行架構](Architecture-Design-Research-adopt-skill-or-tool.md)，Draft v1；採納與保留項目見 §17 |
-| 外部審查輸入 | [Gemini 審查報告](Architecture-DesignV2-ReviewReport.md)；依需求與證據選擇採納，不作實作核准 |
+| 需求來源 | 原始架構研究（原稿已整併，見 §3、§4、§17），Draft v2 |
+| 補充來源 | 脈絡交接研究???????????? ?17?，Draft v1；歷史帳本設計摘要（原稿已整併，見 §3、§4、§17），2026-08-28 |
+| 技能／工具研究 | 技能優先、代理可選的執行架構???????????? ?17?，Draft v1；採納與保留項目見 §17 |
+| 外部審查輸入 | Gemini 審查報告???????????? ?17?；依需求與證據選擇採納，不作實作核准 |
 | 適用範圍 | 本專案的 Claude Code 與 Codex 版本，以通過 U0 者為準（§15）；共用語意，分別適配平台能力 |
 | 實作策略 | 以作者本人的使用為驗收對象；另建版本庫，以新的 plugin／marketplace 名稱發布；作者本機完成驗收後一次切換。claude-all-in-one 停在最後一版不再更新，只追加搬遷說明，既有安裝者不受影響；不提供舊版相容 |
 | 本次交付 | 收斂架構、資料契約、執行規則、重建與替換順序及驗收條件；不修改執行程式 |
@@ -138,13 +138,13 @@ R12 的指令套用 V2 規則的方式：本人經平台使用者通道下達的
 | [VeriMAP，EACL 2026](https://aclanthology.org/2026.eacl-long.353/) | 任務理解、格式與交接錯位也會造成失敗；規劃時定義通過條件 | 任務先有驗收與檢查，再開始執行 |
 | [CodeDelegator，IJCAI 2026](https://ijcai.org/proceedings/2026/12) | 探討角色分離與脈絡污染 | 支持策略與執行資料分層；不據此要求所有建置都委派 |
 | [Google Cloud 架構指南](https://docs.cloud.google.com/architecture/choose-design-pattern-agentic-ai-system) | 依任務需求選擇循序、平行等模式 | 固定狀態與排程採程式，開放判斷交給模型 |
-| [補充脈絡交接研究 §18–28、42–52](Architecture-Design-Research.md:706) | 主張雙向交接、來源引用、按需載入與角色隔離 | 本專案的設計輸入；其效益仍須實測，不視為外部實驗結論 |
+| 補充脈絡交接研究 §18–28、42–52???????????? ?17? | 主張雙向交接、來源引用、按需載入與角色隔離 | 本專案的設計輸入；其效益仍須實測，不視為外部實驗結論 |
 | [Claude Code 子代理官方文件](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup) | 非分支子代理從獨立脈絡開始；分支繼承主對話 | 記錄要求與實際模式；不假設所有平台、角色均自動載入相同專案規則 |
 | [Claude Code 技能生命週期](https://code.claude.com/docs/en/skills#skill-content-lifecycle) | 技能按需載入，已載入指引仍可能留在後續對話 | 控制載入範圍，總成本納入後續脈絡與壓縮，不假設載入完即釋放 |
 | [技能的子代理執行方式](https://code.claude.com/docs/en/skills#run-skills-in-a-subagent) | `context: fork` 建立隔離子代理，不繼承主對話 | 此設定映射為本文 `fresh`，不映射為繼承主對話的 `fork` |
 | [主對話與子代理選擇指引](https://code.claude.com/docs/en/sub-agents#choose-between-subagents-and-main-conversation) | 共用脈絡的流程可使用技能；大量輸出及獨立工作適合隔離 | 能力由技能提供，執行位置按任務需要選擇；節省幅度另行實測 |
-| [技能／工具研究 §6–8、25–30、34–50](Architecture-Design-Research-adopt-skill-or-tool.md:1) | 提出能力、工具、技能與執行位置分離，交接只在跨脈絡時啟動 | 納入角色分類、能力欄位與工具契約；其比例及收益公式為概念，不作已校準數值 |
-| [Gemini 審查報告](Architecture-DesignV2-ReviewReport.md:63) | 提醒操作負擔、平台能力不確定與評測集建置成本 | 納入操作契約、U0 平台驗證及分層評測；不採納未附證據的效益比例、效能硬門檻及審查降級方式 |
+| 技能／工具研究 §6–8、25–30、34–50???????????? ?17? | 提出能力、工具、技能與執行位置分離，交接只在跨脈絡時啟動 | 納入角色分類、能力欄位與工具契約；其比例及收益公式為概念，不作已校準數值 |
+| Gemini 審查報告???????????? ?17? | 提醒操作負擔、平台能力不確定與評測集建置成本 | 納入操作契約、U0 平台驗證及分層評測；不採納未附證據的效益比例、效能硬門檻及審查降級方式 |
 
 ### 4.2 來源資產與新系統界線
 
@@ -152,20 +152,20 @@ R12 的指令套用 V2 規則的方式：本人經平台使用者通道下達的
 
 | 來源 | 可參考的責任 | V2 處理 |
 | --- | --- | --- |
-| [stages.json](../../plugins/cai/skills/track/stages.json:2) | 四階段與關卡 | 保留概念，重新定義入口與資料，不保留固定階段代理對應 |
-| [track_state.py](../../plugins/cai/scripts/track_state.py:2) | 狀態解析與恢復 | 重建結構化狀態讀取，不移植舊 Markdown 狀態解析 |
-| [preflight.py](../../plugins/cai/scripts/preflight.py:2) | 程式化前置條件與關卡 | 依 V2 契約重建，按需要移植具體檢查與測試 |
-| [cai_paths.py](../../plugins/cai/scripts/cai_paths.py:30) | 資料路徑與舊位置遷移 | 只評估路徑隔離邏輯，不移植舊位置遷移與搜尋回退 |
-| [models.json](../../plugins/cai/models.json:28) | 模型層級集中配置 | 移植分層概念，建立 V2 自己的配置契約 |
-| [security_design.py](../../plugins/cai/scripts/security_design.py:2) | 安全審查與輸入指紋 | 保留防護目的，移植可用檢查及案例；只接受 V2 產生的核准 |
-| [viewer.py](../../plugins/cai/scripts/viewer.py:1) | 唯讀檢視 | 按 V2 狀態及證據重建，不讀取舊 Track |
-| [validate.yml](../../.github/workflows/validate.yml:40) | 自動檢查與測試配置 | 移植相關行為測試與平台案例，新版本庫自行宣告檢查命令 |
-| [ledger.py](../../plugins/cai/scripts/ledger.py:231) | 階段結果、原始位元組指紋與核准種類 | 以 §6.4 的新格式重建，不讀取無版本的舊紀錄 |
-| [usage_report.py](../../plugins/cai/scripts/usage_report.py:218) | 用量聚合與嘗試計數 | 移植有效案例，按新紀錄種類與原始用量去重，不複製舊計數假設 |
-| [preflight.py](../../plugins/cai/scripts/preflight.py:361) | 壞行警示 | 參考故障案例；V2 依交易及必要證據是否可確認決定阻擋範圍 |
-| [stage-build.md](../../plugins/cai/skills/track/references/stage-build.md:3) | 可共用建置程序 | 萃取有價值步驟，重新安排 Main／子代理執行，不保留舊入口 |
-| [verifier.md](../../plugins/cai/agents/verifier.md:12) | 多面向獨立審查 | 保留必要面向，由 Main 直接彙整，移除固定中間代理 |
-| [gen-codex.py](../../scripts/gen-codex.py:3) | 雙平台生成與轉換 | 評估可移植部分，按 V2 共用語意產生兩種適配，不要求保留舊生成錨點與檔案清單 |
+| [stages.json](../../plugins/cai/skills/track/stages.json) | 四階段與關卡 | 保留概念，重新定義入口與資料，不保留固定階段代理對應 |
+| [track_state.py](../../plugins/cai/scripts/track_state.py) | 狀態解析與恢復 | 重建結構化狀態讀取，不移植舊 Markdown 狀態解析 |
+| [preflight.py](../../plugins/cai/scripts/preflight.py) | 程式化前置條件與關卡 | 依 V2 契約重建，按需要移植具體檢查與測試 |
+| [cai_paths.py](../../plugins/cai/scripts/cai_paths.py) | 資料路徑與舊位置遷移 | 只評估路徑隔離邏輯，不移植舊位置遷移與搜尋回退 |
+| [models.json](../../plugins/cai/models.json) | 模型層級集中配置 | 移植分層概念，建立 V2 自己的配置契約 |
+| [security_design.py](../../plugins/cai/scripts/security_design.py) | 安全審查與輸入指紋 | 保留防護目的，移植可用檢查及案例；只接受 V2 產生的核准 |
+| [viewer.py](../../plugins/cai/scripts/viewer.py) | 唯讀檢視 | 按 V2 狀態及證據重建，不讀取舊 Track |
+| [validate.yml](../../.github/workflows/validate.yml) | 自動檢查與測試配置 | 移植相關行為測試與平台案例，新版本庫自行宣告檢查命令 |
+| [ledger.py](../../plugins/cai/scripts/ledger.py) | 階段結果、原始位元組指紋與核准種類 | 以 §6.4 的新格式重建，不讀取無版本的舊紀錄 |
+| [usage_report.py](../../plugins/cai/scripts/usage_report.py) | 用量聚合與嘗試計數 | 移植有效案例，按新紀錄種類與原始用量去重，不複製舊計數假設 |
+| [preflight.py](../../plugins/cai/scripts/preflight.py) | 壞行警示 | 參考故障案例；V2 依交易及必要證據是否可確認決定阻擋範圍 |
+| [stage-build.md](../../plugins/cai/skills/track/references/stage-build.md) | 可共用建置程序 | 萃取有價值步驟，重新安排 Main／子代理執行，不保留舊入口 |
+| [stage-verify.md](../../plugins/cai/skills/track/references/stage-verify.md) | 多面向獨立審查 | 保留必要面向，由 Main 直接彙整，移除固定中間代理 |
+| [gen-codex.py](../../scripts/gen-codex.py) | 雙平台生成與轉換 | 評估可移植部分，按 V2 共用語意產生兩種適配，不要求保留舊生成錨點與檔案清單 |
 
 歷史帳本摘要只作需求及失敗案例來源，不構成格式相容承諾。原始脈絡與結果存於 V2 產物檔案，帳本只保存事件、關聯及指紋。
 
@@ -247,7 +247,7 @@ U0 對每個平台／啟動方式以三項負向測試證明上述性質：以 M
 
 ### 6.1 持久目錄
 
-下列檔案均為新系統的規劃，沒有必須沿用的舊格式。機器資料採 JSON，使用 Python 標準函式庫。V2 控制根為 `.cai/v2/`：V1 已使用 `.cai/track/<feature>/ledger.jsonl`（[cai_paths.py](../../plugins/cai/scripts/cai_paths.py:27)、[ledger.py](../../plugins/cai/scripts/ledger.py:45)），開發期間 V1 仍在同一版本庫使用（§15），共用該路徑會讓 V2 讀到無版本的 V1 帳本行而阻擋，或讓 V1 寫入器把舊格式行追加進 V2 帳本。Runtime 只讀寫 `.cai/v2/`，不搜尋其他位置，也不據此辨識或接續 V1 資料；建立 Track 時目標目錄已存在而非 V2 建立者，回報錯誤而不覆寫。`.cai/v2/` 是受保護控制區，不列入模型或候選測試的直接可寫範圍；必要產物透過 Runtime 收取。雙平台共用同一控制根目錄，不能各建一套資源占用紀錄。
+下列檔案均為新系統的規劃，沒有必須沿用的舊格式。機器資料採 JSON，使用 Python 標準函式庫。V2 控制根為 `.cai/v2/`：V1 已使用 `.cai/track/<feature>/ledger.jsonl`（[cai_paths.py](../../plugins/cai/scripts/cai_paths.py)、[ledger.py](../../plugins/cai/scripts/ledger.py)），開發期間 V1 仍在同一版本庫使用（§15），共用該路徑會讓 V2 讀到無版本的 V1 帳本行而阻擋，或讓 V1 寫入器把舊格式行追加進 V2 帳本。Runtime 只讀寫 `.cai/v2/`，不搜尋其他位置，也不據此辨識或接續 V1 資料；建立 Track 時目標目錄已存在而非 V2 建立者，回報錯誤而不覆寫。`.cai/v2/` 是受保護控制區，不列入模型或候選測試的直接可寫範圍；必要產物透過 Runtime 收取。雙平台共用同一控制根目錄，不能各建一套資源占用紀錄。
 
 ```text
 .cai/v2/track/<feature>/
@@ -331,7 +331,7 @@ V2 使用單一 `ledger.jsonl` 與寫入者，每筆明定 `schema_version` 與 
 | `stage_attempt` | 一次階段結果，明定階段、嘗試識別、結果、關卡、產物指紋與證據引用 | 只有此類參與階段嘗試、結果及核准判定；用量由去重後原始紀錄聚合 |
 | `runtime_event` | 任務、交接、脈絡版本與驗證過程，透過任務及嘗試識別關聯產物 | 不增加階段嘗試或失敗次數，不重設重試連續段，也不產生核准 |
 
-階段嘗試在開始時分配 `stage_attempt_id`，完成時寫入階段結果；其內執行事件引用同一識別。階段結果 `outcome` 為通過 `passed`、失敗 `failed`、受阻 `blocked`、略過 `skipped` 或未取得服務 `unavailable`。所有正式結果均可計為一次階段紀錄，但重試上限只計最近一次通過或授權略過之後的 `failed`／`blocked`；過程事件不影響此數字。首版階段重試上限為 5，沿用 V1 的預設值（[preflight.py](../../plugins/cai/scripts/preflight.py:41)）；`unavailable` 不計入，理由同 V1：服務拒絕回應並未產生一次失敗的嘗試（[ledger.py](../../plugins/cai/scripts/ledger.py:50)）。達上限時階段狀態為 `blocked`，只有授權略過或本人調整上限能解除。事件的最小範例如下：
+階段嘗試在開始時分配 `stage_attempt_id`，完成時寫入階段結果；其內執行事件引用同一識別。階段結果 `outcome` 為通過 `passed`、失敗 `failed`、受阻 `blocked`、略過 `skipped` 或未取得服務 `unavailable`。所有正式結果均可計為一次階段紀錄，但重試上限只計最近一次通過或授權略過之後的 `failed`／`blocked`；過程事件不影響此數字。首版階段重試上限為 5，沿用 V1 的預設值（[preflight.py](../../plugins/cai/scripts/preflight.py)）；`unavailable` 不計入，理由同 V1：服務拒絕回應並未產生一次失敗的嘗試（[ledger.py](../../plugins/cai/scripts/ledger.py)）。達上限時階段狀態為 `blocked`，只有授權略過或本人調整上限能解除。事件的最小範例如下：
 
 ```json
 {
@@ -736,7 +736,7 @@ sequenceDiagram
     end
 ```
 
-此圖表示需要委派的分支；無委派理由時 Main 使用相同程序直接執行並保存證據，不建立交接紀錄。必要獨立審查沿用 V1 的粒度：驗證階段對整合後的 Track 候選執行一次（平台審查加各審查面向，見 [stage-verify.md](../../plugins/cai/skills/track/references/stage-verify.md:1)），每次驗證嘗試一輪；任務層的接受不預設獨立審查。逐任務派審查者會讓一個五項任務的 Track 付出五輪審查的 token，而 V1 只付一輪；低風險機械工作不憑空增加模型審查者。需要獨立審查時由 Main 直接派送，彙整流程由 Main 技能承載，不經另一個主管代理。
+此圖表示需要委派的分支；無委派理由時 Main 使用相同程序直接執行並保存證據，不建立交接紀錄。必要獨立審查沿用 V1 的粒度：驗證階段對整合後的 Track 候選執行一次（平台審查加各審查面向，見 [stage-verify.md](../../plugins/cai/skills/track/references/stage-verify.md)），每次驗證嘗試一輪；任務層的接受不預設獨立審查。逐任務派審查者會讓一個五項任務的 Track 付出五輪審查的 token，而 V1 只付一輪；低風險機械工作不憑空增加模型審查者。需要獨立審查時由 Main 直接派送，彙整流程由 Main 技能承載，不經另一個主管代理。
 
 ## 10. 風險、故障與資源預算
 
@@ -749,7 +749,7 @@ sequenceDiagram
 | 高 `high` | 權限、認證、安全邊界、資料遷移 | 除設計關卡外，執行相應敏感動作前須有具體核准 |
 | 極高 `critical` | 不可逆資料刪除或正式環境破壞性操作 | 系統準備可審查產物，由本人執行敏感動作 |
 
-發布類動作（推送、合併、標記版本、發行）屬 `high`：取得本節核准後由 Runtime 執行，沿用 V1 在本人核准後由發布階段推送並開 PR 的做法（[stage-ship.md](../../plugins/cai/skills/track/references/stage-ship.md:174)）。`critical` 只限上表的資料刪除與正式環境破壞性操作，由本人執行。
+發布類動作（推送、合併、標記版本、發行）屬 `high`：取得本節核准後由 Runtime 執行，沿用 V1 在本人核准後由發布階段推送並開 PR 的做法（[stage-ship.md](../../plugins/cai/skills/track/references/stage-ship.md)）。`critical` 只限上表的資料刪除與正式環境破壞性操作，由本人執行。
 
 風險由 Main 提案並引用依據；未知風險不得視為低。對高風險動作若設計核准已明確涵蓋同一版本與動作，沿用有效授權，避免重問。提交、推送、合併、標記版本及發布各自遵守現有授權，不從「完成設計」推導許可。
 
@@ -1023,7 +1023,7 @@ U0 至 U5 優先完成 Main／Program 主路徑與必要的獨立審查；審查
 | 使用者已排除相容與漸進替換 | 新版本庫重建，U7 驗收後一次取代舊版；R6／AC6 改為獨立運作驗收 | 作者本機不需舊資料、指令及設定相容；V2 以新名稱發布，既有安裝者繼續使用凍結的 V1；保留的是必要能力與防護 |
 | 評測集成本可能延後替換 | R7／AC7 區分基礎案例與 24 題策略比較 | 必要功能與安全照常驗收；可選委派未證明效益就保持停用 |
 
-對[技能／工具研究](Architecture-Design-Research-adopt-skill-or-tool.md)的採納範圍如下，均對應 R2、R6、R7、R9、R10；未採用的形式不會隱含成為實作需求。
+對技能／工具研究???????????? ?17?的採納範圍如下，均對應 R2、R6、R7、R9、R10；未採用的形式不會隱含成為實作需求。
 
 | 研究內容 | 處置與設計位置 | 理由／限制 |
 | --- | --- | --- |
@@ -1035,7 +1035,7 @@ U0 至 U5 優先完成 Main／Program 主路徑與必要的獨立審查；審查
 | §31、§56–59 新增多個選擇模組 | 保留責任分離，暫不新增模組，§12 | 使用 V2 的簡單函式入口與集中配置，無需先建註冊服務或通用策略平台 |
 | §61–65 角色盤點與比較 | 採納盤點及比較，改為新版本庫內的分段建置，§14–16 | 基線從 U0 開始；正式產品不逐步遷移，完成後一次替換 |
 
-對 [Gemini 審查報告](Architecture-DesignV2-ReviewReport.md)的處置如下；原報告保持原文，本表是 V2 採用的設計決定。
+對 Gemini 審查報告???????????? ?17?的處置如下；原報告保持原文，本表是 V2 採用的設計決定。
 
 | 報告內容 | 處置與設計位置 | 理由／限制 |
 | --- | --- | --- |
@@ -1109,7 +1109,7 @@ App Server 是必要審查獨立工作階段的預定適配介面，不新增永
 
 **獨立審查。** 官方整合介面的 `review/start` 預設可在既有對話執行，因此呼叫審查功能不等於已滿足 `fresh`。符合本設計的路徑須建立新對話，依 §7.3 提供需求、候選版本、來源及必要證據，不複製 Main 的完整歷史；同時保存啟動設定及可取得的輸入與回傳紀錄。新對話仍可能載入專案指示，且不代表檔案或工具權限已隔離，這些項目依 §7.4 分開確認。必要的角色獨立性與唯讀限制仍須成立；Main 載入審查技能或切換角色不能代替。見[官方審查介面說明](https://learn.chatgpt.com/docs/app-server#review)。
 
-**用量歸屬。** 官方整合介面提供對話用量更新 `thread/tokenUsage/updated`，但僅有對話用量不表示已取得每筆模型請求、任務或實際帳單的完整資料。適配層須標明來源、量測範圍及可用識別資訊，依 §6.4 去重；缺少的任務歸屬、用量或費用顯示未知，估算與實際資料分列，不能把對話總量重複計入每個任務。現有 [Codex 產生器](../../scripts/gen-codex.py:47) 排除舊用量技能及 [報表腳本](../../scripts/gen-codex.py:65)，只證明既有移植未涵蓋該功能，不證明 Codex 無法取得用量。V2 須重新適配，不能直接沿用 Claude Code 的紀錄格式假設。見[官方事件說明](https://learn.chatgpt.com/docs/app-server)。
+**用量歸屬。** 官方整合介面提供對話用量更新 `thread/tokenUsage/updated`，但僅有對話用量不表示已取得每筆模型請求、任務或實際帳單的完整資料。適配層須標明來源、量測範圍及可用識別資訊，依 §6.4 去重；缺少的任務歸屬、用量或費用顯示未知，估算與實際資料分列，不能把對話總量重複計入每個任務。現有 [Codex 產生器](../../scripts/gen-codex.py) 排除舊用量技能及 [報表腳本](../../scripts/gen-codex.py)，只證明既有移植未涵蓋該功能，不證明 Codex 無法取得用量。V2 須重新適配，不能直接沿用 Claude Code 的紀錄格式假設。見[官方事件說明](https://learn.chatgpt.com/docs/app-server)。
 
 **取消與接手。** 官方介面提供工作回合取消 `turn/interrupt`；沙箱內命令使用 `command/exec` 及其終止操作 `command/exec/terminate`。另有 `process/*` 程序控制介面在沙箱外執行，不可為方便監督而當成等價替代。適配層不能把取消成功回應視為所有相關程序均已退出；須依 §8.6 保存回合與相關寫入程序結束的證據。無法確認停止時不釋放資源，也不讓 Main 或新子代理接手。U0 尤須在實際 Windows 環境測試平台接收後未落盤、斷線及取消中斷。見[官方取消與命令執行說明](https://learn.chatgpt.com/docs/app-server)。
 

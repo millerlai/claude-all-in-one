@@ -3,8 +3,8 @@ answer (#191): `rev-parse` not answering said "not a git repository",
 `diff --quiet` exiting 128 said "nothing to review", and `check-ignore`
 exiting 128 said "NOT ignored".
 
-docs/design/2026-09-29-preflight-git-errors-diagnosis.md, ## Failing test
-4-7 and 10. Stubs replace `preflight.git` in the shape of
+Current workflow overview: docs/workflow.md. Historical failing tests
+4-7 and 10 are reproduced here. Stubs replace `preflight.git` in the shape of
 tests/test_preflight_git_status_failure.py and defer every other call to the
 real git.
 """

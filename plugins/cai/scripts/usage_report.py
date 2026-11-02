@@ -6,8 +6,8 @@ and `resolve_price()`. The three query functions -- `track_report()`,
 `range_report()`, `data_start_date()` -- are unit 6, plus the CLI that
 `/cai:usage` (unit 7) will shell out to.
 
-The design is docs/design/2026-08-30-track-usage-accounting-detail.md, the
-`price table` and `usage_report.py` sections, and D9/D10/D11/D12.
+Current usage and pricing overview: docs/observability.md.
+D9/D10/D11/D12 below are historical regression labels.
 
 Usage:  usage_report.py track --track-dir DIR
         usage_report.py range --days N

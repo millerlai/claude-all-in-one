@@ -11,7 +11,7 @@ maintains -- no `${CLAUDE_PLUGIN_ROOT}`-style substitution exists on Codex.
     python launcher.py timing                      # hand a Codex hook payload to timing_hook.py (#333);
                                                    # `timing begin|end ...` runs timing.py like any script
 
-Design: docs/design/2026-09-18-codex-support-detail.md, "### launcher.py".
+Current platform/setup overview: docs/platforms.md.
 Standard library only: this runs on a machine that only has whatever
 interpreter Codex's shell finds, on Windows and POSIX alike.
 

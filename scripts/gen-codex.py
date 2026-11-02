@@ -9,7 +9,7 @@ Produce plugins/cai-codex/ from plugins/cai/, or check that it is current.
 This is Ours (CLAUDE.md, "Who a file is for"): it assumes this repo's layout,
 so it lives at scripts/ rather than under plugins/cai/scripts/.
 
-Design: docs/design/2026-09-18-codex-support-detail.md, "### gen-codex.py".
+Current generation overview: docs/platforms.md.
 U1 owns: collect/exclude, the override engine and its anchor rule, the
 `${CLAUDE_PLUGIN_ROOT}` and `/cai:` rewrites, `--check`/`--source`/`--out`,
 and the first override. U2 adds every other override and the rest of the
@@ -18,8 +18,8 @@ emit() -- agent TOMLs, `openai.yaml`, the manifest, the `stages.json` agent
 prefix. The version stamp (the manifest's "version" and every agent TOML's
 `# cai-codex-version:` line) is read from `source`'s own
 `.claude-plugin/plugin.json`, whose "version" key is the single hand-written
-release version for both plugin trees (docs/design/2026-09-26-release-
-versioning-detail.md); scripts/release.py is the only writer of that file.
+release version for both plugin trees (CONTRIBUTING.md, Releasing);
+scripts/release.py is the only writer of that file.
 
 Exit codes: 0 ok; 1 drift, anchor miss, or a deny-list hit; 2 bad arguments
 or an unreadable input file.

@@ -3,8 +3,8 @@
 `track_report`/`range_report`/`data_start_date` are unit 6, not covered
 here).
 
-The design is docs/design/2026-08-30-track-usage-accounting-detail.md, the
-`price table` section and D9/D12; each test names the Verification-table row
+Current pricing overview: docs/observability.md. Historical D9/D12
+regressions are kept here; each test names the Verification-table row
 it stands for.
 """
 import json

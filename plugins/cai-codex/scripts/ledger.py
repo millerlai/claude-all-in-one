@@ -73,7 +73,7 @@ NO_ARTIFACT = "—"
 
 # state.md's `status` column, the whole of it -- blank included, because a
 # row that has not started is a legal state and not a missing one
-# (docs/design/2026-08-27-cai-sdlc-restructure-detail.md:477). It sits here
+# (docs/workflow.md). It sits here
 # rather than beside the table parser in preflight.py for the same reason
 # NO_ARTIFACT does: this file is the bottom of the import chain
 # (preflight's module imports), so every reader can have it without a new edge.

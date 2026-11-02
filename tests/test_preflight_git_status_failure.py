@@ -12,8 +12,8 @@ its own answer, checked before stdout is ever read, exactly as
 `current_branch()` already treats `UNKNOWN_BRANCH` apart from a genuine
 `None` (see `preflight.py`'s own docstring on that function).
 
-docs/design/2026-09-26-preflight-git-status-failure-diagnosis.md, ## Failing
-test. Diagnosis path -- these are the tests that pin the fix.
+Current workflow overview: docs/workflow.md. These regression tests pin
+the historical diagnosis and fix.
 """
 import subprocess
 

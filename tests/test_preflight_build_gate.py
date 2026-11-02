@@ -737,7 +737,7 @@ def test_a_passed_human_record_signs_off_the_design(tmp_path):
 
 
 # --- _fit's new usage_problems / artifact order (P1 option B) --------------
-# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T7, T8.
+# Historical T7/T8; current ledger overview: docs/observability.md.
 # The artifact sits in a project *subdirectory* -- the diagnosis notes the
 # bug only shows at the gate when the fitted record still has to carry
 # directory components, not just a filename findable from the root either

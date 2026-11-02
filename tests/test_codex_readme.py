@@ -1,7 +1,6 @@
 """plugins/cai-codex/README.md -- the hand-written Codex mapping table.
 
-Design: docs/design/2026-09-18-codex-support-detail.md, "### Codex README and
-marketplace". U6 owns this file. AC6 requires every mapping-table row to
+Current platform overview: docs/platforms.md. Historical U6 owns this file. AC6 requires every mapping-table row to
 carry a Status, and four of them an exact one. This file asserts against the
 real, shipped README -- it is hand-written (HAND_WRITTEN in gen-codex.py),
 never regenerated, so there is no synthetic fixture to build instead.

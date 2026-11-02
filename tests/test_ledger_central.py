@@ -2,9 +2,8 @@
 then central, then `synced`, then per-track), D7's fit target (the central
 candidate, not the per-track shape), and D10's import-day marker.
 
-The design is docs/design/2026-08-30-track-usage-accounting-detail.md, the
-D6/D7/D10/D14 decisions and the `ledger.append`/`_fit` sections; this is
-unit 3 of the work breakdown. Each test names the Verification-table row it
+Current ledger overview: docs/observability.md. D6/D7/D10/D14 and
+unit 3 below refer to the historical regression requirements. Each test names the Verification-table row it
 stands for.
 """
 import datetime

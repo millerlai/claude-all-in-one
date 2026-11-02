@@ -2,8 +2,8 @@
 agents, usage_problems, window_end, session_id) and _fit()'s new `limit`
 parameter and fourth step.
 
-The design is docs/design/2026-08-30-track-usage-accounting-detail.md, the
-`ledger.append`/`_fit` sections; this is unit 2 of the work breakdown. Each
+Current ledger overview: docs/observability.md; unit 2 and the
+verification labels below refer to the historical regression requirements. Each
 test names the Verification-table row it stands for.
 
 Usage is never passed to append() (D2) -- it is fetched from
@@ -229,7 +229,7 @@ def test_fit_step_two_reduces_artifact_to_basename_when_note_alone_is_not_enough
 
 
 # --- _fit's new step: usage_problems is cut before collapse (P1 option B) --
-# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T5.
+# Historical T5; current ledger overview: docs/observability.md.
 
 def test_forty_usage_problems_are_cut_to_fit_instead_of_refusing(tmp_path, monkeypatch, capsys):
     track = str(tmp_path)
@@ -268,8 +268,8 @@ def test_forty_usage_problems_are_cut_to_fit_instead_of_refusing(tmp_path, monke
 # The loop in ledger.py's step 2 tries every K from n-1 down to 0; when no K
 # fits, it keeps the K=0 (summary-only) form only if that is strictly
 # shorter than the original list, otherwise it restores the original list
-# (docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's Fix, "K=0 也
-# 放不下時"). Neither existing `_fit` test drives this branch: the 40-problem
+# (current ledger overview: docs/observability.md). Neither existing
+# `_fit` test drives this branch: the 40-problem
 # tests above always find a fitting K well above 0. `limit=10` here is
 # smaller than any record's fixed scaffolding, so no branch of `_fit` can
 # ever make the record fit -- the point is only to observe which form of

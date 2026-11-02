@@ -1,7 +1,7 @@
 """install_codex.py -- makes a user's `~/.codex` match the installed
 cai-codex tree.
 
-Design: docs/design/2026-09-18-codex-support-detail.md, "### install_codex.py".
+Current setup overview: docs/platforms.md.
 U5 owns this file, the setup skill, and the `HAND_WRITTEN` entry for the
 setup skill's `agents/openai.yaml`.
 
@@ -66,9 +66,9 @@ def fake_env(tmp_path, **extra):
 
 
 def fake_cache(chome, models, fetched_at=None):
-    """Writes a `models_cache.json` (C1 shape,
-    `docs/design/2026-09-22-codex-model-fallback-detail.md`, "decisions.md:22")
-    into `chome`, for `detect()` to read."""
+    """Writes the historical C1 cache shape for `detect()` to read.
+    Current setup overview: docs/platforms.md.
+    """
     data = {"models": models}
     if fetched_at is not None:
         data["fetched_at"] = fetched_at
@@ -1010,7 +1010,7 @@ def test_cli_agents_md_contains_the_cai_command_line_once_after_two_runs(tmp_pat
 
 # ---------------------------------------------------------------------------
 # Detection -- detect
-# Design: docs/design/2026-09-22-codex-model-fallback-detail.md, "Detection".
+# Current model/setup overview: docs/platforms.md.
 # ---------------------------------------------------------------------------
 
 def test_detect_missing_file(tmp_path):

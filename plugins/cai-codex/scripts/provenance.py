@@ -25,7 +25,7 @@ LEDGER_REL = os.path.join("docs", "rule-provenance.md")
 REQUIRED_FIELDS = ("Date", "Failure", "Rule", "Cited by")
 # Probes whose FAIL means a quote that used to match no longer does --
 # "add an entry" is the wrong fix for these; see main()'s hint below and
-# docs/design/2026-09-12-issue78-rule-guards-detail.md's D-8.
+# docs/safety.md (rule provenance).
 DRIFT_LABELS = ("rule_quote_in_cited_section", "restated_quote_in_section",
                 "shared_value_in_every_quote")
 

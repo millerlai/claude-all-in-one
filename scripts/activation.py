@@ -4,8 +4,8 @@
 GAP-06 asks "what did we install and never use". `agent-radar` cannot answer
 it: its session output carries totals (`skill_calls: 33`) and no names, and its
 scanner only looks under `.claude/`, so a repo that ships its skills from
-`plugins/cai/` reads as having none. Both are recorded in
-docs/design/2026-08-29-capability-gap-analysis.md under GAP-06.
+`plugins/cai/` reads as having none. These were historical observations under GAP-06; current evaluation
+limits are summarized in docs/evaluation.md.
 
 The data was never the problem -- it is in the session logs, one JSON object
 per line, and a `Skill` tool_use carries `input.skill` while an `Agent`
