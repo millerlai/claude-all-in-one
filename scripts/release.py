@@ -11,7 +11,7 @@ plugin trees, pinned by a git-subdir source on both marketplace files.
 This is Ours (CLAUDE.md, "Who a file is for"): it assumes this repo's layout,
 so it lives at scripts/ rather than under plugins/cai/scripts/.
 
-Design: docs/design/2026-09-26-release-versioning-detail.md, "scripts/release.py".
+Current release procedure: CONTRIBUTING.md, Releasing.
 
 Exit codes: 0 success; 1 some check or external command failed; 2 bad
 arguments or an unmet precondition (nothing written in that case). Matches

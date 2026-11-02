@@ -3,7 +3,8 @@ strictly: a non-ASCII filename or branch name that locale could not decode
 made stdout `None` beside a real returncode on Windows, and raised
 `UnicodeDecodeError` out of `git()` on POSIX (#190).
 
-docs/design/2026-09-29-preflight-git-errors-diagnosis.md, ## Failing test 1-3.
+Current workflow overview: docs/workflow.md. Historical failing tests 1-3
+are reproduced here.
 
 Each test builds a real repo first, then pins `locale.getencoding` to ASCII --
 `subprocess` looks it up per call -- so the decode fails on Linux CI too. Under

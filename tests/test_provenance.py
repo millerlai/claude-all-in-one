@@ -410,8 +410,7 @@ def test_main_hint_mentions_confirming_the_claim_for_a_drift_failure(tmp_path):
     # The failure hint used to be one fixed "add an entry" string regardless
     # of which probe failed -- actively wrong advice for a drift (the entry
     # is already complete and well-formed; nothing needs *adding*). See
-    # docs/design/2026-09-12-issue78-rule-guards-detail.md's D-8 and the
-    # `main` row of `## Implementation spec`.
+    # the rule-provenance overview in docs/safety.md.
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "rule-provenance.md").write_text(

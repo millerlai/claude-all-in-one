@@ -1,6 +1,6 @@
 """ledger.py: the append-only attempt record behind UC1, UC3, UC5 and UC6.
 
-The design is docs/design/2026-08-28-track-ledger-detail.md; each test names
+The design is docs/observability.md; each test names
 the requirement it stands for so a failure says what broke, not just where.
 """
 import hashlib
@@ -164,7 +164,7 @@ def test_a_malformed_line_is_visible_but_counts_for_nobody(tmp_path):
 
 
 # --- AC1/AC7: a separator character in a note does not split the record ----
-# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T1.
+# Historical T1; current ledger overview: docs/observability.md.
 # `json.dumps(..., ensure_ascii=False)` writes U+2028, U+2029 and U+0085
 # unescaped, and `str.splitlines()` treats each as its own line boundary --
 # so one legal record used to read back as two malformed placeholders.

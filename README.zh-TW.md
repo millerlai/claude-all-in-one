@@ -199,5 +199,6 @@ codex plugin add cai-codex@claude-all-in-one
 | [`REFERENCE.md`](REFERENCE.md) | 想看完整版：每個子代理、常駐的 guard 與 hook、測試指令怎麼解析、執行期驗證、ticket 鏡像、規則、狀態列，以及這個 plugin 刻意不做的事。（英文） |
 | [`GUIDE.md`](GUIDE.md) | 你要擴充 plugin，需要知道一條新的指引該放進哪個元件。（英文） |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 你要修改這個 repo：測試尚未發版的 checkout、push 之前要跑的檢查，以及發版。（英文） |
+| [`docs/README.md`](docs/README.md) | 你要維護專案：現行架構、流程、安全邊界、平台對應與量測依據。 |
 | [`plugins/cai-codex/README.md`](plugins/cai-codex/README.md) | 你用 Codex CLI：什麼對應到什麼，以及 Windows 專屬的注意事項。 |
 | [`CHANGELOG.md`](CHANGELOG.md) | 想知道某一版改了什麼。 |

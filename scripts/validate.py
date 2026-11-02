@@ -394,8 +394,8 @@ def _skills():
     # goal.md routes rather than implements, so it is read start to finish every
     # time someone reaches for it -- and prose that outgrows a screen is prose that
     # gets skimmed past the branch it was carrying. The ceiling is the number the
-    # design settled on (docs/design/2026-08-25-goal-command-routing-detail.md,
-    # Budgets); this is what stops it being a number nobody ever checks again.
+    # historical design settled on; this is what stops it being a number
+    # nobody ever checks again (current workflow: docs/workflow.md).
     GOAL = f"{PLUGIN}/skills/goal/SKILL.md"
     goal_text = read_text(GOAL)
     # The ceiling is on the body a human reads, not the frontmatter the move to
@@ -454,7 +454,7 @@ def _skills():
     # `options` is an addition rather than a leftover: the always-on rule it backs
     # (rules/option-explainer.md) has to fit in 45 lines, and the skeleton,
     # dimension library and worked example do not
-    # (docs/design/2026-08-29-option-explainer-with-eli5-detail.md, Decision 2).
+    # (current checking overview: docs/safety.md).
     # It carries `disable-model-invocation: true`, so it costs the always-on budget
     # below nothing.
     #
@@ -1864,7 +1864,7 @@ def _models_dispatcher():
 def _codex_guard():
     # launcher.py guard -- the Codex counterpart of the two checks above. Codex's
     # own hook payload shape is UNVERIFIED (C9); this follows the documented form
-    # in docs/design/2026-09-18-codex-support-detail.md, "### launcher.py", and
+    # whose current platform overview is docs/platforms.md, and
     # real verify (C9) is what confirms or corrects it. A temp $CODEX_HOME whose
     # cache points at this repo's own plugins/cai-codex/scripts/bash_guard.py lets
     # the adapter's real child process run, rather than adding launcher behaviour
@@ -2471,7 +2471,7 @@ def _codex_drift():
 
 @section("release-manifests")
 def _release_manifests():
-    # Release versioning (docs/design/2026-09-26-release-versioning-detail.md):
+    # Release versioning (docs/platforms.md):
     # scripts/release.py owns pinning both marketplace files to a git-subdir
     # source once a release is cut, and MARKETPLACES is the one list both it and
     # this check read -- a third platform is one more row there, not a new code

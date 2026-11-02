@@ -3,7 +3,7 @@ with `git merge-tree --write-tree` so it never touches the working tree or
 HEAD. ship() gates on it so a branch that would conflict on merge is caught
 before the PR, not after.
 
-Unit 1 of 4 (docs/design/2026-09-25-ship-preflight-merge-check-detail.md).
+Historical unit 1 of 4 (current workflow overview: docs/workflow.md).
 Units 2-3's own tests (approval-gates.md, MANUAL.md wiring) are added later
 and deliberately absent here.
 """

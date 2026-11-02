@@ -1,5 +1,5 @@
 """Integration tests for scripts/validate.py's marketplace-pin and R4 checks
-(docs/design/2026-09-26-release-versioning-detail.md).
+(docs/platforms.md).
 
 Every test here shells out to validate.py as a subprocess, the same way
 tests/test_release.py's `local_gate` and this repo's own CLAUDE.md ("Before

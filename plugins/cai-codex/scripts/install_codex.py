@@ -10,8 +10,7 @@ grandparent directory rather than anything the launcher resolves.
     python install_codex.py --apply    # write the answers a skill collected
     python install_codex.py --statusline  # opt in to the native footer only
 
-Writes, in order (design: docs/design/2026-09-18-codex-support-detail.md,
-"### install_codex.py"):
+Writes, in order (current overview: docs/platforms.md):
     1. `$HOME/.codex/cai/launcher.py` -- fixed under the real home directory,
        not `$CODEX_HOME` (D1=C).
     2. `$CODEX_HOME/agents/cai_*.toml` -- copied from `<cai-root>/agents/`;
@@ -31,8 +30,7 @@ Writes, in order (design: docs/design/2026-09-18-codex-support-detail.md,
 
 Run 1 (no `--apply`) additionally validates the model detection cache, the
 saved model choice, and every role's TOML header before writing anything
-(model fallback design:
-docs/design/2026-09-22-codex-model-fallback-detail.md, "Run 1 order"), then
+(current model/setup overview: docs/platforms.md), then
 removes a leftover `cai-model-answers.json`, and prints a mapping block
 (`render_mapping`) describing the roles and the question `skills/setup/SKILL.md`
 should ask next. `--models` prints that same block and writes nothing at all,
@@ -509,7 +507,7 @@ def install_agents_md(home: Path, block_body: str, now=None) -> AgentsMdResult:
 
 # ---------------------------------------------------------------------------
 # Detection -- detect
-# Design: docs/design/2026-09-22-codex-model-fallback-detail.md, "Detection".
+# Current model/setup overview: docs/platforms.md.
 # ---------------------------------------------------------------------------
 
 class Detection(NamedTuple):

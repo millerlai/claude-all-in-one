@@ -7,10 +7,9 @@ disable-model-invocation: true
 # gap-analysis
 
 把一份外部來源拆成 5–8 個**機制**，逐項對照 cai 的現況，產出一份每個判定都有
-`file:line` 或 URL、有排序、也更新前幾份未做項目狀態的差距文件。三份範例：
-`docs/design/2026-08-29-capability-gap-analysis.md`、
-`docs/design/2026-09-01-ai-native-sdlc-playbook-gap-analysis.md`、
-`docs/design/2026-09-12-silicon-valley-ai-sdlc-gap-analysis.md`。
+`file:line` 或 URL、有排序、也更新前幾份未做項目狀態的差距文件。現行機制先讀
+`docs/README.md`；歷史量測與限制已整併至 `docs/evaluation.md`，
+舊日期式差距文件由版本歷史追溯，不當成目前的待辦清單。
 
 ## 輸入與輸出
 
@@ -28,6 +27,7 @@ disable-model-invocation: true
 2. **先讀前幾份** `docs/design/*-gap-analysis.md`。沿用它們的 task ID 前綴與
    S／M／L／XL 規模；其中每一個「未做」都重新驗證一次——上次的未做可能已經做了。
    驗證結果填進 template 的「與前幾份的關係」表，一項一列，附證據。
+   沒有仍存的前次文件時，從現行主題文件與程式建立基準，關係表明列無前次文件；不重建已移除的待辦。
 3. **讀來源。** 給了檔案或 URL 就直接讀（URL 用 WebFetch），不另外搜；只有給
    「主題」才先 WebSearch 每家公司／每個主題，再 WebFetch 一手來源（工程 blog、
    changelog、官方報告）。新聞轉述的數字標「二手」。PDF 若是純影像：

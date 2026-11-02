@@ -3,8 +3,8 @@
 of the work breakdown; the price-table half, unit 5, is covered in
 tests/test_prices.py and is not touched here).
 
-The design is docs/design/2026-08-30-track-usage-accounting-detail.md, the
-`report` section plus D9/D10/D11; each test names the Verification-table row
+Current reporting overview: docs/observability.md. D9/D10/D11 are
+historical regression labels; each test names the Verification-table row
 or the parent task's numbered rule it stands for.
 """
 import json

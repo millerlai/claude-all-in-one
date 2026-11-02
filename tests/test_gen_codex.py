@@ -1,14 +1,13 @@
 """gen-codex.py -- the generator that turns plugins/cai into plugins/cai-codex.
 
-The design is docs/design/2026-09-18-codex-support-detail.md ("### gen-codex.py"
-in Implementation spec). U1 owns: collect/exclude, the override engine and its
+Current generation overview: docs/platforms.md. Historical U1 owns: collect/exclude, the override engine and its
 anchor rule, the `${CLAUDE_PLUGIN_ROOT}` and `/cai:` rewrites,
 `--check`/`--source`/`--out`, and the first override (approval-gates.md:21).
 U2 adds every other override plus the rest of the deny-list, including the
 fenced-code-block-only bash-syntax tokens. Emit -- agent TOMLs, `openai.yaml`,
 the manifest, the `stages.json` prefix -- is a later unit; its version stamp
 comes from the source tree's own `.claude-plugin/plugin.json` "version" key
-(docs/design/2026-09-26-release-versioning-detail.md), the single hand-written
+(docs/platforms.md), the single hand-written
 release version for both plugin trees.
 
 The module file is `gen-codex.py` (hyphenated, to match `gen-models.py`'s CLI
@@ -696,7 +695,7 @@ def test_generated_scratch_files_use_checked_writable_ignored_locations(tmp_path
 
 
 def test_generated_build_text_forbids_apostrophes_in_commit_summary(tmp_path):
-    # N1 (docs/design/2026-09-18-codex-support-detail.md): the
+    # Historical N1 (current overview: docs/platforms.md): the
     # per-unit summary must stay free of apostrophes -- an embedded `'` closes
     # the single-quoted `-m` string early, and unquoted text after it (e.g. a
     # `$(...)` the summary happens to mention) runs as a live shell command

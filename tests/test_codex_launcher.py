@@ -1,7 +1,7 @@
 """launcher.py -- the fixed-path Codex entry point installed at
 $HOME/.codex/cai/launcher.py (D1=C).
 
-Design: docs/design/2026-09-18-codex-support-detail.md, "### launcher.py".
+Current platform/setup overview: docs/platforms.md.
 U4 owns: version resolution, `--root`, the stamp check, and the guard
 adapter. Every test fakes `$CODEX_HOME` in `tmp_path` rather than touching a
 real `~/.codex` -- per the "never let a test write the real tree" rule this

@@ -1,8 +1,7 @@
 """usage_collector.py: reads transcripts, dedupes by requestId, aggregates
 per-model token usage for one session's time window.
 
-The design is docs/design/2026-08-30-track-usage-accounting-detail.md, the
-`usage_collector` section; each test names the Verification-table row it
+Current collection overview: docs/observability.md; each test names the Verification-table row it
 stands for so a failure says what broke, not just where.
 """
 import datetime
@@ -132,7 +131,7 @@ def test_rerun_is_byte_identical(tmp_path):
 
 
 # --- T3: a separator character inside a line does not split it -------------
-# docs/design/2026-09-26-jsonl-split-on-newline-diagnosis.md's T3.
+# Historical T3; current ledger overview: docs/observability.md.
 # `read_window()` (usage_collector.py:204) used `str.splitlines()`, whose
 # boundary set includes U+2028/U+2029/U+0085 -- characters that can appear
 # unescaped inside a JSON string. A field carrying one used to split a

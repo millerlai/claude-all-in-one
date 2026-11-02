@@ -292,5 +292,6 @@ Platform floors: Claude Code 2.1.283 or later, codex-cli 0.157.1 or later.
 | [`REFERENCE.md`](REFERENCE.md) | You want the long form: every subagent, the always-on guard and hooks, how a test command is resolved, runtime verification, ticket mirroring, the rules, the status line, and what the plugin deliberately leaves out. |
 | [`GUIDE.md`](GUIDE.md) | You are extending the plugin and need to know which component a new piece of guidance belongs in. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | You are changing this repo: testing an unreleased checkout, the checks to run before pushing, and cutting a release. |
+| [`docs/README.md`](docs/README.md) | You are maintaining this repo: current architecture, workflow, safety boundaries, platform mapping, and measurement evidence. |
 | [`plugins/cai-codex/README.md`](plugins/cai-codex/README.md) | You use Codex CLI: what maps onto what, and Windows-specific notes. |
 | [`CHANGELOG.md`](CHANGELOG.md) | You want to know what changed in a release. |

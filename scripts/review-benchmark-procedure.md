@@ -8,9 +8,8 @@ benchmark that costs money and the only part that is non-deterministic
 plain file operation.
 
 `findings.json`'s shape is defined in `scripts/review_benchmark_score.py`'s
-module docstring and in the design doc
-(`docs/design/2026-09-14-gap03-review-benchmark-detail.md`, "計分器" →
-"Data — `findings.json` 的形狀"). It is never committed: it is one run's
+module docstring; current evaluation limits are summarized in
+`docs/evaluation.md`. It is never committed: it is one run's
 record, not part of the collection, and lives in the scratchpad.
 
 1. Pick a case directory. Read its `expected.json`. Note `base_sha` and
@@ -68,7 +67,7 @@ record, not part of the collection, and lives in the scratchpad.
    every case twice).
 
 9. Run the scorer and paste its report into the measurement doc
-   (`docs/design/2026-09-14-gap03-review-benchmark-measurement.md`).
+   (`docs/evaluation.md`, with the run date and its limitations).
 
 ## Errors
 

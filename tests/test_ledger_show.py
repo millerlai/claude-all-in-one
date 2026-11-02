@@ -1,7 +1,7 @@
 """`show`'s continuation lines: the same fixed-width row as before, plus an
 indented per-model usage breakdown underneath when the record has one.
 
-D8 (docs/design/2026-08-30-track-usage-accounting-detail.md) requires the
+Historical D8 (current overview: docs/observability.md) requires the
 existing row to stay byte-for-byte the same -- these tests write records
 straight to ledger.jsonl rather than through `ledger.append()`, so each one
 controls exactly which usage fields are present without needing a real

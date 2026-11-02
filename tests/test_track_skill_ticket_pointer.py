@@ -1,7 +1,7 @@
 """Two topics share this file because both drive the same real
 `validate.py` run through `_run_validate()`, and paying for that run twice
-would be the exact cost D8 chose this file to avoid (docs/design/
-2026-09-06-pr60-followups-detail.md's D8).
+would be the exact cost historical D8 chose this file to avoid.
+Current workflow overview: docs/workflow.md.
 
 Unit 4 / AC24: the one line `SKILL.md` gains to route ticket mirroring to
 the main session (never a dispatched subagent), and the constraints around
