@@ -29,7 +29,7 @@ flowchart TB
     S1["design<br/>短路徑：只留 intake.md<br/>長路徑：一份分段的設計文件"] --> HG1
     HG1[/"人工關卡 · 選單<br/>簽核，此時尚無程式碼"/] --> S2
     S2["build<br/>依工作分解逐單元實作"] --> S3
-    S3["verify<br/>四個視角審查 diff"] --> S4
+    S3["verify<br/>平台審查加三個視角審查 diff"] --> S4
     S4["ship<br/>一個 commit，加一份 release note"] --> HG2
     HG2[/"人工關卡 · 選單<br/>merge、tag、發佈之前"/] --> DONE(["/cai:track done"])
 
@@ -65,7 +65,7 @@ flowchart TB
 | `/cai:track <feature>` | 建立或接續一條軌道。另有 `status`、`skip <stage> --reason "<why>"` 與 `done`。 |
 | `/cai:design` | 把需求轉成可驗收的問題陳述；有難以回復的部分時，再撰寫供審查的設計文件——診斷（diagnosis）、立場（stance）、決策（decisions）、細部設計（detail）或差異（delta）。 |
 | `/cai:build` | 依設計的工作分解逐單元實作，測試先行。 |
-| `/cai:verify` | 平行派出四個唯讀審查視角檢視 diff，再以測試先行的方式修正 Blocker 與 Major（最嚴重與次嚴重的發現）。 |
+| `/cai:verify` | 以平台內建審查判斷正確性，再加三個唯讀審查視角檢視 diff，然後以測試先行的方式修正 Blocker 與 Major（最嚴重與次嚴重的發現）。 |
 | `/cai:ship` | 把分支壓成一個遵循 conventional commit 慣例的 commit、寫一份 release note，並在 merge、打 tag 或發佈之前停下，直到有人確認。 |
 
 工具，隨時可用：
