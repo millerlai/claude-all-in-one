@@ -188,7 +188,11 @@ CATALOG = f"{PLUGIN}/refactoring-catalog"
 
 ROOT_CLAUDE = "CLAUDE.md"
 
-GUARD = f"{PLUGIN}/scripts/bash_guard.py"
+# A plugin file a skill or an agent tells the model to read, by its path under
+# the plugin root. One pattern for both sections that check such a path.
+PLUGIN_PATH_REF = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+\.\w+)")
+
+GUARD =f"{PLUGIN}/scripts/bash_guard.py"
 DISPATCHER = f"{PLUGIN}/hooks/run-guard.cmd"
 
 
@@ -419,7 +423,6 @@ def _skills():
     # broken for anyone who ran it. A body is instructions -- a name in it that
     # resolves to nothing is a 404 handed to a model mid-task.
     CMD_REF = re.compile(r"/cai:([a-z][a-z0-9-]*)")
-    PLUGIN_PATH_REF = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+\.\w+)")
     # Names that resolve to something other than a directory under skills/.
     KNOWN_NON_SKILL = {"setup"}
 
@@ -487,7 +490,16 @@ def _skills():
     # exact claim requires a person's explicit invocation. The flag keeps its
     # description out of the always-on budget; its dedicated section also pins
     # the absence of a model and tool grants, like `codemap`.
-    SKILL_NAMES = ["build", "chore", "codemap", "debug", "design", "discover", "fix",
+    # `doc-drift` is an addition because nothing else asks whether a project's
+    # Markdown still matches its code: what can be decided without reading
+    # lives in scripts/docs_check.py, which the verify stage also runs against
+    # each change, and the skill is how a person runs it over the backlog and
+    # has the stale sections read. It carries the flag because `audit` edits
+    # the user's documents, which no model may start on its own; the flag also
+    # keeps its description out of the always-on budget below. It is not
+    # named `docs`: .gitignore's `docs/` matches a directory of that name at
+    # any depth, so skills/docs/ would never have been committed.
+    SKILL_NAMES = ["build", "chore", "codemap", "debug", "design", "discover", "doc-drift", "fix",
                    "fix-unclaim", "git", "git-sweep", "goal", "models", "options",
                    "plan-review", "quiz", "refactor", "setup", "ship", "track", "usage",
                    "verify", "viewer"]
@@ -1092,6 +1104,17 @@ def _agents_and_hooks():
     # design, verify and ship stages moved into the main session.
     AGENTS = sorted(glob.glob(f"{PLUGIN}/agents/*.md"))
     check(f"agents/ holds exactly 7 files ({len(AGENTS)})", len(AGENTS) == 7)
+
+    # The skills section refuses a skill body naming a plugin file that is not
+    # there; agents were never included, so refactoring-detector.md went on
+    # loading skills/refactoring/references/smells.md after that directory
+    # became skills/refactor/, and every check stayed green.
+    for path in AGENTS:
+        dead_paths = sorted({rel for rel in PLUGIN_PATH_REF.findall(read_text(path))
+                             if not os.path.isfile(os.path.join(PLUGIN, rel))})
+        check(f"{path} names no plugin file that does not exist "
+              f"({len(dead_paths)}{': ' + ', '.join(dead_paths[:2]) if dead_paths else ''})",
+              not dead_paths)
 
     # Claude Code runs a hook command through /bin/sh as a path, so on macOS and
     # Linux a target without the exec bit fails with "Permission denied" (#355).

@@ -25,6 +25,7 @@ like they fit, the more specific one is right.
 | Fix an issue, a PR's review threads or a Jira ticket, end to end | `/cai:fix <url>` | Pushes, opens PRs and replies itself; never merges |
 | Clear a stuck local claim on an item `/cai:fix` skipped | `/cai:fix-unclaim <url> <platform> <session> <started>` | Deletes only the one exact local claim |
 | Index the repo so track stages re-read less | `/cai:codemap build` | Optional; writes only `.cai/codemap/`, which ignores itself |
+| Find documents that no longer match the code | `/cai:doc-drift` | Lists dead paths and sections to reread; `audit` proposes edits you approve |
 | Clean up code that already works | `/cai:refactor` | Behaviour unchanged, by the catalog |
 | Ask whether a branch is mergeable | `/cai:verify` | Platform review plus three review lenses over the diff |
 | Find out what you're missing | `/cai:discover` | Surfaces unknowns before code |
@@ -40,7 +41,7 @@ like they fit, the more specific one is right.
 
 `debug`, `refactor`, `verify`, `discover`, `plan-review`, `git` and `chore`
 also start on their own when what you say matches them, so you rarely type
-those. `quiz`, `options`, `usage`, `setup`, `fix`, `fix-unclaim`, the 72 named refactorings,
+those. `quiz`, `options`, `usage`, `setup`, `fix`, `fix-unclaim`, `doc-drift`, the 72 named refactorings,
 and the four stages that write things (below) only ever start when typed.
 
 `/cai:fix` pushes and opens pull requests, so it asks once at most: which
@@ -104,6 +105,11 @@ begins. The rest are each skill's own.
   lenses at once — two `reviewer` lenses (conformance, coverage) and
   `security-reviewer` — not one reviewer reading everything. A third
   `reviewer` takes correctness only when the platform review cannot run.
+- Before the lenses run, `docs_check.py` is run against the change's base. A
+  path a document names that the change deleted or renamed is a Major
+  finding; the sections naming a file the change touched go to the
+  conformance lens, which is asked which statement the diff made untrue and
+  what the change adds that no document mentions.
 - Every finding carries `file:line`, a failure with concrete inputs, and the
   smallest fix; "consider extracting" and "this could be cleaner" are absent.
 - The report opens with `Ready`, `Revise` or `Rework`, ranks findings Blocker

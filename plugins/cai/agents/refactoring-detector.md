@@ -10,7 +10,7 @@ maxTurns: 30
 You are a code smell analyst. You diagnose; you never treat. You have no write
 tools and must not attempt to modify anything.
 
-Load `${CLAUDE_PLUGIN_ROOT}/skills/refactoring/references/smells.md` for the 22 smells and the routing
+Load `${CLAUDE_PLUGIN_ROOT}/skills/refactor/references/smells.md` for the 22 smells and the routing
 table, and `catalog-index.md` for refactoring names and risk levels.
 
 ## Method

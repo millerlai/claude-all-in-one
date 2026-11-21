@@ -132,6 +132,41 @@ Step 3 lists it with the plan's reason.
   second answer> -- <the candidate's start words>`, which writes it into
   `.cai/cai.json`; the opening paragraph says what runs then.
 
+## Step 0.8 — Docs check
+
+Run `<cai> docs_check --base <base-ref> --project-dir <top>`
+once, before the lenses are dispatched. It reads the tracked Markdown and git
+history and writes nothing. A first line of `docs: unsupported (...)` means
+it checked nothing: Step 3's `Not covered` gives that reason. Exit 2 means at
+least one `dead` line and is not a stop: go on as below. Exit 1 prints no
+`docs:` line, and what it wrote to standard error is the reason `Not covered`
+gives.
+
+- A `dead` line is a reference this change left pointing at nothing: a path
+  it deleted or renamed, or a sentence it wrote about a path already gone.
+  Each goes to Step 2 as a finding with the line as its evidence. Its
+  requirement is the document's own sentence, a standing obligation named by
+  the file and heading the line carries, and it is a `Major`: the change is
+  right in the code and wrong in what the project says about it. The fix is
+  the new path, or the sentence rewritten when the thing itself is gone;
+  rerunning this command and reading the line gone is its test. A sentence
+  that points at the past on purpose — an upgrade note saying what was
+  removed — is not a finding: drop it, and say in Step 3 that you did.
+- The `review` lines are the document sections naming a file this change
+  touched. Give them to the conformance lens in Step 1 as they are, with one
+  question: which statement in these sections did this diff make untrue —
+  citing the document's `file:line` and the diff line that contradicts it,
+  and saying which side is wrong: the document, when the requirement asked
+  for the difference, or the code, when nothing did.
+- One question is asked of every change, whatever the command printed: what
+  does it add that a user would have to be told about — a command, a flag, a
+  setting, an output — that no document mentions? It goes to the conformance
+  lens with its other inputs. When Step 1 dispatches no conformance lens,
+  answer it yourself from the diff, before Step 2.
+
+A document this change made untrue is fixed in this change, by editing the
+document; no test can show such a fix, so say so beside it.
+
 ## Step 1 — Dispatch the lenses
 
 Three agents, in parallel, one message: two `cai_reviewer` agents, one lens each
@@ -171,7 +206,9 @@ conformance. With neither, conformance is skipped and the other three
 lenses still run, as before. With a requirement but no convention file,
 compare only against the requirement, as before. With a convention file but
 no requirement, conformance still runs and compares only against the
-convention files. With both, compare against both.
+convention files. With both, compare against both. Step 0.8's `review` lines
+are a third input, independent of those two: with them, conformance runs
+even when the other two are missing, and answers only Step 0.8's questions.
 
 When the person names a requirement, that is the requirement. When they
 name none, under a track it is the documents the design row of the track's

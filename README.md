@@ -101,6 +101,7 @@ Tools, reachable any time:
 | `/cai:fix` | Fix a GitHub issue, the issues you pick from a list, a pull request's review threads, or one Jira ticket, and push the result with no stop in between: it pushes, opens pull requests and replies to review threads itself, and never merges. |
 | `/cai:fix-unclaim` | Clear one named local session claim left by `/cai:fix`, without waiting for it to expire. |
 | `/cai:codemap` | Build, refresh, check or query an optional index of the repository's files and symbols under `.cai/codemap/`; once it exists, the track hands the read-side agents its state line so they start from it instead of re-reading the same files, and outside the track a `SubagentStart` hook hands `cai:explorer` and `cai:architect` the same line while the index is fresh (Claude Code only; it never refreshes the index, so after an edit run `/cai:codemap update`). It ignores itself in git and can be deleted at any time. |
+| `/cai:doc-drift` | Find where the project's Markdown has stopped matching its code — paths that were deleted or renamed, sections naming files that changed since — and bring the stale ones up to date, each edit shown to you first. The `verify` stage runs the same check against every change. |
 | `/cai:refactor` | Restructure code without changing its behaviour; every one of Fowler's 72 named refactorings is also its own `/cai:<name>`. |
 | `/cai:git` | Run git and `gh` operations on the `chore` tier instead of the main session model. |
 | `/cai:chore` | Run a mechanical one-off — renames, formatting, lookups — on the `chore` tier. |
