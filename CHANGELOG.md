@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.3.0 — 2026-11-21
+
+This release adds `/cai:doc-drift`, which finds the Markdown in your project that no longer matches its code, and makes `verify` run the same check against every change.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v2.2.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 2.2.0 to 2.3.0. Nothing needs re-running: no rule file changed, so `/cai:setup` has nothing new to copy.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then re-run `$setup`. Re-running it replaces the copy of the `refactoring-detector` agent that setup installed under `~/.codex/agents/`; without it that copy keeps pointing at a file that does not exist (see below).
+- **A track in progress** keeps working: `state.md` and the ledger keep the same fields. If it has not reached `verify` yet, `verify` will include the new docs check when it does; a `verify` already finished is not rerun. (#497)
+
+### Documentation drift
+
+- `/cai:doc-drift` checks your project's Markdown against its code. `check` prints two kinds of line: `dead`, a path a document names that was committed once and is gone, with the commit that deleted or renamed it; and `review`, a section naming a file that changed after the document last did. Neither calls a model. A path that never existed is taken for an example and left alone, a path your `.gitignore` now covers is counted as `now ignored`, and changelogs, dated files and decision records are skipped unless you name them. (#497)
+- `audit` reads the sections `check` listed against the code and proposes the smallest rewrite for each statement that no longer holds; `deep <path>` does the same for prose that names no file. Nothing is edited before you approve it, and nothing records that a section was read, so a section is listed again next time until the document or the file it names changes. Only you can start it; it never runs on its own. (#497)
+- `verify` now runs the same check against the change's base before the review lenses. A `dead` line the change caused, by deleting or renaming a path or by moving the document, is a Major finding. The sections naming a file the change touched go to the conformance lens, and every change is asked what it adds that no document mentions. No lens was added, so `verify` dispatches the same agents as before. (#497)
+- A sentence that points at the past on purpose, such as an upgrade note saying what was removed, is not a finding. (#497)
+
+### Subagents
+
+- The `refactoring-detector` agent was told to load `skills/refactoring/references/smells.md`, a directory renamed to `skills/refactor/` earlier, so it never got its list of smells. It now loads the right file. (#497)
+
 ## v2.2.0 — 2026-10-31
 
 This release runs the track's `design`, `verify` and `ship` stages in your own session instead of in subagents, and lets a test command pinned to one Python interpreter be narrowed to the tests a change touches.
