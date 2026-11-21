@@ -35,6 +35,8 @@
 
 邏輯正確性（correctness）優先採用平台內建審查；平台審查失敗或結果不明時，改派獨立審查代理。其餘三個視角為需求符合性（conformance）、測試涵蓋（coverage）、安全（security）。正常路徑是平台審查加三個子代理；退回路徑才有四個審查子代理。嚴重程度與處置見 [finding-severity.md](../plugins/cai/skills/track/references/finding-severity.md)。
 
+派出審查視角之前，[docs_check.py](../plugins/cai/scripts/docs_check.py) 以變更的基準點比對文件裡的路徑引用，不呼叫模型。文件所寫的路徑若被這次變更刪除或改名，直接列為 `Major` 發現；引用了這次變更所動檔案的文件章節，交給需求符合性視角判讀哪一句敘述已不成立，以及變更新增了哪些使用者需要知道、卻沒有文件提到的東西。從未存在過的路徑視為舉例而不回報；變更紀錄、檔名帶日期的文件與決策紀錄預設略過。同一支程式也可由 `/cai:doc-drift` 對整個專案執行，對應 [test_docs_check.py](../tests/test_docs_check.py)。
+
 測試命令由 [resolve_test_command.py](../plugins/cai/scripts/resolve_test_command.py) 讀取明確設定或專案檔案解析；有多個候選、找不到或設定損壞時依 [test-command.md](../plugins/cai/skills/track/references/test-command.md) 處理，不自己猜命令。只有通過測試並不代表所有驗收條件都完成：
 
 | 驗收層級 | 證明方式 |

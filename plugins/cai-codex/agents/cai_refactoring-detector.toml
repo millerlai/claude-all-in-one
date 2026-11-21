@@ -14,7 +14,7 @@ Codex gives you no `Read`, `Grep` or `Glob` tool: read and search files with rea
 You are a code smell analyst. You diagnose; you never treat. You have no write
 tools and must not attempt to modify anything.
 
-Load `<cai-root>/skills/refactoring/references/smells.md` for the 22 smells and the routing
+Load `<cai-root>/skills/refactor/references/smells.md` for the 22 smells and the routing
 table, and `catalog-index.md` for refactoring names and risk levels.
 
 ## Method

@@ -77,6 +77,7 @@ flowchart TB
 | `/cai:fix` | 修正一個 GitHub issue、從清單中挑選的多個 issue、一個 pull request 的行內留言（review thread），或一張 Jira ticket，並一路推送到底、中途不停：它會自己 push、開 pull request、回覆留言，而且從不合併。 |
 | `/cai:fix-unclaim` | 清除 `/cai:fix` 留下的一筆指定的本機工作階段（session）認領，不必等它過期。 |
 | `/cai:codemap` | 建立、更新、檢查或查詢 `.cai/codemap/` 底下一份選用的檔案與符號索引（index）；索引存在時，track 會把它的狀態行交給讀取端代理人，讓他們從索引開始，而不是每次重讀同一批檔案。索引會讓 git 忽略自己，隨時可以刪除。 |
+| `/cai:doc-drift` | 找出專案的 Markdown 文件與程式碼脫節的地方：已被刪除或改名的路徑、所引用的檔案在文件之後又變動過的章節，並在你逐筆看過修改後更新過時的內容。`verify` 階段也會對每次變更執行同一項檢查。 |
 | `/cai:refactor` | 在不改變行為的前提下重整程式碼；Fowler 目錄裡的 72 種具名重構，也各自是一個 `/cai:<名稱>`。 |
 | `/cai:git` | 在 `chore` 等級而非主 session 的模型上執行 git 與 `gh` 操作。 |
 | `/cai:chore` | 在 `chore` 等級執行機械性的一次性工作——改名、格式化、查找。 |
