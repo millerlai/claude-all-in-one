@@ -117,6 +117,14 @@ def test_claude_path_asks_instead_of_blocking_or_allowing_silently(feature_repo)
         assert out["permissionDecisionReason"]
 
 
+def test_powershell_backslash_at_line_end_does_not_hide_the_next_line(feature_repo):
+    # A trailing backslash is a path in PowerShell, not a line continuation, so
+    # the merge on the next line is still a merge (#499 verify, open-16).
+    done = run("Get-ChildItem C:\\logs\\\ngh pr merge 7 --squash", feature_repo, tool="PowerShell")
+    assert done.returncode == 0, (done.stdout, done.stderr)
+    assert json.loads(done.stdout)["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
 def test_codex_signal_denies_and_hands_back_the_command(feature_repo):
     for command in ASK_COMMANDS:
         done = run(command, feature_repo, codex=True)

@@ -103,3 +103,10 @@ start of a new, fieldless entry and fails the ledger's own checks.
 - Failure: reported by the user, and landing in the same change as this entry -- no commit predates it. The language line's "keep technical terms in their original form" was being read as licence to leave every such term bare, so a non-English document came out as prose threaded with unexplained English, and a reader meeting a term for the first time had nothing in their own language to learn its meaning from. The fix the user asked for is the pattern README.zh-TW.md's architecture section already uses -- the meaning in the document's language, then the term in parentheses -- or a glossary at the top.
 - Rule: In a reply or document written in a language other than English, a term kept in its original form is not left bare on first use: give its meaning in that language, then the term in parentheses — or, in a document, open with a glossary that does this for every such term. A reader meeting the term for the first time cannot recover the meaning from the English alone.
 - Cited by: plugins/cai/rules/communication.md § Communication
+
+## epistemics-small-first — explore and measure small first, estimate before a long run
+
+- Date: 2026-11-27
+- Failure: issue #499 (a three-hour run of full matches that could not answer its question, started without an estimate), and its reproduction in the Phase 0 of the track that added this rule (a ~1.7 h background run started with `( … ) &` and the estimate stated after launch; a local track note, not in the repository).
+- Rule: Estimate its cost first (cases × time per case ÷ workers) and say it. Past about an hour, run and report a smaller one first, and ask before the long one — a stop-and-ask case in its own right — unless the person asked for that run. One already started that would run that long, unasked, is stopped first; a subagent hands the question back instead of asking. The full run comes once, to confirm; the completion gate below still requires it.
+- Cited by: plugins/cai/rules/epistemics.md § Exploring and measuring: small first

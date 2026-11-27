@@ -569,14 +569,16 @@ def substitutions(body):
     return segments
 
 
-def scan_command(command):
+def scan_command(command, bash_like=True):
     """Read `command` once, left to right, replacing each heredoc opener with
     a space and each unquoted body with its substitution segments -- a quoted
     body is data and is dropped entirely. Returns (code, verdict): `code` is
     what the BLOCKED/COMMIT rules match against, and `verdict` (None,
     EXPANDED, UNPARSED, SUBSTITUTED or UNPARSED_SUBSTITUTION) is the first
     backtick, or $(...) a stray apostrophe left unquoted, this scan saw, for
-    main() to act on."""
+    main() to act on. `bash_like` False keeps a backslash-newline: in
+    PowerShell a trailing backslash is part of a path, and joining it to the
+    next line hid that line's `git commit` from the rules below (#499)."""
     n = len(command)
     i = 0
     state = "normal"  # normal, single, double
@@ -599,7 +601,7 @@ def scan_command(command):
 
         if walk_depth > 0 or state == "normal":
             if c == "\\":
-                if i + 1 < n and command[i + 1] == "\n":
+                if bash_like and i + 1 < n and command[i + 1] == "\n":
                     # Bash removes a backslash-newline pair entirely before
                     # word-splitting, joining the two lines -- so a command
                     # split across a continuation (`gh pr \` / `merge 123`)
@@ -724,7 +726,7 @@ def scan_command(command):
 
         # state == "double"
         if c == "\\":
-            if i + 1 < n and command[i + 1] == "\n":
+            if bash_like and i + 1 < n and command[i + 1] == "\n":
                 # Same line-continuation removal as the normal-state branch
                 # above -- Bash also strips a backslash-newline pair inside
                 # double quotes.
@@ -949,7 +951,7 @@ def main() -> int:
 
     # Match against the command with heredoc bodies removed, but always show
     # the user what they actually typed.
-    code, verdict = scan_command(command)
+    code, verdict = scan_command(command, bash_like)
 
     for pattern, reason, advice in BLOCKED + shell_rules:
         if re.search(pattern, code):
@@ -1008,6 +1010,28 @@ def main() -> int:
             return deny(MERGE_REASON, command, MERGE_CODEX_ADVICE)
         return ask(MERGE_REASON, command)
 
+    # A reminder, never a decision: every deny and ask above has returned (#499).
+    # It reads the command as typed, not `code`: scan_command joins a
+    # backslash-newline as Bash would even for PowerShell, and leaves a quoted
+    # here-doc in place once an earlier construct is unmodelled; the module
+    # strips here-docs itself.
+    if os.environ.get(CODEX_GUARD_ENV) != "1":
+        try:
+            import long_run_hint
+            hint = long_run_hint.background_hint(
+                payload.get("tool_name"), payload.get("tool_input"), command)
+            if hint:
+                print(json.dumps({"hookSpecificOutput": {
+                    "hookEventName": "PreToolUse", "additionalContext": hint}}))
+                sys.stdout.flush()
+        except Exception:  # noqa: BLE001 -- a reminder must not cost a verdict
+            # A failed flush leaves the bytes buffered, and the retry at
+            # interpreter exit would turn exit 0 into 120, which run-guard.cmd
+            # blocks. Pointing fd 1 at the null device lets that retry succeed.
+            try:
+                os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+            except Exception:  # noqa: BLE001
+                pass
     return 0
 
 

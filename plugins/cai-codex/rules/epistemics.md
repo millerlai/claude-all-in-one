@@ -36,6 +36,22 @@
 - Everything not blocked by the answer keeps going. Ask at the point the answer
   changes what you do next, not at the top of the turn.
 
+# Exploring and measuring: small first
+- A trial, measurement, benchmark, tuning run, search or debugging hypothesis starts
+  with the smallest, fastest run that can show whether the direction is worth anything:
+  a drill that isolates the one behaviour before the end-to-end run, a few cases before
+  many, one variant before a grid. Grow only on evidence; a direction the small run does
+  not support is rethought there, not carried into a bigger run.
+- Before launching one, say in one line what it can show and what result would change
+  the next step, and check it can tell the candidates apart: noise larger than the gap
+  between them means it cannot, and it is not started.
+- Estimate its cost first (cases × time per case ÷ workers) and say it. Past about an
+  hour, run and report a smaller one first, and ask before the long one — a stop-and-ask
+  case in its own right — unless the person asked for that run. One already started that
+  would run that long, unasked, is stopped first; a subagent hands the question back
+  instead of asking. The full run comes once, to confirm; the completion gate below
+  still requires it.
+
 # Verification & Completion
 - Before claiming a task complete, run the actual build/tests and read the real output.
   Never report success based on tool output you suspect is stale or "contaminated" —
