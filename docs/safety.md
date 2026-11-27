@@ -8,7 +8,7 @@
 
 防護依賴平台提供的工具名稱、代理身分與呼叫內容。它不是完整的作業系統隔離，也不能認證主工作階段寫入的核准一定來自真人；間接執行、未涵蓋的命令形狀與環境權限仍有邊界。沒有可工作的直譯器時，各入口的退路也不同，不能概稱全部拒絕或全部放行。現行降級判準見 [run-guard.cmd](../plugins/cai/hooks/run-guard.cmd)、[runner_guard.py](../plugins/cai/scripts/runner_guard.py) 與 [完整參考](../REFERENCE.md)。
 
-命令中的引號與展開在不同殼層不相同；多行訊息使用檔案傳入，避免把內容當作程式執行。檔案放進暫存目錄不會自動取得網路、瀏覽器或受保護路徑的權限。防護與輸出遮蔽的回歸案例位於 [tests](../tests) 的 `test_bash_guard_*.py` 與 [validate.py](../scripts/validate.py)。
+命令中的引號與展開在不同殼層不相同；多行訊息使用檔案傳入，避免把內容當作程式執行。檔案放進暫存目錄不會自動取得網路、瀏覽器或受保護路徑的權限。防護與輸出遮蔽的回歸案例位於 [tests](../tests) 的 `test_bash_guard_*.py`、`test_long_run_hint.py`（放行時的背景提醒，以及它不改變任何判定）與 [validate.py](../scripts/validate.py)。
 
 ## 設計階段的安全證據
 

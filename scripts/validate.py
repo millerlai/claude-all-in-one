@@ -1728,6 +1728,14 @@ def _guard():
         ("Monitor", "tail -f build.log", 0, WORK),
         ("Monitor", "gh pr merge 1", 0, WORK),
         ("Monitor", {"ws": "wss://example.invalid/stream"}, 0, WORK),
+        # #499: a command that starts background work still gets the allow
+        # verdict; the reminder it prints is asserted in tests/test_long_run_hint.py.
+        ("Bash", "sleep 100 &", 0, WORK),
+        ("PowerShell", "Start-Job { Start-Sleep 100 }", 0, WORK),
+        # A trailing backslash is a path in PowerShell, not a continuation:
+        # the commit on the next line still lands on main (#499 verify).
+        ("PowerShell", "Get-ChildItem C:\\logs\\\ngit commit -m x", 2, MAIN),
+        ("Bash", "git \\\ncommit -m x", 2, MAIN),
     ]
 
     def run_process(argv, cmd, tool="Bash", cwd="", agent=None, agent_id=None, env=None,
