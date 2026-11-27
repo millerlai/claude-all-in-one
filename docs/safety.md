@@ -10,6 +10,27 @@
 
 命令中的引號與展開在不同殼層不相同；多行訊息使用檔案傳入，避免把內容當作程式執行。檔案放進暫存目錄不會自動取得網路、瀏覽器或受保護路徑的權限。防護與輸出遮蔽的回歸案例位於 [tests](../tests) 的 `test_bash_guard_*.py`、`test_long_run_hint.py`（放行時的背景提醒，以及它不改變任何判定）與 [validate.py](../scripts/validate.py)。
 
+## 背景長跑提醒
+
+2026-11-27 核對。[bash_guard.py](../plugins/cai/scripts/bash_guard.py) 在 Claude Code 上放行一個會啟動背景工作的呼叫時，會透過附加脈絡（additionalContext，hook 加進模型可見內容的一段文字）送出一句固定提醒，內容是 [epistemics.md](../plugins/cai/rules/epistemics.md) 的「Exploring and measuring: small first」規則；規則的來由（#499）見 [rule-provenance.md](rule-provenance.md)。判斷由 [long_run_hint.py](../plugins/cai/scripts/long_run_hint.py) 負責，算是背景工作的有三種：`run_in_background` 為真的 Bash 或 PowerShell 呼叫、帶指令的 Monitor 呼叫，以及指令自己把工作丟到背景（Bash 的單獨 `&`、`nohup`、`setsid`、`disown`、`start /b`；PowerShell 的 `Start-Process`、`Start-Job`、`Start-ThreadJob`、它們的別名，以及敘述中段或結尾的 `&`）。比對前會先遮蔽引號內容、註解、heredoc 內文與 `${…}`，讀的是原始指令，不是守門腳本合併續行後的文字。
+
+這句提醒不擋任何事，理由有三：
+- 一個指令會跑多久，從指令本身看不出來，只有讀過程式碼的模型知道。
+- 若在每次背景啟動都跳出確認，開發伺服器與監看指令也會被問，守門腳本最後會被整個關掉。
+- 提醒區塊位在所有拒絕與詢問判定之後，輸出只有附加脈絡、沒有權限決定，所以不會改變任何判定。
+
+在 Codex 上（`CAI_CODEX_GUARD=1`），守門腳本不輸出這句提醒。
+
+提醒文字是一個不超過 500 字元的固定 ASCII 常數，不含指令內容，避免命令裡的文字冒充平台訊息。措辭是條件式的事實陳述（「asks to start … If it runs」），因為它在 Claude Code 自己的權限檢查之前送出，被拒絕的呼叫也會收到；命令式的措辭則可能被模型當成可疑的注入。
+
+邊界：
+- 提醒隨工具結果送達，長跑當時已經開始，所以只能要求模型事後停掉。
+- 模型仍可能忽略提醒，啟動前唯一起作用的是規則本身。
+- WebSocket 監看、守門腳本退回降級檢查時，以及前景指令逾時後被平台移到背景時，都沒有提醒。
+- 判斷過程中的任何例外都會被吞掉，守門腳本仍以 0 結束；寫入失敗時，標準輸出會改指向空裝置，避免結束時重試寫入失敗而回傳 120，被 [run-guard.cmd](../plugins/cai/hooks/run-guard.cmd) 當成封鎖。
+
+對應測試在 [test_long_run_hint.py](../tests/test_long_run_hint.py)，其中 1 MB 的刻意構造指令驗證判斷維持線性時間。
+
 ## 設計階段的安全證據
 
 [threat-modeling.md](../plugins/cai/skills/track/references/threat-modeling.md) 與 [security_design.py](../plugins/cai/scripts/security_design.py) 是現行契約：
