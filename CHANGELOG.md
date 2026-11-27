@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.4.0 — 2026-11-27
+
+This release adds a rule for experiments, measurements and tuning runs — start with the smallest run that can answer the question, and ask before an unrequested run past about an hour — and on Claude Code a reminder of it whenever a shell call starts work in the background. It also closes a guard gap in PowerShell.
+
+Requires Claude Code 2.1.283 or later and codex-cli 0.157.1 or later, unchanged from v2.3.0.
+
+### What to do when you update
+
+- **Claude Code** — `/plugin marketplace update claude-all-in-one`, then `/plugin update cai`, and restart the session. The version moves from 2.3.0 to 2.4.0. Re-run `/cai:setup`: `epistemics.md` changed, and until it is copied into `~/.claude/rules/` the reminder below cites a rule your sessions do not load yet.
+- **Codex** — `codex plugin marketplace upgrade`, then `codex plugin add cai-codex@claude-all-in-one`, then re-run `$setup`, which rewrites the rules block in `$CODEX_HOME/AGENTS.md` with the new rule.
+- **A track in progress** keeps working: `state.md` and the ledger keep the same fields. Its stages, `build` agents included, get the new rule and the reminder from the next call on.
+
+### Rules
+
+- New section in `epistemics.md`, "Exploring and measuring: small first". A trial, measurement, benchmark, tuning run, search or debugging hypothesis starts with the smallest run that can show whether the direction is worth anything — a drill before the end-to-end run, a few cases before many, one variant before a grid. Before launching one, Claude says what it can show and checks it can tell the candidates apart; it estimates the cost (cases × time per case ÷ workers) and says it. Past about an hour, it runs a smaller one first and asks before the long one, unless you asked for that run; one already started that would run that long is stopped first. The full check still runs once at the end. (#500)
+
+### Guard
+
+- On Claude Code, when the bash guard lets through a call that starts work in the background — `run_in_background`, a Monitor watch with a command, or a command that detaches work with `&`, `nohup`, `setsid`, `disown`, `start /b`, `Start-Process`, `Start-Job`, `Start-ThreadJob` or their aliases — it adds one fixed reminder of that rule to Claude's context. It never blocks or prompts, and every call the guard denied or asked about before is denied or asked about exactly as before. Quoted text, comments, heredoc bodies and `${…}` are not read as a launch. Codex prints nothing new. (#500)
+- In PowerShell, a line ending in a backslash (`Get-ChildItem C:\logs\`) no longer hides the next line from the guard: a `git commit` on `main` there is blocked again, and a `gh pr merge` there is caught again — put to you on Claude Code, handed back for you to run on Codex. The guard had joined the two lines as Bash would, though PowerShell has no such line continuation. (#500)
+
 ## v2.3.0 — 2026-11-21
 
 This release adds `/cai:doc-drift`, which finds the Markdown in your project that no longer matches its code, and makes `verify` run the same check against every change.
